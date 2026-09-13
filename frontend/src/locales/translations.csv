@@ -1,0 +1,103 @@
+key,uz,ru,en
+menu.dashboard,Boshqaruv Paneli,Панель управления,Dashboard
+menu.assets,Asosiy Vositalar (QR),Основные средства (QR),Fixed Assets (QR)
+menu.warehouse,Sarf Tovarlari & Qoldiq,Складские запасы,Warehouse & Stock
+menu.suppliers,Ta’minot & Shartnomalar,Поставщики и договоры,Suppliers & Contracts
+menu.movements,Kirim / Siljish Tarixi,История перемещений,Movements History
+menu.requests,Talabnomalar (Zayavka),Заявки на получение,Requests (Zayavka)
+menu.repairs,Ta’mirlash & Servis,Ремонт и сервис,Repairs & Service
+menu.writeOffs,Spisanie (OS-4),Списание (ОС-4),Write-Off (OS-4)
+menu.organization,Tuzilma & Xonalar,Структура и помещения,Structure & Rooms
+menu.quotas,Kafedralar Kvotasi,Квоты кафедр,Department Quotas
+menu.audit,Tizim Auditi,Аудит системы,System Audit
+menu.integrations,Integratsiyalar,Интеграции,Integrations
+menu.scanner,QR Inventarizatsiya,QR Инвентаризация,QR Inventory Audit
+menu.backups,Zaxira Nusxalari (Backup),Резервные копии (Backup),Database Backups
+menu.users,Xodimlar & Rollar,Сотрудники и роли,Staff & Roles
+
+common.appTitle,UWMS Tizimi,Система UWMS,UWMS System
+common.appSubtitle,Universitet Ombori,Склад Университета,University Warehouse
+common.actions,Amallar,Действия,Actions
+common.search,Qidiruv,Поиск,Search
+common.searchPlaceholder,Qidirish...,Поиск...,Search...
+common.save,Saqlash,Сохранить,Save
+common.cancel,Bekor qilish,Отмена,Cancel
+common.confirm,Tasdiqlash,Подтвердить,Confirm
+common.close,Yopish,Закрыть,Close
+common.clear,Tozalash,Очистить,Clear
+common.refresh,Yangilash,Обновить,Refresh
+common.export,Eksport,Экспорт,Export
+common.exportExcel,Excelga Eksport,Экспорт в Excel,Export to Excel
+common.download,Yuklab olish,Скачать,Download
+common.delete,O‘chirish,Удалить,Delete
+common.edit,Tahrirlash,Редактировать,Edit
+common.add,Qo‘shish,Добавить,Add
+common.viewAll,Barchasini ko‘rish,Посмотреть все,View All
+common.loading,Yuklanmoqda...,Загрузка...,Loading...
+common.noData,Ma’lumot topilmadi,Данные не найдены,No data found
+common.status,Holati,Статус,Status
+common.date,Sana,Дата,Date
+common.user,Foydalanuvchi,Пользователь,User
+common.responsiblePerson,Mas’ul Shaxs,Ответственное лицо,Responsible Person
+common.quantity,Miqdor,Количество,Quantity
+common.unit,Birligi,Ед. изм.,Unit
+common.price,Narxi,Цена,Price
+common.total,Jami,Итого,Total
+common.totalCount,Jami: {{count}} ta,Всего: {{count}},Total: {{count}}
+common.notes,Izoh,Примечание,Notes
+
+status.new,Yangi,Новый,New
+status.pending,Kutilmoqda,В ожидании,Pending
+status.approved,Tasdiqlangan,Утвержден,Approved
+status.rejected,Rad etilgan,Отклонен,Rejected
+status.fulfilled,Bajarilgan,Выполнен,Fulfilled
+status.inRepair,Ta’mirda,В ремонте,In Repair
+status.inUse,Foydalanishda,В эксплуатации,In Use
+status.inStock,Omborda,На складе,In Stock
+status.writtenOff,Hisobdan chiqarilgan,Списан,Written Off
+status.active,Faol,Активный,Active
+
+header.darkMode,Qorong‘i rejim,Темный режим,Dark mode
+header.lightMode,Yorug‘ rejim,Светлый режим,Light mode
+header.logout,Tizimdan chiqish,Выйти из системы,Logout
+header.notifications,Bildirishnomalar,Уведомления,Notifications
+header.language,Til,Язык,Language
+
+dashboard.stats.totalAssets,Jami Asosiy Vositalar,Всего основных средств,Total Fixed Assets
+dashboard.stats.totalStock,Ombordagi Sarf Tovarlar,Расходные материалы,Total Stock Items
+dashboard.stats.activeRequests,Faol Talabnomalar,Активные заявки,Active Requests
+dashboard.stats.totalValue,Umumiy Balans Qiymati,Общая балансовая стоимость,Total Asset Value
+dashboard.recentMovements,So‘nggi Ombor Harakatlari,Последние движения склада,Recent Warehouse Movements
+dashboard.pendingRequests,Kutilayotgan Talabnomalar,Ожидающие заявки,Pending Requests
+
+assets.inventoryNumber,Inventar №,Инвентарный №,Inventory No
+assets.itemName,Jihoz Nomi va Modeli,Наименование и модель,Item Name & Model
+assets.location,Joylashuvi,Расположение,Location
+assets.balancePrice,Balans Narxi,Балансовая стоимость,Balance Price
+assets.amortization,Amortizatsiya & Qoldiq,Амортизация и остаток,Depreciation & Remaining
+assets.fundingSource,Moliyalashtirish,Источник финансирования,Funding Source
+assets.qrPassport,Pasport,Паспорт,Passport
+assets.qrSticker,QR Stiker,QR Стикер,QR Sticker
+assets.transfer,Ichki Siljish,Внутреннее перемещение,Transfer
+
+warehouse.itemName,Mahsulot Nomi,Наименование товара,Item Name
+warehouse.warehouseName,Omborxona,Складское помещение,Warehouse
+warehouse.currentStock,Mavjud Qoldiq,Текущий остаток,Current Balance
+warehouse.replenish,Kirim Qilish,Оприходовать,Replenish
+warehouse.lowStock,Kam Qolganlar,Заканчивающиеся,Low Stock
+warehouse.normalStock,Yetarli Zaxira,Достаточный запас,Sufficient Stock
+
+requests.requestNumber,Zayavka №,Заявка №,Request No
+requests.requester,Talabgor Shaxs & Bo‘lim,Заявитель и отдел,Requester & Department
+requests.requestedItems,So‘ralayotgan Mahsulotlar,Запрашиваемые материалы,Requested Items
+requests.createRequest,Yangi Talabnoma Yaratish,Создать заявку,Create Request
+requests.approve,Tasdiqlash,Утвердить,Approve
+requests.fulfill,Ombordan Berish,Выдать со склада,Fulfill
+
+backups.title,Ma’lumotlar Bazasi Zaxiralari (Disaster Recovery),Резервные копии базы данных (Disaster Recovery),Database Backups (Disaster Recovery)
+backups.createBackup,Yangi Zaxira Yaratish,Создать резервную копию,Create New Backup
+backups.fileName,Fayl Nomi,Имя файла,File Name
+backups.fileSize,Hajmi,Размер,File Size
+backups.checksum,SHA-256 Xesh (Butunlik),SHA-256 Хэш (Целостность),SHA-256 Hash
+backups.restore,Tiklash,Восстановить,Restore
+backups.download,Yuklash,Скачать,Download

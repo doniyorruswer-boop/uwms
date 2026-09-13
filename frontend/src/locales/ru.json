@@ -1,0 +1,116 @@
+{
+  "menu": {
+    "dashboard": "Панель управления",
+    "assets": "Основные средства (QR)",
+    "warehouse": "Складские запасы",
+    "suppliers": "Поставщики и договоры",
+    "movements": "История перемещений",
+    "requests": "Заявки на получение",
+    "repairs": "Ремонт и сервис",
+    "writeOffs": "Списание (ОС-4)",
+    "organization": "Факультеты и аудитории",
+    "quotas": "Квоты кафедр",
+    "audit": "Аудит системы",
+    "integrations": "Интеграции",
+    "scanner": "QR Инвентаризация",
+    "backups": "Резервные копии (Backup)",
+    "users": "Сотрудники и роли"
+  },
+  "common": {
+    "appTitle": "Система UWMS",
+    "appSubtitle": "Склад Университета",
+    "actions": "Действия",
+    "search": "Поиск",
+    "searchPlaceholder": "Поиск...",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "confirm": "Подтвердить",
+    "close": "Закрыть",
+    "clear": "Очистить",
+    "refresh": "Обновить",
+    "export": "Экспорт",
+    "exportExcel": "Экспорт в Excel",
+    "download": "Скачать",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "add": "Добавить",
+    "viewAll": "Посмотреть все",
+    "loading": "Загрузка...",
+    "noData": "Данные не найдены",
+    "status": "Статус",
+    "date": "Дата",
+    "user": "Пользователь",
+    "responsiblePerson": "Ответственное лицо",
+    "quantity": "Количество",
+    "unit": "Ед. изм.",
+    "price": "Цена",
+    "total": "Итого",
+    "totalCount": "Всего: {{count}}",
+    "notes": "Примечание"
+  },
+  "status": {
+    "new": "Новый",
+    "pending": "В ожидании",
+    "approved": "Утвержден",
+    "rejected": "Отклонен",
+    "fulfilled": "Выполнен",
+    "inRepair": "В ремонте",
+    "inUse": "В эксплуатации",
+    "inStock": "На складе",
+    "writtenOff": "Списан",
+    "active": "Активный"
+  },
+  "header": {
+    "darkMode": "Темный режим",
+    "lightMode": "Светлый режим",
+    "logout": "Выйти из системы",
+    "notifications": "Уведомления",
+    "language": "Язык"
+  },
+  "dashboard": {
+    "stats": {
+      "totalAssets": "Всего основных средств",
+      "totalStock": "Расходные материалы",
+      "activeRequests": "Активные заявки",
+      "totalValue": "Общая балансовая стоимость"
+    },
+    "recentMovements": "Последние движения склада",
+    "pendingRequests": "Ожидающие заявки"
+  },
+  "assets": {
+    "inventoryNumber": "Инвентарный №",
+    "itemName": "Наименование и модель",
+    "location": "Расположение",
+    "balancePrice": "Балансовая стоимость",
+    "amortization": "Амортизация и остаток",
+    "fundingSource": "Источник финансирования",
+    "qrPassport": "Паспорт",
+    "qrSticker": "QR Стикер",
+    "transfer": "Внутреннее перемещение"
+  },
+  "warehouse": {
+    "itemName": "Наименование товара",
+    "warehouseName": "Складское помещение",
+    "currentStock": "Текущий остаток",
+    "replenish": "Оприходовать",
+    "lowStock": "Заканчивающиеся",
+    "normalStock": "Достаточный запас"
+  },
+  "requests": {
+    "requestNumber": "Заявка №",
+    "requester": "Заявитель и отдел",
+    "requestedItems": "Запрашиваемые материалы",
+    "createRequest": "Создать заявку",
+    "approve": "Утвердить",
+    "fulfill": "Выдать со склада"
+  },
+  "backups": {
+    "title": "Резервные копии базы данных (Disaster Recovery)",
+    "createBackup": "Создать резервную копию",
+    "fileName": "Имя файла",
+    "fileSize": "Размер",
+    "checksum": "SHA-256 Хэш (Целостность)",
+    "restore": "Восстановить",
+    "download": "Скачать"
+  }
+}

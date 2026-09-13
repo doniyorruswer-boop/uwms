@@ -1,0 +1,116 @@
+{
+  "menu": {
+    "dashboard": "Dashboard",
+    "assets": "Fixed Assets (QR)",
+    "warehouse": "Warehouse & Stock",
+    "suppliers": "Suppliers & Contracts",
+    "movements": "Movements History",
+    "requests": "Requests (Zayavka)",
+    "repairs": "Repairs & Service",
+    "writeOffs": "Write-Off (OS-4)",
+    "organization": "Faculties & Rooms",
+    "quotas": "Department Quotas",
+    "audit": "System Audit",
+    "integrations": "Integrations",
+    "scanner": "QR Inventory Audit",
+    "backups": "Database Backups",
+    "users": "Staff & Roles"
+  },
+  "common": {
+    "appTitle": "UWMS System",
+    "appSubtitle": "University Warehouse",
+    "actions": "Actions",
+    "search": "Search",
+    "searchPlaceholder": "Search...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "clear": "Clear",
+    "refresh": "Refresh",
+    "export": "Export",
+    "exportExcel": "Export to Excel",
+    "download": "Download",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "viewAll": "View All",
+    "loading": "Loading...",
+    "noData": "No data found",
+    "status": "Status",
+    "date": "Date",
+    "user": "User",
+    "responsiblePerson": "Responsible Person",
+    "quantity": "Quantity",
+    "unit": "Unit",
+    "price": "Price",
+    "total": "Total",
+    "totalCount": "Total: {{count}}",
+    "notes": "Notes"
+  },
+  "status": {
+    "new": "New",
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "fulfilled": "Fulfilled",
+    "inRepair": "In Repair",
+    "inUse": "In Use",
+    "inStock": "In Stock",
+    "writtenOff": "Written Off",
+    "active": "Active"
+  },
+  "header": {
+    "darkMode": "Dark mode",
+    "lightMode": "Light mode",
+    "logout": "Logout",
+    "notifications": "Notifications",
+    "language": "Language"
+  },
+  "dashboard": {
+    "stats": {
+      "totalAssets": "Total Fixed Assets",
+      "totalStock": "Total Stock Items",
+      "activeRequests": "Active Requests",
+      "totalValue": "Total Asset Value"
+    },
+    "recentMovements": "Recent Warehouse Movements",
+    "pendingRequests": "Pending Requests"
+  },
+  "assets": {
+    "inventoryNumber": "Inventory No",
+    "itemName": "Item Name & Model",
+    "location": "Location",
+    "balancePrice": "Balance Price",
+    "amortization": "Depreciation & Remaining",
+    "fundingSource": "Funding Source",
+    "qrPassport": "Passport",
+    "qrSticker": "QR Sticker",
+    "transfer": "Transfer"
+  },
+  "warehouse": {
+    "itemName": "Item Name",
+    "warehouseName": "Warehouse",
+    "currentStock": "Current Balance",
+    "replenish": "Replenish",
+    "lowStock": "Low Stock",
+    "normalStock": "Sufficient Stock"
+  },
+  "requests": {
+    "requestNumber": "Request No",
+    "requester": "Requester & Department",
+    "requestedItems": "Requested Items",
+    "createRequest": "Create Request",
+    "approve": "Approve",
+    "fulfill": "Fulfill"
+  },
+  "backups": {
+    "title": "Database Backups (Disaster Recovery)",
+    "createBackup": "Create New Backup",
+    "fileName": "File Name",
+    "fileSize": "File Size",
+    "checksum": "SHA-256 Hash",
+    "restore": "Restore",
+    "download": "Download"
+  }
+}

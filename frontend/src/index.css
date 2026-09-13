@@ -1,0 +1,247 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import '@arco-design/web-react/dist/css/arco.css';
+
+:root {
+  --primary-color: #165dff;
+  --bg-color: #f7f8fa;
+  --card-bg: #ffffff;
+  --text-main: #1d2129;
+  --text-muted: #86909c;
+  --border-color: #e5e6eb;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+[arco-theme='dark'] {
+  --bg-color: #17171a;
+  --card-bg: #232324;
+  --text-main: #f6f6f6;
+  --text-muted: #86909c;
+  --border-color: #2e2e30;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family) !important;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  font-family: var(--font-family) !important;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c9cdd4;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a9aeb8;
+}
+
+/* Glassmorphism & Card styling */
+.uwms-card {
+  background: var(--card-bg);
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease-in-out;
+}
+
+.uwms-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.uwms-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.5px;
+}
+
+.uwms-header {
+  backdrop-filter: blur(8px);
+  background-color: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid var(--border-color);
+}
+
+[arco-theme='dark'] .uwms-header {
+  background-color: rgba(35, 35, 36, 0.85);
+}
+
+/* Table Pagination Modern Spacing & 0-border-radius */
+.arco-table-pagination {
+  padding: 16px 20px 24px 20px !important;
+  margin-top: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.arco-pagination-total-text {
+  font-weight: 600 !important;
+  color: var(--text-main) !important;
+  font-size: 13px !important;
+  margin-right: 16px !important;
+}
+
+.arco-pagination-item,
+.arco-pagination-item-prev,
+.arco-pagination-item-next,
+.arco-pagination-jumper input,
+.arco-pagination-options .arco-select,
+.arco-pagination-options .arco-select-view {
+  border-radius: 0 !important;
+}
+
+/* Ensure all tables always expand to fill 100% width of the card container with zero right gap */
+.arco-table,
+.arco-table-container,
+.arco-table-content,
+.arco-table-content-inner {
+  width: 100%;
+}
+
+.arco-table-element,
+.arco-table table {
+  min-width: 100% !important;
+}
+
+/* Table Fixed Right Column & Sticky Actions Styling */
+
+/* 1. Header (th) of fixed columns: always matches standard table header background */
+.arco-table-th.arco-table-col-fixed-right,
+.arco-table-th.arco-table-cell-fixed-right,
+.arco-table-header-cell-fixed-right,
+th.arco-table-col-fixed-right,
+th.arco-table-cell-fixed-right {
+  background-color: var(--color-neutral-2) !important;
+  color: var(--text-main) !important;
+  z-index: 4 !important;
+  padding-right: 16px !important;
+}
+
+/* 2. Body cell (td) of fixed columns: normal state has solid card background */
+.arco-table-tbody .arco-table-td.arco-table-col-fixed-right,
+.arco-table-tbody .arco-table-td.arco-table-cell-fixed-right,
+td.arco-table-col-fixed-right,
+td.arco-table-cell-fixed-right {
+  background-color: var(--card-bg) !important;
+  z-index: 3 !important;
+  padding-right: 16px !important;
+}
+
+/* 3. Row Hover State: fixed column cell MUST take hover background color across the entire row! */
+.arco-table-tr:hover > td.arco-table-col-fixed-right,
+.arco-table-tr:hover > td.arco-table-cell-fixed-right,
+.arco-table-tr-hover > td.arco-table-col-fixed-right,
+.arco-table-tr-hover > td.arco-table-cell-fixed-right,
+.arco-table-row:hover > td.arco-table-col-fixed-right,
+.arco-table-row:hover > td.arco-table-cell-fixed-right,
+.arco-table-tr-checked > td.arco-table-col-fixed-right,
+.arco-table-tr-checked > td.arco-table-cell-fixed-right {
+  background-color: var(--color-fill-2) !important;
+}
+
+[arco-theme='dark'] .arco-table-tr:hover > td.arco-table-col-fixed-right,
+[arco-theme='dark'] .arco-table-tr:hover > td.arco-table-cell-fixed-right,
+[arco-theme='dark'] .arco-table-tr-hover > td.arco-table-col-fixed-right,
+[arco-theme='dark'] .arco-table-tr-hover > td.arco-table-cell-fixed-right,
+[arco-theme='dark'] .arco-table-row:hover > td.arco-table-col-fixed-right,
+[arco-theme='dark'] .arco-table-row:hover > td.arco-table-cell-fixed-right,
+[arco-theme='dark'] .arco-table-tr-checked > td.arco-table-col-fixed-right,
+[arco-theme='dark'] .arco-table-tr-checked > td.arco-table-cell-fixed-right {
+  background-color: var(--color-fill-3) !important;
+}
+
+/* Fixed column shadow to demarcate sticky edge when scrolling horizontally */
+.arco-table-cell-fixed-right-first::before,
+.arco-table-header-cell-fixed-right-first::before {
+  box-shadow: -6px 0 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+[arco-theme='dark'] .arco-table-cell-fixed-right-first::before,
+[arco-theme='dark'] .arco-table-header-cell-fixed-right-first::before {
+  box-shadow: -6px 0 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* 4. Responsive Mobile Table Optimization (Screen width <= 768px) */
+@media (max-width: 768px) {
+  /* On mobile phones, unpin sticky fixed columns so they do NOT take over 70% of the screen */
+  .arco-table-cell-fixed-right,
+  .arco-table-header-cell-fixed-right,
+  .arco-table-col-fixed-right {
+    position: static !important;
+    right: auto !important;
+    box-shadow: none !important;
+    z-index: 1 !important;
+  }
+
+  .arco-table-cell-fixed-right-first::before,
+  .arco-table-header-cell-fixed-right-first::before {
+    box-shadow: none !important;
+    display: none !important;
+  }
+
+  /* Table horizontal scroll container */
+  .arco-table-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Compact buttons in action columns on mobile */
+  .arco-table-cell .arco-btn-size-small,
+  .arco-table-cell .arco-btn-size-default {
+    padding: 0 8px !important;
+    font-size: 12px !important;
+    height: 28px !important;
+  }
+
+  .arco-table-cell .arco-space {
+    gap: 4px !important;
+  }
+}
+
+/* QR Code sticker print styling */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
+
+/* Popconfirm Custom Styling */
+.arco-popconfirm-content {
+  border-radius: 0 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+  border: 1px solid var(--color-border-2) !important;
+}
+
+.arco-popconfirm-arrow.arco-trigger-arrow {
+  border-radius: 0 !important;
+}
+
+.arco-popconfirm .arco-popconfirm-btn button {
+  border-radius: 0 !important;
+  font-weight: 500;
+}

@@ -1,0 +1,648 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum RoleType {
+  SUPER_ADMIN
+  HEAD_WAREHOUSE
+  MOL
+  EMPLOYEE
+  AUDITOR
+}
+
+enum ItemType {
+  FIXED_ASSET
+  CONSUMABLE
+}
+
+enum AssetStatus {
+  NEW
+  IN_USE
+  IN_REPAIR
+  WRITTEN_OFF
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED_BY_HEAD
+  APPROVED_BY_WAREHOUSE
+  REJECTED
+  FULFILLED
+  CANCELLED
+}
+
+enum MovementType {
+  INCOMING
+  OUTGOING
+  TRANSFER
+  WRITE_OFF
+  RETURN
+}
+
+enum TransferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum AuditStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum AuditRecordStatus {
+  MATCHED
+  MISSING
+  RELOCATED
+  UNEXPECTED
+}
+
+enum FundingSource {
+  BYUDJET
+  KONTRAKT_RIVOJLANTIRISH
+  GRANT
+}
+
+model User {
+  id           String      @id @default(uuid())
+  fullName     String
+  username     String      @unique
+  email        String?     @unique
+  password     String
+  phone        String?
+  position     String?     // Lavozim (Dekan, Kafedra mudiri, Laborant, Omborchi)
+  role         RoleType    @default(EMPLOYEE)
+  isActive     Boolean     @default(true)
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  responsibleRooms      Room[]               @relation("RoomResponsible")
+  responsibleInstances  ItemInstance[]       @relation("UserResponsibleInstances")
+  submittedRequests     Request[]            @relation("UserRequests")
+  approvedRequests      Request[]            @relation("ApproverRequests")
+  executedMovements     StockMovement[]      @relation("MovementExecutor")
+  executedHistories     AssetHistory[]       @relation("HistoryExecutor")
+  createdAudits         InventoryAudit[]     @relation("AuditCreator")
+  sentTransfers         TransferAcceptance[] @relation("TransferSender")
+  receivedTransfers     TransferAcceptance[] @relation("TransferReceiver")
+  repairRequests        RepairRecord[]       @relation("RepairRequester")
+  approvedRepairs       RepairRecord[]       @relation("RepairApprover")
+  createdWriteOffs      WriteOffRequest[]    @relation("WriteOffCreator")
+  writeOffVotes         WriteOffMemberVote[]
+  notifications         Notification[]
+  systemLogs            SystemAuditLog[]
+  backups               BackupRecord[]       @relation("UserBackups")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  @@map("users")
+}
+
+model Department {
+  id          String       @id @default(uuid())
+  name        String
+  code        String?      @unique
+  type        String       @default("DEPARTMENT") // FACULTY, CHAIR, DIVISION, LAB
+  parentId    String?
+  parent      Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Department[] @relation("DepartmentHierarchy")
+
+  users     User[]
+  rooms     Room[]
+  requests  Request[]
+  quotas    DepartmentQuota[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("departments")
+}
+
+model Room {
+  id                String       @id @default(uuid())
+  number            String
+  name              String
+  floor             Int          @default(1)
+  building          String       @default("Bosh bino")
+  departmentId      String?
+  department        Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  responsibleUserId String?
+  responsibleUser   User?        @relation("RoomResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+
+  itemInstances ItemInstance[]
+  fromMovements StockMovement[]      @relation("MoveFromRoom")
+  toMovements   StockMovement[]      @relation("MoveToRoom")
+  fromTransfers TransferAcceptance[] @relation("TransferFromRoom")
+  toTransfers   TransferAcceptance[] @relation("TransferToRoom")
+  audits        InventoryAudit[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("rooms")
+}
+
+model Supplier {
+  id             String         @id @default(uuid())
+  name           String         // Korxona nomi
+  inn            String?        // STIR / INN
+  contractNumber String?        // Shartnoma raqami
+  contractDate   DateTime?      // Shartnoma sanasi
+  contactPerson  String?        // Mas'ul vakil
+  phone          String?
+  email          String?
+  notes          String?
+
+  invoices       Invoice[]
+  itemInstances  ItemInstance[]
+  movements      StockMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("suppliers")
+}
+
+model Invoice {
+  id            String         @id @default(uuid())
+  invoiceNumber String         @unique // Hisob-faktura raqami
+  invoiceDate   DateTime       @default(now())
+  totalAmount   Decimal?       @db.Decimal(14, 2)
+  notes         String?
+
+  supplierId    String?
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  instances     ItemInstance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("invoices")
+}
+
+model Warehouse {
+  id        String   @id @default(uuid())
+  name      String
+  location  String?
+  isMain    Boolean  @default(false)
+
+  stocks        Stock[]
+  fromMovements StockMovement[] @relation("MoveFromWarehouse")
+  toMovements   StockMovement[] @relation("MoveToWarehouse")
+  transfers     TransferAcceptance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  @@map("warehouses")
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  items       Item[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("categories")
+}
+
+model Item {
+  id            String    @id @default(uuid())
+  name          String
+  model         String?
+  sku           String?   @unique
+  itemType      ItemType  @default(FIXED_ASSET)
+  unit          String    @default("DONA")
+  minStockLimit Int       @default(5)
+  description   String?
+  categoryId    String
+  category      Category  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  instances     ItemInstance[]
+  stocks        Stock[]
+  requestItems  RequestItem[]
+  movementItems StockMovementItem[]
+  quotas        DepartmentQuota[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("items")
+}
+
+model ItemInstance {
+  id                String      @id @default(uuid())
+  inventoryNumber   String      @unique
+  serialNumber      String?
+  qrCode            String      @unique
+  status            AssetStatus   @default(NEW)
+  fundingSource     FundingSource @default(BYUDJET)
+  purchaseDate      DateTime?
+  purchasePrice     Decimal?      @db.Decimal(12, 2)
+  warrantyMonths    Int         @default(12)
+  depreciationRate  Float       @default(20.0) // Yillik amortizatsiya foizi
+  notes             String?
+
+  itemId            String
+  item              Item        @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  roomId            String?
+  room              Room?       @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  responsibleUserId String?
+  responsibleUser   User?       @relation("UserResponsibleInstances", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  supplierId        String?
+  supplier          Supplier?   @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  invoiceId         String?
+  invoice           Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  histories         AssetHistory[]
+  transfers         TransferAcceptance[]
+  repairRecords     RepairRecord[]
+  writeOffRequests  WriteOffRequest[]
+  movementItems     StockMovementItem[]
+  auditRecords      InventoryAuditRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("item_instances")
+}
+
+model AssetHistory {
+  id             String       @id @default(uuid())
+  assetId        String
+  asset          ItemInstance @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  action         String       // KIRIM, BIRIKTIRILDI, KO'CHIRILDI, TAMIRLANDI, SPISANIE, QAYTARILDI
+  fromLocation   String?
+  toLocation     String?
+  fromUser       String?
+  toUser         String?
+  referenceDoc   String?
+  note           String?
+
+  executedById   String?
+  executedBy     User?        @relation("HistoryExecutor", fields: [executedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@map("asset_histories")
+}
+
+model TransferAcceptance {
+  id            String         @id @default(uuid())
+  assetId       String
+  asset         ItemInstance   @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  status        TransferStatus @default(PENDING)
+  note          String?
+  isReturn      Boolean        @default(false)
+
+  fromRoomId    String?
+  fromRoom      Room?          @relation("TransferFromRoom", fields: [fromRoomId], references: [id])
+  toRoomId      String?
+  toRoom        Room?          @relation("TransferToRoom", fields: [toRoomId], references: [id])
+  toWarehouseId String?
+  toWarehouse   Warehouse?     @relation(fields: [toWarehouseId], references: [id])
+
+  senderId      String
+  sender        User           @relation("TransferSender", fields: [senderId], references: [id])
+  receiverId    String?
+  receiver      User?          @relation("TransferReceiver", fields: [receiverId], references: [id])
+
+  acceptedAt    DateTime?
+  createdAt     DateTime       @default(now())
+
+  @@map("transfer_acceptances")
+}
+
+
+model Stock {
+  id          String    @id @default(uuid())
+  warehouseId String
+  warehouse   Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantity    Int           @default(0)
+  fundingSource FundingSource @default(BYUDJET)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([warehouseId, itemId])
+  @@map("stocks")
+}
+
+model Request {
+  id            String        @id @default(uuid())
+  requestNumber String        @unique
+  purpose       String
+  status        RequestStatus @default(PENDING)
+  isOverQuota   Boolean       @default(false)
+  specialApprovalNeeded Boolean @default(false)
+  notes         String?
+  approvalNote  String?
+
+  requesterId   String
+  requester     User          @relation("UserRequests", fields: [requesterId], references: [id])
+  departmentId  String?
+  department    Department?   @relation(fields: [departmentId], references: [id])
+  approvedById  String?
+  approvedBy    User?         @relation("ApproverRequests", fields: [approvedById], references: [id])
+
+  items RequestItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("requests")
+}
+
+model RequestItem {
+  id           String  @id @default(uuid())
+  requestId    String
+  request      Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  itemId       String
+  item         Item    @relation(fields: [itemId], references: [id])
+  requestedQty Int
+  approvedQty  Int?
+
+  @@map("request_items")
+}
+
+model StockMovement {
+  id              String       @id @default(uuid())
+  movementNumber  String       @unique
+  movementType    MovementType
+  referenceDoc    String?
+  note            String?
+
+  executedById    String
+  executedBy      User         @relation("MovementExecutor", fields: [executedById], references: [id])
+
+  fromRoomId      String?
+  fromRoom        Room?        @relation("MoveFromRoom", fields: [fromRoomId], references: [id])
+  toRoomId        String?
+  toRoom          Room?        @relation("MoveToRoom", fields: [toRoomId], references: [id])
+
+  fromWarehouseId String?
+  fromWarehouse   Warehouse?   @relation("MoveFromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String?
+  toWarehouse     Warehouse?   @relation("MoveToWarehouse", fields: [toWarehouseId], references: [id])
+
+  supplierId      String?
+  supplier        Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  invoiceNumber   String?
+  fundingSource   FundingSource @default(BYUDJET)
+
+  items StockMovementItem[]
+
+  createdAt DateTime @default(now())
+
+  @@map("stock_movements")
+}
+
+model StockMovementItem {
+  id             String        @id @default(uuid())
+  movementId     String
+  movement       StockMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  itemId         String
+  item           Item          @relation(fields: [itemId], references: [id])
+  itemInstanceId String?
+  itemInstance   ItemInstance? @relation(fields: [itemInstanceId], references: [id])
+  quantity       Int           @default(1)
+  note           String?
+
+  @@map("stock_movement_items")
+}
+
+model InventoryAudit {
+  id           String      @id @default(uuid())
+  auditNumber  String      @unique
+  title        String
+  status       AuditStatus @default(DRAFT)
+  notes        String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  createdById  String
+  createdBy    User        @relation("AuditCreator", fields: [createdById], references: [id])
+  roomId       String?
+  room         Room?       @relation(fields: [roomId], references: [id])
+
+  records InventoryAuditRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("inventory_audits")
+}
+
+model InventoryAuditRecord {
+  id             String            @id @default(uuid())
+  auditId        String
+  audit          InventoryAudit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  itemInstanceId String
+  itemInstance   ItemInstance      @relation(fields: [itemInstanceId], references: [id])
+  expectedRoomId String?
+  foundRoomId    String?
+  status         AuditRecordStatus @default(MATCHED)
+  scannedAt      DateTime          @default(now())
+  notes          String?
+
+  @@map("inventory_audit_records")
+}
+
+enum RepairStatus {
+  PENDING
+  IN_REPAIR
+  COMPLETED
+  UNREPAIRABLE
+}
+
+model RepairRecord {
+  id               String       @id @default(uuid())
+  repairNumber     String       @unique // REP-YYYY-XXXX
+  assetId          String
+  asset            ItemInstance @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  issueDescription String
+  status           RepairStatus @default(PENDING)
+  serviceProvider  String?      // Masalan: "TexnoServis MCHJ" yoki "OTM ustaxonasi"
+  cost             Decimal?     @db.Decimal(12, 2)
+  startDate        DateTime?
+  completionDate   DateTime?
+  actNumber        String?      // Ta'mirlash dalolatnomasi
+  notes            String?
+
+  requestedById    String
+  requestedBy      User         @relation("RepairRequester", fields: [requestedById], references: [id])
+  approvedById     String?
+  approvedBy       User?        @relation("RepairApprover", fields: [approvedById], references: [id])
+
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@map("repair_records")
+}
+
+enum WriteOffStatus {
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum VoteStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model WriteOffRequest {
+  id                  String               @id @default(uuid())
+  actNumber           String               @unique // OS4-YYYY-XXXX
+  assetId             String
+  asset               ItemInstance         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  reason              String
+  technicalConclusion String?              // Texnik ekspertiza xulosasi
+  status              WriteOffStatus       @default(IN_REVIEW)
+  approvedAt          DateTime?
+
+  createdById         String
+  createdBy           User                 @relation("WriteOffCreator", fields: [createdById], references: [id])
+
+  members             WriteOffMemberVote[]
+
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@map("write_off_requests")
+}
+
+model WriteOffMemberVote {
+  id              String          @id @default(uuid())
+  writeOffId      String
+  writeOffRequest WriteOffRequest @relation(fields: [writeOffId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  roleName        String          // Masalan: "Komissiya raisi", "Bosh buxgalter", "Yurist", "Bosh mexanik"
+  vote            VoteStatus      @default(PENDING)
+  comment         String?
+  votedAt         DateTime?
+
+  @@unique([writeOffId, userId])
+  @@map("write_off_member_votes")
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  SUCCESS
+  ERROR
+  REQUEST
+  TRANSFER
+  AUDIT
+  REPAIR
+  WRITE_OFF
+  QUOTA
+}
+
+model DepartmentQuota {
+  id           String     @id @default(uuid())
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  itemId       String
+  item         Item       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  monthlyLimit Int        @default(10)
+  period       String     // YYYY-MM masalan "2026-09"
+  usedQuantity Int        @default(0)
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([departmentId, itemId, period])
+  @@map("department_quotas")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      NotificationType @default(INFO)
+  link      String?          // e.g. "/requests", "/repairs", "/quotas"
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@map("notifications")
+}
+
+model SystemAuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String   // LOGIN, LOGOUT, CREATE, UPDATE, DELETE, APPROVE, REJECT, FULFILL, TRANSFER, RETURN, REPAIR, WRITE_OFF, QUOTA, HEMIS_SYNC, EXPORT
+  entity    String   // Request, ItemInstance, DepartmentQuota, User, Room, Warehouse
+  entityId  String?
+  details   String?  // JSON text with parameters or changes
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@map("system_audit_logs")
+}
+
+model DocumentStamp {
+  id               String    @id @default(uuid())
+  docType          String    // OS_1, OS_2, INV_19, OS_4, MOL_TRANSFER, RETURN_ACT
+  docNumber        String    @unique
+  verificationHash String    @unique
+  title            String
+  signerName       String
+  signerRole       String
+  metadataJson     String    // JSON text with verified payload details
+  isValid          Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+
+  @@map("document_stamps")
+}
+
+enum BackupType {
+  AUTOMATIC
+  MANUAL
+}
+
+enum BackupStatus {
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  RESTORED
+}
+
+model BackupRecord {
+  id            String       @id @default(uuid())
+  filename      String
+  filePath      String
+  fileSizeBytes BigInt       @default(0)
+  backupType    BackupType   @default(MANUAL)
+  status        BackupStatus @default(COMPLETED)
+  checksum      String?      // SHA-256 xesh
+  notes         String?
+  triggeredById String?
+  triggeredBy   User?        @relation("UserBackups", fields: [triggeredById], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+  completedAt   DateTime?
+
+  @@map("backup_records")
+}
+
+

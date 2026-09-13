@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # ===================================================
+  # 1. POSTGRESQL DATABASE (18-Alpine)
+  # ===================================================
+  db:
+    image: postgres:18-alpine
+    container_name: uwms_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-uwms_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - uwms_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d uwms_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - uwms_network
+
+  # ===================================================
+  # 2. NESTJS BACKEND API (:4000)
+  # ===================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: uwms_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_secure_2026}@db:5432/${POSTGRES_DB:-uwms_db}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-uwms_super_secret_production_key_2026_enterprise}
+      JWT_EXPIRES_IN: 7d
+      CLIENT_URL: ${CLIENT_URL:-http://localhost}
+    ports:
+      - "4000:4000"
+    volumes:
+      - uwms_backups:/app/backups
+    networks:
+      - uwms_network
+
+  # ===================================================
+  # 3. NGINX + VITE FRONTEND (:80)
+  # ===================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: uwms_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - uwms_network
+
+# ===================================================
+# VOLUMES & NETWORKS
+# ===================================================
+volumes:
+  uwms_pgdata:
+    driver: local
+  uwms_backups:
+    driver: local
+
+networks:
+  uwms_network:
+    driver: bridge

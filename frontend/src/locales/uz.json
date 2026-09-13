@@ -1,0 +1,116 @@
+{
+  "menu": {
+    "dashboard": "Boshqaruv Paneli",
+    "assets": "Asosiy Vositalar (QR)",
+    "warehouse": "Sarf Tovarlari & Qoldiq",
+    "suppliers": "Ta’minot & Shartnomalar",
+    "movements": "Kirim / Siljish Tarixi",
+    "requests": "Talabnomalar (Zayavka)",
+    "repairs": "Ta’mirlash & Servis",
+    "writeOffs": "Spisanie (OS-4)",
+    "organization": "Tuzilma & Xonalar",
+    "quotas": "Kafedralar Kvotasi",
+    "audit": "Tizim Auditi",
+    "integrations": "Integratsiyalar",
+    "scanner": "QR Inventarizatsiya",
+    "backups": "Zaxira Nusxalari (Backup)",
+    "users": "Xodimlar & Rollar"
+  },
+  "common": {
+    "appTitle": "UWMS Tizimi",
+    "appSubtitle": "Universitet Ombori",
+    "actions": "Amallar",
+    "search": "Qidiruv",
+    "searchPlaceholder": "Qidirish...",
+    "save": "Saqlash",
+    "cancel": "Bekor qilish",
+    "confirm": "Tasdiqlash",
+    "close": "Yopish",
+    "clear": "Tozalash",
+    "refresh": "Yangilash",
+    "export": "Eksport",
+    "exportExcel": "Excelga Eksport",
+    "download": "Yuklab olish",
+    "delete": "O‘chirish",
+    "edit": "Tahrirlash",
+    "add": "Qo‘shish",
+    "viewAll": "Barchasini ko‘rish",
+    "loading": "Yuklanmoqda...",
+    "noData": "Ma’lumot topilmadi",
+    "status": "Holati",
+    "date": "Sana",
+    "user": "Foydalanuvchi",
+    "responsiblePerson": "Mas’ul Shaxs",
+    "quantity": "Miqdor",
+    "unit": "Birligi",
+    "price": "Narxi",
+    "total": "Jami",
+    "totalCount": "Jami: {{count}} ta",
+    "notes": "Izoh"
+  },
+  "status": {
+    "new": "Yangi",
+    "pending": "Kutilmoqda",
+    "approved": "Tasdiqlangan",
+    "rejected": "Rad etilgan",
+    "fulfilled": "Bajarilgan",
+    "inRepair": "Ta’mirda",
+    "inUse": "Foydalanishda",
+    "inStock": "Omborda",
+    "writtenOff": "Hisobdan chiqarilgan",
+    "active": "Faol"
+  },
+  "header": {
+    "darkMode": "Qorong‘i rejim",
+    "lightMode": "Yorug‘ rejim",
+    "logout": "Tizimdan chiqish",
+    "notifications": "Bildirishnomalar",
+    "language": "Til"
+  },
+  "dashboard": {
+    "stats": {
+      "totalAssets": "Jami Asosiy Vositalar",
+      "totalStock": "Ombordagi Sarf Tovarlar",
+      "activeRequests": "Faol Talabnomalar",
+      "totalValue": "Umumiy Balans Qiymati"
+    },
+    "recentMovements": "So‘nggi Ombor Harakatlari",
+    "pendingRequests": "Kutilayotgan Talabnomalar"
+  },
+  "assets": {
+    "inventoryNumber": "Inventar №",
+    "itemName": "Jihoz Nomi va Modeli",
+    "location": "Joylashuvi",
+    "balancePrice": "Balans Narxi",
+    "amortization": "Amortizatsiya & Qoldiq",
+    "fundingSource": "Moliyalashtirish",
+    "qrPassport": "Pasport",
+    "qrSticker": "QR Stiker",
+    "transfer": "Ichki Siljish"
+  },
+  "warehouse": {
+    "itemName": "Mahsulot Nomi",
+    "warehouseName": "Omborxona",
+    "currentStock": "Mavjud Qoldiq",
+    "replenish": "Kirim Qilish",
+    "lowStock": "Kam Qolganlar",
+    "normalStock": "Yetarli Zaxira"
+  },
+  "requests": {
+    "requestNumber": "Zayavka №",
+    "requester": "Talabgor Shaxs & Bo‘lim",
+    "requestedItems": "So‘ralayotgan Mahsulotlar",
+    "createRequest": "Yangi Talabnoma Yaratish",
+    "approve": "Tasdiqlash",
+    "fulfill": "Ombordan Berish"
+  },
+  "backups": {
+    "title": "Ma’lumotlar Bazasi Zaxiralari (Disaster Recovery)",
+    "createBackup": "Yangi Zaxira Yaratish",
+    "fileName": "Fayl Nomi",
+    "fileSize": "Hajmi",
+    "checksum": "SHA-256 Xesh (Butunlik)",
+    "restore": "Tiklash",
+    "download": "Yuklash"
+  }
+}

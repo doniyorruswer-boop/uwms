@@ -1,0 +1,9 @@
+# UWMS AI RULES (Strict & Non-negotiable)
+
+1. UI Library: STRICTLY use `@arco-design/web-react` and `@arco-design/web-react/icon`. Do NOT install or use TailwindCSS, MUI, Ant Design, Chakra UI, Lucide icons, etc.
+2. Routing: STRICTLY use `react-router-dom`. No custom tab switchers.
+3. Server State: STRICTLY use `@tanstack/react-query` for API fetching and caching. Zustand is strictly for local client UI state (theme, tokens).
+4. No Mock / No Hardcoded Data: All data must be fetched dynamically from the NestJS PostgreSQL backend. No hardcoded names, prices, or serials.
+5. Atomic Transactions: All state modifications (stock reduction, request fulfillment, asset transfers) must run inside Prisma `$transaction`.
+6. Security: All sensitive mutating endpoints must use `JwtAuthGuard` and `RolesGuard`.
+7. University Domain Rules: Include funding sources (BYUDJET, KONTRAKT_RIVOJLANTIRISH, GRANT), monthly department limits, and official acts (OS-1, OS-2, OS-4, INV-19).
