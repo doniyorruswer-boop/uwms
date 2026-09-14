@@ -39,6 +39,7 @@ import { useAssetsQuery } from '../../hooks/useAssetsQuery';
 import { useAuthStore } from '../../store/authStore';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
+import { TableActions } from '../../components/Common/TableActions';
 import { CreateDepartmentModal } from './CreateDepartmentModal';
 import { EditDepartmentModal } from './EditDepartmentModal';
 import { CreateRoomModal } from './CreateRoomModal';
@@ -248,7 +249,14 @@ export const OrganizationPage: React.FC = () => {
       width: 120,
       fixed: 'right' as const,
       render: (_: any, record: DepartmentItem) => (
-        <Space size="small">
+        <TableActions
+          onDelete={isSuperAdmin ? () => deleteDeptMutation.mutate(record.id) : undefined}
+          deleteConfirmTitle={`'${record.name}' bo‘limini o‘chirishni tasdiqlaysizmi?`}
+          deleteOkText="Ha, o‘chirish"
+          deleteCancelText="Yo‘q"
+          deleteTooltip="O‘chirish"
+          rightPadding={16}
+        >
           <Tooltip content="Tahrirlash">
             <Button
               size="small"
@@ -258,28 +266,7 @@ export const OrganizationPage: React.FC = () => {
               onClick={() => setEditingDept(record)}
             />
           </Tooltip>
-
-          {isSuperAdmin && (
-            <Popconfirm
-              title="Bo‘limni o‘chirish"
-              content={`'${record.name}' bo‘limini o‘chirishni tasdiqlaysizmi?`}
-              okText="Ha, o‘chirish"
-              cancelText="Yo‘q"
-              onOk={() => deleteDeptMutation.mutate(record.id)}
-            >
-              <Tooltip content="O‘chirish">
-                <Button
-                  size="small"
-                  status="danger"
-                  type="secondary"
-                  icon={<IconDelete />}
-                  style={{ borderRadius: 0 }}
-                  loading={deleteDeptMutation.isPending}
-                />
-              </Tooltip>
-            </Popconfirm>
-          )}
-        </Space>
+        </TableActions>
       ),
     },
   ];
@@ -349,7 +336,14 @@ export const OrganizationPage: React.FC = () => {
       width: 120,
       fixed: 'right' as const,
       render: (_: any, record: RoomItem) => (
-        <Space size="small">
+        <TableActions
+          onDelete={isSuperAdmin ? () => deleteRoomMutation.mutate(record.id) : undefined}
+          deleteConfirmTitle={`'${record.number}-xona (${record.name})'ni o‘chirishni tasdiqlaysizmi?`}
+          deleteOkText="Ha, o‘chirish"
+          deleteCancelText="Yo‘q"
+          deleteTooltip="O‘chirish"
+          rightPadding={16}
+        >
           <Tooltip content="Xonani tahrirlash">
             <Button
               size="small"
@@ -359,28 +353,7 @@ export const OrganizationPage: React.FC = () => {
               onClick={() => setEditingRoom(record)}
             />
           </Tooltip>
-
-          {isSuperAdmin && (
-            <Popconfirm
-              title="Xonani o‘chirish"
-              content={`'${record.number}-xona (${record.name})'ni o‘chirishni tasdiqlaysizmi?`}
-              okText="Ha, o‘chirish"
-              cancelText="Yo‘q"
-              onOk={() => deleteRoomMutation.mutate(record.id)}
-            >
-              <Tooltip content="O‘chirish">
-                <Button
-                  size="small"
-                  status="danger"
-                  type="secondary"
-                  icon={<IconDelete />}
-                  style={{ borderRadius: 0 }}
-                  loading={deleteRoomMutation.isPending}
-                />
-              </Tooltip>
-            </Popconfirm>
-          )}
-        </Space>
+        </TableActions>
       ),
     },
   ];

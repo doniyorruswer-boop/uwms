@@ -29,6 +29,7 @@ import { exportToExcel } from '../../utils/exportExcel';
 import { OfficialDocModal } from '../../components/OfficialDocument/OfficialDocModal';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { PageTabs } from '../../components/Common/PageTabs';
+import { TableActions } from '../../components/Common/TableActions';
 
 const { Row, Col } = Grid;
 const { Title, Text } = Typography;
@@ -148,7 +149,7 @@ export const MovementsPage: React.FC = () => {
           rowKey="id"
           loading={isLoading || isFetching}
           data={filteredMovements}
-          scroll={{ x: 1150 }}
+          scroll={{ x: 1080 }}
           pagination={{
             pageSize: 10,
             sizeCanChange: true,
@@ -163,15 +164,17 @@ export const MovementsPage: React.FC = () => {
             {
               title: 'Harakat №',
               dataIndex: 'movementNumber',
-              width: 150,
+              width: 160,
               render: (num: string) => (
-                <b style={{ color: '#165DFF', whiteSpace: 'nowrap' }}>{num}</b>
+                <div style={{ paddingLeft: 8 }}>
+                  <b style={{ color: '#165DFF', whiteSpace: 'nowrap' }}>{num}</b>
+                </div>
               ),
             },
             {
               title: 'Turi',
               dataIndex: 'movementType',
-              width: 130,
+              width: 125,
               render: (type: MovementType) => {
                 if (type === 'INCOMING')
                   return (
@@ -197,12 +200,11 @@ export const MovementsPage: React.FC = () => {
             {
               title: 'Harakatdagi Vosita / Mahsulot',
               dataIndex: 'itemSummary',
-              minWidth: 260,
+              minWidth: 180,
               render: (summary: string, record: any) => (
                 <CategoryThumbnail
                   icon={<IconArchive />}
                   name={summary}
-                  subtitle={record.referenceDoc ? `Asos: ${record.referenceDoc}` : 'Ichki harakat buyrug‘i'}
                   tag={record.fundingSource}
                   color="#165DFF"
                 />
@@ -210,52 +212,64 @@ export const MovementsPage: React.FC = () => {
             },
             {
               title: 'Qayerdan / Qayerga',
-              minWidth: 240,
+              width: 240,
               render: (_, record: StockMovement) => (
-                <div style={{ fontSize: 13, display: 'flex', alignItems: 'center' }}>
-                  <Text type="secondary">{record.sourceLocation || '—'}</Text>
-                  <IconArrowRight
-                    style={{
-                      margin: '0 8px',
-                      color: 'var(--color-text-4)',
-                      fontSize: 12,
-                      flexShrink: 0,
-                    }}
-                  />
-                  <Text bold>{record.targetLocation || '—'}</Text>
+                <div style={{ lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-3)', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: 'var(--color-text-4)', minWidth: 48, whiteSpace: 'nowrap', marginTop: 1 }}>Chiqish:</span>
+                    <span style={{ color: 'var(--color-text-2)', wordBreak: 'break-word' }}>
+                      {record.sourceLocation || '—'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 3 }}>
+                    <span style={{ fontSize: 11, color: '#165DFF', fontWeight: 600, minWidth: 48, whiteSpace: 'nowrap', marginTop: 1 }}>Kirish:</span>
+                    <span style={{ fontWeight: 600, color: 'var(--color-text-1)', wordBreak: 'break-word' }}>
+                      {record.targetLocation || '—'}
+                    </span>
+                  </div>
                 </div>
               ),
             },
             {
               title: 'Ijrochi (Mas’ul)',
               dataIndex: 'executedByName',
-              width: 170,
+              width: 130,
               render: (name: string) => <span style={{ whiteSpace: 'nowrap' }}>{name}</span>,
             },
             {
               title: 'Sana va Vaqt',
               dataIndex: 'createdAt',
-              width: 160,
-              render: (date: string) => (
-                <span style={{ color: 'var(--color-text-3)', fontSize: 12, whiteSpace: 'nowrap' }}>
-                  {date}
-                </span>
-              ),
+              width: 105,
+              render: (date: string) => {
+                const parts = date ? date.split(' ') : [];
+                return (
+                  <div style={{ lineHeight: 1.3 }}>
+                    <div style={{ color: 'var(--color-text-1)', fontSize: 12, whiteSpace: 'nowrap' }}>
+                      {parts[0]}
+                    </div>
+                    <div style={{ color: 'var(--color-text-3)', fontSize: 11, whiteSpace: 'nowrap' }}>
+                      {parts[1] || ''}
+                    </div>
+                  </div>
+                );
+              },
             },
             {
-              title: 'Hujjat',
-              width: 150,
+              title: 'Amallar',
+              width: 140,
               fixed: 'right' as const,
               render: (_, record: StockMovement) => (
-                <Button
-                  size="small"
-                  type="outline"
-                  icon={<IconPrinter />}
-                  onClick={() => handleOpenDoc(record)}
-                  style={{ borderRadius: 0 }}
-                >
-                  Rasmiy Akt
-                </Button>
+                <TableActions rightPadding={16}>
+                  <Button
+                    size="small"
+                    type="outline"
+                    icon={<IconPrinter />}
+                    onClick={() => handleOpenDoc(record)}
+                    style={{ borderRadius: 0, padding: '0 10px' }}
+                  >
+                    Rasmiy Akt
+                  </Button>
+                </TableActions>
               ),
             },
           ]}

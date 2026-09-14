@@ -143,5 +143,14 @@ export const API_ENDPOINTS = {
     HEMIS_SYNC: '/integrations/hemis/sync',
     UZASBO_EXPORT: '/integrations/uzasbo/export',
   },
+
+  // Zaxira Nusxalari (Backups)
+  BACKUPS: {
+    BASE: '/backups',
+    STATS: '/backups/stats',
+    BY_ID: (id: string) => `/backups/${id}`,
+    RESTORE: (id: string) => `/backups/${id}/restore`,
+    DOWNLOAD: (id: string) => `/backups/${id}/download`,
+  },
 } as const;
 

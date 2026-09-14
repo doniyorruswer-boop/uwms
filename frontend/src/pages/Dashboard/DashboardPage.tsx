@@ -8,7 +8,6 @@ import {
   Tag,
   Typography,
   Alert,
-  Progress,
   Spin,
   Empty,
   Badge,
@@ -535,23 +534,14 @@ export const DashboardPage: React.FC = () => {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {/* Visual Depreciation Meter */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-                    <span style={{ color: 'var(--color-text-2)' }}>Eskirish (Amortizatsiya) darajasi:</span>
-                    <b style={{ color: '#F53F3F', fontSize: 14 }}>{summary?.depreciationPercentage || 0}%</b>
-                  </div>
-                  <Progress
-                    percent={summary?.depreciationPercentage || 0}
-                    strokeWidth={10}
-                    showText={false}
-                    color="#F53F3F"
-                    style={{ width: '100%' }}
-                  />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--color-text-3)', marginTop: 4 }}>
-                    <span>Dastlabki balans: 100%</span>
-                    <span>Qoldiq foydali qiymat: {100 - (summary?.depreciationPercentage || 0)}%</span>
-                  </div>
-                </div>
+                <StockLevelGauge
+                  percent={summary?.depreciationPercentage || 0}
+                  label={<span style={{ color: 'var(--color-text-2)', fontSize: 13 }}>Eskirish (Amortizatsiya) darajasi:</span>}
+                  subLabel={<b style={{ color: '#F53F3F', fontSize: 14 }}>{summary?.depreciationPercentage || 0}%</b>}
+                  color="#F53F3F"
+                  strokeWidth={8}
+                  width="100%"
+                />
 
                 {/* 3 Value Metrics Grid */}
                 <div
@@ -620,22 +610,22 @@ export const DashboardPage: React.FC = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {fundingSources.map((fs) => (
                   <div key={fs.key} style={{ padding: '8px 0', borderBottom: '1px solid var(--color-border-1)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <span style={{ fontWeight: 600, fontSize: 13 }}>
-                        {fs.name}{' '}
-                        <span style={{ fontWeight: 400, color: 'var(--color-text-3)', fontSize: 12 }}>
-                          ({fs.count} ta vosita)
-                        </span>
-                      </span>
-                      <span style={{ fontWeight: 700, color: '#165DFF', fontSize: 13 }}>
-                        {formatPrice(fs.initialCost)}{' '}
-                        <span style={{ fontSize: 12, color: 'var(--color-text-3)' }}>({fs.percentage}%)</span>
-                      </span>
-                    </div>
-                    <Progress
+                    <StockLevelGauge
                       percent={fs.percentage}
-                      strokeWidth={10}
-                      showText={false}
+                      label={
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>
+                          {fs.name}{' '}
+                          <span style={{ fontWeight: 400, color: 'var(--color-text-3)', fontSize: 12 }}>
+                            ({fs.count} ta vosita)
+                          </span>
+                        </span>
+                      }
+                      subLabel={
+                        <span style={{ fontWeight: 700, color: '#165DFF', fontSize: 13 }}>
+                          {formatPrice(fs.initialCost)}{' '}
+                          <span style={{ fontSize: 12, color: 'var(--color-text-3)' }}>({fs.percentage}%)</span>
+                        </span>
+                      }
                       color={
                         fs.key === 'BYUDJET'
                           ? '#165DFF'
@@ -643,7 +633,8 @@ export const DashboardPage: React.FC = () => {
                           ? '#00B42A'
                           : '#FF7D00'
                       }
-                      style={{ width: '100%' }}
+                      strokeWidth={8}
+                      width="100%"
                     />
                   </div>
                 ))}

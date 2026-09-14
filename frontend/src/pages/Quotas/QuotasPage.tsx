@@ -11,12 +11,12 @@ import {
   Input,
   InputNumber,
   Select,
-  Progress,
   Message,
   Grid,
   Alert,
   Empty,
 } from '@arco-design/web-react';
+import { StockLevelGauge } from '../../components/Common/StockLevelGauge';
 import {
   IconPlus,
   IconEdit,
@@ -40,6 +40,7 @@ import { useWarehouseQuery } from '../../hooks/useWarehouseQuery';
 import { DepartmentQuota } from '../../types';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { PageTabs } from '../../components/Common/PageTabs';
+import { TableActions } from '../../components/Common/TableActions';
 import { exportToExcel } from '../../utils/exportExcel';
 
 const { Title, Text } = Typography;
@@ -285,28 +286,40 @@ export const QuotasPage: React.FC = () => {
       },
     },
     {
-      title: 'Sarf Foizi',
-      width: 170,
+      title: 'Sarf Shkalasi va Foizi',
+      width: 190,
       render: (_: any, record: DepartmentQuota) => {
         const percent = Math.min(
           100,
           Math.round((record.usedQuantity / (record.monthlyLimit || 1)) * 100)
         );
-        let statusColor = '#00B42A';
-        if (record.usedQuantity > record.monthlyLimit) {
-          statusColor = '#F53F3F';
-        } else if (percent >= 80) {
-          statusColor = '#FF7D00';
-        }
+        const isOver = record.usedQuantity > record.monthlyLimit;
+        const isWarning = !isOver && percent >= 80;
+
         return (
-          <div style={{ width: 140 }}>
-            <Progress
-              percent={percent}
-              color={statusColor}
-              size="small"
-              style={{ width: '100%' }}
-            />
-          </div>
+          <StockLevelGauge
+            percent={percent}
+            label={
+              <span
+                style={{
+                  fontWeight: 700,
+                  fontSize: 13,
+                  color: isOver ? '#F53F3F' : isWarning ? '#FF7D00' : 'var(--color-text-1)',
+                }}
+              >
+                {record.usedQuantity} {record.item.unit}
+              </span>
+            }
+            subLabel={
+              <span style={{ color: 'var(--color-text-3)', fontSize: 11 }}>
+                {percent}%
+              </span>
+            }
+            color={isOver ? '#F53F3F' : isWarning ? '#FF7D00' : '#00B42A'}
+            status={isOver ? 'error' : isWarning ? 'warning' : 'success'}
+            width={160}
+            strokeWidth={6}
+          />
         );
       },
     },
@@ -340,15 +353,17 @@ export const QuotasPage: React.FC = () => {
       width: 130,
       fixed: 'right' as const,
       render: (_: any, record: DepartmentQuota) => (
-        <Button
-          size="small"
-          type="outline"
-          icon={<IconEdit />}
-          style={{ borderRadius: 0 }}
-          onClick={() => openEditModal(record)}
-        >
-          Tahrirlash
-        </Button>
+        <TableActions rightPadding={16}>
+          <Button
+            size="small"
+            type="outline"
+            icon={<IconEdit />}
+            style={{ borderRadius: 0 }}
+            onClick={() => openEditModal(record)}
+          >
+            Tahrirlash
+          </Button>
+        </TableActions>
       ),
     },
   ];

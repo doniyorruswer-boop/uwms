@@ -10,7 +10,6 @@ import {
   Alert,
   Table,
   Message,
-  Progress,
   Popconfirm,
   Switch,
   Typography,
@@ -38,6 +37,7 @@ import { exportToExcel } from '../../utils/exportExcel';
 import { playScannerBeep } from '../../utils/audio';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { PageTabs } from '../../components/Common/PageTabs';
+import { StockLevelGauge } from '../../components/Common/StockLevelGauge';
 
 const { Row, Col } = Grid;
 const { Title, Text } = Typography;
@@ -475,25 +475,19 @@ export const AuditScannerPage: React.FC = () => {
               </div>
             }
           >
-            {/* Progress Bar */}
             <div style={{ marginBottom: 16 }}>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontSize: 13,
-                  marginBottom: 6,
-                }}
-              >
-                <span>Inventarizatsiya mosligi:</span>
-                <b>
-                  {matchedAssets.length} / {expectedAssets.length} ta vosita tasdiqlandi ({completionPercent}%)
-                </b>
-              </div>
-              <Progress
+              <StockLevelGauge
                 percent={completionPercent}
+                label={<span>Inventarizatsiya mosligi:</span>}
+                subLabel={
+                  <b>
+                    {matchedAssets.length} / {expectedAssets.length} ta vosita tasdiqlandi ({completionPercent}%)
+                  </b>
+                }
                 status={completionPercent === 100 ? 'success' : 'normal'}
-                style={{ width: '100%' }}
+                color={completionPercent === 100 ? '#00B42A' : '#165DFF'}
+                strokeWidth={8}
+                width="100%"
               />
             </div>
 

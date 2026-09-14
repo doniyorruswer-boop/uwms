@@ -74,7 +74,7 @@ assets.inventoryNumber,Inventar №,Инвентарный №,Inventory No
 assets.itemName,Jihoz Nomi va Modeli,Наименование и модель,Item Name & Model
 assets.location,Joylashuvi,Расположение,Location
 assets.balancePrice,Balans Narxi,Балансовая стоимость,Balance Price
-assets.amortization,Amortizatsiya & Qoldiq,Амортизация и остаток,Depreciation & Remaining
+assets.amortization,Amortizatsiya,Амортизация,Depreciation
 assets.fundingSource,Moliyalashtirish,Источник финансирования,Funding Source
 assets.qrPassport,Pasport,Паспорт,Passport
 assets.qrSticker,QR Stiker,QR Стикер,QR Sticker

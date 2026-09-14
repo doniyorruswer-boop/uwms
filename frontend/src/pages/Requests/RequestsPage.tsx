@@ -18,6 +18,7 @@ import {
   Grid,
   Alert,
   Empty,
+  Tooltip,
 } from '@arco-design/web-react';
 import {
   IconPlus,
@@ -40,6 +41,7 @@ import { useAuthStore } from '../../store/authStore';
 import type { RequestRecord, RequestStatus } from '../../types';
 import { exportToExcel } from '../../utils/exportExcel';
 import { OfficialDocModal } from '../../components/OfficialDocument/OfficialDocModal';
+import { TableActions } from '../../components/Common/TableActions';
 
 const FormItem = Form.Item;
 const Step = Steps.Step;
@@ -273,60 +275,76 @@ export const RequestsPage: React.FC = () => {
             {
               title: 'Talabgor & Zayavka №',
               dataIndex: 'requesterName',
-              width: 260,
+              width: 220,
               render: (name: string, record: RequestRecord) => (
-                <CategoryThumbnail
-                  icon={<IconUserGroup />}
-                  name={name}
-                  subtitle={record.departmentName || undefined}
-                  tag={record.requestNumber}
-                  color="#165DFF"
-                  bg="#E8F3FF"
-                />
+                <div style={{ paddingLeft: 8 }}>
+                  <CategoryThumbnail
+                    icon={<IconUserGroup />}
+                    name={name}
+                    subtitle={record.departmentName || undefined}
+                    tag={record.requestNumber}
+                    color="#165DFF"
+                    bg="#E8F3FF"
+                  />
+                </div>
               ),
             },
             {
               title: 'So‘ralayotgan Mahsulotlar',
+              minWidth: 360,
               render: (_, record: RequestRecord) => (
-                <div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-start' }}>
                   {record.items.map((i) => (
-                    <Tag key={i.id} color="arcoblue" style={{ margin: '2px 4px 2px 0' }}>
-                      {i.itemName}: <b>{i.requestedQty} {i.unit}</b>
+                    <Tag
+                      key={i.id}
+                      color="arcoblue"
+                      style={{
+                        borderRadius: 0,
+                        fontSize: 12,
+                        lineHeight: 1.4,
+                        height: 'auto',
+                        padding: '3px 8px',
+                        display: 'inline-block',
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-word',
+                        maxWidth: '100%',
+                      }}
+                    >
+                      <span>{i.itemName}:</span>
+                      <b style={{ fontWeight: 700, marginLeft: 5, whiteSpace: 'nowrap' }}>
+                        {i.requestedQty} {i.unit}
+                      </b>
                     </Tag>
                   ))}
                 </div>
               ),
             },
             {
-              title: 'Maqsad va Izoh',
+              title: 'Maqsad',
               dataIndex: 'purpose',
-              width: 220,
-              render: (purpose: string, record: RequestRecord) => (
-                <div>
-                  <div>{purpose}</div>
-                  {record.approvalNote && (
-                    <div style={{ fontSize: 11, color: '#00B42A', marginTop: 2 }}>
-                      ℹ️ {record.approvalNote}
-                    </div>
-                  )}
+              width: 200,
+              render: (purpose: string) => (
+                <div style={{ fontSize: 13, color: 'var(--color-text-1)', wordBreak: 'break-word', lineHeight: 1.35 }}>
+                  {purpose}
                 </div>
               ),
             },
             {
               title: 'Bosqich',
               dataIndex: 'status',
-              width: 200,
+              width: 160,
               render: (status: RequestStatus) => {
                 if (status === 'PENDING') return <Badge status="warning" text="Kafedra ko‘rib chiqmoqda" />;
                 if (status === 'APPROVED_BY_HEAD') return <Badge status="processing" text="Mudir tasdiqladi (Omborda)" />;
+                if (status === 'APPROVED_BY_WAREHOUSE') return <Badge status="processing" text="Ombor tasdiqladi" />;
                 if (status === 'FULFILLED') return <Badge status="success" text="Ombordan berildi" />;
                 if (status === 'REJECTED') return <Badge status="error" text="Rad etildi" />;
-                return <Tag>{status}</Tag>;
+                return <Tag style={{ borderRadius: 0 }}>{status}</Tag>;
               },
             },
             {
               title: 'Amallar',
-              width: 250,
+              width: 270,
               fixed: 'right' as const,
               render: (_, record: RequestRecord) => {
                 const canHeadApprove =
@@ -338,61 +356,66 @@ export const RequestsPage: React.FC = () => {
                   (user?.role === 'HEAD_WAREHOUSE' || user?.role === 'SUPER_ADMIN');
 
                 return (
-                  <div onClick={(e) => e.stopPropagation()} style={{ paddingRight: 8, display: 'flex', alignItems: 'center' }}>
-                    <Space size="small">
+                  <TableActions rightPadding={16} gap={5}>
+                    <Button
+                      size="small"
+                      type="outline"
+                      icon={<IconEye />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenDetail(record);
+                      }}
+                      style={{ borderRadius: 0, padding: '0 8px' }}
+                    >
+                      Batafsil
+                    </Button>
+                    {canHeadApprove && (
+                      <Button
+                        size="small"
+                        type="primary"
+                        status="success"
+                        icon={<IconCheck />}
+                        onClick={(e) => handleApproveByHead(record, e)}
+                        style={{ borderRadius: 0, padding: '0 8px' }}
+                      >
+                        Tasdiqlash
+                      </Button>
+                    )}
+                    {canWarehouseFulfill && (
+                      <Button
+                        size="small"
+                        type="primary"
+                        icon={<IconCheckCircle />}
+                        onClick={(e) => handleFulfillByWarehouse(record, e)}
+                        style={{ borderRadius: 0, padding: '0 8px' }}
+                      >
+                        Tarqatish
+                      </Button>
+                    )}
+                    {record.status === 'FULFILLED' && (
                       <Button
                         size="small"
                         type="outline"
-                        icon={<IconEye />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenDetail(record);
-                        }}
+                        icon={<IconFile />}
+                        onClick={(e) => handleOpenNakladnoy(record, e)}
+                        style={{ borderRadius: 0, padding: '0 8px' }}
                       >
-                        Batafsil
+                        Nakladnoy (OS-2)
                       </Button>
-                      {canHeadApprove && (
+                    )}
+                    {record.status === 'PENDING' && (
+                      <Tooltip content="Rad etish">
                         <Button
                           size="small"
-                          type="primary"
-                          status="success"
-                          icon={<IconCheck />}
-                          onClick={(e) => handleApproveByHead(record, e)}
-                        >
-                          Mudir Tasdiqlash
-                        </Button>
-                      )}
-                      {canWarehouseFulfill && (
-                        <Button
-                          size="small"
-                          type="primary"
-                          icon={<IconCheckCircle />}
-                          onClick={(e) => handleFulfillByWarehouse(record, e)}
-                        >
-                          Tarqatish
-                        </Button>
-                      )}
-                      {record.status === 'FULFILLED' && (
-                        <Button
-                          size="small"
-                          type="outline"
-                          icon={<IconFile />}
-                          onClick={(e) => handleOpenNakladnoy(record, e)}
-                        >
-                          Nakladnoy (OS-2)
-                        </Button>
-                      )}
-                      {record.status === 'PENDING' && (
-                        <Button
-                          size="small"
-                          type="text"
+                          type="secondary"
                           status="danger"
                           icon={<IconClose />}
                           onClick={(e) => handleReject(record, e)}
+                          style={{ borderRadius: 0 }}
                         />
-                      )}
-                    </Space>
-                  </div>
+                      </Tooltip>
+                    )}
+                  </TableActions>
                 );
               },
             },

@@ -40,13 +40,13 @@ export const CategoryThumbnail: React.FC<CategoryThumbnailProps> = ({
       >
         {icon}
       </div>
-      <div>
-        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)' }}>{name}</div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)', wordBreak: 'break-word' }}>{name}</div>
         {subtitle && (
-          <div style={{ fontSize: 12, color: 'var(--color-text-3)' }}>{subtitle}</div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-3)', wordBreak: 'break-word' }}>{subtitle}</div>
         )}
         {tag && (
-          <Tag size="small" style={{ marginTop: 3, borderRadius: 0, fontSize: 11 }}>
+          <Tag size="small" style={{ marginTop: 3, borderRadius: 0, fontSize: 11, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {tag}
           </Tag>
         )}

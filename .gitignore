@@ -30,8 +30,8 @@ build/
 !.env.docker.example
 
 # Database Backups & Dumps
-backups/
-backend/backups/
+/backups/
+/backend/backups/
 *.dump
 *.sql
 *.sqlite

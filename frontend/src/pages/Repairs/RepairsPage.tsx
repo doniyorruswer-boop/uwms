@@ -26,11 +26,13 @@ import {
   IconSafe,
   IconDownload,
   IconRefresh,
+  IconSync,
 } from '@arco-design/web-react/icon';
 import { useRepairsQuery, type RepairItem } from '../../hooks/useRepairsQuery';
 import { CreateRepairModal } from '../../components/Repairs/CreateRepairModal';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
+import { TableActions } from '../../components/Common/TableActions';
 import { exportToExcel } from '../../utils/exportExcel';
 
 const { Row, Col } = Grid;
@@ -99,55 +101,55 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Talabnoma №',
       dataIndex: 'repairNumber',
-      width: 140,
-      render: (val: string) => <b style={{ color: '#165DFF' }}>{val}</b>,
+      width: 155,
+      render: (val: string) => (
+        <div style={{ paddingLeft: 8 }}>
+          <b style={{ color: '#165DFF', whiteSpace: 'nowrap' }}>{val}</b>
+        </div>
+      ),
     },
     {
-      title: 'Asosiy Vosita & Inventar №',
+      title: 'Asosiy Vosita',
       dataIndex: 'asset',
-      minWidth: 260,
+      width: 250,
       render: (asset: any) => (
-        <div>
-          <CategoryThumbnail
-            icon={<IconTool />}
-            name={asset.item?.name || 'Asosiy vosita'}
-            subtitle={`Inv: ${asset.inventoryNumber}${asset.item?.model ? ` | ${asset.item.model}` : ''}`}
-            tag={asset.room ? `${asset.room.number}-xona` : undefined}
-            color="#165DFF"
-            bg="#E8F3FF"
-          />
-          {asset.depreciation && (
-            <div style={{ fontSize: 11, color: '#FF7D00', marginTop: 4, paddingLeft: 50 }}>
-              Qoldiq qiymat: {(asset.depreciation.currentBookValue || 0).toLocaleString()} so‘m
-            </div>
-          )}
-        </div>
+        <CategoryThumbnail
+          icon={<IconTool />}
+          name={asset?.item?.name || 'Asosiy vosita'}
+          tag={asset?.room ? `${asset.room.number}-xona` : undefined}
+          color="#165DFF"
+          bg="#E8F3FF"
+        />
       ),
     },
     {
       title: 'Nosozlik / Sabab',
       dataIndex: 'issueDescription',
-      minWidth: 200,
+      width: 280,
       render: (val: string) => (
-        <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{val}</span>
+        <span style={{ fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.4 }}>{val}</span>
       ),
     },
     {
       title: 'Ustaxona / Servis',
       dataIndex: 'serviceProvider',
-      width: 170,
-      render: (val: string) => val || 'OTM ustaxonasi',
+      width: 160,
+      render: (val: string) => <span style={{ color: 'var(--color-text-2)' }}>{val || 'OTM ustaxonasi'}</span>,
     },
     {
       title: 'Xarajat (so‘m)',
       dataIndex: 'cost',
-      width: 140,
-      render: (val: any) => (val ? `${Number(val).toLocaleString()} so‘m` : '—'),
+      width: 130,
+      render: (val: any) => (
+        <span style={{ whiteSpace: 'nowrap' }}>
+          {val ? `${Number(val).toLocaleString()} so‘m` : '—'}
+        </span>
+      ),
     },
     {
       title: 'Holati',
       dataIndex: 'status',
-      width: 140,
+      width: 135,
       render: (status: string) => {
         if (status === 'IN_REPAIR') {
           return (
@@ -180,27 +182,37 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Yuboruvchi',
       dataIndex: 'requestedBy',
-      width: 160,
-      render: (u: any) => (u ? u.fullName : '—'),
+      width: 140,
+      render: (u: any) => (
+        <span style={{ whiteSpace: 'nowrap', color: 'var(--color-text-2)' }}>
+          {u ? u.fullName : '—'}
+        </span>
+      ),
     },
     {
       title: 'Sana',
       dataIndex: 'createdAt',
-      width: 120,
-      render: (val: string) => val?.substring(0, 10),
+      width: 110,
+      render: (val: string) => (
+        <span style={{ whiteSpace: 'nowrap', color: 'var(--color-text-3)', fontSize: 12 }}>
+          {val?.substring(0, 10)}
+        </span>
+      ),
     },
     {
       title: 'Amallar',
       dataIndex: 'actions',
-      width: 160,
+      width: 200,
       fixed: 'right' as const,
       render: (_: any, record: RepairItem) => (
-        <Space>
+        <TableActions rightPadding={0} align="center">
           {record.status === 'IN_REPAIR' || record.status === 'PENDING' ? (
             <Button
-              type="primary"
+              type="outline"
+              status="success"
               size="small"
-              style={{ borderRadius: 0, backgroundColor: '#00B42A' }}
+              icon={<IconSync />}
+              style={{ borderRadius: 0, fontWeight: 500 }}
               onClick={() => handleOpenUpdate(record)}
             >
               Holatni Yangilash
@@ -210,7 +222,7 @@ export const RepairsPage: React.FC = () => {
               Yopilgan
             </Tag>
           )}
-        </Space>
+        </TableActions>
       ),
     },
   ];
@@ -328,7 +340,7 @@ export const RepairsPage: React.FC = () => {
           loading={isLoading}
           columns={columns}
           data={filteredRepairs}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1560 }}
           pagination={{
             pageSize: 10,
             sizeCanChange: true,

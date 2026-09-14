@@ -41,6 +41,7 @@ import { ResetPasswordModal } from './ResetPasswordModal';
 import { UserAssetsDrawer } from './UserAssetsDrawer';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { PageTabs } from '../../components/Common/PageTabs';
+import { TableActions } from '../../components/Common/TableActions';
 import { exportToExcel } from '../../utils/exportExcel';
 
 const { Title, Text } = Typography;
@@ -247,7 +248,7 @@ export const UsersPage: React.FC = () => {
       width: 120,
       fixed: 'right' as const,
       render: (_: any, record: UserItem) => (
-        <Space size="small">
+        <TableActions rightPadding={16}>
           <Tooltip content="Ma’lumotlarni tahrirlash">
             <Button
               size="small"
@@ -267,7 +268,7 @@ export const UsersPage: React.FC = () => {
               onClick={() => setResettingUser(record)}
             />
           </Tooltip>
-        </Space>
+        </TableActions>
       ),
     },
   ];

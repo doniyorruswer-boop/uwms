@@ -107,6 +107,7 @@ body {
 .arco-table,
 .arco-table-container,
 .arco-table-content,
+.arco-table-content-scroll,
 .arco-table-content-inner {
   width: 100%;
 }

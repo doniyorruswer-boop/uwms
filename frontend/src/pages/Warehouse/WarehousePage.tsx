@@ -11,7 +11,6 @@ import {
   Form,
   InputNumber,
   Message,
-  Progress,
   Badge,
   Grid,
   Alert,
@@ -48,6 +47,7 @@ import { OfficialDocModal } from '../../components/OfficialDocument/OfficialDocM
 import { InterWarehouseTransferModal } from '../../components/Warehouse/InterWarehouseTransferModal';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
+import { TableActions } from '../../components/Common/TableActions';
 
 const FormItem = Form.Item;
 const { Row, Col } = Grid;
@@ -302,7 +302,7 @@ export const WarehousePage: React.FC = () => {
               rowKey="id"
               loading={isLoading || isFetching}
               data={filteredStocks}
-              scroll={{ x: 1100 }}
+              scroll={{ x: 1150 }}
               noDataElement={
                 searchText ? (
                   <Empty description="Qidiruv so‘rovi bo‘yicha tovar topilmadi" />
@@ -341,7 +341,7 @@ export const WarehousePage: React.FC = () => {
                 {
                   title: 'Omborxona',
                   dataIndex: 'warehouseName',
-                  width: 170,
+                  width: 220,
                   render: (wh: string) => (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
                       <IconBranch style={{ color: '#165DFF' }} />
@@ -352,7 +352,7 @@ export const WarehousePage: React.FC = () => {
                 {
                   title: 'O‘lchov Birligi',
                   dataIndex: 'unit',
-                  width: 130,
+                  width: 120,
                   render: (unit: string) => (
                     <Tag color="gray" style={{ borderRadius: 0, fontWeight: 500 }}>
                       {unit}
@@ -388,18 +388,24 @@ export const WarehousePage: React.FC = () => {
                 },
                 {
                   title: 'Amallar',
-                  width: 130,
+                  width: 140,
                   fixed: 'right' as const,
                   render: (_, record: StockItem) => (
-                    <Button
-                      size="small"
-                      type="primary"
-                      icon={<IconPlus />}
-                      onClick={() => handleOpenReplenish(record)}
-                      style={{ borderRadius: 0, fontWeight: 600 }}
-                    >
-                      To‘ldirish
-                    </Button>
+                    <TableActions rightPadding={16}>
+                      {record.status === 'LOW' ? (
+                        <Button
+                          size="small"
+                          type="outline"
+                          icon={<IconPlus />}
+                          onClick={() => handleOpenReplenish(record)}
+                          style={{ borderRadius: 0, fontWeight: 600 }}
+                        >
+                          To‘ldirish
+                        </Button>
+                      ) : (
+                        <span style={{ color: 'var(--color-text-3)', fontSize: 13, paddingLeft: 8 }}>—</span>
+                      )}
+                    </TableActions>
                   ),
                 },
               ]}

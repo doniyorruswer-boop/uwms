@@ -11,6 +11,7 @@ import {
   Popconfirm,
   Empty,
   Alert,
+  Tooltip,
 } from '@arco-design/web-react';
 import {
   IconPlus,
@@ -32,6 +33,7 @@ import { SupplierModal } from './SupplierModal';
 import { SupplierDetailDrawer } from './SupplierDetailDrawer';
 import { CreateInvoiceModal } from './CreateInvoiceModal';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
+import { TableActions } from '../../components/Common/TableActions';
 
 const { Title, Text } = Typography;
 const { Row, Col } = Grid;
@@ -244,24 +246,25 @@ export const SuppliersPage: React.FC = () => {
           }
           columns={[
             {
-              title: 'Korxona Nomi & Mas’ul',
+              title: 'Korxona Nomi',
               dataIndex: 'name',
               minWidth: 260,
               render: (name: string, record: SupplierItem) => (
-                <CategoryThumbnail
-                  icon={<IconUserGroup />}
-                  name={name}
-                  subtitle={record.contactPerson ? `Vakil: ${record.contactPerson}` : record.address || undefined}
-                  tag={record.contractNumber ? `Shartnoma: № ${record.contractNumber}` : 'Shartnomasiz'}
-                  color="#165DFF"
-                  bg="#E8F3FF"
-                />
+                <div style={{ paddingLeft: 6 }}>
+                  <CategoryThumbnail
+                    icon={<IconUserGroup />}
+                    name={name}
+                    tag={record.contractNumber ? `Shartnoma: № ${record.contractNumber}` : 'Shartnomasiz'}
+                    color="#165DFF"
+                    bg="#E8F3FF"
+                  />
+                </div>
               ),
             },
             {
               title: 'STIR (INN)',
               dataIndex: 'inn',
-              width: 140,
+              width: 130,
               render: (inn?: string) =>
                 inn ? (
                   <Tag color="arcoblue" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
@@ -287,7 +290,7 @@ export const SuppliersPage: React.FC = () => {
             },
             {
               title: 'Bog‘lanish',
-              width: 180,
+              width: 170,
               render: (_, record: SupplierItem) => (
                 <div>
                   <div style={{ fontSize: 12 }}>{record.phone || '—'}</div>
@@ -299,7 +302,7 @@ export const SuppliersPage: React.FC = () => {
             },
             {
               title: 'Kirimlar',
-              width: 160,
+              width: 150,
               render: (_, record: SupplierItem) => (
                 <div>
                   <div style={{ fontSize: 12 }}>
@@ -313,21 +316,28 @@ export const SuppliersPage: React.FC = () => {
             },
             {
               title: 'Amallar',
-              width: 170,
+              width: 200,
               fixed: 'right' as const,
               render: (_, record: SupplierItem) => (
-                <div onClick={(e) => e.stopPropagation()}>
-                  <Space size="small">
-                    <Button
-                      size="small"
-                      type="secondary"
-                      icon={<IconEye />}
-                      onClick={(e) => handleOpenDetail(record, e)}
-                      style={{ borderRadius: 0 }}
-                    >
-                      Pasport
-                    </Button>
-                    {isManager && (
+                <TableActions
+                  onDelete={isSuperAdmin ? (e) => handleDelete(record.id, e) : undefined}
+                  deleteConfirmTitle="Ta’minotchini o‘chirishni tasdiqlaysizmi?"
+                  deleteOkText="Ha, o‘chirish"
+                  deleteCancelText="Bekor qilish"
+                  deleteTooltip="O‘chirish"
+                  rightPadding={16}
+                >
+                  <Button
+                    size="small"
+                    type="outline"
+                    icon={<IconEye />}
+                    onClick={(e) => handleOpenDetail(record, e)}
+                    style={{ borderRadius: 0 }}
+                  >
+                    Pasport
+                  </Button>
+                  {isManager && (
+                    <Tooltip content="Tahrirlash">
                       <Button
                         size="small"
                         type="outline"
@@ -335,25 +345,9 @@ export const SuppliersPage: React.FC = () => {
                         onClick={(e) => handleOpenEdit(record, e)}
                         style={{ borderRadius: 0 }}
                       />
-                    )}
-                    {isSuperAdmin && (
-                      <Popconfirm
-                        title="Ta’minotchini o‘chirishni tasdiqlaysizmi?"
-                        onOk={(e) => handleDelete(record.id, e)}
-                        okText="Ha, o‘chirish"
-                        cancelText="Bekor qilish"
-                      >
-                        <Button
-                          size="small"
-                          type="text"
-                          status="danger"
-                          icon={<IconDelete />}
-                          style={{ borderRadius: 0 }}
-                        />
-                      </Popconfirm>
-                    )}
-                  </Space>
-                </div>
+                    </Tooltip>
+                  )}
+                </TableActions>
               ),
             },
           ]}

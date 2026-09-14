@@ -29,6 +29,7 @@ import { useSystemAuditQuery } from '../../hooks/useSystemAuditQuery';
 import { SystemAuditLogItem } from '../../types';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { PageTabs } from '../../components/Common/PageTabs';
+import { TableActions } from '../../components/Common/TableActions';
 import { exportToExcel } from '../../utils/exportExcel';
 
 const { Title, Text } = Typography;
@@ -225,18 +226,20 @@ export const SystemAuditPage: React.FC = () => {
     },
     {
       title: 'Amallar',
-      width: 100,
+      width: 110,
       fixed: 'right' as const,
       render: (_: any, record: SystemAuditLogItem) => (
-        <Button
-          size="small"
-          type="text"
-          icon={<IconEye />}
-          style={{ borderRadius: 0 }}
-          onClick={() => openDetails(record)}
-        >
-          Ko‘rish
-        </Button>
+        <TableActions rightPadding={16}>
+          <Button
+            size="small"
+            type="outline"
+            icon={<IconEye />}
+            style={{ borderRadius: 0 }}
+            onClick={() => openDetails(record)}
+          >
+            Ko‘rish
+          </Button>
+        </TableActions>
       ),
     },
   ];
