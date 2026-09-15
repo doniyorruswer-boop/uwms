@@ -1,11 +1,11 @@
-import { Controller, Get, Post, Body, Param, Patch, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, UseGuards, ForbiddenException, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { RequestsService } from './requests.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RoleType, RequestStatus } from '@prisma/client';
-import { CreateRequestDto, UpdateRequestStatusDto } from './dto/request.dto';
+import { CreateRequestDto, UpdateRequestStatusDto, QueryRequestsDto } from './dto/request.dto';
 
 @ApiTags('Requests')
 @ApiBearerAuth()
@@ -15,9 +15,9 @@ export class RequestsController {
   constructor(private requestsService: RequestsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Barcha talabnomalar (zayavkalar) ro‘yxati' })
-  async getAllRequests() {
-    return this.requestsService.getAllRequests();
+  @ApiOperation({ summary: 'Barcha talabnomalar (zayavkalar) ro‘yxati (qidiruv, filtr, sahifalash, saralash)' })
+  async getAllRequests(@Query() query: QueryRequestsDto) {
+    return this.requestsService.getAllRequests(query);
   }
 
   @Post()

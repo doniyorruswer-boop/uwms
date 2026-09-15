@@ -13,7 +13,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserDto, ToggleStatusDto } from './dto/update-user.dto';
 import { QueryUsersDto } from './dto/query-users.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -67,10 +67,10 @@ export class UsersController {
   @ApiOperation({ summary: 'Xodim faollik holatini o‘zgartirish (Faol / Nofaol)' })
   async toggleStatus(
     @Param('id') id: string,
-    @Body('isActive') isActive: boolean,
+    @Body() dto: ToggleStatusDto,
     @Request() req: any,
   ) {
-    return this.usersService.toggleStatus(id, isActive, req.user.id);
+    return this.usersService.toggleStatus(id, dto.isActive, req.user.id);
   }
 
   @Post(':id/reset-password')

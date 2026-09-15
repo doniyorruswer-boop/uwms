@@ -4,22 +4,22 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { RequestStatus } from '@prisma/client';
 
 export class RequestItemDto {
-  @ApiPropertyOptional({ description: 'Ombordagi mavjud mahsulot ID si' })
+  @ApiProperty({ description: 'Ombor katalogidagi mavjud mahsulot ID si (majburiy)' })
+  @IsString()
+  @IsNotEmpty({ message: 'Mahsulot ID si (itemId) kiritilishi shart! Katalogdan tanlang.' })
+  itemId: string;
+
+  @ApiPropertyOptional({ example: 'A4 Formatli qog\'oz (SvetoCopy)', description: 'Mahsulot nomi (ixtiyoriy, faqat ma\'lumot uchun)' })
   @IsString()
   @IsOptional()
-  itemId?: string;
+  itemName?: string;
 
-  @ApiProperty({ example: 'A4 Formatli qog‘oz (SvetoCopy)', description: 'Mahsulot nomi' })
-  @IsString()
-  @IsNotEmpty({ message: 'Mahsulot nomi kiritilishi shart!' })
-  itemName: string;
-
-  @ApiProperty({ example: 10, description: 'So‘ralayotgan miqdor' })
+  @ApiProperty({ example: 10, description: 'So\'ralayotgan miqdor' })
   @IsNumber()
-  @Min(1, { message: 'Miqdor kamida 1 bo‘lishi kerak!' })
+  @Min(1, { message: 'Miqdor kamida 1 bo\'lishi kerak!' })
   quantity: number;
 
-  @ApiPropertyOptional({ example: 'PACHKA', description: 'O‘lchov birligi' })
+  @ApiPropertyOptional({ example: 'PACHKA', description: 'O\'lchov birligi' })
   @IsString()
   @IsOptional()
   unit?: string;
@@ -53,3 +53,45 @@ export class UpdateRequestStatusDto {
   @IsOptional()
   note?: string;
 }
+
+export class QueryRequestsDto {
+  @ApiPropertyOptional({ description: 'Qidiruv (talabnoma raqami yoki maqsadi bo‘yicha)' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({ enum: RequestStatus, description: 'Talabnoma holati bo‘yicha filtr' })
+  @IsOptional()
+  @IsEnum(RequestStatus)
+  status?: RequestStatus;
+
+  @ApiPropertyOptional({ description: 'Kafedra ID si bo‘yicha filtr' })
+  @IsOptional()
+  @IsString()
+  departmentId?: string;
+
+  @ApiPropertyOptional({ description: 'Sahifa raqami (default: 1)', example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ description: 'Sahifadagi yozuvlar soni (default: 20)', example: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  limit?: number;
+
+  @ApiPropertyOptional({ description: 'Saralash ustuni (createdAt, requestNumber, status)', example: 'createdAt' })
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @ApiPropertyOptional({ description: 'Saralash tartibi (asc, desc)', example: 'desc' })
+  @IsOptional()
+  @IsString()
+  sortOrder?: 'asc' | 'desc';
+}
+

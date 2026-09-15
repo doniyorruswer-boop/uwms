@@ -51,6 +51,12 @@ export class AssetsService {
     const limit = Math.max(1, Math.min(200, Number(query?.limit) || 25));
     const skip = (page - 1) * limit;
 
+    const allowedSortFields = ['createdAt', 'inventoryNumber', 'purchasePrice', 'purchaseDate'];
+    const sortField = query && (query as any).sortBy && allowedSortFields.includes((query as any).sortBy)
+      ? (query as any).sortBy
+      : 'createdAt';
+    const sortOrder = query && (query as any).sortOrder === 'asc' ? 'asc' : 'desc';
+
     const [instances, total] = isPaginated
       ? await this.prisma.$transaction([
           this.prisma.itemInstance.findMany({
@@ -61,7 +67,7 @@ export class AssetsService {
               responsibleUser: { select: { id: true, fullName: true } },
               supplier: true,
             },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { [sortField]: sortOrder },
             skip,
             take: limit,
           }),
@@ -76,7 +82,7 @@ export class AssetsService {
               responsibleUser: { select: { id: true, fullName: true } },
               supplier: true,
             },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { [sortField]: sortOrder },
           }),
           0,
         ];

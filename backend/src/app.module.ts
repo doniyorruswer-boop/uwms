@@ -19,6 +19,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { BackupsModule } from './backups/backups.module';
 import { UsersModule } from './users/users.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { UploadsModule } from './uploads/uploads.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -50,6 +51,7 @@ import { APP_GUARD } from '@nestjs/core';
     RepairsModule,
     WriteOffsModule,
     DashboardModule,
+    UploadsModule,
   ],
   providers: [
     {

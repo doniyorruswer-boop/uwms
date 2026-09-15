@@ -1,6 +1,9 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, Min, IsArray, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, Min, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+const TransferStatus = ['ACCEPTED', 'REJECTED'] as const;
+type TransferStatusType = typeof TransferStatus[number];
 
 
 export class CreateAssetDto {
@@ -65,7 +68,9 @@ export class TransferAssetDto {
 
 export class BatchTransferAssetDto {
   @ApiProperty({ type: [String], description: 'Ko‘chirilayotgan uskunalar ID lari massivi' })
+  @IsArray({ message: 'assetIds massiv bo‘lishi shart!' })
   @IsNotEmpty({ message: 'Kamida bitta uskuna tanlanishi shart!' })
+  @IsString({ each: true, message: 'Har bir uskuna ID si string bo‘lishi kerak!' })
   assetIds: string[];
 
   @ApiProperty({ description: 'Maqsad xona ID si' })
@@ -88,9 +93,8 @@ export class WriteOffAssetDto {
 
 export class RespondTransferDto {
   @ApiProperty({ example: 'ACCEPTED', enum: ['ACCEPTED', 'REJECTED'], description: 'Qabul qilish yoki rad etish' })
-  @IsString()
-  @IsNotEmpty({ message: 'Holat tanlanishi shart!' })
-  status: 'ACCEPTED' | 'REJECTED';
+  @IsEnum(TransferStatus, { message: 'Holat faqat ACCEPTED yoki REJECTED bo‘lishi mumkin!' })
+  status: TransferStatusType;
 
   @ApiPropertyOptional({ description: 'Izoh yoki sabab' })
   @IsString()

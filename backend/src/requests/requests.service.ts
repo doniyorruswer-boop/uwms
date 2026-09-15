@@ -16,17 +16,71 @@ export class RequestsService {
     private readonly documentStampsService: DocumentStampsService,
   ) {}
 
-  async getAllRequests() {
-    const requests = await this.prisma.request.findMany({
-      include: {
-        requester: { select: { id: true, fullName: true } },
-        department: true,
-        items: { include: { item: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async getAllRequests(query?: {
+    search?: string;
+    status?: RequestStatus;
+    departmentId?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) {
+    const where: any = {};
 
-    return requests.map((r) => ({
+    if (query?.status) {
+      where.status = query.status;
+    }
+
+    if (query?.departmentId) {
+      where.departmentId = query.departmentId;
+    }
+
+    if (query?.search) {
+      where.OR = [
+        { requestNumber: { contains: query.search, mode: 'insensitive' } },
+        { purpose: { contains: query.search, mode: 'insensitive' } },
+        { requester: { fullName: { contains: query.search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const isPaginated = query?.page !== undefined || query?.limit !== undefined;
+    const page = Math.max(1, Number(query?.page) || 1);
+    const limit = Math.max(1, Math.min(200, Number(query?.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const validSortFields = ['createdAt', 'requestNumber', 'status', 'purpose'];
+    const sortBy = query?.sortBy && validSortFields.includes(query.sortBy) ? query.sortBy : 'createdAt';
+    const sortOrder = query?.sortOrder === 'asc' ? 'asc' : 'desc';
+
+    const [requests, total] = isPaginated
+      ? await this.prisma.$transaction([
+          this.prisma.request.findMany({
+            where,
+            include: {
+              requester: { select: { id: true, fullName: true } },
+              department: true,
+              items: { include: { item: true } },
+            },
+            orderBy: { [sortBy]: sortOrder },
+            skip,
+            take: limit,
+          }),
+          this.prisma.request.count({ where }),
+        ])
+      : [
+          await this.prisma.request.findMany({
+            where,
+            include: {
+              requester: { select: { id: true, fullName: true } },
+              department: true,
+              items: { include: { item: true } },
+            },
+            orderBy: { [sortBy]: sortOrder },
+          }),
+          0,
+        ];
+
+    const mapped = requests.map((r) => ({
       id: r.id,
       requestNumber: r.requestNumber,
       purpose: r.purpose,
@@ -47,54 +101,49 @@ export class RequestsService {
         unit: i.item.unit,
       })),
     }));
+
+    if (isPaginated) {
+      return {
+        data: mapped,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    }
+
+    return mapped;
   }
 
   async createRequest(dto: {
     purpose: string;
     requesterId: string;
     departmentId?: string;
-    items: { itemName: string; quantity: number; unit?: string }[];
+    items: { itemId: string; itemName?: string; quantity: number; unit?: string }[];
   }) {
     return this.prisma.$transaction(async (tx) => {
       // Find user & department
       const user = await tx.user.findUnique({ where: { id: dto.requesterId } });
       const departmentId = dto.departmentId || user?.departmentId || undefined;
 
-      const reqNum = `REQ-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
-
-      const cat = await tx.category.upsert({
-        where: { name: 'Kanselyariya va sarf materiallari' },
-        update: {},
-        create: { name: 'Kanselyariya va sarf materiallari' },
-      });
+      // Kolliziyasiz requestNumber: REQ-YYYY-<UUID 8 belgi>
+      const reqNum = `REQ-${new Date().getFullYear()}-${require('crypto').randomUUID().replace(/-/g, '').substring(0, 8).toUpperCase()}`;
 
       let isOverQuota = false;
       let specialApprovalNeeded = false;
       const currentPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
-      // Resolve items and check quotas
+      // Resolve items from existing catalog only — yangi item yaratish TAQIQLANGAN
       const resolvedItems: { item: any; quantity: number }[] = [];
 
       for (const i of dto.items) {
-        let item = null;
-        if ((i as any).itemId) {
-          item = await tx.item.findUnique({ where: { id: (i as any).itemId } });
-        }
-        if (!item && i.itemName) {
-          item = await tx.item.findFirst({
-            where: { name: { equals: i.itemName.trim(), mode: 'insensitive' } },
-          });
-        }
+        // itemId majburiy: faqat mavjud katalogdan olish
+        const item = await tx.item.findUnique({ where: { id: i.itemId } });
 
         if (!item) {
-          item = await tx.item.create({
-            data: {
-              name: i.itemName.trim(),
-              unit: i.unit || 'DONA',
-              itemType: 'CONSUMABLE',
-              categoryId: cat.id,
-            },
-          });
+          throw new BadRequestException(
+            `Mahsulot topilmadi (itemId: "${i.itemId}"). Faqat mavjud katalogdan tanlang!`,
+          );
         }
 
         resolvedItems.push({ item, quantity: i.quantity });
@@ -128,7 +177,7 @@ export class RequestsService {
           isOverQuota,
           specialApprovalNeeded,
           notes: isOverQuota
-            ? '[⚠️ DIQQAT: Kafedra oylik kvotasi oshirilgan. Rektorat maxsus tasdig‘i talab qilinadi]'
+            ? '[⚠️ DIQQAT: Kafedra oylik kvotasi oshirilgan. Rektorat maxsus tasdig\'i talab qilinadi]'
             : null,
         },
       });
@@ -170,6 +219,7 @@ export class RequestsService {
     });
   }
 
+
   async updateStatus(
     id: string,
     status: RequestStatus,
@@ -177,6 +227,7 @@ export class RequestsService {
   ) {
     let fulfilledRequest: any = null;
     let outgoingMovement: any = null;
+    const lowStockAlerts: { name: string; remainingQty: number; minLimit: number; unit: string }[] = [];
 
     const result = await this.prisma.$transaction(async (tx) => {
       const request = await tx.request.findUnique({
@@ -203,7 +254,8 @@ export class RequestsService {
         }
 
         const executorId = dto?.approvedById || request.requesterId;
-        const movNum = `MOV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        // Kolliziyasiz movementNumber: MOV-YYYY-<UUID 8 belgi>
+        const movNum = `MOV-${new Date().getFullYear()}-${require('crypto').randomUUID().replace(/-/g, '').substring(0, 8).toUpperCase()}`;
 
         const movement = await tx.stockMovement.create({
           data: {
@@ -286,6 +338,16 @@ export class RequestsService {
               });
             }
           }
+
+          const remainingQty = stock.quantity - reqItem.requestedQty;
+          if (remainingQty <= reqItem.item.minStockLimit) {
+            lowStockAlerts.push({
+              name: reqItem.item.name,
+              remainingQty,
+              minLimit: reqItem.item.minStockLimit,
+              unit: reqItem.item.unit,
+            });
+          }
         }
 
         fulfilledRequest = request;
@@ -366,6 +428,18 @@ export class RequestsService {
         });
       } catch (e) {
         // stamping failure shouldn't fail the response
+      }
+    }
+
+    if (status === RequestStatus.FULFILLED && lowStockAlerts.length > 0) {
+      for (const alert of lowStockAlerts) {
+        await this.notificationsService.notifyRole(
+          RoleType.HEAD_WAREHOUSE,
+          '⚠️ Omborda Mahsulot Qoldig‘i Kritik Darajaga Tushdi!',
+          `"${alert.name}" mahsuloti ombor qoldig‘i me’yor darajasiga yetdi: ${alert.remainingQty} ${alert.unit} (Minimal limit: ${alert.minLimit} ${alert.unit}). Yangi xarid buyurtmasini shakllantirish tavsiya etiladi.`,
+          NotificationType.WARNING,
+          '/warehouse',
+        );
       }
     }
 

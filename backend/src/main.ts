@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression = require('compression');
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.trim() === '') {
@@ -24,7 +25,7 @@ async function bootstrap() {
     }),
   );
 
-  // 2. Strict CORS Policy
+  // 3. Strict CORS Policy
   const clientOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
   const allowedOrigins = [clientOrigin, 'http://localhost:5173', 'http://127.0.0.1:5173'];
 
@@ -41,10 +42,14 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
 
-  // 3. Validation Pipe
+  // 4. Global Exception Filter
+  app.useGlobalFilters(new AllExceptionsFilter());
+
+  // 5. Validation Pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
+      forbidNonWhitelisted: true, // DTO da yo'q maydonlar yuborilganda 400 xatolik qaytaradi
       transform: true,
     }),
   );

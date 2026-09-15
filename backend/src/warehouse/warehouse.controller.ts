@@ -6,7 +6,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RoleType } from '@prisma/client';
-import { ReplenishStockDto } from './dto/warehouse.dto';
+import { ReplenishStockDto, IngestStockDto, InterWarehouseTransferDto } from './dto/warehouse.dto';
 
 @ApiTags('Warehouse')
 @ApiBearerAuth()
@@ -41,7 +41,7 @@ export class WarehouseController {
   @Post('ingest')
   @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
   @ApiOperation({ summary: 'Ta’minotchi va faktura orqali omborga to‘liq kirim qilish (OS-1 shakli bilan)' })
-  async ingestStock(@Body() dto: any, @CurrentUser() user: any) {
+  async ingestStock(@Body() dto: IngestStockDto, @CurrentUser() user: any) {
     return this.warehouseService.ingestStock({ ...dto, executedById: user?.id });
   }
 
@@ -49,10 +49,9 @@ export class WarehouseController {
   @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
   @ApiOperation({ summary: 'Omborlararo mahsulot ko‘chirish (Inter-Warehouse Transfer)' })
   async transferStock(
-    @Body() dto: any,
+    @Body() dto: InterWarehouseTransferDto,
     @CurrentUser() user: any,
   ) {
     return this.warehouseService.transferBetweenWarehouses(dto, user?.id);
   }
 }
-

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test:e2e": "playwright test",
-    "lint": "oxlint",
+    "lint": "tsc -b --noEmit",
     "i18n:sync": "node scripts/sync-i18n.js",
     "preview": "vite preview"
   },

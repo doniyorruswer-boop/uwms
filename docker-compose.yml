@@ -46,6 +46,7 @@ services:
       - "4000:4000"
     volumes:
       - uwms_backups:/app/backups
+      - uwms_uploads:/app/uploads
     networks:
       - uwms_network
 
@@ -72,6 +73,8 @@ volumes:
   uwms_pgdata:
     driver: local
   uwms_backups:
+    driver: local
+  uwms_uploads:
     driver: local
 
 networks:
