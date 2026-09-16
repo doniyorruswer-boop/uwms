@@ -101,7 +101,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Talabnoma №',
       dataIndex: 'repairNumber',
-      width: 155,
+      width: 145,
       render: (val: string) => (
         <div style={{ paddingLeft: 8 }}>
           <b style={{ color: '#165DFF', whiteSpace: 'nowrap' }}>{val}</b>
@@ -111,7 +111,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Asosiy Vosita',
       dataIndex: 'asset',
-      width: 230,
+      width: 220,
       render: (asset: any) => (
         <CategoryThumbnail
           icon={<IconTool />}
@@ -125,7 +125,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Nosozlik / Sabab',
       dataIndex: 'issueDescription',
-      minWidth: 220,
+      minWidth: 200,
       render: (val: string) => (
         <span style={{ fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.4 }}>{val}</span>
       ),
@@ -133,13 +133,13 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Ustaxona / Servis',
       dataIndex: 'serviceProvider',
-      width: 160,
+      width: 200,
       render: (val: string) => <span style={{ color: 'var(--color-text-2)' }}>{val || 'OTM ustaxonasi'}</span>,
     },
     {
       title: 'Xarajat (so‘m)',
       dataIndex: 'cost',
-      width: 130,
+      width: 120,
       render: (val: any) => (
         <span style={{ whiteSpace: 'nowrap' }}>
           {val ? `${Number(val).toLocaleString()} so‘m` : '—'}
@@ -149,7 +149,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Holati',
       dataIndex: 'status',
-      width: 135,
+      width: 125,
       render: (status: string) => {
         if (status === 'IN_REPAIR') {
           return (
@@ -182,7 +182,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Yuboruvchi',
       dataIndex: 'requestedBy',
-      width: 140,
+      width: 130,
       render: (u: any) => (
         <span style={{ whiteSpace: 'nowrap', color: 'var(--color-text-2)' }}>
           {u ? u.fullName : '—'}
@@ -192,7 +192,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Sana',
       dataIndex: 'createdAt',
-      width: 110,
+      width: 105,
       render: (val: string) => (
         <span style={{ whiteSpace: 'nowrap', color: 'var(--color-text-3)', fontSize: 12 }}>
           {val?.substring(0, 10)}
@@ -202,7 +202,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Amallar',
       dataIndex: 'actions',
-      width: 165,
+      width: 185,
       fixed: 'right' as const,
       render: (_: any, record: RepairItem) => (
         <TableActions rightPadding={16}>
@@ -212,15 +212,21 @@ export const RepairsPage: React.FC = () => {
               status="success"
               size="small"
               icon={<IconSync />}
-              style={{ borderRadius: 0, fontWeight: 500 }}
+              style={{ borderRadius: 0, fontWeight: 500, padding: '0 8px' }}
               onClick={() => handleOpenUpdate(record)}
             >
               Holatni Yangilash
             </Button>
           ) : (
-            <Tag color="gray" style={{ borderRadius: 0 }}>
-              Yopilgan
-            </Tag>
+            <Button
+              type="outline"
+              size="small"
+              icon={<IconCheckCircle />}
+              style={{ borderRadius: 0, color: 'var(--color-text-2)', padding: '0 8px' }}
+              onClick={() => handleOpenUpdate(record)}
+            >
+              Tafsilot (Yopilgan)
+            </Button>
           )}
         </TableActions>
       ),
@@ -340,7 +346,7 @@ export const RepairsPage: React.FC = () => {
           loading={isLoading}
           columns={columns}
           data={filteredRepairs}
-          scroll={{ x: 1180 }}
+          scroll={{ x: 1080 }}
           pagination={{
             pageSize: 10,
             sizeCanChange: true,
