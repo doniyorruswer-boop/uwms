@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Table,
   Card,
@@ -50,21 +50,24 @@ export const RepairsPage: React.FC = () => {
   const [selectedRepair, setSelectedRepair] = useState<RepairItem | null>(null);
   const [updateForm] = Form.useForm();
 
-  const { repairs, isLoading, isError, refetch, updateRepairStatus, isUpdating } = useRepairsQuery({
-    status: statusFilter !== 'ALL' ? statusFilter : undefined,
-  });
+  const { repairs, isLoading, isError, refetch, updateRepairStatus, isUpdating } = useRepairsQuery();
 
-  const filteredRepairs = repairs.filter((r) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      r.repairNumber.toLowerCase().includes(q) ||
-      r.asset.inventoryNumber.toLowerCase().includes(q) ||
-      r.asset.item.name.toLowerCase().includes(q) ||
-      r.issueDescription.toLowerCase().includes(q) ||
-      (r.serviceProvider && r.serviceProvider.toLowerCase().includes(q))
-    );
-  });
+  const filteredRepairs = useMemo(() => {
+    return repairs.filter((r) => {
+      const matchesStatus = statusFilter === 'ALL' || r.status === statusFilter;
+      if (!matchesStatus) return false;
+
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return (
+        r.repairNumber.toLowerCase().includes(q) ||
+        r.asset.inventoryNumber.toLowerCase().includes(q) ||
+        r.asset.item.name.toLowerCase().includes(q) ||
+        r.issueDescription.toLowerCase().includes(q) ||
+        (r.serviceProvider && r.serviceProvider.toLowerCase().includes(q))
+      );
+    });
+  }, [repairs, statusFilter, search]);
 
   const handleOpenUpdate = (repair: RepairItem) => {
     setSelectedRepair(repair);
@@ -125,15 +128,17 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Nosozlik / Sabab',
       dataIndex: 'issueDescription',
-      minWidth: 200,
+      width: 260,
       render: (val: string) => (
-        <span style={{ fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.4 }}>{val}</span>
+        <div style={{ fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.4, wordBreak: 'break-word' }}>
+          {val}
+        </div>
       ),
     },
     {
       title: 'Ustaxona / Servis',
       dataIndex: 'serviceProvider',
-      width: 200,
+      width: 190,
       render: (val: string) => <span style={{ color: 'var(--color-text-2)' }}>{val || 'OTM ustaxonasi'}</span>,
     },
     {
@@ -240,7 +245,7 @@ export const RepairsPage: React.FC = () => {
   const totalRepairCost = repairs.reduce((sum, r) => sum + (Number(r.cost) || 0), 0);
 
   const handleExportExcel = () => {
-    const data = repairs.map((r) => ({
+    const data = filteredRepairs.map((r) => ({
       'Talabnoma №': r.repairNumber,
       'Asosiy Vosita': r.asset?.item?.name || '—',
       'Inventar №': r.asset?.inventoryNumber || '—',
@@ -346,7 +351,7 @@ export const RepairsPage: React.FC = () => {
           loading={isLoading}
           columns={columns}
           data={filteredRepairs}
-          scroll={{ x: 1080 }}
+          scroll={{ x: 1475 }}
           pagination={{
             pageSize: 10,
             sizeCanChange: true,
