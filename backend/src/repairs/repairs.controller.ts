@@ -35,13 +35,13 @@ export class RepairsController {
   }
 
   @Patch(':id/status')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.MOL)
   @ApiOperation({ summary: 'Ta’mirlash holatini yangilash (Qabul qilish / Yakunlash / Yaroqsiz deb topish)' })
   async updateRepairStatus(
     @Param('id') id: string,
     @Body() dto: UpdateRepairStatusDto,
     @CurrentUser() user: any,
   ) {
-    return this.repairsService.updateRepairStatus(id, dto, user?.id);
+    return this.repairsService.updateRepairStatus(id, dto, user?.id || user?.sub);
   }
 }

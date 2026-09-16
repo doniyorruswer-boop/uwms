@@ -69,11 +69,11 @@ export const RepairsPage: React.FC = () => {
   const handleOpenUpdate = (repair: RepairItem) => {
     setSelectedRepair(repair);
     updateForm.setFieldsValue({
-      status: 'COMPLETED',
+      status: repair.status === 'COMPLETED' || repair.status === 'UNREPAIRABLE' ? repair.status : 'COMPLETED',
       serviceProvider: repair.serviceProvider || 'Universitet ichki ustaxonasi',
-      cost: repair.cost || 0,
-      actNumber: `AKT-REP-${new Date().getFullYear()}-${repair.repairNumber.split('-').pop()}`,
-      notes: '',
+      cost: repair.cost !== undefined && repair.cost !== null ? Number(repair.cost) : 0,
+      actNumber: repair.actNumber || `AKT-REP-${new Date().getFullYear()}-${repair.repairNumber.split('-').pop()}`,
+      notes: repair.notes || '',
     });
     setUpdateModalVisible(true);
   };
@@ -85,10 +85,10 @@ export const RepairsPage: React.FC = () => {
       await updateRepairStatus({
         id: selectedRepair.id,
         status: values.status,
-        serviceProvider: values.serviceProvider,
-        cost: values.cost,
-        actNumber: values.actNumber,
-        notes: values.notes,
+        serviceProvider: values.serviceProvider ? String(values.serviceProvider).trim() : undefined,
+        cost: values.cost !== undefined && values.cost !== null && values.cost !== '' ? Number(values.cost) : 0,
+        actNumber: values.actNumber ? String(values.actNumber).trim() : undefined,
+        notes: values.notes ? String(values.notes).trim() : undefined,
       });
       setUpdateModalVisible(false);
       setSelectedRepair(null);

@@ -73,7 +73,13 @@ export function useRepairsQuery(params?: { status?: string; assetId?: string }) 
       queryClient.invalidateQueries({ queryKey: ['assets'] });
     },
     onError: (err: any) => {
-      Message.error(err.response?.data?.message || 'Ta’mir talabnomasini yuborishda xatolik yuz berdi!');
+      const msg = err.response?.data?.message;
+      const displayMsg = Array.isArray(msg)
+        ? msg.join(', ')
+        : typeof msg === 'string'
+        ? msg
+        : 'Ta’mir talabnomasini yuborishda xatolik yuz berdi!';
+      Message.error(displayMsg);
     },
   });
 
@@ -104,7 +110,13 @@ export function useRepairsQuery(params?: { status?: string; assetId?: string }) 
       queryClient.invalidateQueries({ queryKey: ['assets'] });
     },
     onError: (err: any) => {
-      Message.error(err.response?.data?.message || 'Holatni yangilashda xatolik yuz berdi!');
+      const msg = err.response?.data?.message;
+      const displayMsg = Array.isArray(msg)
+        ? msg.join(', ')
+        : typeof msg === 'string'
+        ? msg
+        : 'Holatni yangilashda xatolik yuz berdi!';
+      Message.error(displayMsg);
     },
   });
 

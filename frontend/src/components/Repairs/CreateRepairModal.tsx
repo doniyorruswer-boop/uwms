@@ -34,10 +34,10 @@ export const CreateRepairModal: React.FC<CreateRepairModalProps> = ({
       const values = await form.validate();
       await createRepair({
         assetId: selectedAsset ? selectedAsset.id : values.assetId,
-        issueDescription: values.issueDescription,
-        serviceProvider: values.serviceProvider,
-        cost: values.cost,
-        notes: values.notes,
+        issueDescription: String(values.issueDescription || '').trim(),
+        serviceProvider: values.serviceProvider ? String(values.serviceProvider).trim() : undefined,
+        cost: values.cost !== undefined && values.cost !== null && values.cost !== '' ? Number(values.cost) : undefined,
+        notes: values.notes ? String(values.notes).trim() : undefined,
       });
       form.resetFields();
       onClose();

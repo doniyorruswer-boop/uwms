@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsEnum } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { RepairStatus } from '@prisma/client';
 
@@ -19,6 +20,8 @@ export class CreateRepairDto {
   serviceProvider?: string;
 
   @ApiPropertyOptional({ description: 'Taxminiy yoki kelishilgan ta’mirlash xarajati' })
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : Number(value)))
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   cost?: number;
@@ -41,6 +44,8 @@ export class UpdateRepairStatusDto {
   serviceProvider?: string;
 
   @ApiPropertyOptional({ description: 'Ta’mirlash xarajati' })
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : Number(value)))
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   cost?: number;

@@ -40,8 +40,10 @@ export class RepairsService {
       );
       return {
         ...r,
+        cost: r.cost !== null && r.cost !== undefined ? Number(r.cost) : null,
         asset: {
           ...r.asset,
+          purchasePrice: Number(r.asset.purchasePrice || 0),
           depreciation: dep,
         },
       };
@@ -73,14 +75,16 @@ export class RepairsService {
 
     return {
       ...r,
+      cost: r.cost !== null && r.cost !== undefined ? Number(r.cost) : null,
       asset: {
         ...r.asset,
+        purchasePrice: Number(r.asset.purchasePrice || 0),
         depreciation: dep,
       },
     };
   }
 
-  async createRepair(dto: CreateRepairDto, requestedById: string) {
+  async createRepair(dto: CreateRepairDto, requestedById?: string) {
     const asset = await this.prisma.itemInstance.findUnique({
       where: { id: dto.assetId },
       include: { room: true },
@@ -90,6 +94,11 @@ export class RepairsService {
     if (asset.status === AssetStatus.WRITTEN_OFF) {
       throw new BadRequestException('Hisobdan chiqarilgan (Spisanie) ashyoni ta’mirga yuborib bo‘lmaydi!');
     }
+
+    const effectiveRequesterId =
+      requestedById ||
+      (await this.prisma.user.findFirst({ where: { role: 'SUPER_ADMIN' } }))?.id ||
+      asset.responsibleUserId;
 
     return this.prisma.$transaction(async (tx) => {
       const count = await tx.repairRecord.count();
@@ -103,10 +112,10 @@ export class RepairsService {
           issueDescription: dto.issueDescription,
           status: RepairStatus.IN_REPAIR,
           serviceProvider: dto.serviceProvider || 'Universitet ichki ustaxonasi',
-          cost: dto.cost,
+          cost: dto.cost !== undefined && dto.cost !== null ? dto.cost : null,
           startDate: new Date(),
           notes: dto.notes,
-          requestedById,
+          requestedById: effectiveRequesterId,
         },
       });
 
@@ -130,24 +139,29 @@ export class RepairsService {
           toLocation: toLoc,
           referenceDoc: repairNumber,
           note: dto.issueDescription,
-          executedById: requestedById,
+          executedById: effectiveRequesterId,
         },
       });
 
-      return record;
+      return {
+        ...record,
+        cost: record.cost !== null && record.cost !== undefined ? Number(record.cost) : null,
+      };
     });
   }
 
   async updateRepairStatus(
     id: string,
     dto: UpdateRepairStatusDto,
-    approverId: string,
+    approverId?: string,
   ) {
     const repair = await this.prisma.repairRecord.findUnique({
       where: { id },
       include: { asset: { include: { room: true } } },
     });
     if (!repair) throw new NotFoundException('Ta’mirlash arizasi topilmadi!');
+
+    const effectiveApproverId = approverId || repair.requestedById;
 
     return this.prisma.$transaction(async (tx) => {
       const isCompleted = dto.status === RepairStatus.COMPLETED;
@@ -157,12 +171,12 @@ export class RepairsService {
         where: { id },
         data: {
           status: dto.status,
-          serviceProvider: dto.serviceProvider || repair.serviceProvider,
-          cost: dto.cost !== undefined ? dto.cost : repair.cost,
-          actNumber: dto.actNumber || repair.actNumber,
-          notes: dto.notes || repair.notes,
+          serviceProvider: dto.serviceProvider !== undefined ? dto.serviceProvider : repair.serviceProvider,
+          cost: dto.cost !== undefined && dto.cost !== null ? dto.cost : repair.cost,
+          actNumber: dto.actNumber !== undefined ? dto.actNumber : repair.actNumber,
+          notes: dto.notes !== undefined ? dto.notes : repair.notes,
           completionDate: isCompleted ? new Date() : repair.completionDate,
-          approvedById: approverId,
+          approvedById: effectiveApproverId,
         },
       });
 
@@ -183,7 +197,7 @@ export class RepairsService {
               : 'Omborxona',
             referenceDoc: updated.actNumber || updated.repairNumber,
             note: `Ta’mir muvaffaqiyatli yakunlandi. Xarajat: ${updated.cost || 0} so‘m. Izoh: ${dto.notes || 'Yaroqli holatda topshirildi'}`,
-            executedById: approverId,
+            executedById: effectiveApproverId,
           },
         });
       } else if (isUnrepairable) {
@@ -202,12 +216,15 @@ export class RepairsService {
               : 'Omborxona',
             referenceDoc: updated.actNumber || updated.repairNumber,
             note: `Texnik ekspertiza: ta’mirlash imkoni yo‘q. Spisanie (OS-4) tavsiya etiladi. Izoh: ${dto.notes || ''}`,
-            executedById: approverId,
+            executedById: effectiveApproverId,
           },
         });
       }
 
-      return updated;
+      return {
+        ...updated,
+        cost: updated.cost !== null && updated.cost !== undefined ? Number(updated.cost) : null,
+      };
     });
   }
 }
