@@ -111,7 +111,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Asosiy Vosita',
       dataIndex: 'asset',
-      width: 250,
+      width: 230,
       render: (asset: any) => (
         <CategoryThumbnail
           icon={<IconTool />}
@@ -125,7 +125,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Nosozlik / Sabab',
       dataIndex: 'issueDescription',
-      width: 280,
+      minWidth: 220,
       render: (val: string) => (
         <span style={{ fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.4 }}>{val}</span>
       ),
@@ -202,10 +202,10 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Amallar',
       dataIndex: 'actions',
-      width: 200,
+      width: 165,
       fixed: 'right' as const,
       render: (_: any, record: RepairItem) => (
-        <TableActions rightPadding={0} align="center">
+        <TableActions rightPadding={16}>
           {record.status === 'IN_REPAIR' || record.status === 'PENDING' ? (
             <Button
               type="outline"
@@ -340,7 +340,7 @@ export const RepairsPage: React.FC = () => {
           loading={isLoading}
           columns={columns}
           data={filteredRepairs}
-          scroll={{ x: 1560 }}
+          scroll={{ x: 1180 }}
           pagination={{
             pageSize: 10,
             sizeCanChange: true,
