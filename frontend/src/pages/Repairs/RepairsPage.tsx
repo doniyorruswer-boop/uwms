@@ -128,9 +128,9 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Nosozlik / Sabab',
       dataIndex: 'issueDescription',
-      width: 260,
+      minWidth: 260,
       render: (val: string) => (
-        <div style={{ fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.4, wordBreak: 'break-word' }}>
+        <div style={{ minWidth: 220, fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.4, wordBreak: 'break-word' }}>
           {val}
         </div>
       ),
@@ -207,7 +207,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Amallar',
       dataIndex: 'actions',
-      width: 185,
+      width: 170,
       fixed: 'right' as const,
       render: (_: any, record: RepairItem) => (
         <TableActions rightPadding={16}>
@@ -351,7 +351,7 @@ export const RepairsPage: React.FC = () => {
           loading={isLoading}
           columns={columns}
           data={filteredRepairs}
-          scroll={{ x: 1475 }}
+          scroll={{ x: 1380 }}
           pagination={{
             pageSize: 10,
             sizeCanChange: true,
