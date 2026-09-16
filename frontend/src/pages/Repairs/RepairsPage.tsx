@@ -207,10 +207,10 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Amallar',
       dataIndex: 'actions',
-      width: 170,
+      width: 200,
       fixed: 'right' as const,
       render: (_: any, record: RepairItem) => (
-        <TableActions rightPadding={16}>
+        <TableActions rightPadding={20}>
           {record.status === 'IN_REPAIR' || record.status === 'PENDING' ? (
             <Button
               type="outline"
@@ -351,7 +351,7 @@ export const RepairsPage: React.FC = () => {
           loading={isLoading}
           columns={columns}
           data={filteredRepairs}
-          scroll={{ x: 1380 }}
+          scroll={{ x: 1420 }}
           pagination={{
             pageSize: 10,
             sizeCanChange: true,
