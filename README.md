@@ -76,11 +76,43 @@ Swagger API hujjatlari: **`http://localhost:4000/api/docs`**
 
 ---
 
-## 👥 Foydalanuvchi Rollari (Test qilish uchun)
+## 👥 Foydalanuvchi Rollari va Tizimga Kirish
 
-Frontend interfeysining yuqori o‘ng burchagidagi **"Rolni o‘zgartirish"** tugmasi orqali istalgan rolga bir klikda o‘tish mumkin:
-1. **Bosh Omborchi** (Toshmatov Omon) — Kirim, chiqim, siljish va qoldiqlarni boshqarish.
-2. **MOL / Kafedra Mudiri** (Prof. Alimov Jasur) — Kafedraga biriktirilgan mulklar nazorati va talabnomalarni tasdiqlash.
-3. **O‘qituvchi / Xodim** (Karimov Rustam) — Talabnomalar yuborish.
-4. **Ichki Auditor** (Narzullayev Farhod) — Inventarizatsiya va kamomadlarni tekshirish.
-5. **Super Administrator** — Tizim to‘liq boshqaruvi.
+Tizimda har bir rol uchun qat’iy server-side **RBAC (Role-Based Access Control)** va **JWT autentifikatsiya** o‘rnatilgan. Barcha foydalanuvchilar `/login` sahifasi orqali tizimga kiradi:
+
+| № | Rol | Foydalanuvchi (Login) | Boshlang‘ich Parol | Mas’uliyati va Huquqlari |
+|---|---|---|---|---|
+| 1 | **Super Administrator** | `admin` | `admin123` | Tizim konfiguratsiyasi, foydalanuvchilar, audit jurnali, zaxira nusxalari. |
+| 2 | **Bosh Omborchi** | `warehouse` | `admin123` | Tovarlar kirimi (OS-1), chiqimi (OS-2), qaytarish, ombor qoldiqlari. |
+| 3 | **MOL / Kafedra Mudiri** | `mol` | `admin123` | Biriktirilgan mulklar nazorati, ko‘chirishni qabul qilish, zayavkalar. |
+| 4 | **O‘qituvchi / Xodim** | `teacher` | `admin123` | Sarflanuvchi materiallar uchun zayavka (talabnoma) yuborish. |
+| 5 | **Ichki Auditor** | `auditor` | `admin123` | Xonalar bo‘yicha QR-skaner auditi, kamomad tahlili, INV-19 akti. |
+
+> 🔒 **Xavfsizlik eslatmasi:** Har bir foydalanuvchi birinchi marta tizimga kirganda, xavfsizlik siyosati (`mustChangePassword`) talabiga ko‘ra o‘zining shaxsiy murakkab parolini o‘rnatishi shart.
+
+---
+
+## 🔐 Production Xavfsizlik va Kriptografik Kalitlar
+
+1. **Production JWT Secret Yaratish:**
+   Production muhitida standart yoki zaif kalit ishlatish server startup vaqtidayoq bloklanadi. Kriptografik 512-bit (128 ta o‘n oltilik belgi) tasodifiy kalit yaratish:
+   ```bash
+   cd backend
+   npm run generate:secret
+   ```
+
+2. **Muhit O‘zgaruvchilari Gigiyenasi:**
+   - Hech qachon `.env` faylini Git repozitoriyasiga yoki ochiq arxivga yuklamang (`.gitignore` da qat’iy bloklangan).
+   - Server sozlamalari uchun `backend/.env.example` andozasidan foydalaning.
+
+3. **Toza Production Arxivini Yaratish:**
+   Loyihani auditga yoki serverga deploy qilish uchun `node_modules/`, `dist/` va `.env` fayllaridan tozalangan ixcham ZIP arxiv yaratish:
+   ```bash
+   cd backend
+   npm run package:clean
+   ```
+   *Yoki loyiha ildizidan:*
+   ```bash
+   node scripts/package-clean.js
+   ```
+

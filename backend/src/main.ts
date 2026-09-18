@@ -7,9 +7,30 @@ import compression = require('compression');
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
-  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.trim() === '') {
+  const jwtSecret = process.env.JWT_SECRET?.trim();
+  if (!jwtSecret) {
     console.error('FATAL ERROR: JWT_SECRET muhit o‘zgaruvchisi aniqlanmagan! Xavfsizlik tufayli backend to‘xtatildi.');
     process.exit(1);
+  }
+
+  const isProduction = process.env.NODE_ENV === 'production';
+  const knownInsecureSecrets = [
+    'uwms_jwt_secret_dev_key_2026_super_secure',
+    'your_jwt_secret_key_change_in_production',
+    'secret',
+    'admin123',
+    'change_me',
+    'default_secret',
+  ];
+
+  if (isProduction) {
+    if (knownInsecureSecrets.includes(jwtSecret) || jwtSecret.length < 32) {
+      console.error(
+        'FATAL SECURITY ERROR: Production muhitida standart yoki zaif JWT_SECRET ishlatish qat’iyan taqiqlanadi!\n' +
+        'Iltimos, kamida 64 belgidan iborat tasodifiy kriptografik kalit o‘rnating (masalan: npm run generate:secret).',
+      );
+      process.exit(1);
+    }
   }
 
   const app = await NestFactory.create(AppModule);

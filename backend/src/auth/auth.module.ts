@@ -15,13 +15,34 @@ import { RolesGuard } from './guards/roles.guard';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const secret = configService.get<string>('JWT_SECRET');
+        const secret = configService.get<string>('JWT_SECRET')?.trim();
+        const nodeEnv = configService.get<string>('NODE_ENV') || 'development';
+
         if (!secret) {
-          throw new Error('JWT_SECRET muhit o‘zgaruvchisi topilmadi!');
+          throw new Error('FATAL: JWT_SECRET muhit o‘zgaruvchisi topilmadi!');
         }
+
+        const knownInsecureSecrets = [
+          'uwms_jwt_secret_dev_key_2026_super_secure',
+          'your_jwt_secret_key_change_in_production',
+          'secret',
+          'admin123',
+          'change_me',
+          'default_secret',
+        ];
+
+        if (nodeEnv === 'production') {
+          if (knownInsecureSecrets.includes(secret) || secret.length < 32) {
+            throw new Error(
+              'FATAL SECURITY ERROR: Production muhitida standart/zaif JWT_SECRET ishlatish qat’iyan taqiqlanadi! ' +
+              'Iltimos, kamida 64 belgidan iborat tasodifiy kriptografik kalit o‘rnating (masalan: npm run generate:secret).',
+            );
+          }
+        }
+
         return {
           secret,
-          signOptions: { expiresIn: '7d' },
+          signOptions: { expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '7d' },
         };
       },
     }),
