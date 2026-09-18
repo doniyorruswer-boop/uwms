@@ -130,7 +130,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Nosozlik & Servis Markazi',
       dataIndex: 'issueDescription',
-      minWidth: 300,
+      minWidth: 280,
       render: (val: string, record: RepairItem) => (
         <div>
           <div style={{ fontSize: 13, color: 'var(--color-text-1)', lineHeight: 1.45, wordBreak: 'break-word' }}>
@@ -147,7 +147,7 @@ export const RepairsPage: React.FC = () => {
     },
     {
       title: 'Yuboruvchi & Sana',
-      width: 160,
+      width: 150,
       render: (_: any, record: RepairItem) => (
         <div style={{ lineHeight: 1.35 }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-1)', whiteSpace: 'nowrap' }}>
@@ -162,22 +162,24 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Bosqich',
       dataIndex: 'status',
-      width: 190,
+      width: 165,
       render: (status: string) => {
-        if (status === 'IN_REPAIR') return <Badge status="processing" text="Ta’mir jarayonida" />;
-        if (status === 'PENDING') return <Badge status="warning" text="Kutilmoqda" />;
-        if (status === 'COMPLETED') return <Badge status="success" text="Yakunlangan" />;
-        if (status === 'UNREPAIRABLE') return <Badge status="error" text="Yaroqsiz (Spisanie)" />;
-        return <Tag style={{ borderRadius: 0 }}>{status}</Tag>;
+        let badge;
+        if (status === 'IN_REPAIR') badge = <Badge status="processing" text="Ta’mir jarayonida" />;
+        else if (status === 'PENDING') badge = <Badge status="warning" text="Kutilmoqda" />;
+        else if (status === 'COMPLETED') badge = <Badge status="success" text="Yakunlangan" />;
+        else if (status === 'UNREPAIRABLE') badge = <Badge status="error" text="Yaroqsiz (Spisanie)" />;
+        else badge = <Tag style={{ borderRadius: 0 }}>{status}</Tag>;
+        return <div style={{ whiteSpace: 'nowrap' }}>{badge}</div>;
       },
     },
     {
       title: 'Amallar',
       dataIndex: 'actions',
-      width: 220,
+      width: 224,
       fixed: 'right' as const,
       render: (_: any, record: RepairItem) => (
-        <TableActions rightPadding={0} gap={5}>
+        <TableActions rightPadding={0} gap={6}>
           <Button
             size="small"
             type="outline"
@@ -186,7 +188,7 @@ export const RepairsPage: React.FC = () => {
               e?.stopPropagation?.();
               handleOpenUpdate(record);
             }}
-            style={{ borderRadius: 0, padding: '0 8px' }}
+            style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap', width: 88 }}
           >
             Batafsil
           </Button>
@@ -200,7 +202,7 @@ export const RepairsPage: React.FC = () => {
                 e?.stopPropagation?.();
                 handleOpenUpdate(record);
               }}
-              style={{ borderRadius: 0, padding: '0 8px' }}
+              style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap', width: 104 }}
             >
               Yangilash
             </Button>
@@ -213,7 +215,7 @@ export const RepairsPage: React.FC = () => {
                 e?.stopPropagation?.();
                 handleOpenUpdate(record);
               }}
-              style={{ borderRadius: 0, padding: '0 8px' }}
+              style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap', width: 104 }}
             >
               Akt (OS-3)
             </Button>
@@ -335,7 +337,7 @@ export const RepairsPage: React.FC = () => {
         loading={isLoading}
         columns={columns}
         data={filteredRepairs}
-        scrollX={1200}
+        scrollX={1050}
         onRowClick={(record) => handleOpenUpdate(record)}
         emptyText={search ? 'Qidiruv bo‘yicha ariza topilmadi' : 'Hozircha ta’mirlash arizalari mavjud emas'}
       />
