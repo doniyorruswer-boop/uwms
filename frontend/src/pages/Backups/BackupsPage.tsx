@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Card,
-  Table,
   Button,
   Space,
   Typography,
@@ -36,6 +35,8 @@ import {
 import { backupsApi, BackupItem } from '../../api/backups.api';
 import { StatHeroCard } from '../../components/Common/StatHeroCard';
 import { TableActions } from '../../components/Common/TableActions';
+import { StandardTable } from '../../components/Common/StandardTable';
+import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { useAuthStore } from '../../store/authStore';
 
 const { Title, Text, Paragraph } = Typography;
@@ -147,68 +148,76 @@ export const BackupsPage: React.FC = () => {
       title: 'Fayl Nomi',
       dataIndex: 'filename',
       key: 'filename',
+      minWidth: 320,
       render: (filename: string, record: BackupItem) => (
-        <Space direction="vertical" size={2}>
-          <Text bold style={{ fontFamily: 'monospace', color: '#165DFF' }}>
-            {filename}
-          </Text>
-          {record.notes && (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {record.notes}
-            </Text>
-          )}
-        </Space>
+        <div style={{ paddingLeft: 8 }}>
+          <CategoryThumbnail
+            icon={<IconStorage />}
+            name={filename}
+            subtitle={record.notes || undefined}
+            color="#165DFF"
+            bg="#E8F3FF"
+          />
+        </div>
       ),
     },
     {
       title: 'Hajmi',
       dataIndex: 'fileSizeFormatted',
       key: 'fileSizeFormatted',
-      width: 110,
-      render: (size: string) => <Tag color="arcoblue">{size || '0 B'}</Tag>,
+      width: 90,
+      render: (size: string) => (
+        <Tag color="arcoblue" size="small" style={{ borderRadius: 0, fontWeight: 600 }}>
+          {size || '0 B'}
+        </Tag>
+      ),
     },
     {
       title: 'Turi',
       dataIndex: 'backupType',
       key: 'backupType',
-      width: 120,
+      width: 95,
       render: (type: string) =>
         type === 'AUTOMATIC' ? (
-          <Tag color="cyan">Avtomatik</Tag>
+          <Tag color="cyan" size="small" style={{ borderRadius: 0, fontWeight: 500 }}>
+            Avtomatik
+          </Tag>
         ) : (
-          <Tag color="green">Qo‘lda</Tag>
+          <Tag color="green" size="small" style={{ borderRadius: 0, fontWeight: 500 }}>
+            Qo‘lda
+          </Tag>
         ),
     },
     {
       title: 'Holati',
       dataIndex: 'status',
       key: 'status',
-      width: 130,
+      width: 95,
       render: (status: string) => {
         switch (status) {
           case 'COMPLETED':
-            return <Tag color="green">Tayyor</Tag>;
+            return <Tag color="green" size="small" style={{ borderRadius: 0, fontWeight: 500 }}>Tayyor</Tag>;
           case 'RESTORED':
-            return <Tag color="purple">Tiklandi</Tag>;
+            return <Tag color="purple" size="small" style={{ borderRadius: 0, fontWeight: 500 }}>Tiklandi</Tag>;
           case 'IN_PROGRESS':
-            return <Tag color="gold">Jarayonda</Tag>;
+            return <Tag color="gold" size="small" style={{ borderRadius: 0, fontWeight: 500 }}>Jarayonda</Tag>;
           case 'FAILED':
-            return <Tag color="red">Xato</Tag>;
+            return <Tag color="red" size="small" style={{ borderRadius: 0, fontWeight: 500 }}>Xato</Tag>;
           default:
-            return <Tag>{status}</Tag>;
+            return <Tag size="small" style={{ borderRadius: 0 }}>{status}</Tag>;
         }
       },
     },
     {
-      title: 'SHA-256 Xesh (Butunlik)',
+      title: 'SHA-256 (Xesh)',
       dataIndex: 'checksum',
       key: 'checksum',
-      width: 160,
+      width: 105,
       render: (checksum?: string) =>
         checksum ? (
           <Tooltip content={checksum}>
-            <Text code style={{ fontSize: 11 }}>
-              {checksum.slice(0, 12)}...
+            <Text code style={{ fontSize: 11, borderRadius: 0 }}>
+              {checksum.slice(0, 10)}...
             </Text>
           </Tooltip>
         ) : (
@@ -219,25 +228,40 @@ export const BackupsPage: React.FC = () => {
       title: 'Yaratilgan Sana',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      width: 170,
-      render: (val: string) => new Date(val).toLocaleString('uz-UZ'),
+      width: 115,
+      render: (val: string) => {
+        if (!val) return '—';
+        const d = new Date(val);
+        const dateStr = d.toLocaleDateString('uz-UZ', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timeStr = d.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return (
+          <div style={{ lineHeight: 1.35 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-1)', whiteSpace: 'nowrap' }}>
+              {dateStr}
+            </div>
+            <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--color-text-3)', whiteSpace: 'nowrap' }}>
+              {timeStr}
+            </div>
+          </div>
+        );
+      },
     },
     {
       title: 'Mas’ul Shaxs',
       dataIndex: 'triggeredBy',
       key: 'triggeredBy',
-      width: 160,
+      width: 155,
       render: (user?: BackupItem['triggeredBy']) =>
         user ? (
-          <Text>{user.fullName}</Text>
+          <Text style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{user.fullName}</Text>
         ) : (
-          <Text type="secondary">Tizim (Rejali)</Text>
+          <Text type="secondary" style={{ fontSize: 13, whiteSpace: 'nowrap' }}>Tizim (Rejali)</Text>
         ),
     },
     {
       title: 'Amallar',
       key: 'actions',
-      width: 150,
+      width: 122,
       fixed: 'right' as const,
       render: (_: unknown, record: BackupItem) => (
         <TableActions
@@ -246,11 +270,13 @@ export const BackupsPage: React.FC = () => {
           deleteOkText="Ha, o‘chirilsin"
           deleteCancelText="Bekor qilish"
           deleteTooltip="O‘chirish"
-          rightPadding={16}
+          rightPadding={0}
+          gap={6}
         >
           <Tooltip content="Yuklab olish">
             <Button
               size="small"
+              type="secondary"
               icon={<IconCloudDownload />}
               onClick={() => backupsApi.downloadBackup(record.id, record.filename)}
               style={{ borderRadius: 0 }}
@@ -260,6 +286,7 @@ export const BackupsPage: React.FC = () => {
           <Tooltip content="Zaxiradan tiklash">
             <Button
               size="small"
+              type="secondary"
               status="warning"
               icon={<IconUndo />}
               onClick={() => {
@@ -276,14 +303,13 @@ export const BackupsPage: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '0 4px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Page Title & Action Bar */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: 16,
         }}
       >
         <div>
@@ -295,12 +321,13 @@ export const BackupsPage: React.FC = () => {
           </Text>
         </div>
         <Space>
-          <Button icon={<IconRefresh />} onClick={handleRefresh}>
+          <Button icon={<IconRefresh />} style={{ borderRadius: 0 }} onClick={handleRefresh}>
             Yangilash
           </Button>
           <Button
             type="primary"
             icon={<IconPlus />}
+            style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
             onClick={() => {
               createForm.resetFields();
               setCreateModalVisible(true);
@@ -312,7 +339,7 @@ export const BackupsPage: React.FC = () => {
       </div>
 
       {/* KPI Stats Hero Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+      <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} md={8}>
           <StatHeroCard
             title="Jami Zaxira Nusxalari"
@@ -343,23 +370,30 @@ export const BackupsPage: React.FC = () => {
       </Row>
 
       {/* Search & Filter Toolbar */}
-      <Card style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px' }}>
-        <Row gutter={[16, 12]} justify="space-between" align="center">
-          <Col xs={24} sm={14} md={10}>
+      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '16px 20px' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 12,
+          }}
+        >
+          <Space size="medium" wrap>
             <Input
               allowClear
               prefix={<IconSearch />}
               placeholder="Fayl nomi yoki izoh bo‘yicha qidiruv..."
+              style={{ width: 320, borderRadius: 0 }}
               value={search}
               onChange={(val) => {
                 setSearch(val);
                 setPage(1);
               }}
             />
-          </Col>
-          <Col xs={24} sm={10} md={6}>
             <Select
-              style={{ width: '100%' }}
+              style={{ width: 180, borderRadius: 0 }}
               value={backupType}
               onChange={(val) => {
                 setBackupType(val);
@@ -370,30 +404,32 @@ export const BackupsPage: React.FC = () => {
               <Select.Option value="AUTOMATIC">Faqat Avtomatik</Select.Option>
               <Select.Option value="MANUAL">Faqat Qo‘lda</Select.Option>
             </Select>
-          </Col>
-        </Row>
+          </Space>
+        </div>
       </Card>
 
       {/* Backups Table */}
-      <Card bodyStyle={{ padding: 0 }}>
-        <Table
-          rowKey="id"
-          loading={isBackupsLoading || isStatsLoading}
-          columns={columns}
-          data={backupsData?.items || []}
-          pagination={{
-            current: page,
-            pageSize: pageSize,
-            total: backupsData?.total || 0,
-            showTotal: true,
-            sizeCanChange: true,
-            onChange: (p, ps) => {
-              setPage(p);
-              setPageSize(ps);
-            },
-          }}
-        />
-      </Card>
+      <StandardTable<BackupItem>
+        rowKey="id"
+        loading={isBackupsLoading || isStatsLoading}
+        columns={columns}
+        data={backupsData?.items || []}
+        scrollX={1150}
+        emptyText={
+          search || backupType !== 'ALL'
+            ? 'Qidiruv bo‘yicha zaxira nusxalari topilmadi'
+            : 'Zaxira nusxalari mavjud emas'
+        }
+        pagination={{
+          current: page,
+          pageSize: pageSize,
+          total: backupsData?.total || 0,
+          onChange: (p, ps) => {
+            setPage(p);
+            if (ps) setPageSize(ps);
+          },
+        }}
+      />
 
       {/* Modal: Yangi Zaxira Yaratish */}
       <Modal

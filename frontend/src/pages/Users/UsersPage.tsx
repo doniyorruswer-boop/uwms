@@ -147,7 +147,7 @@ export const UsersPage: React.FC = () => {
 
   const columns = [
     {
-      title: 'F.I.Sh. & Login',
+      title: 'F.I.Sh.',
       dataIndex: 'fullName',
       key: 'fullName',
       minWidth: 220,
@@ -156,7 +156,6 @@ export const UsersPage: React.FC = () => {
           <CategoryThumbnail
             icon={<IconUser />}
             name={record.fullName}
-            subtitle={`Login: ${record.username}${record.position ? ` | ${record.position}` : ''}`}
             tag={record.department?.name || undefined}
             color="#165DFF"
             bg="#E8F3FF"
