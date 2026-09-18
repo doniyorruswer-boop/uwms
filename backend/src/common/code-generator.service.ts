@@ -85,6 +85,15 @@ export class CodeGeneratorService {
   }
 
   /**
+   * Amortizatsiya partiya raqami (DEP-2026-09-001)
+   */
+  generateDepreciationBatchNumber(period: string, seq: number): string {
+    const cleanPeriod = (period || new Date().toISOString().substring(0, 7)).replace(/[^0-9-]/g, '');
+    const padded = String(seq).padStart(3, '0');
+    return `DEP-${cleanPeriod}-${padded}`;
+  }
+
+  /**
    * Asosiy vosita amortizatsiyasini hisoblash (OTM davlat standarti)
    */
   calculateDepreciation(

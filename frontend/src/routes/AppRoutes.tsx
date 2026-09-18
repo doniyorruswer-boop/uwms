@@ -19,6 +19,7 @@ import { PublicVerificationPage } from '../pages/PublicVerification/PublicVerifi
 import { BackupsPage } from '../pages/Backups/BackupsPage';
 import { UsersPage } from '../pages/Users/UsersPage';
 import { SuppliersPage } from '../pages/Suppliers/SuppliersPage';
+import { DepreciationPage } from '../pages/Depreciation/DepreciationPage';
 
 import { NAVIGATION_ITEMS } from '../constants';
 
@@ -50,6 +51,7 @@ export const AppRoutes: React.FC = () => {
                 <Route path="requests" element={<ProtectedRoute allowedRoles={getRoles('requests')}><RequestsPage /></ProtectedRoute>} />
                 <Route path="repairs" element={<ProtectedRoute allowedRoles={getRoles('repairs')}><RepairsPage /></ProtectedRoute>} />
                 <Route path="write-offs" element={<ProtectedRoute allowedRoles={getRoles('write-offs')}><WriteOffPage /></ProtectedRoute>} />
+                <Route path="depreciation" element={<ProtectedRoute allowedRoles={getRoles('depreciation')}><DepreciationPage /></ProtectedRoute>} />
                 <Route path="quotas" element={<ProtectedRoute allowedRoles={getRoles('quotas')}><QuotasPage /></ProtectedRoute>} />
                 <Route path="system-audit" element={<ProtectedRoute allowedRoles={getRoles('systemAudit')}><SystemAuditPage /></ProtectedRoute>} />
                 <Route path="integrations" element={<ProtectedRoute allowedRoles={getRoles('integrations')}><IntegrationsPage /></ProtectedRoute>} />

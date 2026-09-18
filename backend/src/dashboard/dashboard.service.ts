@@ -28,6 +28,8 @@ export class DashboardService {
           purchasePrice: true,
           purchaseDate: true,
           depreciationRate: true,
+          currentBookValue: true,
+          accumulatedDepreciation: true,
           status: true,
           fundingSource: true,
           createdAt: true,
@@ -144,6 +146,9 @@ export class DashboardService {
       if (asset.status === AssetStatus.WRITTEN_OFF) {
         depreciation = price;
         bookValue = 0;
+      } else if (asset.currentBookValue !== null && asset.currentBookValue !== undefined) {
+        bookValue = Number(asset.currentBookValue);
+        depreciation = Number(asset.accumulatedDepreciation ?? Math.max(0, price - bookValue));
       } else {
         const purchaseDate = asset.purchaseDate ? new Date(asset.purchaseDate) : asset.createdAt;
         const yearsDiff = Math.max(

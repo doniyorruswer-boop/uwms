@@ -221,6 +221,7 @@ export class WarehouseService {
             const qrCode = this.codeGen.generateQRCode(invNumber);
             const serial = entry.serialNumbers?.[q] || null;
 
+            const purchasePrice = entry.purchasePrice || 0;
             const instance = await tx.itemInstance.create({
               data: {
                 itemId: item.id,
@@ -229,7 +230,9 @@ export class WarehouseService {
                 qrCode,
                 status: 'NEW',
                 fundingSource: dto.fundingSource || 'BYUDJET',
-                purchasePrice: entry.purchasePrice || 0,
+                purchasePrice,
+                currentBookValue: purchasePrice,
+                accumulatedDepreciation: 0,
                 supplierId: supplier.id,
                 invoiceId: invoice.id,
               },

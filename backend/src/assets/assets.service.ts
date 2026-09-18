@@ -104,9 +104,16 @@ export class AssetsService {
         purchasePrice: inst.purchasePrice ? Number(inst.purchasePrice) : 0,
         fundingSource: inst.fundingSource,
         warrantyMonths: inst.warrantyMonths,
-        depreciationRate: dep.annualRate,
-        accumulatedDepreciation: dep.accumulatedDepreciation,
-        currentBookValue: dep.currentBookValue,
+        depreciationRate: inst.depreciationRate || dep.annualRate,
+        accumulatedDepreciation:
+          inst.accumulatedDepreciation !== null && inst.accumulatedDepreciation !== undefined
+            ? Number(inst.accumulatedDepreciation)
+            : dep.accumulatedDepreciation,
+        currentBookValue:
+          inst.currentBookValue !== null && inst.currentBookValue !== undefined
+            ? Number(inst.currentBookValue)
+            : dep.currentBookValue,
+        lastDepreciatedAt: inst.lastDepreciatedAt?.toISOString(),
         ageYears: dep.ageYears,
         itemId: inst.itemId,
         itemName: inst.item.name,
@@ -165,9 +172,27 @@ export class AssetsService {
       asset.item.category.name,
     );
 
+    const initialPrice = asset.purchasePrice ? Number(asset.purchasePrice) : 0;
+    const currentBookValue =
+      asset.currentBookValue !== null && asset.currentBookValue !== undefined
+        ? Number(asset.currentBookValue)
+        : dep.currentBookValue;
+    const accumulatedDepreciation =
+      asset.accumulatedDepreciation !== null && asset.accumulatedDepreciation !== undefined
+        ? Number(asset.accumulatedDepreciation)
+        : dep.accumulatedDepreciation;
+
     return {
       ...asset,
-      depreciation: dep,
+      purchasePrice: initialPrice,
+      currentBookValue,
+      accumulatedDepreciation,
+      depreciation: {
+        annualRate: asset.depreciationRate || dep.annualRate,
+        ageYears: dep.ageYears,
+        accumulatedDepreciation,
+        currentBookValue,
+      },
     };
   }
 
@@ -214,13 +239,15 @@ export class AssetsService {
         }
       }
 
-      // 4. Create instance
+      const purchasePrice = dto.purchasePrice || 0;
       const instance = await tx.itemInstance.create({
         data: {
           inventoryNumber: dto.inventoryNumber,
           serialNumber: dto.serialNumber,
           qrCode,
-          purchasePrice: dto.purchasePrice || 0,
+          purchasePrice,
+          currentBookValue: purchasePrice,
+          accumulatedDepreciation: 0,
           purchaseDate: new Date(),
           warrantyMonths: dto.warrantyMonths || 24,
           itemId: item.id,

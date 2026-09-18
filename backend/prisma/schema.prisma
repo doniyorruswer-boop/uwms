@@ -101,6 +101,7 @@ model User {
   systemLogs            SystemAuditLog[]
   backups               BackupRecord[]       @relation("UserBackups")
   labelReprints         LabelReprintLog[]    @relation("LabelReprints")
+  depreciationRuns      DepreciationRun[]    @relation("DepreciationExecutors")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -273,13 +274,18 @@ model ItemInstance {
   lastReprintReason String?
   lastReprintedAt   DateTime?
 
-  histories         AssetHistory[]
-  transfers         TransferAcceptance[]
-  repairRecords     RepairRecord[]
-  writeOffRequests  WriteOffRequest[]
-  movementItems     StockMovementItem[]
-  auditRecords      InventoryAuditRecord[]
-  reprintLogs       LabelReprintLog[]
+  currentBookValue        Decimal?             @db.Decimal(12, 2)
+  accumulatedDepreciation Decimal              @default(0) @db.Decimal(12, 2)
+  lastDepreciatedAt       DateTime?
+
+  histories           AssetHistory[]
+  transfers           TransferAcceptance[]
+  repairRecords       RepairRecord[]
+  writeOffRequests    WriteOffRequest[]
+  movementItems       StockMovementItem[]
+  auditRecords        InventoryAuditRecord[]
+  reprintLogs         LabelReprintLog[]
+  depreciationRecords DepreciationRecord[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -663,6 +669,43 @@ model BackupRecord {
   completedAt   DateTime?
 
   @@map("backup_records")
+}
+
+model DepreciationRun {
+  id                      String               @id @default(uuid())
+  batchNumber             String               @unique // Masalan: DEP-2026-09-001
+  period                  String               // Masalan: 2026-09
+  totalAssetsCount        Int                  @default(0)
+  totalDepreciationAmount Decimal              @default(0) @db.Decimal(14, 2)
+  totalBookValue          Decimal              @default(0) @db.Decimal(14, 2)
+  status                  String               @default("COMPLETED")
+  notes                   String?
+  executedById            String?
+  executedBy              User?                @relation("DepreciationExecutors", fields: [executedById], references: [id], onDelete: SetNull)
+  createdAt               DateTime             @default(now())
+
+  records                 DepreciationRecord[]
+
+  @@map("depreciation_runs")
+}
+
+model DepreciationRecord {
+  id                 String          @id @default(uuid())
+  runId              String
+  run                DepreciationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  assetId            String
+  asset              ItemInstance    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  period             String          // Masalan: 2026-09
+  initialCost        Decimal         @db.Decimal(12, 2)
+  openingBookValue   Decimal         @db.Decimal(12, 2)
+  depreciationAmount Decimal         @db.Decimal(12, 2)
+  closingBookValue   Decimal         @db.Decimal(12, 2)
+  accumulatedTotal   Decimal         @db.Decimal(12, 2)
+  annualRate         Float           // Yillik stavka foizi (masalan 20.0)
+  calculatedAt       DateTime        @default(now())
+
+  @@unique([assetId, period])
+  @@map("depreciation_records")
 }
 
 

@@ -61,6 +61,13 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     allowedRoles: ['SUPER_ADMIN', 'HEAD_WAREHOUSE', 'MOL', 'AUDITOR'],
   },
   {
+    key: 'depreciation',
+    path: '/depreciation',
+    label: 'Amortizatsiya',
+    pageTitle: 'Amortizatsiya va Qoldiq Qiymat Dvigateli (Depreciation Engine)',
+    allowedRoles: ['SUPER_ADMIN', 'HEAD_WAREHOUSE', 'AUDITOR'],
+  },
+  {
     key: 'audit',
     path: '/audit',
     label: 'Audit & Skaner',

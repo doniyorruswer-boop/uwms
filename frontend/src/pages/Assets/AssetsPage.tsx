@@ -45,6 +45,7 @@ import {
 } from '@arco-design/web-react/icon';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAssetsQuery, useTransfersQuery, TransferItem } from '../../hooks/useAssetsQuery';
+import { useAssetDepreciationHistoryQuery } from '../../hooks/useDepreciationQuery';
 import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
 import { useAuthStore } from '../../store/authStore';
 import type { ItemInstance, AssetStatus } from '../../types';
@@ -108,6 +109,7 @@ export const AssetsPage: React.FC = () => {
 
   // Modals and Drawer state
   const [selectedAsset, setSelectedAsset] = useState<ItemInstance | null>(null);
+  const { data: assetDepHistory } = useAssetDepreciationHistoryQuery(selectedAsset?.id || null);
   const [isDetailDrawerVisible, setIsDetailDrawerVisible] = useState(false);
   const [isQrModalVisible, setIsQrModalVisible] = useState(false);
   const [isBatchPrintModalVisible, setIsBatchPrintModalVisible] = useState(false);
@@ -902,17 +904,18 @@ export const AssetsPage: React.FC = () => {
                     },
                     {
                       label: 'OTM Yillik Eskirish Normasi',
-                      value: `${Math.round(((selectedAsset as any).depreciationRate || 0.15) * 100)}% (yillik)`,
-                    },
-                    {
-                      label: 'Foydalanish Davri',
-                      value: `${(selectedAsset as any).ageYears || 0} yil`,
+                      value: `${Math.round(((selectedAsset as any).depreciationRate || 20) * 100) / 100}% (yillik)`,
                     },
                     {
                       label: 'Yig‘ilgan Eskirish (Amortizatsiya)',
                       value: (
                         <span style={{ color: '#F53F3F', fontWeight: 600 }}>
-                          {Number((selectedAsset as any).accumulatedDepreciation || 0).toLocaleString('uz-UZ')} so‘m
+                          {Number(
+                            assetDepHistory?.asset?.accumulatedDepreciation ??
+                              (selectedAsset as any).accumulatedDepreciation ??
+                              0,
+                          ).toLocaleString('uz-UZ')}{' '}
+                          so‘m
                         </span>
                       ),
                     },
@@ -921,13 +924,21 @@ export const AssetsPage: React.FC = () => {
                       value: (
                         <span style={{ color: '#00B42A', fontWeight: 700, fontSize: 15 }}>
                           {Number(
-                            (selectedAsset as any).currentBookValue !== undefined
-                              ? (selectedAsset as any).currentBookValue
-                              : selectedAsset.purchasePrice || 0,
+                            assetDepHistory?.asset?.currentBookValue ??
+                              (selectedAsset as any).currentBookValue ??
+                              selectedAsset.purchasePrice ??
+                              0,
                           ).toLocaleString('uz-UZ')}{' '}
                           so‘m
                         </span>
                       ),
+                    },
+                    {
+                      label: 'Oxirgi Hisoblangan Sana',
+                      value:
+                        assetDepHistory?.asset?.lastDepreciatedAt?.substring(0, 10) ||
+                        (selectedAsset as any).lastDepreciatedAt?.substring(0, 10) ||
+                        'Hali hisoblanmagan',
                     },
                     {
                       label: 'Moliyalashtirish Manbasi',
@@ -935,6 +946,40 @@ export const AssetsPage: React.FC = () => {
                     },
                   ]}
                 />
+
+                {assetDepHistory?.history && assetDepHistory.history.length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 13 }}>
+                      Oylar Bo‘yicha Amortizatsiya Jurnali:
+                    </div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ background: '#F2F3F5', borderBottom: '1px solid #C9CDD4' }}>
+                          <th style={{ padding: '6px 8px', textAlign: 'left' }}>Davr</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left' }}>Partiya</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'right' }}>Oylik Eskirish</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'right' }}>Qoldiq Qiymat</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {assetDepHistory.history.map((h) => (
+                          <tr key={h.id} style={{ borderBottom: '1px solid #E5E6EB' }}>
+                            <td style={{ padding: '6px 8px', fontWeight: 600 }}>{h.period}</td>
+                            <td style={{ padding: '6px 8px' }}>
+                              <Tag size="small">{h.batchNumber}</Tag>
+                            </td>
+                            <td style={{ padding: '6px 8px', textAlign: 'right', color: '#F53F3F', fontWeight: 600 }}>
+                              -{h.depreciationAmount.toLocaleString('uz-UZ')} so‘m
+                            </td>
+                            <td style={{ padding: '6px 8px', textAlign: 'right', color: '#00B42A', fontWeight: 600 }}>
+                              {h.closingBookValue.toLocaleString('uz-UZ')} so‘m
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </TabPane>
 

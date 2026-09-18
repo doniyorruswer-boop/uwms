@@ -157,5 +157,16 @@ export const API_ENDPOINTS = {
     RESTORE: (id: string) => `/backups/${id}/restore`,
     DOWNLOAD: (id: string) => `/backups/${id}/download`,
   },
+
+  // Amortizatsiya va Qoldiq Qiymat (Depreciation Engine)
+  DEPRECIATION: {
+    BASE: '/depreciation',
+    PREVIEW: '/depreciation/preview',
+    RUN: '/depreciation/run',
+    RUNS: '/depreciation/runs',
+    RUN_BY_ID: (id: string) => `/depreciation/runs/${id}`,
+    ASSET_HISTORY: (id: string) => `/depreciation/asset/${id}`,
+    STATEMENT: (period: string) => `/depreciation/statement/${period}`,
+  },
 } as const;
 
