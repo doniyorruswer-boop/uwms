@@ -96,6 +96,20 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     allowedRoles: ['SUPER_ADMIN', 'HEAD_WAREHOUSE', 'AUDITOR'],
   },
   {
+    key: 'suppliers',
+    path: '/suppliers',
+    label: 'Ta’minotchilar',
+    pageTitle: 'Ta’minotchilar va Kontragentlar Shartnomalari',
+    allowedRoles: ['SUPER_ADMIN', 'HEAD_WAREHOUSE', 'MOL', 'AUDITOR'],
+  },
+  {
+    key: 'users',
+    path: '/users',
+    label: 'Foydalanuvchilar',
+    pageTitle: 'Foydalanuvchilar va Kirish Huquqlari Boshqaruvi',
+    allowedRoles: ['SUPER_ADMIN'],
+  },
+  {
     key: 'backups',
     path: '/backups',
     label: 'Zaxira Nusxalari (Backup)',

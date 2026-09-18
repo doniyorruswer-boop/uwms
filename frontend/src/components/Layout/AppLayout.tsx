@@ -30,7 +30,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import type { RoleType } from '../../types';
 import { AppLogo } from '../Common/AppLogo';
-import { APP_CONFIG, ROLE_CONFIG, getPageTitleByPath, DESIGN_TOKENS } from '../../constants';
+import { APP_CONFIG, ROLE_CONFIG, getPageTitleByPath, DESIGN_TOKENS, NAVIGATION_ITEMS } from '../../constants';
 import { NotificationPopover } from '../Notifications/NotificationPopover';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ForcePasswordChangeModal } from '../Auth/ForcePasswordChangeModal';
@@ -52,6 +52,14 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   const currentTab = location.pathname.replace('/', '') || 'dashboard';
+
+  const hasRoleAccess = (keyOrPath: string) => {
+    const item = NAVIGATION_ITEMS.find(
+      (n) => n.key === keyOrPath || n.path === `/${keyOrPath}`,
+    );
+    if (!item || !item.allowedRoles || item.allowedRoles.length === 0) return true;
+    return user?.role ? item.allowedRoles.includes(user.role) : false;
+  };
 
   const getTranslatedTitle = (pathname: string) => {
     const clean = pathname.replace('/', '');
@@ -138,65 +146,91 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             onClickMenuItem={(key) => navigate(`/${key}`)}
             style={{ width: '100%', marginTop: '12px' }}
           >
-          <MenuItem key="dashboard">
-            <IconDashboard />
-            {t('menu.dashboard')}
-          </MenuItem>
-          <MenuItem key="assets">
-            <IconDesktop />
-            {t('menu.assets')}
-          </MenuItem>
-          <MenuItem key="warehouse">
-            <IconArchive />
-            {t('menu.warehouse')}
-          </MenuItem>
-          <MenuItem key="suppliers">
-            <IconIdcard />
-            {t('menu.suppliers')}
-          </MenuItem>
-          <MenuItem key="movements">
-            <IconSwap />
-            {t('menu.movements')}
-          </MenuItem>
-          <MenuItem key="requests">
-            <IconFile />
-            {t('menu.requests')}
-          </MenuItem>
-          <MenuItem key="repairs">
-            <IconTool />
-            {t('menu.repairs')}
-          </MenuItem>
-          <MenuItem key="write-offs">
-            <IconDelete />
-            {t('menu.writeOffs')}
-          </MenuItem>
-          <MenuItem key="organization">
-            <IconBranch />
-            {t('menu.organization')}
-          </MenuItem>
-          <MenuItem key="quotas">
-            <IconStorage />
-            {t('menu.quotas')}
-          </MenuItem>
-          <MenuItem key="system-audit">
-            <IconSafe />
-            {t('menu.audit')}
-          </MenuItem>
-          <MenuItem key="integrations">
-            <IconCloud />
-            {t('menu.integrations')}
-          </MenuItem>
-          <MenuItem key="audit">
-            <IconScan />
-            {t('menu.scanner')}
-          </MenuItem>
-          {user?.role === 'SUPER_ADMIN' && (
+          {hasRoleAccess('dashboard') && (
+            <MenuItem key="dashboard">
+              <IconDashboard />
+              {t('menu.dashboard')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('assets') && (
+            <MenuItem key="assets">
+              <IconDesktop />
+              {t('menu.assets')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('warehouse') && (
+            <MenuItem key="warehouse">
+              <IconArchive />
+              {t('menu.warehouse')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('suppliers') && (
+            <MenuItem key="suppliers">
+              <IconIdcard />
+              {t('menu.suppliers')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('movements') && (
+            <MenuItem key="movements">
+              <IconSwap />
+              {t('menu.movements')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('requests') && (
+            <MenuItem key="requests">
+              <IconFile />
+              {t('menu.requests')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('repairs') && (
+            <MenuItem key="repairs">
+              <IconTool />
+              {t('menu.repairs')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('write-offs') && (
+            <MenuItem key="write-offs">
+              <IconDelete />
+              {t('menu.writeOffs')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('organization') && (
+            <MenuItem key="organization">
+              <IconBranch />
+              {t('menu.organization')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('quotas') && (
+            <MenuItem key="quotas">
+              <IconStorage />
+              {t('menu.quotas')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('systemAudit') && (
+            <MenuItem key="system-audit">
+              <IconSafe />
+              {t('menu.audit')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('integrations') && (
+            <MenuItem key="integrations">
+              <IconCloud />
+              {t('menu.integrations')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('audit') && (
+            <MenuItem key="audit">
+              <IconScan />
+              {t('menu.scanner')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('users') && (
             <MenuItem key="users">
               <IconUserGroup />
               {t('menu.users')}
             </MenuItem>
           )}
-          {user?.role === 'SUPER_ADMIN' && (
+          {hasRoleAccess('backups') && (
             <MenuItem key="backups">
               <IconCloudDownload />
               {t('menu.backups')}

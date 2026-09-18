@@ -20,6 +20,12 @@ import { BackupsPage } from '../pages/Backups/BackupsPage';
 import { UsersPage } from '../pages/Users/UsersPage';
 import { SuppliersPage } from '../pages/Suppliers/SuppliersPage';
 
+import { NAVIGATION_ITEMS } from '../constants';
+
+const getRoles = (keyOrPath: string) => {
+  return NAVIGATION_ITEMS.find((item) => item.key === keyOrPath || item.path === `/${keyOrPath}`)?.allowedRoles;
+};
+
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
@@ -35,21 +41,21 @@ export const AppRoutes: React.FC = () => {
             <AppLayout>
               <Routes>
                 <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="users" element={<UsersPage />} />
-                <Route path="assets" element={<AssetsPage />} />
-                <Route path="warehouse" element={<WarehousePage />} />
-                <Route path="suppliers" element={<SuppliersPage />} />
-                <Route path="movements" element={<MovementsPage />} />
-                <Route path="requests" element={<RequestsPage />} />
-                <Route path="repairs" element={<RepairsPage />} />
-                <Route path="write-offs" element={<WriteOffPage />} />
-                <Route path="quotas" element={<QuotasPage />} />
-                <Route path="system-audit" element={<SystemAuditPage />} />
-                <Route path="integrations" element={<IntegrationsPage />} />
-                <Route path="backups" element={<BackupsPage />} />
-                <Route path="organization" element={<OrganizationPage />} />
-                <Route path="audit" element={<AuditScannerPage />} />
+                <Route path="dashboard" element={<ProtectedRoute allowedRoles={getRoles('dashboard')}><DashboardPage /></ProtectedRoute>} />
+                <Route path="users" element={<ProtectedRoute allowedRoles={getRoles('users')}><UsersPage /></ProtectedRoute>} />
+                <Route path="assets" element={<ProtectedRoute allowedRoles={getRoles('assets')}><AssetsPage /></ProtectedRoute>} />
+                <Route path="warehouse" element={<ProtectedRoute allowedRoles={getRoles('warehouse')}><WarehousePage /></ProtectedRoute>} />
+                <Route path="suppliers" element={<ProtectedRoute allowedRoles={getRoles('suppliers')}><SuppliersPage /></ProtectedRoute>} />
+                <Route path="movements" element={<ProtectedRoute allowedRoles={getRoles('movements')}><MovementsPage /></ProtectedRoute>} />
+                <Route path="requests" element={<ProtectedRoute allowedRoles={getRoles('requests')}><RequestsPage /></ProtectedRoute>} />
+                <Route path="repairs" element={<ProtectedRoute allowedRoles={getRoles('repairs')}><RepairsPage /></ProtectedRoute>} />
+                <Route path="write-offs" element={<ProtectedRoute allowedRoles={getRoles('write-offs')}><WriteOffPage /></ProtectedRoute>} />
+                <Route path="quotas" element={<ProtectedRoute allowedRoles={getRoles('quotas')}><QuotasPage /></ProtectedRoute>} />
+                <Route path="system-audit" element={<ProtectedRoute allowedRoles={getRoles('systemAudit')}><SystemAuditPage /></ProtectedRoute>} />
+                <Route path="integrations" element={<ProtectedRoute allowedRoles={getRoles('integrations')}><IntegrationsPage /></ProtectedRoute>} />
+                <Route path="backups" element={<ProtectedRoute allowedRoles={getRoles('backups')}><BackupsPage /></ProtectedRoute>} />
+                <Route path="organization" element={<ProtectedRoute allowedRoles={getRoles('organization')}><OrganizationPage /></ProtectedRoute>} />
+                <Route path="audit" element={<ProtectedRoute allowedRoles={getRoles('audit')}><AuditScannerPage /></ProtectedRoute>} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </AppLayout>
