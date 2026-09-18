@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
   Card,
-  Table,
   Button,
   Space,
   Input,
@@ -12,7 +11,6 @@ import {
   Popconfirm,
   Result,
   Tooltip,
-  Empty,
 } from '@arco-design/web-react';
 import {
   IconPlus,
@@ -27,6 +25,7 @@ import {
   IconUser,
   IconDownload,
 } from '@arco-design/web-react/icon';
+import { StandardTable } from '../../components/Common/StandardTable';
 import { useAuthStore } from '../../store/authStore';
 import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
 import {
@@ -151,23 +150,25 @@ export const UsersPage: React.FC = () => {
       title: 'F.I.Sh. & Login',
       dataIndex: 'fullName',
       key: 'fullName',
-      minWidth: 260,
+      minWidth: 220,
       render: (_: any, record: UserItem) => (
-        <CategoryThumbnail
-          icon={<IconUser />}
-          name={record.fullName}
-          subtitle={`Login: ${record.username}${record.position ? ` | ${record.position}` : ''}`}
-          tag={record.department?.name || undefined}
-          color="#165DFF"
-          bg="#E8F3FF"
-        />
+        <div style={{ paddingLeft: 8 }}>
+          <CategoryThumbnail
+            icon={<IconUser />}
+            name={record.fullName}
+            subtitle={`Login: ${record.username}${record.position ? ` | ${record.position}` : ''}`}
+            tag={record.department?.name || undefined}
+            color="#165DFF"
+            bg="#E8F3FF"
+          />
+        </div>
       ),
     },
     {
       title: 'Tizim Roli',
       dataIndex: 'role',
       key: 'role',
-      width: 170,
+      width: 160,
       render: (role: RoleType) => (
         <Tag color={roleTagColors[role]} size="small" style={{ borderRadius: 0, fontWeight: 500 }}>
           {roleLabels[role] || role}
@@ -177,7 +178,7 @@ export const UsersPage: React.FC = () => {
     {
       title: 'Aloqa',
       key: 'contact',
-      width: 180,
+      width: 160,
       render: (_: any, record: UserItem) => (
         <div style={{ fontSize: 13 }}>
           <div>{record.phone || '—'}</div>
@@ -192,7 +193,7 @@ export const UsersPage: React.FC = () => {
     {
       title: 'Mas’ul Asosiy Vositalar',
       key: 'assets',
-      width: 200,
+      width: 175,
       render: (_: any, record: UserItem) => {
         const assetCount = record._count?.responsibleInstances || 0;
         const roomCount = record._count?.responsibleRooms || 0;
@@ -203,7 +204,10 @@ export const UsersPage: React.FC = () => {
             type="outline"
             icon={<IconApps />}
             style={{ borderRadius: 0 }}
-            onClick={() => setDrawerUser(record)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setDrawerUser(record);
+            }}
           >
             {assetCount} ta ashyo / {roomCount} xona
           </Button>
@@ -214,61 +218,65 @@ export const UsersPage: React.FC = () => {
       title: 'Holati',
       dataIndex: 'isActive',
       key: 'isActive',
-      width: 120,
+      width: 105,
       render: (isActive: boolean, record: UserItem) => (
-        <Popconfirm
-          title="Foydalanuvchi holatini o‘zgartirish"
-          content={`Rostdan ham '${record.fullName}' foydalanuvchisini ${
-            isActive ? 'faolsizlantirmoqchimisiz' : 'faollashtirmoqchimisiz'
-          }?`}
-          okText="Ha, o‘zgartirish"
-          cancelText="Yo‘q"
-          onOk={() => handleToggleStatus(record)}
-          disabled={record.id === currentUser?.id}
-        >
-          <Tooltip content={record.id === currentUser?.id ? 'O‘z hisobingizni o‘zgartira olmaysiz' : 'Holatni almashtirish uchun bosing'}>
-            <Tag
-              color={isActive ? 'green' : 'red'}
-              size="small"
-              style={{
-                borderRadius: 0,
-                cursor: record.id === currentUser?.id ? 'not-allowed' : 'pointer',
-                fontWeight: 600,
-              }}
-            >
-              {isActive ? 'FAOL' : 'NOFAOL'}
-            </Tag>
-          </Tooltip>
-        </Popconfirm>
+        <div onClick={(e) => e.stopPropagation()}>
+          <Popconfirm
+            title="Foydalanuvchi holatini o‘zgartirish"
+            content={`Rostdan ham '${record.fullName}' foydalanuvchisini ${
+              isActive ? 'faolsizlantirmoqchimisiz' : 'faollashtirmoqchimisiz'
+            }?`}
+            okText="Ha, o‘zgartirish"
+            cancelText="Yo‘q"
+            onOk={() => handleToggleStatus(record)}
+            disabled={record.id === currentUser?.id}
+          >
+            <Tooltip content={record.id === currentUser?.id ? 'O‘z hisobingizni o‘zgartira olmaysiz' : 'Holatni almashtirish uchun bosing'}>
+              <Tag
+                color={isActive ? 'green' : 'red'}
+                size="small"
+                style={{
+                  borderRadius: 0,
+                  cursor: record.id === currentUser?.id ? 'not-allowed' : 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                {isActive ? 'FAOL' : 'NOFAOL'}
+              </Tag>
+            </Tooltip>
+          </Popconfirm>
+        </div>
       ),
     },
     {
       title: 'Amallar',
       key: 'actions',
-      width: 120,
+      width: 88,
       fixed: 'right' as const,
       render: (_: any, record: UserItem) => (
-        <TableActions rightPadding={16}>
-          <Tooltip content="Ma’lumotlarni tahrirlash">
-            <Button
-              size="small"
-              type="secondary"
-              icon={<IconEdit />}
-              style={{ borderRadius: 0 }}
-              onClick={() => setEditingUser(record)}
-            />
-          </Tooltip>
+        <div onClick={(e) => e.stopPropagation()}>
+          <TableActions rightPadding={0} gap={6}>
+            <Tooltip content="Ma’lumotlarni tahrirlash">
+              <Button
+                size="small"
+                type="secondary"
+                icon={<IconEdit />}
+                style={{ borderRadius: 0 }}
+                onClick={() => setEditingUser(record)}
+              />
+            </Tooltip>
 
-          <Tooltip content="Parolni yangilash">
-            <Button
-              size="small"
-              type="secondary"
-              icon={<IconLock />}
-              style={{ borderRadius: 0 }}
-              onClick={() => setResettingUser(record)}
-            />
-          </Tooltip>
-        </TableActions>
+            <Tooltip content="Parolni yangilash">
+              <Button
+                size="small"
+                type="secondary"
+                icon={<IconLock />}
+                style={{ borderRadius: 0 }}
+                onClick={() => setResettingUser(record)}
+              />
+            </Tooltip>
+          </TableActions>
+        </div>
       ),
     },
   ];
@@ -365,43 +373,28 @@ export const UsersPage: React.FC = () => {
       </Card>
 
       {/* Users Table */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: 0 }}>
-        <Table
-          rowKey="id"
-          columns={columns}
-          data={data?.items || []}
-          loading={isLoading}
-          scroll={{ x: 1100 }}
-          style={{ borderRadius: 0 }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: totalUsers,
-            onChange: (p, s) => {
-              setPage(p);
-              if (s) setPageSize(s);
-            },
-            showTotal: (total, range) => {
-              if (!total || total === 0) return '0/0';
-              const to = range ? Math.min(range[1], total) : total;
-              return `${to}/${total}`;
-            },
-            sizeCanChange: true,
-            sizeOptions: [10, 20, 50, 100],
-          }}
-          noDataElement={
-            <div style={{ padding: 40, textAlign: 'center' }}>
-              <Empty
-                description={
-                  search || deptFilter !== 'ALL'
-                    ? 'Tanlangan parametrlar bo‘yicha xodimlar topilmadi'
-                    : 'Foydalanuvchilar ro‘yxati bo‘sh'
-                }
-              />
-            </div>
-          }
-        />
-      </Card>
+      <StandardTable<UserItem>
+        rowKey="id"
+        columns={columns}
+        data={data?.items || []}
+        loading={isLoading}
+        scrollX={950}
+        onRowClick={(record) => setDrawerUser(record)}
+        emptyText={
+          search || deptFilter !== 'ALL' || statusFilter !== 'ALL'
+            ? 'Tanlangan parametrlar bo‘yicha xodimlar topilmadi'
+            : 'Foydalanuvchilar ro‘yxati bo‘sh'
+        }
+        pagination={{
+          current: page,
+          pageSize,
+          total: totalUsers,
+          onChange: (p, s) => {
+            setPage(p);
+            if (s) setPageSize(s);
+          },
+        }}
+      />
 
       {/* MODALS */}
       <CreateUserModal
