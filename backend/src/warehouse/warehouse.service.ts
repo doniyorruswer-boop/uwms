@@ -91,7 +91,7 @@ export class WarehouseService {
       const updated = await tx.stock.update({
         where: { id: stockId },
         data: {
-          quantity: stock.quantity + amount,
+          quantity: { increment: amount },
         },
       });
 
@@ -456,20 +456,30 @@ export class WarehouseService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      // 1. Check source stock
-      const sourceStock = await tx.stock.findUnique({
-        where: {
-          warehouseId_itemId: {
-            warehouseId: dto.fromWarehouseId,
-            itemId: dto.itemId,
-          },
-        },
-        include: { item: true, warehouse: true },
-      });
+      // 1. Check source stock with row-level lock (FOR UPDATE) to prevent concurrency races
+      const lockedStocks = await tx.$queryRaw<
+        Array<{
+          id: string;
+          quantity: number;
+          fundingSource: string;
+          warehouseName: string;
+          itemName: string;
+          itemUnit: string;
+        }>
+      >`
+        SELECT s.id, s.quantity, s."fundingSource", w.name as "warehouseName", i.name as "itemName", i.unit as "itemUnit"
+        FROM stocks s
+        JOIN warehouses w ON s."warehouseId" = w.id
+        JOIN items i ON s."itemId" = i.id
+        WHERE s."warehouseId" = ${dto.fromWarehouseId} AND s."itemId" = ${dto.itemId}
+        FOR UPDATE
+      `;
+
+      const sourceStock = lockedStocks[0];
 
       if (!sourceStock || sourceStock.quantity < dto.quantity) {
         throw new BadRequestException(
-          `Jo‘natuvchi omborda yetarli qoldiq mavjud emas! Mavjud: ${sourceStock?.quantity || 0}, So‘ralgan: ${dto.quantity}`,
+          `Jo‘natuvchi omborda yetarli qoldiq mavjud emas! Mavjud: ${sourceStock?.quantity ?? 0}, So‘ralgan: ${dto.quantity}`,
         );
       }
 
@@ -478,11 +488,18 @@ export class WarehouseService {
         throw new NotFoundException('Qabul qiluvchi omborxona topilmadi!');
       }
 
-      // 2. Decrement source stock
-      await tx.stock.update({
-        where: { id: sourceStock.id },
-        data: { quantity: sourceStock.quantity - dto.quantity },
-      });
+      // 2. Decrement source stock atomically with row count validation (defense-in-depth)
+      const updateCount = await tx.$executeRaw`
+        UPDATE stocks
+        SET quantity = quantity - ${dto.quantity}, "updatedAt" = NOW()
+        WHERE id = ${sourceStock.id} AND quantity >= ${dto.quantity}
+      `;
+
+      if (updateCount === 0) {
+        throw new BadRequestException(
+          `Jo‘natuvchi omborda yetarli qoldiq mavjud emas! Parallel tranzaksiya tufayli qoldiq yetmadi.`,
+        );
+      }
 
       // 3. Increment / upsert target stock
       await tx.stock.upsert({
@@ -499,7 +516,7 @@ export class WarehouseService {
           warehouseId: dto.toWarehouseId,
           itemId: dto.itemId,
           quantity: dto.quantity,
-          fundingSource: sourceStock.fundingSource,
+          fundingSource: sourceStock.fundingSource as any,
         },
       });
 
@@ -514,9 +531,9 @@ export class WarehouseService {
           fromWarehouseId: dto.fromWarehouseId,
           toWarehouseId: dto.toWarehouseId,
           referenceDoc: `TRF-${movNum}`,
-          note: dto.note || `Omborlararo ko‘chirish: ${sourceStock.warehouse.name} -> ${targetWh.name}`,
+          note: dto.note || `Omborlararo ko‘chirish: ${sourceStock.warehouseName} -> ${targetWh.name}`,
           executedById,
-          fundingSource: sourceStock.fundingSource,
+          fundingSource: sourceStock.fundingSource as any,
         },
       });
 
@@ -525,16 +542,16 @@ export class WarehouseService {
           movementId: movement.id,
           itemId: dto.itemId,
           quantity: dto.quantity,
-          note: `Ko‘chirildi: ${dto.quantity} ${sourceStock.item.unit}`,
+          note: `Ko‘chirildi: ${dto.quantity} ${sourceStock.itemUnit}`,
         },
       });
 
       return {
         success: true,
         movementNumber: movNum,
-        transferredItem: sourceStock.item.name,
+        transferredItem: sourceStock.itemName,
         quantity: dto.quantity,
-        fromWarehouse: sourceStock.warehouse.name,
+        fromWarehouse: sourceStock.warehouseName,
         toWarehouse: targetWh.name,
       };
     });

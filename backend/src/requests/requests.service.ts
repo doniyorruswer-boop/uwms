@@ -272,32 +272,37 @@ export class RequestsService {
         const currentPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
         for (const reqItem of request.items) {
-          // Check stock
-          const stock = await tx.stock.findUnique({
-            where: {
-              warehouseId_itemId: {
-                warehouseId: warehouse.id,
-                itemId: reqItem.itemId,
-              },
-            },
-          });
+          // 1. Row-level lock: SELECT ... FOR UPDATE ensures strict serializability and prevents race conditions
+          const lockedStocks = await tx.$queryRaw<
+            Array<{ id: string; quantity: number }>
+          >`
+            SELECT id, quantity
+            FROM stocks
+            WHERE "warehouseId" = ${warehouse.id} AND "itemId" = ${reqItem.itemId}
+            FOR UPDATE
+          `;
+
+          const stock = lockedStocks[0];
 
           if (!stock || stock.quantity < reqItem.requestedQty) {
-            const currentQty = stock?.quantity || 0;
+            const currentQty = stock?.quantity ?? 0;
             throw new BadRequestException(
               `Omborda "${reqItem.item.name}" yetarli emas! Mavjud qoldiq: ${currentQty} ${reqItem.item.unit}, Talab qilingan: ${reqItem.requestedQty} ${reqItem.item.unit}. Operatsiya to‘xtatildi.`,
             );
           }
 
-          // Decrement stock
-          await tx.stock.update({
-            where: { id: stock.id },
-            data: {
-              quantity: {
-                decrement: reqItem.requestedQty,
-              },
-            },
-          });
+          // 2. Atomic conditional decrement with affected rows validation (defense-in-depth)
+          const updateCount = await tx.$executeRaw`
+            UPDATE stocks
+            SET quantity = quantity - ${reqItem.requestedQty}, "updatedAt" = NOW()
+            WHERE id = ${stock.id} AND quantity >= ${reqItem.requestedQty}
+          `;
+
+          if (updateCount === 0) {
+            throw new BadRequestException(
+              `Omborda "${reqItem.item.name}" yetarli emas! Parallel tranzaksiya tufayli qoldiq yetmadi. Operatsiya to‘xtatildi.`,
+            );
+          }
 
           // Log movement item
           await tx.stockMovementItem.create({

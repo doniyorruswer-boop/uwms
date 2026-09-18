@@ -16,6 +16,7 @@ describe('WarehouseService (Unit Tests)', () => {
         count: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
+        upsert: jest.fn(),
       },
       stockMovement: {
         findMany: jest.fn(),
@@ -38,6 +39,8 @@ describe('WarehouseService (Unit Tests)', () => {
         }
         return callback(prisma);
       }),
+      $queryRaw: jest.fn(),
+      $executeRaw: jest.fn(),
     };
 
     codeGen = {
@@ -139,6 +142,138 @@ describe('WarehouseService (Unit Tests)', () => {
       await expect(service.replenishStock('st-unknown', 10, 'user-admin')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('transferBetweenWarehouses', () => {
+    it('bir xil ombor tanlanganda BadRequestException tashlashi kerak', async () => {
+      await expect(
+        service.transferBetweenWarehouses(
+          {
+            fromWarehouseId: 'wh-1',
+            toWarehouseId: 'wh-1',
+            itemId: 'it-1',
+            quantity: 5,
+          },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('jo‘natuvchi omborda qoldiq yetarli bo‘lmaganda BadRequestException tashlashi kerak', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'st-1',
+          quantity: 2,
+          fundingSource: 'BYUDJET',
+          warehouseName: 'Asosiy Ombor',
+          itemName: 'Ruchka',
+          itemUnit: 'DONA',
+        },
+      ]);
+
+      await expect(
+        service.transferBetweenWarehouses(
+          {
+            fromWarehouseId: 'wh-1',
+            toWarehouseId: 'wh-2',
+            itemId: 'it-1',
+            quantity: 10,
+          },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('qabul qiluvchi omborxona topilmasa NotFoundException tashlashi kerak', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'st-1',
+          quantity: 20,
+          fundingSource: 'BYUDJET',
+          warehouseName: 'Asosiy Ombor',
+          itemName: 'Ruchka',
+          itemUnit: 'DONA',
+        },
+      ]);
+      prisma.warehouse.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.transferBetweenWarehouses(
+          {
+            fromWarehouseId: 'wh-1',
+            toWarehouseId: 'wh-not-found',
+            itemId: 'it-1',
+            quantity: 5,
+          },
+          'user-1',
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('qoldiq yetarli bo‘lsa atomik ravishda ko‘chirishi va muvaffaqiyatli yakunlashi kerak', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'st-1',
+          quantity: 20,
+          fundingSource: 'BYUDJET',
+          warehouseName: 'Asosiy Ombor',
+          itemName: 'Ruchka',
+          itemUnit: 'DONA',
+        },
+      ]);
+      prisma.warehouse.findUnique.mockResolvedValue({ id: 'wh-2', name: 'Filial Ombor' });
+      prisma.$executeRaw.mockResolvedValue(1);
+      prisma.stock.upsert.mockResolvedValue({ id: 'st-2', quantity: 5 });
+      prisma.stockMovement.count.mockResolvedValue(5);
+      prisma.stockMovement.create.mockResolvedValue({
+        id: 'mov-1',
+        movementNumber: 'MOV-2026-0006',
+      });
+      prisma.stockMovementItem.create.mockResolvedValue({ id: 'mvi-1' });
+
+      const result = await service.transferBetweenWarehouses(
+        {
+          fromWarehouseId: 'wh-1',
+          toWarehouseId: 'wh-2',
+          itemId: 'it-1',
+          quantity: 5,
+        },
+        'user-1',
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.quantity).toBe(5);
+      expect(prisma.$queryRaw).toHaveBeenCalled();
+      expect(prisma.$executeRaw).toHaveBeenCalled();
+      expect(prisma.stock.upsert).toHaveBeenCalled();
+    });
+
+    it('parallel o‘zgarish tufayli atomik kamaytirish muvaffaqiyatsiz bo‘lsa (affectedRows = 0) xato tashlashi kerak', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'st-1',
+          quantity: 10,
+          fundingSource: 'BYUDJET',
+          warehouseName: 'Asosiy Ombor',
+          itemName: 'Ruchka',
+          itemUnit: 'DONA',
+        },
+      ]);
+      prisma.warehouse.findUnique.mockResolvedValue({ id: 'wh-2', name: 'Filial Ombor' });
+      prisma.$executeRaw.mockResolvedValue(0);
+
+      await expect(
+        service.transferBetweenWarehouses(
+          {
+            fromWarehouseId: 'wh-1',
+            toWarehouseId: 'wh-2',
+            itemId: 'it-1',
+            quantity: 5,
+          },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

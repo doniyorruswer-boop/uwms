@@ -53,6 +53,8 @@ describe('RequestsService (Unit Tests)', () => {
         update: jest.fn(),
       },
       $transaction: jest.fn((arg) => (typeof arg === 'function' ? arg(prisma) : Promise.all(arg))),
+      $queryRaw: jest.fn(),
+      $executeRaw: jest.fn(),
     };
 
     notifications = {
@@ -186,10 +188,12 @@ describe('RequestsService (Unit Tests)', () => {
         ],
       });
       prisma.warehouse.findFirst.mockResolvedValue({ id: 'wh-main' });
-      prisma.stock.findUnique.mockResolvedValue({
-        id: 'stock-1',
-        quantity: 3, // yetarli emas
-      });
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'stock-1',
+          quantity: 3, // yetarli emas
+        },
+      ]);
 
       await expect(
         service.updateStatus('req-1', RequestStatus.FULFILLED, { approvedById: 'wh-user' }),
@@ -212,10 +216,13 @@ describe('RequestsService (Unit Tests)', () => {
         ],
       });
       prisma.warehouse.findFirst.mockResolvedValue({ id: 'wh-main' });
-      prisma.stock.findUnique.mockResolvedValue({
-        id: 'stock-1',
-        quantity: 20, // yetarli
-      });
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'stock-1',
+          quantity: 20, // yetarli
+        },
+      ]);
+      prisma.$executeRaw.mockResolvedValue(1);
       prisma.stockMovement.create.mockResolvedValue({ id: 'mov-1', movementNumber: 'MOV-1' });
       prisma.request.update.mockResolvedValue({
         id: 'req-1',
@@ -231,8 +238,38 @@ describe('RequestsService (Unit Tests)', () => {
       });
 
       expect(res.status).toBe(RequestStatus.FULFILLED);
-      expect(prisma.stock.update).toHaveBeenCalled();
+      expect(prisma.$queryRaw).toHaveBeenCalled();
+      expect(prisma.$executeRaw).toHaveBeenCalled();
       expect(prisma.stockMovement.create).toHaveBeenCalled();
+    });
+
+    it('parallel tranzaksiya oqibatida atomik kamaytirish muvaffaqiyatsiz bo‘lsa (affectedRows = 0) xato tashlashi kerak', async () => {
+      prisma.request.findUnique.mockResolvedValue({
+        id: 'req-1',
+        requestNumber: 'REQ-2026-001',
+        purpose: 'Qog‘oz',
+        requesterId: 'user-1',
+        items: [
+          {
+            id: 'ri-1',
+            itemId: 'item-1',
+            requestedQty: 5,
+            item: { name: 'A4 Qog‘oz', unit: 'PACHKA', minStockLimit: 5 },
+          },
+        ],
+      });
+      prisma.warehouse.findFirst.mockResolvedValue({ id: 'wh-main' });
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'stock-1',
+          quantity: 5,
+        },
+      ]);
+      prisma.$executeRaw.mockResolvedValue(0); // parallel o'zgarish sababli update bo'lmadi
+
+      await expect(
+        service.updateStatus('req-1', RequestStatus.FULFILLED, { approvedById: 'wh-user' }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });
