@@ -91,7 +91,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
       {/* SIDER */}
       <Sider
         collapsed={collapsed}
@@ -101,6 +101,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         breakpoint="xl"
         width={250}
         style={{
+          height: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
           boxShadow: '2px 0 8px 0 rgba(29,33,41,0.05)',
           zIndex: 10,
         }}
@@ -115,6 +118,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             borderBottom: '1px solid var(--color-border-1)',
             cursor: 'pointer',
             overflow: 'hidden',
+            flexShrink: 0,
             transition: 'all 0.2s cubic-bezier(0.34, 0.69, 0.1, 1)',
           }}
           onClick={() => navigate('/dashboard')}
@@ -127,11 +131,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           />
         </div>
 
-        <Menu
-          selectedKeys={[currentTab]}
-          onClickMenuItem={(key) => navigate(`/${key}`)}
-          style={{ width: '100%', marginTop: '12px' }}
-        >
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+          <Menu
+            selectedKeys={[currentTab]}
+            onClickMenuItem={(key) => navigate(`/${key}`)}
+            style={{ width: '100%', marginTop: '12px' }}
+          >
           <MenuItem key="dashboard">
             <IconDashboard />
             {t('menu.dashboard')}
@@ -197,19 +202,22 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             </MenuItem>
           )}
         </Menu>
+        </div>
       </Sider>
 
       {/* MAIN CONTAINER */}
-      <Layout style={{ minWidth: 0, overflow: 'hidden' }}>
+      <Layout style={{ minWidth: 0, height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* HEADER */}
         <Header
           className="uwms-header"
           style={{
             height: '64px',
+            flexShrink: 0,
             padding: '0 24px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            zIndex: 9,
           }}
         >
           <Space size="large" style={{ flexShrink: 0 }}>
@@ -353,11 +361,13 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         {/* CONTENT */}
         <Content
           style={{
+            flex: 1,
             padding: '24px',
             backgroundColor: 'var(--bg-color)',
             overflowY: 'auto',
             overflowX: 'hidden',
             minWidth: 0,
+            minHeight: 0,
           }}
         >
           {children}
