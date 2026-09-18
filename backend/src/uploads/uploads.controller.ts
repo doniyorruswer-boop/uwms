@@ -7,6 +7,7 @@ import {
   UploadedFile,
   UseGuards,
   Res,
+  Body,
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -32,25 +33,43 @@ export class UploadsController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Yuklanayotgan fayl (Rasm yoki PDF/Word hujjat, maks: 15MB)',
+          description: 'Yuklanayotgan fayl (Rasm yoki PDF/Word/Excel hujjat, maks: 15MB)',
+        },
+        isPublic: {
+          type: 'boolean',
+          description: 'Fayl ommaviy (public) yoki himoyalangan (protected) ekanligi (standart: false)',
+          default: false,
         },
       },
+      required: ['file'],
     },
   })
   @UseInterceptors(FileInterceptor('file'))
-  async uploadFile(@UploadedFile() file: any) {
+  async uploadFile(
+    @UploadedFile() file: any,
+    @Body('isPublic') isPublic?: string | boolean,
+  ) {
     if (!file) {
       throw new BadRequestException('Fayl yuborilmadi!');
     }
-    return this.uploadsService.saveFile(file);
+    const publicFlag = isPublic === true || isPublic === 'true';
+    return this.uploadsService.saveFile(file, publicFlag);
+  }
+
+  @Get('public/:filename')
+  @ApiOperation({ summary: 'Ochiq (public) faylni ko‘rish yoki yuklab olish (Autentifikatsiya talab qilinmaydi)' })
+  async getPublicFile(@Param('filename') filename: string, @Res() res: Response) {
+    const { filePath, mimeType } = this.uploadsService.getFilePath(filename, true);
+    res.setHeader('Content-Type', mimeType);
+    return res.sendFile(filePath);
   }
 
   @Get(':filename')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Yuklangan faylni ko‘rish yoki yuklab olish' })
+  @ApiOperation({ summary: 'Himoyalangan faylni ko‘rish yoki yuklab olish (JWT token talab qilinadi)' })
   async getFile(@Param('filename') filename: string, @Res() res: Response) {
-    const { filePath, mimeType } = this.uploadsService.getFilePath(filename);
+    const { filePath, mimeType } = this.uploadsService.getFilePath(filename, false);
     res.setHeader('Content-Type', mimeType);
     return res.sendFile(filePath);
   }
