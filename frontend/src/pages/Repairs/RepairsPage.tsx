@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Table,
   Card,
   Button,
   Tag,
+  Badge,
   Space,
   Input,
   Select,
@@ -27,12 +27,15 @@ import {
   IconDownload,
   IconRefresh,
   IconSync,
+  IconEye,
+  IconFile,
 } from '@arco-design/web-react/icon';
 import { useRepairsQuery, type RepairItem } from '../../hooks/useRepairsQuery';
 import { CreateRepairModal } from '../../components/Repairs/CreateRepairModal';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { TableActions } from '../../components/Common/TableActions';
+import { StandardTable } from '../../components/Common/StandardTable';
 import { exportToExcel } from '../../utils/exportExcel';
 
 const { Row, Col } = Grid;
@@ -102,135 +105,117 @@ export const RepairsPage: React.FC = () => {
 
   const columns = [
     {
-      title: 'Talabnoma №',
-      dataIndex: 'repairNumber',
-      width: 145,
-      render: (val: string) => (
-        <div style={{ paddingLeft: 8 }}>
-          <b style={{ color: '#165DFF', whiteSpace: 'nowrap' }}>{val}</b>
-        </div>
-      ),
-    },
-    {
-      title: 'Asosiy Vosita',
+      title: 'Vosita & Talabnoma №',
       dataIndex: 'asset',
-      width: 220,
-      render: (asset: any) => (
-        <CategoryThumbnail
-          icon={<IconTool />}
-          name={asset?.item?.name || 'Asosiy vosita'}
-          tag={asset?.room ? `${asset.room.number}-xona` : undefined}
-          color="#165DFF"
-          bg="#E8F3FF"
-        />
-      ),
-    },
-    {
-      title: 'Nosozlik / Sabab',
-      dataIndex: 'issueDescription',
-      minWidth: 200,
-      render: (val: string) => (
-        <div style={{ minWidth: 200, fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.4, wordBreak: 'break-word' }}>
-          {val}
+      width: 230,
+      render: (asset: any, record: RepairItem) => (
+        <div style={{ paddingLeft: 8 }}>
+          <CategoryThumbnail
+            icon={<IconTool />}
+            name={asset?.item?.name || 'Asosiy vosita'}
+            subtitle={
+              asset?.room
+                ? `${asset.room.number}-xona`
+                : asset?.inventoryNumber
+                ? `Inv: ${asset.inventoryNumber}`
+                : undefined
+            }
+            tag={record.repairNumber}
+            color="#165DFF"
+            bg="#E8F3FF"
+          />
         </div>
       ),
     },
     {
-      title: 'Ustaxona / Servis',
-      dataIndex: 'serviceProvider',
-      width: 175,
-      render: (val: string) => <span style={{ color: 'var(--color-text-2)' }}>{val || 'OTM ustaxonasi'}</span>,
-    },
-    {
-      title: 'Xarajat (so‘m)',
-      dataIndex: 'cost',
-      width: 120,
-      render: (val: any) => (
-        <span style={{ whiteSpace: 'nowrap' }}>
-          {val ? `${Number(val).toLocaleString()} so‘m` : '—'}
-        </span>
+      title: 'Nosozlik & Servis Markazi',
+      dataIndex: 'issueDescription',
+      minWidth: 300,
+      render: (val: string, record: RepairItem) => (
+        <div>
+          <div style={{ fontSize: 13, color: 'var(--color-text-1)', lineHeight: 1.45, wordBreak: 'break-word' }}>
+            {val}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 12, color: 'var(--color-text-3)', flexWrap: 'wrap' }}>
+            <span>Ustaxona: <span style={{ color: 'var(--color-text-2)' }}>{record.serviceProvider || 'OTM ustaxonasi'}</span></span>
+            {record.cost ? (
+              <span style={{ color: '#165DFF', fontWeight: 600 }}>• {Number(record.cost).toLocaleString()} so‘m</span>
+            ) : null}
+          </div>
+        </div>
       ),
     },
     {
-      title: 'Holati',
+      title: 'Yuboruvchi & Sana',
+      width: 160,
+      render: (_: any, record: RepairItem) => (
+        <div style={{ lineHeight: 1.35 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-1)', whiteSpace: 'nowrap' }}>
+            {record.requestedBy?.fullName || '—'}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2, whiteSpace: 'nowrap' }}>
+            {record.createdAt?.substring(0, 10)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Bosqich',
       dataIndex: 'status',
-      width: 125,
+      width: 190,
       render: (status: string) => {
-        if (status === 'IN_REPAIR') {
-          return (
-            <Tag color="orange" icon={<IconTool />} style={{ borderRadius: 0 }}>
-              Ta’mirda
-            </Tag>
-          );
-        }
-        if (status === 'COMPLETED') {
-          return (
-            <Tag color="green" icon={<IconCheckCircle />} style={{ borderRadius: 0 }}>
-              Yakunlangan
-            </Tag>
-          );
-        }
-        if (status === 'UNREPAIRABLE') {
-          return (
-            <Tag color="red" icon={<IconCloseCircle />} style={{ borderRadius: 0 }}>
-              Yaroqsiz
-            </Tag>
-          );
-        }
-        return (
-          <Tag color="blue" icon={<IconClockCircle />} style={{ borderRadius: 0 }}>
-            Kutilmoqda
-          </Tag>
-        );
+        if (status === 'IN_REPAIR') return <Badge status="processing" text="Ta’mir jarayonida" />;
+        if (status === 'PENDING') return <Badge status="warning" text="Kutilmoqda" />;
+        if (status === 'COMPLETED') return <Badge status="success" text="Yakunlangan" />;
+        if (status === 'UNREPAIRABLE') return <Badge status="error" text="Yaroqsiz (Spisanie)" />;
+        return <Tag style={{ borderRadius: 0 }}>{status}</Tag>;
       },
-    },
-    {
-      title: 'Yuboruvchi',
-      dataIndex: 'requestedBy',
-      width: 140,
-      render: (u: any) => (
-        <span style={{ whiteSpace: 'nowrap', color: 'var(--color-text-2)' }}>
-          {u ? u.fullName : '—'}
-        </span>
-      ),
-    },
-    {
-      title: 'Sana',
-      dataIndex: 'createdAt',
-      width: 105,
-      render: (val: string) => (
-        <span style={{ whiteSpace: 'nowrap', color: 'var(--color-text-3)', fontSize: 12 }}>
-          {val?.substring(0, 10)}
-        </span>
-      ),
     },
     {
       title: 'Amallar',
       dataIndex: 'actions',
-      width: 140,
+      width: 220,
       fixed: 'right' as const,
       render: (_: any, record: RepairItem) => (
-        <TableActions rightPadding={16}>
+        <TableActions rightPadding={0} gap={5}>
+          <Button
+            size="small"
+            type="outline"
+            icon={<IconEye />}
+            onClick={(e) => {
+              e?.stopPropagation?.();
+              handleOpenUpdate(record);
+            }}
+            style={{ borderRadius: 0, padding: '0 8px' }}
+          >
+            Batafsil
+          </Button>
           {record.status === 'IN_REPAIR' || record.status === 'PENDING' ? (
             <Button
-              type="outline"
-              status="success"
               size="small"
+              type="primary"
+              status="success"
               icon={<IconSync />}
-              style={{ borderRadius: 0, padding: '0 10px' }}
-              onClick={() => handleOpenUpdate(record)}
+              onClick={(e) => {
+                e?.stopPropagation?.();
+                handleOpenUpdate(record);
+              }}
+              style={{ borderRadius: 0, padding: '0 8px' }}
             >
               Yangilash
             </Button>
           ) : (
             <Button
-              type="outline"
               size="small"
-              icon={<IconCheckCircle />}
-              style={{ borderRadius: 0, color: 'var(--color-text-2)', padding: '0 10px' }}
-              onClick={() => handleOpenUpdate(record)}
+              type="outline"
+              icon={<IconFile />}
+              onClick={(e) => {
+                e?.stopPropagation?.();
+                handleOpenUpdate(record);
+              }}
+              style={{ borderRadius: 0, padding: '0 8px' }}
             >
-              Tafsilot
+              Akt (OS-3)
             </Button>
           )}
         </TableActions>
@@ -344,32 +329,16 @@ export const RepairsPage: React.FC = () => {
         />
       )}
 
-      {/* Table */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: 0 }}>
-        <Table
-          rowKey="id"
-          loading={isLoading}
-          columns={columns}
-          data={filteredRepairs}
-          scroll={{ x: 1280 }}
-          pagination={{
-            pageSize: 10,
-            sizeCanChange: true,
-            sizeOptions: [10, 20, 50, 100],
-            showTotal: (total, range) => {
-              if (!total || total === 0) return '0/0';
-              const to = range ? Math.min(range[1], total) : total;
-              return `${to}/${total}`;
-            },
-          }}
-          style={{ borderRadius: 0 }}
-          noDataElement={
-            <div style={{ padding: '40px 0', textAlign: 'center' }}>
-              <Empty description={search ? 'Qidiruv bo‘yicha ariza topilmadi' : 'Hozircha ta’mirlash arizalari mavjud emas'} />
-            </div>
-          }
-        />
-      </Card>
+      {/* Universal Standard Table */}
+      <StandardTable<RepairItem>
+        rowKey="id"
+        loading={isLoading}
+        columns={columns}
+        data={filteredRepairs}
+        scrollX={1200}
+        onRowClick={(record) => handleOpenUpdate(record)}
+        emptyText={search ? 'Qidiruv bo‘yicha ariza topilmadi' : 'Hozircha ta’mirlash arizalari mavjud emas'}
+      />
 
       {/* Create Modal */}
       <CreateRepairModal
