@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
   Card,
-  Table,
   Button,
   Space,
   Typography,
@@ -14,7 +13,6 @@ import {
   Message,
   Grid,
   Alert,
-  Empty,
 } from '@arco-design/web-react';
 import { StockLevelGauge } from '../../components/Common/StockLevelGauge';
 import {
@@ -41,6 +39,7 @@ import { DepartmentQuota } from '../../types';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { TableActions } from '../../components/Common/TableActions';
+import { StandardTable } from '../../components/Common/StandardTable';
 import { exportToExcel } from '../../utils/exportExcel';
 
 const { Title, Text } = Typography;
@@ -202,15 +201,23 @@ export const QuotasPage: React.FC = () => {
     {
       title: 'Kafedra / Bo‘linma',
       dataIndex: 'department.name',
-      minWidth: 220,
+      width: 175,
       render: (_: any, record: DepartmentQuota) => (
-        <div>
-          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)' }}>
+        <div style={{ paddingLeft: 8 }}>
+          <div
+            style={{
+              fontWeight: 600,
+              fontSize: 13,
+              color: 'var(--color-text-1)',
+              lineHeight: 1.35,
+              wordBreak: 'break-word',
+            }}
+          >
             {record.department.name}
           </div>
           {record.department.code && (
             <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2 }}>
-              Kod: <b>{record.department.code}</b>
+              Kod: <b style={{ color: 'var(--color-text-2)' }}>{record.department.code}</b>
             </div>
           )}
         </div>
@@ -219,7 +226,7 @@ export const QuotasPage: React.FC = () => {
     {
       title: 'Sarflanuvchi Mahsulot',
       dataIndex: 'item.name',
-      minWidth: 240,
+      minWidth: 175,
       render: (_: any, record: DepartmentQuota) => (
         <CategoryThumbnail
           icon={<IconStorage />}
@@ -234,9 +241,9 @@ export const QuotasPage: React.FC = () => {
     {
       title: 'Davr',
       dataIndex: 'period',
-      width: 110,
+      width: 85,
       render: (period: string) => (
-        <Tag size="small" style={{ borderRadius: 0, fontWeight: 500 }}>
+        <Tag size="small" style={{ borderRadius: 0, fontWeight: 500, whiteSpace: 'nowrap' }}>
           {period}
         </Tag>
       ),
@@ -244,9 +251,9 @@ export const QuotasPage: React.FC = () => {
     {
       title: 'Oylik Limit',
       dataIndex: 'monthlyLimit',
-      width: 125,
+      width: 100,
       render: (val: number, record: DepartmentQuota) => (
-        <span style={{ fontWeight: 600, fontSize: 13 }}>
+        <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
           {val} {record.item.unit}
         </span>
       ),
@@ -254,13 +261,14 @@ export const QuotasPage: React.FC = () => {
     {
       title: 'Joriy Sarf',
       dataIndex: 'usedQuantity',
-      width: 125,
+      width: 95,
       render: (val: number, record: DepartmentQuota) => (
         <span
           style={{
             color: val > record.monthlyLimit ? '#F53F3F' : 'var(--color-text-1)',
             fontWeight: 600,
             fontSize: 13,
+            whiteSpace: 'nowrap',
           }}
         >
           {val} {record.item.unit}
@@ -269,7 +277,7 @@ export const QuotasPage: React.FC = () => {
     },
     {
       title: 'Qoldiq Kvota',
-      width: 125,
+      width: 100,
       render: (_: any, record: DepartmentQuota) => {
         const remaining = record.monthlyLimit - record.usedQuantity;
         return (
@@ -278,6 +286,7 @@ export const QuotasPage: React.FC = () => {
               color: remaining <= 0 ? '#F53F3F' : '#00B42A',
               fontWeight: 600,
               fontSize: 13,
+              whiteSpace: 'nowrap',
             }}
           >
             {remaining > 0 ? remaining : 0} {record.item.unit}
@@ -287,7 +296,7 @@ export const QuotasPage: React.FC = () => {
     },
     {
       title: 'Sarf Shkalasi va Foizi',
-      width: 190,
+      width: 135,
       render: (_: any, record: DepartmentQuota) => {
         const percent = Math.min(
           100,
@@ -303,21 +312,22 @@ export const QuotasPage: React.FC = () => {
               <span
                 style={{
                   fontWeight: 700,
-                  fontSize: 13,
+                  fontSize: 12,
                   color: isOver ? '#F53F3F' : isWarning ? '#FF7D00' : 'var(--color-text-1)',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {record.usedQuantity} {record.item.unit}
               </span>
             }
             subLabel={
-              <span style={{ color: 'var(--color-text-3)', fontSize: 11 }}>
+              <span style={{ color: 'var(--color-text-3)', fontSize: 11, whiteSpace: 'nowrap' }}>
                 {percent}%
               </span>
             }
             color={isOver ? '#F53F3F' : isWarning ? '#FF7D00' : '#00B42A'}
             status={isOver ? 'error' : isWarning ? 'warning' : 'success'}
-            width={160}
+            width={105}
             strokeWidth={6}
           />
         );
@@ -325,24 +335,24 @@ export const QuotasPage: React.FC = () => {
     },
     {
       title: 'Holati',
-      width: 140,
+      width: 125,
       render: (_: any, record: DepartmentQuota) => {
         if (record.usedQuantity > record.monthlyLimit) {
           return (
-            <Tag color="red" icon={<IconExclamationCircle />} style={{ borderRadius: 0, fontWeight: 500 }}>
+            <Tag color="red" icon={<IconExclamationCircle />} style={{ borderRadius: 0, fontWeight: 500, whiteSpace: 'nowrap' }}>
               LIMIT OSHGAN
             </Tag>
           );
         }
         if (record.usedQuantity >= record.monthlyLimit * 0.8) {
           return (
-            <Tag color="orange" icon={<IconClockCircle />} style={{ borderRadius: 0, fontWeight: 500 }}>
+            <Tag color="orange" icon={<IconClockCircle />} style={{ borderRadius: 0, fontWeight: 500, whiteSpace: 'nowrap' }}>
               CHEGARADA
             </Tag>
           );
         }
         return (
-          <Tag color="green" icon={<IconCheckCircle />} style={{ borderRadius: 0, fontWeight: 500 }}>
+          <Tag color="green" icon={<IconCheckCircle />} style={{ borderRadius: 0, fontWeight: 500, whiteSpace: 'nowrap' }}>
             ME’YORDA
           </Tag>
         );
@@ -350,16 +360,19 @@ export const QuotasPage: React.FC = () => {
     },
     {
       title: 'Amallar',
-      width: 130,
+      width: 128,
       fixed: 'right' as const,
       render: (_: any, record: DepartmentQuota) => (
-        <TableActions rightPadding={16}>
+        <TableActions rightPadding={0} gap={6}>
           <Button
             size="small"
             type="outline"
             icon={<IconEdit />}
-            style={{ borderRadius: 0 }}
-            onClick={() => openEditModal(record)}
+            style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+            onClick={(e) => {
+              e?.stopPropagation?.();
+              openEditModal(record);
+            }}
           >
             Tahrirlash
           </Button>
@@ -473,38 +486,20 @@ export const QuotasPage: React.FC = () => {
         />
       )}
 
-      {/* Quotas Table */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: 0 }}>
-        <Table
-          rowKey="id"
-          loading={isLoading}
-          columns={columns}
-          data={filteredQuotas}
-          scroll={{ x: 1250 }}
-          pagination={{
-            pageSize: 10,
-            sizeCanChange: true,
-            sizeOptions: [10, 20, 50, 100],
-            showTotal: (total, range) => {
-              if (!total || total === 0) return '0/0';
-              const to = range ? Math.min(range[1], total) : total;
-              return `${to}/${total}`;
-            },
-          }}
-          style={{ borderRadius: 0 }}
-          noDataElement={
-            <div style={{ padding: 40, textAlign: 'center' }}>
-              <Empty
-                description={
-                  search || selectedDept !== 'ALL'
-                    ? 'Tanlangan parametrlar bo‘yicha kvotalar topilmadi'
-                    : 'Ushbu davr uchun kvotalar belgilanmagan'
-                }
-              />
-            </div>
-          }
-        />
-      </Card>
+      {/* Universal StandardTable Component */}
+      <StandardTable<DepartmentQuota>
+        rowKey="id"
+        loading={isLoading}
+        columns={columns}
+        data={filteredQuotas}
+        scrollX={1118}
+        onRowClick={(record) => openEditModal(record)}
+        emptyText={
+          search || selectedDept !== 'ALL'
+            ? 'Tanlangan parametrlar bo‘yicha kvotalar topilmadi'
+            : 'Ushbu davr uchun kvotalar belgilanmagan'
+        }
+      />
 
       {/* Create Modal */}
       <Modal
