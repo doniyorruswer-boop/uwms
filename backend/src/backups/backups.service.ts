@@ -273,12 +273,11 @@ export class BackupsService {
       );
       this.logger.log(`pg_restore successfully finished for backup: ${backup.filename}`);
     } catch (restoreError: any) {
-      this.logger.error(`pg_restore execution warning/error: ${restoreError.message}`);
-      // pg_restore can exit with status 1 on non-fatal warnings (e.g. notices during drop).
-      // If fatal error occurred without table restoration, throw error
-      if (restoreError.stderr && !restoreError.stderr.includes('warning') && restoreError.stderr.includes('FATAL')) {
-        throw new BadRequestException(`Ma’lumotlar bazasini tiklashda xatolik yuz berdi: ${restoreError.message}`);
-      }
+      this.logger.error(`pg_restore execution failed: ${restoreError.message}`);
+      const stderr = (restoreError.stderr || restoreError.message || '').toString();
+      throw new BadRequestException(
+        `Ma’lumotlar bazasini tiklashda xatolik yuz berdi: ${stderr.trim() || restoreError.message}`
+      );
     }
 
     await this.auditService.log({
