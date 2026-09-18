@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
+import { DocumentStampsService } from '../document-stamps/document-stamps.service';
 import { AuditStatus, AuditRecordStatus, AssetStatus } from '@prisma/client';
 
 @Injectable()
@@ -8,6 +9,7 @@ export class AuditsService {
   constructor(
     private prisma: PrismaService,
     private auditService: SystemAuditService,
+    private documentStampsService: DocumentStampsService,
   ) {}
 
   async startAudit(roomId: string, createdById?: string) {
@@ -226,6 +228,38 @@ export class AuditsService {
         },
         userId,
       });
+
+      // Avtomatik rasmiy INV-19 aktini raqamli muhr bilan generatsiya qilish
+      try {
+        await this.documentStampsService.stampDocument({
+          docType: 'INV_19',
+          docNumber: completed.auditNumber,
+          title: `Inventarizatsiya va Solishtirma Qaydnomasi (INV-19 Shakli) - ${completed.room?.number || ''}-xona`,
+          signerName: completed.createdBy.fullName,
+          signerRole: 'Bosh Auditor',
+          metadata: {
+            auditNumber: completed.auditNumber,
+            roomNumber: completed.room?.number,
+            roomName: completed.room?.name,
+            auditorName: completed.createdBy.fullName,
+            completedAt: completed.completedAt,
+            totalRecords: completed.records.length,
+            matchedCount: completed.records.filter((r) => r.status === AuditRecordStatus.MATCHED).length,
+            missingCount: completed.records.filter((r) => r.status === AuditRecordStatus.MISSING).length,
+            relocatedCount: completed.records.filter((r) => r.status === AuditRecordStatus.RELOCATED).length,
+            items: completed.records.map((r) => ({
+              inventoryNumber: r.itemInstance.inventoryNumber,
+              name: r.itemInstance.item.name,
+              model: r.itemInstance.item.model,
+              status: r.status,
+              notes: r.notes,
+              price: r.itemInstance.purchasePrice ? Number(r.itemInstance.purchasePrice) : 0,
+            })),
+          },
+        });
+      } catch (stampErr) {
+        // ignore stamping error if non-fatal
+      }
 
       return completed;
     });

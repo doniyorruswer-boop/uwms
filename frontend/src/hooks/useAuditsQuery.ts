@@ -57,3 +57,15 @@ export function useAuditsQuery() {
     isCompleting: completeAuditMutation.isPending,
   };
 }
+
+export function useAuditDetailQuery(auditId?: string | null) {
+  return useQuery({
+    queryKey: ['audit-detail', auditId],
+    queryFn: async () => {
+      if (!auditId) return null;
+      const res = await apiClient.get<any>(API_ENDPOINTS.AUDITS.BY_ID(auditId));
+      return res.data;
+    },
+    enabled: !!auditId,
+  });
+}

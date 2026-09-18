@@ -30,7 +30,7 @@ import {
 import { Html5Qrcode } from 'html5-qrcode';
 import { useAssetsQuery } from '../../hooks/useAssetsQuery';
 import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
-import { useAuditsQuery } from '../../hooks/useAuditsQuery';
+import { useAuditsQuery, useAuditDetailQuery } from '../../hooks/useAuditsQuery';
 import { OfficialDocModal } from '../../components/OfficialDocument/OfficialDocModal';
 import type { ItemInstance } from '../../types';
 import { exportToExcel } from '../../utils/exportExcel';
@@ -62,29 +62,73 @@ export const AuditScannerPage: React.FC = () => {
   const activeRoom = selectedRoomId || (rooms.length > 0 ? rooms[0].id : '');
   const currentRoom = rooms.find((r) => r.id === activeRoom);
 
+  // Check active room audit from audits list or activeAuditId
+  const roomAuditSummary = useMemo(() => {
+    return audits.find((a) => a.roomId === activeRoom || a.roomNumber === currentRoom?.number);
+  }, [audits, activeRoom, currentRoom]);
+
+  const currentAuditId = activeAuditId || roomAuditSummary?.id || null;
+  const { data: auditDetail, refetch: refetchAuditDetail } = useAuditDetailQuery(currentAuditId);
+
   // Expected assets in this room
   const expectedAssets = useMemo(() => {
     return assets.filter((a) => a.roomId === activeRoom);
   }, [assets, activeRoom]);
 
-  // Audit calculations
+  // Real database-backed records when audit exists in backend
   const matchedAssets = useMemo(() => {
+    if (auditDetail?.records && auditDetail.records.length > 0) {
+      return auditDetail.records
+        .filter((r: any) => r.status === 'MATCHED')
+        .map((r: any) => ({
+          ...r.itemInstance,
+          itemName: r.itemInstance?.item?.name || r.itemInstance?.itemName,
+          itemModel: r.itemInstance?.item?.model || r.itemInstance?.itemModel,
+          purchasePrice: r.itemInstance?.purchasePrice ? Number(r.itemInstance.purchasePrice) : 0,
+        }));
+    }
     return expectedAssets.filter((a) => scannedCodes.includes(a.qrCode));
-  }, [expectedAssets, scannedCodes]);
+  }, [auditDetail, expectedAssets, scannedCodes]);
 
   const missingAssets = useMemo(() => {
+    if (auditDetail?.records && auditDetail.records.length > 0) {
+      return auditDetail.records
+        .filter((r: any) => r.status === 'MISSING')
+        .map((r: any) => ({
+          ...r.itemInstance,
+          itemName: r.itemInstance?.item?.name || r.itemInstance?.itemName,
+          itemModel: r.itemInstance?.item?.model || r.itemInstance?.itemModel,
+          purchasePrice: r.itemInstance?.purchasePrice ? Number(r.itemInstance.purchasePrice) : 0,
+        }));
+    }
     return expectedAssets.filter((a) => !scannedCodes.includes(a.qrCode));
-  }, [expectedAssets, scannedCodes]);
+  }, [auditDetail, expectedAssets, scannedCodes]);
 
   const unexpectedAssets = useMemo(() => {
+    if (auditDetail?.records && auditDetail.records.length > 0) {
+      return auditDetail.records
+        .filter((r: any) => r.status === 'RELOCATED')
+        .map((r: any) => ({
+          ...r.itemInstance,
+          itemName: r.itemInstance?.item?.name || r.itemInstance?.itemName,
+          itemModel: r.itemInstance?.item?.model || r.itemInstance?.itemModel,
+          purchasePrice: r.itemInstance?.purchasePrice ? Number(r.itemInstance.purchasePrice) : 0,
+        }));
+    }
     return assets.filter(
       (a) => a.roomId !== activeRoom && scannedCodes.includes(a.qrCode)
     );
-  }, [assets, activeRoom, scannedCodes]);
+  }, [auditDetail, assets, activeRoom, scannedCodes]);
 
-  const completionPercent = expectedAssets.length > 0
-    ? Math.round((matchedAssets.length / expectedAssets.length) * 100)
-    : 0;
+  const completionPercent = useMemo(() => {
+    if (auditDetail?.records && expectedAssets.length > 0) {
+      const matchedCount = auditDetail.records.filter((r: any) => r.status === 'MATCHED').length;
+      return Math.round((matchedCount / expectedAssets.length) * 100);
+    }
+    return expectedAssets.length > 0
+      ? Math.round((matchedAssets.length / expectedAssets.length) * 100)
+      : 0;
+  }, [auditDetail, expectedAssets, matchedAssets]);
 
   // Stop camera on unmount
   useEffect(() => {
@@ -162,6 +206,7 @@ export const AuditScannerPage: React.FC = () => {
         if (scanRes && scanRes.auditId) {
           setActiveAuditId(scanRes.auditId);
         }
+        await refetchAuditDetail();
       } catch {
         // Continue scanning even if audit log request fails
       }
@@ -172,16 +217,17 @@ export const AuditScannerPage: React.FC = () => {
   };
 
   const handleCompleteAudit = async () => {
-    if (!activeAuditId) {
+    if (!currentAuditId) {
       Message.warning('Hali birorta ham uskuna skanerlanmadi yoki faol audit sessiyasi topilmadi!');
       return;
     }
     try {
       await completeAudit({
-        auditId: activeAuditId,
+        auditId: currentAuditId,
         notes: `${currentRoom?.name || 'Xona'} inventarizatsiyasi yakunlandi. Kamomadlar qayd etildi.`,
       });
       setIsCompleted(true);
+      await refetchAuditDetail();
       setIsDocModalVisible(true);
     } catch {
       // Handled by onError in useAuditsQuery
@@ -231,35 +277,60 @@ export const AuditScannerPage: React.FC = () => {
     Message.success('Audit dalolatnomasi Excel faylga yuklandi!');
   };
 
-  const auditDocItems = [
-    ...matchedAssets.map((a) => ({
-      inventoryNumber: a.inventoryNumber,
-      name: a.itemName,
-      model: `${a.itemModel || ''} [TOPILDI - MAVJUD]`,
-      serialNumber: a.serialNumber || '—',
-      price: a.purchasePrice,
-      quantity: 1,
-      unit: 'dona',
-    })),
-    ...missingAssets.map((a) => ({
-      inventoryNumber: a.inventoryNumber,
-      name: a.itemName,
-      model: `${a.itemModel || ''} [KAMOMAD / TOPILMADI]`,
-      serialNumber: a.serialNumber || '—',
-      price: a.purchasePrice,
-      quantity: 1,
-      unit: 'dona',
-    })),
-    ...unexpectedAssets.map((a) => ({
-      inventoryNumber: a.inventoryNumber,
-      name: a.itemName,
-      model: `${a.itemModel || ''} [BEGONA XONADAN: ${a.roomName || 'Boshqa joy'}]`,
-      serialNumber: a.serialNumber || '—',
-      price: a.purchasePrice,
-      quantity: 1,
-      unit: 'dona',
-    })),
-  ];
+  const auditDocItems = useMemo(() => {
+    if (auditDetail?.records && auditDetail.records.length > 0) {
+      return auditDetail.records.map((r: any) => {
+        const tag =
+          r.status === 'MATCHED'
+            ? '[TOPILDI - MAVJUD]'
+            : r.status === 'MISSING'
+            ? '[KAMOMAD / TOPILMADI]'
+            : r.status === 'RELOCATED'
+            ? `[BEGONA XONADAN: ${r.itemInstance?.room?.name || 'Boshqa joy'}]`
+            : `[${r.status}]`;
+
+        return {
+          inventoryNumber: r.itemInstance?.inventoryNumber || '—',
+          name: r.itemInstance?.item?.name || r.itemInstance?.itemName || 'Noma’lum aktiv',
+          model: `${r.itemInstance?.item?.model || r.itemInstance?.itemModel || ''} ${tag}`.trim(),
+          serialNumber: r.itemInstance?.serialNumber || '—',
+          price: Number(r.itemInstance?.purchasePrice || 0),
+          quantity: 1,
+          unit: 'dona',
+        };
+      });
+    }
+
+    return [
+      ...matchedAssets.map((a) => ({
+        inventoryNumber: a.inventoryNumber,
+        name: a.itemName,
+        model: `${a.itemModel || ''} [TOPILDI - MAVJUD]`,
+        serialNumber: a.serialNumber || '—',
+        price: a.purchasePrice,
+        quantity: 1,
+        unit: 'dona',
+      })),
+      ...missingAssets.map((a) => ({
+        inventoryNumber: a.inventoryNumber,
+        name: a.itemName,
+        model: `${a.itemModel || ''} [KAMOMAD / TOPILMADI]`,
+        serialNumber: a.serialNumber || '—',
+        price: a.purchasePrice,
+        quantity: 1,
+        unit: 'dona',
+      })),
+      ...unexpectedAssets.map((a) => ({
+        inventoryNumber: a.inventoryNumber,
+        name: a.itemName,
+        model: `${a.itemModel || ''} [BEGONA XONADAN: ${a.roomName || 'Boshqa joy'}]`,
+        serialNumber: a.serialNumber || '—',
+        price: a.purchasePrice,
+        quantity: 1,
+        unit: 'dona',
+      })),
+    ];
+  }, [auditDetail, matchedAssets, missingAssets, unexpectedAssets]);
 
   // Table items based on tab
   const getTableData = () => {
@@ -683,12 +754,20 @@ export const AuditScannerPage: React.FC = () => {
         visible={isDocModalVisible}
         onClose={() => setIsDocModalVisible(false)}
         docType="AUDIT"
-        docNumber={`INV-19-${currentRoom?.number || '01'}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`}
-        date={new Date().toLocaleDateString('uz-UZ')}
+        docNumber={auditDetail?.auditNumber || `INV-19-${currentRoom?.number || '01'}`}
+        date={
+          auditDetail?.completedAt
+            ? new Date(auditDetail.completedAt).toLocaleDateString('uz-UZ')
+            : new Date().toLocaleDateString('uz-UZ')
+        }
         sourceLocation={`${currentRoom?.number}-xona: ${currentRoom?.name}`}
-        senderName={currentRoom?.responsibleUserName || 'Kafedra Mas’uli (MOL)'}
-        receiverName="Ichki Audit va Inventarizatsiya Komissiyasi"
-        reason={`Davriy auditorlik tekshiruvi va solishtirma dalolatnomasi. Jami ${expectedAssets.length} ta kutilgan vositadan ${matchedAssets.length} tasi mavjud, ${missingAssets.length} tasi kamomad, ${unexpectedAssets.length} tasi begona uskunalar deb topildi.`}
+        senderName={auditDetail?.room?.responsibleUser?.fullName || currentRoom?.responsibleUserName || 'Kafedra Mas’uli (MOL)'}
+        receiverName={auditDetail?.createdBy?.fullName ? `${auditDetail.createdBy.fullName} (Bosh Auditor)` : 'Ichki Audit va Inventarizatsiya Komissiyasi'}
+        reason={
+          auditDetail
+            ? `Davriy auditorlik tekshiruvi va solishtirma qaydnomasi (${auditDetail.auditNumber}). Jami ${auditDetail.records?.length || 0} ta tekshirilgan ashyodan ${auditDetail.records?.filter((r: any) => r.status === 'MATCHED').length || 0} tasi mavjud, ${auditDetail.records?.filter((r: any) => r.status === 'MISSING').length || 0} tasi kamomad (topilmadi), ${auditDetail.records?.filter((r: any) => r.status === 'RELOCATED').length || 0} tasi begona joydan topilgan uskunalar deb qayd etildi.`
+            : `Davriy auditorlik tekshiruvi va solishtirma dalolatnomasi. Jami ${expectedAssets.length} ta kutilgan vositadan ${matchedAssets.length} tasi mavjud, ${missingAssets.length} tasi kamomad.`
+        }
         items={auditDocItems}
       />
     </div>
