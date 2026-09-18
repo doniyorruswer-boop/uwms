@@ -25,6 +25,7 @@ export interface User {
   phone?: string;
   departmentId?: string;
   departmentName?: string;
+  mustChangePassword?: boolean;
 }
 
 export interface Department {

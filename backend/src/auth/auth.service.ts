@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { SystemAuditService } from '../system-audit/system-audit.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -8,6 +9,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private systemAuditService: SystemAuditService,
   ) {}
 
   async validateUser(username: string, pass: string): Promise<any> {
@@ -35,6 +37,7 @@ export class AuthService {
     const payload = { sub: user.id, username: user.username, role: user.role };
     return {
       access_token: this.jwtService.sign(payload),
+      mustChangePassword: user.mustChangePassword,
       user: {
         id: user.id,
         fullName: user.fullName,
@@ -42,6 +45,7 @@ export class AuthService {
         email: user.email,
         role: user.role,
         position: user.position,
+        mustChangePassword: user.mustChangePassword,
         departmentName: user.department?.name,
       },
     };
@@ -70,12 +74,38 @@ export class AuthService {
       throw new BadRequestException('Eski parol noto‘g‘ri kiritildi');
     }
 
+    if (oldPass === newPass) {
+      throw new BadRequestException('Yangi parol eski paroldan farq qilishi kerak!');
+    }
+
+    if (newPass.toLowerCase().includes('admin123')) {
+      throw new BadRequestException("Standart 'admin123' parolidan foydalanish taqiqlanadi! Yangi kuchli parol o‘rnating.");
+    }
+
     const newHashed = await bcrypt.hash(newPass, 10);
     await this.prisma.user.update({
       where: { id: userId },
-      data: { password: newHashed },
+      data: {
+        password: newHashed,
+        mustChangePassword: false,
+      },
     });
 
-    return { success: true, message: 'Parol muvaffaqiyatli yangilandi' };
+    await this.systemAuditService.log({
+      action: 'USER_PASSWORD_CHANGED',
+      entity: 'User',
+      entityId: userId,
+      userId,
+      details: {
+        username: user.username,
+        reason: 'Foydalanuvchi tomonidan yangi xavfsiz parol o‘rnatildi',
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Parol muvaffaqiyatli yangilandi',
+      mustChangePassword: false,
+    };
   }
 }

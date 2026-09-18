@@ -187,6 +187,7 @@ export class UsersService {
           role: dto.role,
           departmentId: dto.departmentId || null,
           isActive: dto.isActive !== undefined ? dto.isActive : true,
+          mustChangePassword: true,
         },
         include: {
           department: true,
@@ -322,7 +323,10 @@ export class UsersService {
 
     await this.prisma.user.update({
       where: { id },
-      data: { password: hashedPassword },
+      data: {
+        password: hashedPassword,
+        mustChangePassword: true,
+      },
     });
 
     await this.systemAuditService.log({

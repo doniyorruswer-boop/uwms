@@ -11,6 +11,7 @@ interface AuthState {
 
   login: (token: string, user: User) => void;
   logout: () => void;
+  setPasswordChanged: () => void;
   toggleDarkMode: () => void;
   checkAuth: () => Promise<void>;
 }
@@ -31,6 +32,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.setItem('uwms_token', token);
     localStorage.setItem('uwms_user', JSON.stringify(user));
     set({ token, user, isAuthenticated: true });
+  },
+
+  setPasswordChanged: () => {
+    const currentUser = get().user;
+    if (currentUser) {
+      const updated = { ...currentUser, mustChangePassword: false };
+      localStorage.setItem('uwms_user', JSON.stringify(updated));
+      set({ user: updated });
+    }
   },
 
   logout: () => {

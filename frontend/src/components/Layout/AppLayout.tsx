@@ -33,6 +33,7 @@ import { AppLogo } from '../Common/AppLogo';
 import { APP_CONFIG, ROLE_CONFIG, getPageTitleByPath, DESIGN_TOKENS } from '../../constants';
 import { NotificationPopover } from '../Notifications/NotificationPopover';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { ForcePasswordChangeModal } from '../Auth/ForcePasswordChangeModal';
 import { useTranslation } from 'react-i18next';
 
 const MenuItem = Menu.Item;
@@ -373,6 +374,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           {children}
         </Content>
       </Layout>
+
+      {/* Majburiy Parol O‘zgartirish Modali (Xavfsizlik talabi) */}
+      <ForcePasswordChangeModal visible={!!user?.mustChangePassword} />
     </Layout>
   );
 };

@@ -75,11 +75,12 @@ model User {
   fullName     String
   username     String      @unique
   email        String?     @unique
-  password     String
-  phone        String?
-  position     String?     // Lavozim (Dekan, Kafedra mudiri, Laborant, Omborchi)
-  role         RoleType    @default(EMPLOYEE)
-  isActive     Boolean     @default(true)
+  password           String
+  mustChangePassword Boolean     @default(true)
+  phone              String?
+  position           String?     // Lavozim (Dekan, Kafedra mudiri, Laborant, Omborchi)
+  role               RoleType    @default(EMPLOYEE)
+  isActive           Boolean     @default(true)
   departmentId String?
   department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 

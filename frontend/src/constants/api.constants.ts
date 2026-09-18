@@ -9,6 +9,8 @@ export const API_ENDPOINTS = {
     LOGIN: '/auth/login',
     PROFILE: '/auth/profile',
     REFRESH: '/auth/refresh',
+    ME: '/auth/me',
+    CHANGE_PASSWORD: '/auth/change-password',
   },
 
   // Boshqaruv Tahlili (Dashboard Analytics)

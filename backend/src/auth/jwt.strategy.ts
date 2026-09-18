@@ -41,6 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         role: true,
         position: true,
         isActive: true,
+        mustChangePassword: true,
         departmentId: true,
       },
     });
