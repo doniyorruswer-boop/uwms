@@ -6,10 +6,10 @@ import { BackupType, BackupStatus } from '@prisma/client';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 @Injectable()
 export class BackupsService {
@@ -165,8 +165,8 @@ export class BackupsService {
     try {
       const { cleanUrl, env } = this.getCleanDbConnection();
       
-      // Execute genuine pg_dump with custom compressed format (-Fc)
-      await execAsync(`pg_dump -Fc "${cleanUrl}" -f "${filePath}"`, { env });
+      // Execute genuine pg_dump with custom compressed format (-Fc) using parameterized execFile
+      await execFileAsync('pg_dump', ['-Fc', cleanUrl, '-f', filePath], { env });
 
       if (!fs.existsSync(filePath)) {
         throw new Error('pg_dump yakunlandi, lekin zaxira fayli yaratilmadi!');
@@ -267,8 +267,9 @@ export class BackupsService {
       // --if-exists: do not report errors if objects do not exist when dropping
       // --no-owner: skip restoration of object ownership
       // --no-privileges: skip restoration of access privileges
-      await execAsync(
-        `pg_restore --clean --if-exists --no-owner --no-privileges -d "${cleanUrl}" "${backup.filePath}"`,
+      await execFileAsync(
+        'pg_restore',
+        ['--clean', '--if-exists', '--no-owner', '--no-privileges', '-d', cleanUrl, backup.filePath],
         { env }
       );
       this.logger.log(`pg_restore successfully finished for backup: ${backup.filename}`);

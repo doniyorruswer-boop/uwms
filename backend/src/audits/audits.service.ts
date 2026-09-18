@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
 import { DocumentStampsService } from '../document-stamps/document-stamps.service';
 import { AuditStatus, AuditRecordStatus, AssetStatus } from '@prisma/client';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AuditsService {
@@ -12,6 +13,12 @@ export class AuditsService {
     private documentStampsService: DocumentStampsService,
   ) {}
 
+  private generateAuditNumber(): string {
+    const year = new Date().getFullYear();
+    const uniqueSuffix = crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
+    return `AUD-${year}-${uniqueSuffix}`;
+  }
+
   async startAudit(roomId: string, createdById?: string) {
     let creatorId = createdById;
     if (!creatorId) {
@@ -19,7 +26,7 @@ export class AuditsService {
       creatorId = auditor?.id;
     }
 
-    const auditNum = `AUD-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+    const auditNum = this.generateAuditNumber();
     const room = await this.prisma.room.findUnique({ where: { id: roomId } });
 
     const audit = await this.prisma.inventoryAudit.create({
@@ -85,7 +92,7 @@ export class AuditsService {
       const room = await this.prisma.room.findUnique({ where: { id: roomId } });
       audit = await this.prisma.inventoryAudit.create({
         data: {
-          auditNumber: `AUD-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+          auditNumber: this.generateAuditNumber(),
           title: `${room?.number || ''}-xona tezkor inventarizatsiyasi`,
           roomId,
           createdById: auditor?.id || (await this.prisma.user.findFirst())!.id,
