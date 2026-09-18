@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
   Card,
-  Table,
   Button,
   Space,
   Typography,
@@ -11,7 +10,6 @@ import {
   Select,
   DatePicker,
   Grid,
-  Empty,
   Alert,
 } from '@arco-design/web-react';
 import {
@@ -30,6 +28,7 @@ import { SystemAuditLogItem } from '../../types';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { TableActions } from '../../components/Common/TableActions';
+import { StandardTable } from '../../components/Common/StandardTable';
 import { exportToExcel } from '../../utils/exportExcel';
 
 const { Title, Text } = Typography;
@@ -132,24 +131,35 @@ export const SystemAuditPage: React.FC = () => {
     {
       title: 'Vaqt',
       dataIndex: 'createdAt',
-      width: 175,
-      render: (val: string) => (
-        <span style={{ fontSize: 13, fontFamily: 'monospace', color: 'var(--color-text-2)' }}>
-          {new Date(val).toLocaleString('uz-UZ', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-          })}
-        </span>
-      ),
+      width: 125,
+      render: (val: string) => {
+        const d = new Date(val);
+        const dateStr = d.toLocaleDateString('uz-UZ', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        });
+        const timeStr = d.toLocaleTimeString('uz-UZ', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+        return (
+          <div style={{ paddingLeft: 8, lineHeight: 1.35 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-1)', whiteSpace: 'nowrap' }}>
+              {dateStr}
+            </div>
+            <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--color-text-3)', whiteSpace: 'nowrap' }}>
+              {timeStr}
+            </div>
+          </div>
+        );
+      },
     },
     {
       title: 'Foydalanuvchi / Mas’ul',
       dataIndex: 'user',
-      minWidth: 240,
+      width: 220,
       render: (_: any, record: SystemAuditLogItem) => {
         if (!record.user) {
           return (
@@ -177,19 +187,19 @@ export const SystemAuditPage: React.FC = () => {
     {
       title: 'Amal',
       dataIndex: 'action',
-      width: 135,
+      width: 125,
       render: (action: string) => getActionTag(action),
     },
     {
       title: 'Ob’yekt (Modul)',
       dataIndex: 'entity',
-      width: 160,
+      width: 140,
       render: (entity: string, record: SystemAuditLogItem) => (
         <div>
-          <div style={{ fontWeight: 600, fontSize: 13 }}>{entity}</div>
+          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)' }}>{entity}</div>
           {record.entityId && (
-            <div style={{ fontSize: 11, color: 'var(--color-text-4)', fontFamily: 'monospace', marginTop: 2 }}>
-              ID: {record.entityId.substring(0, 10)}...
+            <div style={{ fontSize: 11, color: 'var(--color-text-4)', fontFamily: 'monospace', marginTop: 2, whiteSpace: 'nowrap' }}>
+              ID: {record.entityId.substring(0, 8)}...
             </div>
           )}
         </div>
@@ -198,44 +208,47 @@ export const SystemAuditPage: React.FC = () => {
     {
       title: 'Tafsilotlar (Xulosa)',
       dataIndex: 'details',
-      minWidth: 240,
+      minWidth: 200,
       render: (details: string) => {
         if (!details) return <Text type="secondary">—</Text>;
         try {
           const parsed = JSON.parse(details);
           const entries = Object.entries(parsed).slice(0, 3);
           return (
-            <div style={{ fontSize: 12, color: 'var(--color-text-2)' }}>
+            <div style={{ fontSize: 12, color: 'var(--color-text-2)', lineHeight: 1.4 }}>
               {entries.map(([k, v]) => `${k}: ${v}`).join(' | ')}
             </div>
           );
         } catch {
-          return <span style={{ fontSize: 12 }}>{details.substring(0, 60)}</span>;
+          return <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{details.substring(0, 60)}</span>;
         }
       },
     },
     {
       title: 'IP Manzil',
       dataIndex: 'ipAddress',
-      width: 130,
+      width: 110,
       render: (ip: string) => (
-        <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--color-text-3)' }}>
+        <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--color-text-3)', whiteSpace: 'nowrap' }}>
           {ip || '127.0.0.1'}
         </span>
       ),
     },
     {
       title: 'Amallar',
-      width: 110,
+      width: 107,
       fixed: 'right' as const,
       render: (_: any, record: SystemAuditLogItem) => (
-        <TableActions rightPadding={16}>
+        <TableActions rightPadding={0} gap={6}>
           <Button
             size="small"
             type="outline"
             icon={<IconEye />}
-            style={{ borderRadius: 0 }}
-            onClick={() => openDetails(record)}
+            style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+            onClick={(e) => {
+              e?.stopPropagation?.();
+              openDetails(record);
+            }}
           >
             Ko‘rish
           </Button>
@@ -338,38 +351,29 @@ export const SystemAuditPage: React.FC = () => {
         />
       )}
 
-      {/* Table */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: 0 }}>
-        <Table
-          rowKey="id"
-          columns={columns}
-          data={logs}
-          loading={isLoading}
-          scroll={{ x: 1150 }}
-          style={{ borderRadius: 0 }}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            onChange: (p, s) => {
-              setPage(p);
-              if (s) setPageSize(s);
-            },
-            showTotal: (t, range) => {
-              if (!t || t === 0) return '0/0';
-              const to = range ? Math.min(range[1], t) : t;
-              return `${to}/${t}`;
-            },
-            sizeCanChange: true,
-            sizeOptions: [10, 20, 50, 100],
-          }}
-          noDataElement={
-            <div style={{ padding: 40, textAlign: 'center' }}>
-              <Empty description="Audit yozuvlari topilmadi" />
-            </div>
-          }
-        />
-      </Card>
+      {/* Universal StandardTable Component */}
+      <StandardTable<SystemAuditLogItem>
+        rowKey="id"
+        columns={columns}
+        data={logs}
+        loading={isLoading}
+        scrollX={1050}
+        onRowClick={(record) => openDetails(record)}
+        emptyText={
+          search || entityFilter !== 'ALL' || actionTab !== 'ALL'
+            ? 'Tanlangan parametrlar bo‘yicha audit yozuvlari topilmadi'
+            : 'Tizim audit jurnali bo‘sh'
+        }
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          onChange: (p, s) => {
+            setPage(p);
+            if (s) setPageSize(s);
+          },
+        }}
+      />
 
       {/* Detail Modal */}
       <Modal
