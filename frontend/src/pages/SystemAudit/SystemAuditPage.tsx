@@ -5,7 +5,9 @@ import {
   Space,
   Typography,
   Tag,
-  Modal,
+  Drawer,
+  Descriptions,
+  Tabs,
   Input,
   Select,
   DatePicker,
@@ -34,6 +36,7 @@ import { exportToExcel } from '../../utils/exportExcel';
 const { Title, Text } = Typography;
 const { Row, Col } = Grid;
 const { RangePicker } = DatePicker;
+const TabPane = Tabs.TabPane;
 
 export const SystemAuditPage: React.FC = () => {
   const [search, setSearch] = useState<string>('');
@@ -43,7 +46,7 @@ export const SystemAuditPage: React.FC = () => {
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
 
-  const [detailModalVisible, setDetailModalVisible] = useState<boolean>(false);
+  const [detailDrawerVisible, setDetailDrawerVisible] = useState<boolean>(false);
   const [selectedLog, setSelectedLog] = useState<SystemAuditLogItem | null>(null);
 
   const { data, isLoading, isError, refetch } = useSystemAuditQuery({
@@ -108,7 +111,7 @@ export const SystemAuditPage: React.FC = () => {
 
   const openDetails = (log: SystemAuditLogItem) => {
     setSelectedLog(log);
-    setDetailModalVisible(true);
+    setDetailDrawerVisible(true);
   };
 
   const handleExportExcel = () => {
@@ -375,59 +378,177 @@ export const SystemAuditPage: React.FC = () => {
         }}
       />
 
-      {/* Detail Modal */}
-      <Modal
-        title="Audit Yozuvi Tafsilotlari"
-        visible={detailModalVisible}
-        onCancel={() => setDetailModalVisible(false)}
-        footer={
-          <Button onClick={() => setDetailModalVisible(false)} style={{ borderRadius: 0 }}>
-            Yopish
-          </Button>
+      {/* Detail Drawer */}
+      <Drawer
+        width={560}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontWeight: 700, fontSize: 16 }}>
+              {selectedLog ? `Audit #${selectedLog.id.substring(0, 8).toUpperCase()}` : 'Audit Yozuvi'}
+            </span>
+            {selectedLog && getActionTag(selectedLog.action)}
+          </div>
         }
-        style={{ width: 620, borderRadius: 0 }}
+        visible={detailDrawerVisible}
+        onOk={() => setDetailDrawerVisible(false)}
+        onCancel={() => setDetailDrawerVisible(false)}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <Button
+              type="primary"
+              onClick={() => setDetailDrawerVisible(false)}
+              style={{ borderRadius: 0 }}
+            >
+              Yopish
+            </Button>
+          </div>
+        }
       >
         {selectedLog && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border-2)', paddingBottom: 8 }}>
-              <Text bold>Amal:</Text>
-              {getActionTag(selectedLog.action)}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Text bold>Vaqt:</Text>
-              <Text>{new Date(selectedLog.createdAt).toLocaleString('uz-UZ')}</Text>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Text bold>Foydalanuvchi:</Text>
-              <Text>{selectedLog.user ? `${selectedLog.user.fullName} (@${selectedLog.user.username})` : 'Tizim'}</Text>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Text bold>Ob’yekt / Modul:</Text>
-              <Text>{selectedLog.entity} (ID: {selectedLog.entityId || '—'})</Text>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Text bold>IP Manzil:</Text>
-              <Text code style={{ borderRadius: 0 }}>{selectedLog.ipAddress || '127.0.0.1'}</Text>
-            </div>
-            <div style={{ marginTop: 8 }}>
-              <Text bold style={{ display: 'block', marginBottom: 4 }}>To‘liq JSON Ma’lumotlar:</Text>
-              <pre
-                style={{
-                  background: 'var(--color-fill-2)',
-                  padding: 12,
-                  borderRadius: 0,
-                  fontSize: 12,
-                  maxHeight: 200,
-                  overflowY: 'auto',
-                  border: '1px solid var(--color-border-2)',
-                }}
-              >
-                {selectedLog.details || 'Tafsilotlar mavjud emas'}
-              </pre>
-            </div>
-          </div>
+          <Tabs defaultActiveTab="info">
+            <TabPane key="info" title="Asosiy Ma’lumotlar">
+              <div style={{ padding: '8px 0' }}>
+                <Descriptions
+                  column={1}
+                  border
+                  data={[
+                    {
+                      label: 'Audit ID',
+                      value: <span style={{ fontFamily: 'monospace' }}>{selectedLog.id}</span>,
+                    },
+                    {
+                      label: 'Amal (Harakat)',
+                      value: getActionTag(selectedLog.action),
+                    },
+                    {
+                      label: 'Modul / Ob’yekt',
+                      value: <b style={{ color: 'var(--color-text-1)' }}>{selectedLog.entity}</b>,
+                    },
+                    {
+                      label: 'Ob’yekt ID',
+                      value: selectedLog.entityId ? (
+                        <span style={{ fontFamily: 'monospace' }}>{selectedLog.entityId}</span>
+                      ) : (
+                        '—'
+                      ),
+                    },
+                    {
+                      label: 'Mas’ul Foydalanuvchi',
+                      value: selectedLog.user ? selectedLog.user.fullName : 'Tizim Servisi (Avtomatik)',
+                    },
+                    {
+                      label: 'Username / Login',
+                      value: selectedLog.user?.username ? `@${selectedLog.user.username}` : '—',
+                    },
+                    {
+                      label: 'Foydalanuvchi Roli',
+                      value: selectedLog.user?.role || '—',
+                    },
+                    {
+                      label: 'Kafedra / Bo‘lim',
+                      value: selectedLog.user?.department?.name || '—',
+                    },
+                    {
+                      label: 'Sana va Vaqt',
+                      value: new Date(selectedLog.createdAt).toLocaleString('uz-UZ'),
+                    },
+                    {
+                      label: 'IP Manzil',
+                      value: (
+                        <span style={{ fontFamily: 'monospace' }}>
+                          {selectedLog.ipAddress || '127.0.0.1'}
+                        </span>
+                      ),
+                    },
+                    {
+                      label: 'Mijoz Qurilmasi',
+                      value: selectedLog.userAgent || 'Web Brauzer / API',
+                    },
+                  ]}
+                />
+              </div>
+            </TabPane>
+
+            <TabPane key="details" title="Tafsilotlar & Parametrlar">
+              <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {(() => {
+                  try {
+                    const parsed = selectedLog.details ? JSON.parse(selectedLog.details) : null;
+                    if (parsed && typeof parsed === 'object') {
+                      const entries = Object.entries(parsed);
+                      if (entries.length > 0) {
+                        return (
+                          <div>
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                fontSize: 13,
+                                marginBottom: 8,
+                                color: 'var(--color-text-1)',
+                              }}
+                            >
+                              Qayd Etilgan Parametrlar:
+                            </div>
+                            <Descriptions
+                              column={1}
+                              border
+                              data={entries.map(([k, v]) => ({
+                                label: k,
+                                value: typeof v === 'object' ? JSON.stringify(v) : String(v),
+                              }))}
+                            />
+                          </div>
+                        );
+                      }
+                    }
+                  } catch {
+                    // not JSON
+                  }
+                  return null;
+                })()}
+
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: 13,
+                      marginBottom: 8,
+                      color: 'var(--color-text-1)',
+                    }}
+                  >
+                    To‘liq JSON Ma’lumotlar:
+                  </div>
+                  <pre
+                    style={{
+                      background: 'var(--color-fill-2)',
+                      padding: 12,
+                      borderRadius: 0,
+                      fontSize: 12,
+                      maxHeight: 280,
+                      overflowY: 'auto',
+                      border: '1px solid var(--color-border-2)',
+                      fontFamily: 'monospace',
+                      margin: 0,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {selectedLog.details
+                      ? (() => {
+                          try {
+                            return JSON.stringify(JSON.parse(selectedLog.details), null, 2);
+                          } catch {
+                            return selectedLog.details;
+                          }
+                        })()
+                      : 'Tafsilotlar mavjud emas'}
+                  </pre>
+                </div>
+              </div>
+            </TabPane>
+          </Tabs>
         )}
-      </Modal>
+      </Drawer>
     </div>
   );
 };
