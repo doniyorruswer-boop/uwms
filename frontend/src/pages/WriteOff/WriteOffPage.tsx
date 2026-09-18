@@ -39,6 +39,7 @@ import { useAuthStore } from '../../store/authStore';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { StockLevelGauge } from '../../components/Common/StockLevelGauge';
+import { StandardTable } from '../../components/Common/StandardTable';
 import { exportToExcel } from '../../utils/exportExcel';
 import { TableActions } from '../../components/Common/TableActions';
 
@@ -220,9 +221,9 @@ export const WriteOffPage: React.FC = () => {
               {val}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 12, color: 'var(--color-text-3)', flexWrap: 'wrap' }}>
-              <span>Qoldiq qiymat: <b style={{ color: '#F53F3F' }}>{Number(bookVal).toLocaleString()} so‘m</b></span>
+              <span style={{ whiteSpace: 'nowrap' }}>Qoldiq qiymat: <b style={{ color: '#F53F3F' }}>{Number(bookVal).toLocaleString()} so‘m</b></span>
               {record.asset?.item?.category?.name ? (
-                <span style={{ color: 'var(--color-text-3)' }}>• {record.asset.item.category.name}</span>
+                <span style={{ color: 'var(--color-text-3)', whiteSpace: 'nowrap' }}>• {record.asset.item.category.name}</span>
               ) : null}
             </div>
           </div>
@@ -439,112 +440,92 @@ export const WriteOffPage: React.FC = () => {
         />
       )}
 
-      {/* Table Card matching MovementsPage and RequestsPage */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: 0 }}>
-        <Table
-          rowKey="id"
-          loading={isLoading}
-          data={filteredWriteOffs}
-          scroll={{ x: 1080 }}
-          onRow={(record) => ({
-            onClick: () => handleOpenPassport(record),
-            style: { cursor: 'pointer' },
-          })}
-          pagination={{
-            pageSize: 10,
-            sizeCanChange: true,
-            sizeOptions: [10, 20, 50, 100],
-            showTotal: (total, range) => {
-              if (!total || total === 0) return '0/0';
-              const to = range ? Math.min(range[1], total) : total;
-              return `${to}/${total}`;
-            },
-          }}
-          noDataElement={
-            <div style={{ padding: '40px 0', textAlign: 'center' }}>
-              <Empty
-                description={
-                  search
-                    ? `«${search}» bo‘yicha hisobdan chiqarish arizalari topilmadi`
-                    : 'Hisobdan chiqarish dalolatnomalari mavjud emas'
-                }
-              />
+      {/* Universal StandardTable Component */}
+      <StandardTable<WriteOffItem>
+        rowKey="id"
+        loading={isLoading}
+        columns={columns}
+        data={filteredWriteOffs}
+        scrollX={1120}
+        onRowClick={(record) => handleOpenPassport(record)}
+        emptyText={
+          search
+            ? `«${search}» bo‘yicha hisobdan chiqarish arizalari topilmadi`
+            : 'Hisobdan chiqarish dalolatnomalari mavjud emas'
+        }
+        expandedRowRender={(record: WriteOffItem) => (
+          <Card
+            className="uwms-card"
+            style={{ borderRadius: 0, backgroundColor: 'var(--color-fill-1)', border: 'none' }}
+            bodyStyle={{ padding: '16px 20px' }}
+          >
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, color: 'var(--color-text-1)' }}>
+              Davlat Hisobdan Chiqarish Komissiyasi A’zolarining Xulosalari va Ovozlar Reyestri:
             </div>
-          }
-          columns={columns}
-          expandedRowRender={(record: WriteOffItem) => (
-            <Card
-              className="uwms-card"
-              style={{ borderRadius: 0, backgroundColor: 'var(--color-fill-1)', border: 'none' }}
-              bodyStyle={{ padding: '16px 20px' }}
-            >
-              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, color: 'var(--color-text-1)' }}>
-                Davlat Hisobdan Chiqarish Komissiyasi A’zolarining Xulosalari va Ovozlar Reyestri:
-              </div>
-              <Row gutter={[12, 12]}>
-                {record.members.map((m) => {
-                  let badgeColor = 'orange';
-                  let badgeText = 'Kutilmoqda';
-                  if (m.vote === 'APPROVED') {
-                    badgeColor = 'green';
-                    badgeText = 'Ma’qullandi';
-                  } else if (m.vote === 'REJECTED') {
-                    badgeColor = 'red';
-                    badgeText = 'Rad etildi';
-                  }
+            <Row gutter={[12, 12]}>
+              {record.members.map((m) => {
+                let badgeColor = 'orange';
+                let badgeText = 'Kutilmoqda';
+                if (m.vote === 'APPROVED') {
+                  badgeColor = 'green';
+                  badgeText = 'Ma’qullandi';
+                } else if (m.vote === 'REJECTED') {
+                  badgeColor = 'red';
+                  badgeText = 'Rad etildi';
+                }
 
-                  return (
-                    <Col xs={24} sm={12} md={8} lg={6} key={m.id}>
-                      <Card
+                return (
+                  <Col xs={24} sm={12} md={8} lg={6} key={m.id}>
+                    <Card
+                      style={{
+                        borderRadius: 0,
+                        backgroundColor: 'var(--color-bg-2)',
+                        border: '1px solid var(--color-border-2)',
+                      }}
+                      bodyStyle={{ padding: '12px 14px' }}
+                    >
+                      <div
                         style={{
-                          borderRadius: 0,
-                          backgroundColor: 'var(--color-bg-2)',
-                          border: '1px solid var(--color-border-2)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: 8,
                         }}
-                        bodyStyle={{ padding: '12px 14px' }}
                       >
+                        <Tag color={badgeColor} style={{ borderRadius: 0, fontSize: 11 }}>
+                          {badgeText}
+                        </Tag>
+                        <span style={{ fontSize: 11, color: 'var(--color-text-3)' }}>{m.roleName}</span>
+                      </div>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)' }}>
+                        {m.user?.fullName}
+                      </div>
+                      {m.comment && (
                         <div
                           style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: 8,
+                            fontSize: 12,
+                            color: 'var(--color-text-2)',
+                            marginTop: 6,
+                            fontStyle: 'italic',
                           }}
                         >
-                          <Tag color={badgeColor} style={{ borderRadius: 0, fontSize: 11 }}>
-                            {badgeText}
-                          </Tag>
-                          <span style={{ fontSize: 11, color: 'var(--color-text-3)' }}>{m.roleName}</span>
+                          «{m.comment}»
                         </div>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)' }}>
-                          {m.user?.fullName}
+                      )}
+                      {m.votedAt && (
+                        <div style={{ fontSize: 11, color: 'var(--color-text-4)', marginTop: 4 }}>
+                          Sana: {m.votedAt.replace('T', ' ').substring(0, 16)}
                         </div>
-                        {m.comment && (
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: 'var(--color-text-2)',
-                              marginTop: 6,
-                              fontStyle: 'italic',
-                            }}
-                          >
-                            «{m.comment}»
-                          </div>
-                        )}
-                        {m.votedAt && (
-                          <div style={{ fontSize: 11, color: 'var(--color-text-4)', marginTop: 4 }}>
-                            Sana: {m.votedAt.replace('T', ' ').substring(0, 16)}
-                          </div>
-                        )}
-                      </Card>
-                    </Col>
-                  );
-                })}
-              </Row>
-            </Card>
-          )}
-        />
-      </Card>
+                      )}
+                    </Card>
+                  </Col>
+                );
+              })}
+            </Row>
+          </Card>
+        )}
+      />
+
 
 
       {/* Create Modal */}

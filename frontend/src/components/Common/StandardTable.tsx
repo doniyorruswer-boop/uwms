@@ -8,7 +8,7 @@ export interface StandardTableProps<T = any> extends Omit<TableProps<T>, 'column
   data?: T[];
   loading?: boolean;
   emptyText?: string;
-  scrollX?: number;
+  scrollX?: number | string;
   onRowClick?: (record: T, e: React.MouseEvent) => void;
   cardStyle?: React.CSSProperties;
 }
