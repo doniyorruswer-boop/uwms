@@ -57,6 +57,8 @@ import { ReturnAssetModal } from '../../components/Assets/ReturnAssetModal';
 import { MassMolTransferModal } from '../../components/Assets/MassMolTransferModal';
 import { CreateRepairModal } from '../../components/Repairs/CreateRepairModal';
 import { CreateWriteOffModal } from '../../components/WriteOff/CreateWriteOffModal';
+import { apiClient } from '../../api/client';
+import { API_ENDPOINTS } from '../../constants';
 
 
 const FormItem = Form.Item;
@@ -72,6 +74,7 @@ export const AssetsPage: React.FC = () => {
     transferAsset,
     batchTransfer,
     writeOffAsset,
+    refetch: refetchAssets,
   } = useAssetsQuery();
   const { transfers, isLoading: isTransfersLoading, respondTransfer } = useTransfersQuery();
   const { rooms } = useOrganizationQuery();
@@ -116,6 +119,48 @@ export const AssetsPage: React.FC = () => {
   const [isRepairModalVisible, setIsRepairModalVisible] = useState(false);
   const [isWriteOffModalVisible, setIsWriteOffModalVisible] = useState(false);
   const [actionAsset, setActionAsset] = useState<ItemInstance | null>(null);
+
+  const [reprintReason, setReprintReason] = useState('Eski stiker shikastlangan yoki xiralashgan');
+  const [isPrintingQr, setIsPrintingQr] = useState(false);
+  const [batchReprintReason, setBatchReprintReason] = useState('Ommaviy inventar stikerlari chop etildi');
+  const [isBatchPrinting, setIsBatchPrinting] = useState(false);
+
+  const handlePrintSingleQr = async () => {
+    if (!selectedAsset) return;
+    try {
+      setIsPrintingQr(true);
+      await apiClient.post(API_ENDPOINTS.ASSETS.REPRINT_QR(selectedAsset.id), {
+        reason: reprintReason.trim() || 'QR-stiker qayta chop etildi',
+      });
+      refetchAssets();
+      window.print();
+      Message.success('QR-stikerni qayta chop etish auditi jurnalga qayd etildi');
+    } catch (err: any) {
+      Message.error(err.response?.data?.message || 'Qayta chop etishni qayd etishda xatolik yuz berdi');
+    } finally {
+      setIsPrintingQr(false);
+    }
+  };
+
+  const handlePrintBatchQr = async () => {
+    try {
+      setIsBatchPrinting(true);
+      await Promise.all(
+        selectedAssetsList.map((asset) =>
+          apiClient.post(API_ENDPOINTS.ASSETS.REPRINT_QR(asset.id), {
+            reason: batchReprintReason.trim() || 'Ommaviy QR-stikerlar chop etildi',
+          }).catch(() => {})
+        )
+      );
+      refetchAssets();
+      window.print();
+      Message.success('Ommaviy chop etish audit jurnaliga muvaffaqiyatli yozildi');
+    } catch (err: any) {
+      Message.error('Audit jurnalini yozishda xatolik');
+    } finally {
+      setIsBatchPrinting(false);
+    }
+  };
 
   const [transferForm] = Form.useForm();
 
@@ -946,7 +991,9 @@ export const AssetsPage: React.FC = () => {
             <Button
               type="primary"
               icon={<IconPrinter />}
-              onClick={() => window.print()}
+              loading={isPrintingQr}
+              disabled={!reprintReason.trim()}
+              onClick={handlePrintSingleQr}
             >
               Chop Etish
             </Button>
@@ -983,6 +1030,17 @@ export const AssetsPage: React.FC = () => {
                 Xona: {selectedAsset.roomName || 'Omborxona'} | SN: {selectedAsset.serialNumber || 'Noma’lum'}
               </div>
             </div>
+
+            <div style={{ marginTop: 20, textAlign: 'left', background: '#f7f8fa', padding: 12, borderRadius: 4, border: '1px solid #e5e6eb' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: '#4e5969' }}>
+                QR-stikerni chop etish sababi (Audit jurnali uchun majburiy):
+              </div>
+              <Input
+                value={reprintReason}
+                onChange={(val) => setReprintReason(val)}
+                placeholder="Masalan: Eski stiker shikastlangan yoki xiralashgan"
+              />
+            </div>
           </div>
         )}
       </Modal>
@@ -995,13 +1053,29 @@ export const AssetsPage: React.FC = () => {
         onCancel={() => setIsBatchPrintModalVisible(false)}
         footer={
           <Space>
-            <Button type="primary" icon={<IconPrinter />} onClick={() => window.print()}>
+            <Button
+              type="primary"
+              icon={<IconPrinter />}
+              loading={isBatchPrinting}
+              disabled={!batchReprintReason.trim()}
+              onClick={handlePrintBatchQr}
+            >
               Barchasini Chop Etish (A4 Stiker)
             </Button>
             <Button onClick={() => setIsBatchPrintModalVisible(false)}>Yopish</Button>
           </Space>
         }
       >
+        <div style={{ marginBottom: 16, background: '#f7f8fa', padding: 12, borderRadius: 4, border: '1px solid #e5e6eb' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: '#4e5969' }}>
+            Ommaviy chop etish sababi (Audit jurnali uchun majburiy):
+          </div>
+          <Input
+            value={batchReprintReason}
+            onChange={(val) => setBatchReprintReason(val)}
+            placeholder="Masalan: Ommaviy yangilash yoki yangi qabul qilingan uskunalar"
+          />
+        </div>
         <div style={{ maxHeight: 450, overflowY: 'auto', padding: 8 }}>
           <div
             className="print-area"

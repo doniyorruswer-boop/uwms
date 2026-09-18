@@ -32,6 +32,20 @@ export function useAuditsQuery() {
     },
   });
 
+  const completeAuditMutation = useMutation({
+    mutationFn: async ({ auditId, notes }: { auditId: string; notes?: string }) => {
+      const res = await apiClient.post(API_ENDPOINTS.AUDITS.COMPLETE(auditId), { notes });
+      return res.data;
+    },
+    onSuccess: () => {
+      Message.success('Inventarizatsiya yakunlandi va INV-19 rasmiylashtirildi!');
+      auditsQuery.refetch();
+    },
+    onError: (err: any) => {
+      Message.error(err.response?.data?.message || 'Auditni yakunlashda xatolik yuz berdi!');
+    },
+  });
+
   return {
     audits: auditsQuery.data || [],
     isLoadingAudits: auditsQuery.isLoading,
@@ -39,5 +53,7 @@ export function useAuditsQuery() {
     startAudit: startAuditMutation.mutateAsync,
     scanCode: scanCodeMutation.mutateAsync,
     isScanning: scanCodeMutation.isPending,
+    completeAudit: completeAuditMutation.mutateAsync,
+    isCompleting: completeAuditMutation.isPending,
   };
 }

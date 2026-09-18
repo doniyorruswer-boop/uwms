@@ -860,5 +860,64 @@ export class AssetsService {
 
     return result;
   }
+
+  async reprintQr(id: string, reason: string, userId?: string) {
+    if (!reason || !reason.trim()) {
+      throw new BadRequestException('QR-stikerni qayta chop etish sababi kiritilishi shart!');
+    }
+
+    const asset = await this.prisma.itemInstance.findUnique({
+      where: { id },
+      include: { item: true, room: true, responsibleUser: true },
+    });
+
+    if (!asset) {
+      throw new NotFoundException('Asosiy vosita topilmadi!');
+    }
+
+    const loc = asset.room ? `${asset.room.number}-xona (${asset.room.name})` : 'Omborxona';
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. AssetHistory entry
+      const history = await tx.assetHistory.create({
+        data: {
+          assetId: asset.id,
+          action: 'QR_REPRINT',
+          fromLocation: loc,
+          toLocation: loc,
+          fromUser: asset.responsibleUser?.fullName,
+          toUser: asset.responsibleUser?.fullName,
+          note: `QR-stiker dublikati chop etildi. Sababi: ${reason.trim()}`,
+          executedById: userId,
+        },
+      });
+
+      // 2. SystemAuditLog entry
+      await this.systemAuditService.log({
+        action: 'UPDATE',
+        entity: 'ItemInstance',
+        entityId: asset.id,
+        details: {
+          action: 'QR_REPRINT',
+          inventoryNumber: asset.inventoryNumber,
+          serialNumber: asset.serialNumber,
+          qrCode: asset.qrCode,
+          reason: reason.trim(),
+        },
+        userId,
+      });
+
+      return {
+        success: true,
+        message: 'QR-stikerni qayta chop etish auditi muvaffaqiyatli qayd etildi.',
+        asset: {
+          id: asset.id,
+          inventoryNumber: asset.inventoryNumber,
+          qrCode: asset.qrCode,
+        },
+        historyId: history.id,
+      };
+    });
+  }
 }
 

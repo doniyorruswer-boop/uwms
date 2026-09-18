@@ -1,10 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuditStatus, AuditRecordStatus } from '@prisma/client';
+import { SystemAuditService } from '../system-audit/system-audit.service';
+import { AuditStatus, AuditRecordStatus, AssetStatus } from '@prisma/client';
 
 @Injectable()
 export class AuditsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: SystemAuditService,
+  ) {}
 
   async startAudit(roomId: string, createdById?: string) {
     let creatorId = createdById;
@@ -32,6 +36,14 @@ export class AuditsService {
           },
         },
       },
+    });
+
+    await this.auditService.log({
+      action: 'CREATE',
+      entity: 'InventoryAudit',
+      entityId: audit.id,
+      details: { auditNumber: auditNum, roomId, roomNumber: room?.number },
+      userId: creatorId,
     });
 
     return audit;
@@ -81,20 +93,30 @@ export class AuditsService {
       });
     }
 
-    // Persist scan in database
-    await this.prisma.inventoryAuditRecord.create({
-      data: {
+    // Check if asset was already scanned in this audit
+    const existingRecord = await this.prisma.inventoryAuditRecord.findFirst({
+      where: {
         auditId: audit.id,
         itemInstanceId: asset.id,
-        expectedRoomId: asset.roomId,
-        foundRoomId: roomId,
-        status: recordStatus,
-        scannedAt: new Date(),
-        notes: isMatch
-          ? 'Reja bo‘yicha o‘z xonasida topildi'
-          : `Nomutanosiblik: tegishli xona: ${asset.room?.name || 'ombor'}`,
       },
     });
+
+    if (!existingRecord) {
+      // Persist scan in database
+      await this.prisma.inventoryAuditRecord.create({
+        data: {
+          auditId: audit.id,
+          itemInstanceId: asset.id,
+          expectedRoomId: asset.roomId,
+          foundRoomId: roomId,
+          status: recordStatus,
+          scannedAt: new Date(),
+          notes: isMatch
+            ? 'Reja bo‘yicha o‘z xonasida topildi'
+            : `Nomutanosiblik: tegishli xona: ${asset.room?.name || 'ombor'}`,
+        },
+      });
+    }
 
     return {
       found: true,
@@ -114,6 +136,99 @@ export class AuditsService {
         ? `Topildi: ${asset.item.name} (${asset.inventoryNumber})`
         : `DIQQAT! Bu uskuna ${asset.room?.name || 'ombor'}ga tegishli!`,
     };
+  }
+
+  async completeAudit(id: string, notes?: string, userId?: string) {
+    const audit = await this.prisma.inventoryAudit.findUnique({
+      where: { id },
+      include: {
+        room: true,
+        records: true,
+      },
+    });
+
+    if (!audit) {
+      throw new NotFoundException('Inventarizatsiya sessiyasi topilmadi!');
+    }
+
+    if (audit.status === AuditStatus.COMPLETED) {
+      throw new BadRequestException('Ushbu inventarizatsiya sessiyasi allaqachon yakunlangan!');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      let missingCount = 0;
+
+      // Agar xonaga biriktirilgan audit bo'lsa, xonadagi barcha mavjud ashyolar bilan solishtirish
+      if (audit.roomId) {
+        const expectedRoomAssets = await tx.itemInstance.findMany({
+          where: {
+            roomId: audit.roomId,
+            status: {
+              notIn: [AssetStatus.WRITTEN_OFF],
+            },
+          },
+        });
+
+        const scannedAssetIds = new Set(audit.records.map((r) => r.itemInstanceId));
+        const missingAssets = expectedRoomAssets.filter((a) => !scannedAssetIds.has(a.id));
+
+        for (const missing of missingAssets) {
+          await tx.inventoryAuditRecord.create({
+            data: {
+              auditId: audit.id,
+              itemInstanceId: missing.id,
+              expectedRoomId: audit.roomId,
+              foundRoomId: null,
+              status: AuditRecordStatus.MISSING,
+              scannedAt: new Date(),
+              notes: 'Inventarizatsiya davomida topilmadi (Kamomad)',
+            },
+          });
+          missingCount++;
+        }
+      }
+
+      const completed = await tx.inventoryAudit.update({
+        where: { id: audit.id },
+        data: {
+          status: AuditStatus.COMPLETED,
+          completedAt: new Date(),
+          notes: notes || audit.notes || 'Inventarizatsiya muvaffaqiyatli yakunlandi va INV-19 shakllantirildi',
+        },
+        include: {
+          room: {
+            include: {
+              department: true,
+              responsibleUser: true,
+            },
+          },
+          createdBy: { select: { id: true, fullName: true, username: true } },
+          records: {
+            include: {
+              itemInstance: { include: { item: true, room: true, responsibleUser: true } },
+            },
+          },
+        },
+      });
+
+      await this.auditService.log({
+        action: 'COMPLETE',
+        entity: 'InventoryAudit',
+        entityId: audit.id,
+        details: {
+          auditNumber: audit.auditNumber,
+          roomId: audit.roomId,
+          roomNumber: audit.room?.number,
+          totalRecords: completed.records.length,
+          matchedCount: completed.records.filter((r) => r.status === AuditRecordStatus.MATCHED).length,
+          relocatedCount: completed.records.filter((r) => r.status === AuditRecordStatus.RELOCATED).length,
+          missingCount: completed.records.filter((r) => r.status === AuditRecordStatus.MISSING).length,
+        },
+        userId,
+      });
+
+      return completed;
+    });
   }
 
   async getAllAudits() {
@@ -143,6 +258,7 @@ export class AuditsService {
       totalScanned: a.records.length,
       matchedCount: a.records.filter((r) => r.status === 'MATCHED').length,
       relocatedCount: a.records.filter((r) => r.status === 'RELOCATED').length,
+      missingCount: a.records.filter((r) => r.status === 'MISSING').length,
     }));
   }
 
@@ -160,7 +276,7 @@ export class AuditsService {
         createdBy: true,
         records: {
           include: {
-            itemInstance: { include: { item: true, room: true } },
+            itemInstance: { include: { item: true, room: true, responsibleUser: true } },
           },
         },
       },

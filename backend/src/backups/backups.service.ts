@@ -129,6 +129,22 @@ export class BackupsService {
     };
   }
 
+  private getCleanDbConnection(): { cleanUrl: string; env: NodeJS.ProcessEnv } {
+    const rawUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/uwms_db';
+    try {
+      const parsed = new URL(rawUrl);
+      parsed.search = ''; // Strip Prisma ?schema=public and other unsupported params
+      const cleanUrl = parsed.toString();
+      const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        PGPASSWORD: decodeURIComponent(parsed.password),
+      };
+      return { cleanUrl, env };
+    } catch {
+      return { cleanUrl: rawUrl.split('?')[0], env: process.env };
+    }
+  }
+
   async createBackup(dto: CreateBackupDto, userId?: string) {
     const timestamp = new Date().toISOString().replace(/[-:T.]/g, '_').slice(0, 19);
     const filename = `uwms_backup_${timestamp}.dump`;
@@ -147,19 +163,20 @@ export class BackupsService {
     });
 
     try {
-      const dbUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/uwms_db';
+      const { cleanUrl, env } = this.getCleanDbConnection();
       
-      // Execute pg_dump
-      try {
-        await execAsync(`pg_dump -Fc "${dbUrl}" -f "${filePath}"`);
-      } catch (dumpErr) {
-        this.logger.warn(`pg_dump failed, creating fallback schema dump: ${dumpErr}`);
-        // Fallback: write metadata dump if pg_dump fails in restricted env
-        const content = `-- UWMS Database Backup Snapshot: ${new Date().toISOString()}\n-- Source: ${dbUrl}\n-- Status: Active\n`;
-        fs.writeFileSync(filePath, content, 'utf8');
+      // Execute genuine pg_dump with custom compressed format (-Fc)
+      await execAsync(`pg_dump -Fc "${cleanUrl}" -f "${filePath}"`, { env });
+
+      if (!fs.existsSync(filePath)) {
+        throw new Error('pg_dump yakunlandi, lekin zaxira fayli yaratilmadi!');
       }
 
       const stat = fs.statSync(filePath);
+      if (stat.size === 0) {
+        throw new Error('Yaratilgan zaxira fayli bo‘sh (0 bayt)!');
+      }
+
       const fileBuffer = fs.readFileSync(filePath);
       const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
@@ -193,6 +210,14 @@ export class BackupsService {
 
       return this.formatItem(updated);
     } catch (error: any) {
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch {
+          // ignore cleanup error
+        }
+      }
+
       await this.prisma.backupRecord.update({
         where: { id: record.id },
         data: {
@@ -223,11 +248,44 @@ export class BackupsService {
       throw new NotFoundException('Ko‘rsatilgan zaxira nusxasi topilmadi!');
     }
 
+    if (!fs.existsSync(backup.filePath)) {
+      throw new BadRequestException(`Zaxira nusxasi fayli diskda topilmadi: ${backup.filename}`);
+    }
+
+    // Verify integrity before restoring
+    const fileBuffer = fs.readFileSync(backup.filePath);
+    const actualChecksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    if (backup.checksum && backup.checksum !== actualChecksum) {
+      throw new BadRequestException('Xavfsizlik xatosi: Zaxira fayli butunligi buzilgan (checksum mos kelmadi)!');
+    }
+
+    const { cleanUrl, env } = this.getCleanDbConnection();
+
+    try {
+      this.logger.log(`Starting real pg_restore for backup: ${backup.filename}`);
+      // --clean: drop database objects prior to recreating them
+      // --if-exists: do not report errors if objects do not exist when dropping
+      // --no-owner: skip restoration of object ownership
+      // --no-privileges: skip restoration of access privileges
+      await execAsync(
+        `pg_restore --clean --if-exists --no-owner --no-privileges -d "${cleanUrl}" "${backup.filePath}"`,
+        { env }
+      );
+      this.logger.log(`pg_restore successfully finished for backup: ${backup.filename}`);
+    } catch (restoreError: any) {
+      this.logger.error(`pg_restore execution warning/error: ${restoreError.message}`);
+      // pg_restore can exit with status 1 on non-fatal warnings (e.g. notices during drop).
+      // If fatal error occurred without table restoration, throw error
+      if (restoreError.stderr && !restoreError.stderr.includes('warning') && restoreError.stderr.includes('FATAL')) {
+        throw new BadRequestException(`Ma’lumotlar bazasini tiklashda xatolik yuz berdi: ${restoreError.message}`);
+      }
+    }
+
     await this.auditService.log({
       action: 'RESTORE',
       entity: 'BackupRecord',
       entityId: backup.id,
-      details: { filename: backup.filename, confirmedBy: userId },
+      details: { filename: backup.filename, confirmedBy: userId, restoredAt: new Date().toISOString() },
       userId,
     });
 
@@ -242,7 +300,7 @@ export class BackupsService {
     });
 
     return {
-      message: 'Zaxira nusxasi muvaffaqiyatli tekshirildi va tiklandi.',
+      message: 'Zaxira nusxasi orqali ma’lumotlar bazasi muvaffaqiyatli tiklandi.',
       backup: this.formatItem(updated),
     };
   }

@@ -202,5 +202,12 @@ export class MassMolHandoffDto {
   note?: string;
 }
 
+export class ReprintQrDto {
+  @ApiProperty({ example: 'Eski QR stiker shikastlangan yoki xira bo‘lib qolgan', description: 'QR-stikerni qayta chop etish sababi' })
+  @IsString()
+  @IsNotEmpty({ message: 'QR-stikerni qayta chop etish sababi ko‘rsatilishi shart!' })
+  reason: string;
+}
+
 
 

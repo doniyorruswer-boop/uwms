@@ -45,7 +45,7 @@ const { Title, Text } = Typography;
 export const AuditScannerPage: React.FC = () => {
   const { assets } = useAssetsQuery();
   const { rooms } = useOrganizationQuery();
-  const { scanCode } = useAuditsQuery();
+  const { scanCode, completeAudit, isCompleting, audits } = useAuditsQuery();
 
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
@@ -54,6 +54,8 @@ export const AuditScannerPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('ALL');
   const [isCameraRunning, setIsCameraRunning] = useState(false);
   const [isDocModalVisible, setIsDocModalVisible] = useState(false);
+  const [activeAuditId, setActiveAuditId] = useState<string | null>(null);
+  const [isCompleted, setIsCompleted] = useState(false);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
@@ -156,7 +158,10 @@ export const AuditScannerPage: React.FC = () => {
       }
 
       try {
-        await scanCode({ qrCode: trimmed, roomId: activeRoom });
+        const scanRes = await scanCode({ qrCode: trimmed, roomId: activeRoom });
+        if (scanRes && scanRes.auditId) {
+          setActiveAuditId(scanRes.auditId);
+        }
       } catch {
         // Continue scanning even if audit log request fails
       }
@@ -166,8 +171,27 @@ export const AuditScannerPage: React.FC = () => {
     }
   };
 
+  const handleCompleteAudit = async () => {
+    if (!activeAuditId) {
+      Message.warning('Hali birorta ham uskuna skanerlanmadi yoki faol audit sessiyasi topilmadi!');
+      return;
+    }
+    try {
+      await completeAudit({
+        auditId: activeAuditId,
+        notes: `${currentRoom?.name || 'Xona'} inventarizatsiyasi yakunlandi. Kamomadlar qayd etildi.`,
+      });
+      setIsCompleted(true);
+      setIsDocModalVisible(true);
+    } catch {
+      // Handled by onError in useAuditsQuery
+    }
+  };
+
   const handleResetAudit = () => {
     setScannedCodes([]);
+    setActiveAuditId(null);
+    setIsCompleted(false);
     Message.info('Inventarizatsiya qayta boshlandi.');
   };
 
@@ -460,6 +484,26 @@ export const AuditScannerPage: React.FC = () => {
                   >
                     Excelga
                   </Button>
+                  <Popconfirm
+                    title="Auditni yakunlash va Kamomadlarni (MISSING) qayd etish"
+                    content="Haqiqatan ham ushbu xona inventarizatsiyasini yakunlamoqchimisiz? Topilmagan barcha ashyolar bazada kamomad sifatida saqlanadi."
+                    okText="Ha, yakunlash"
+                    cancelText="Bekor qilish"
+                    onOk={handleCompleteAudit}
+                    disabled={!activeAuditId || isCompleted}
+                  >
+                    <Button
+                      type="primary"
+                      status="warning"
+                      size="small"
+                      icon={<IconCheckCircle />}
+                      loading={isCompleting}
+                      disabled={!activeAuditId || isCompleted}
+                      style={{ borderRadius: 0 }}
+                    >
+                      {isCompleted ? 'Audit Yakunlangan' : 'Auditni Yakunlash (DB)'}
+                    </Button>
+                  </Popconfirm>
                   <Button
                     type="primary"
                     status="success"

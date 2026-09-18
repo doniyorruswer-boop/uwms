@@ -58,6 +58,7 @@ export const API_ENDPOINTS = {
     TRANSFER_RESPOND: (id: string) => `/assets/transfers/${id}/respond`,
     RETURN: '/assets/return',
     MASS_MOL_HANDOFF: '/assets/mass-mol-handoff',
+    REPRINT_QR: (id: string) => `/assets/${id}/reprint-qr`,
   },
 
   // Talabnomalar (Zayavkalar)
@@ -101,6 +102,7 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/audits/${id}`,
     START: '/audits/start',
     SCAN: '/audits/scan',
+    COMPLETE: (id: string) => `/audits/${id}/complete`,
   },
 
   // Ta'minotchilar

@@ -1,4 +1,4 @@
-﻿import {
+import {
   Controller,
   Post,
   Get,
@@ -46,6 +46,8 @@ export class UploadsController {
   }
 
   @Get(':filename')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Yuklangan faylni ko‘rish yoki yuklab olish' })
   async getFile(@Param('filename') filename: string, @Res() res: Response) {
     const { filePath, mimeType } = this.uploadsService.getFilePath(filename);

@@ -19,3 +19,9 @@ export class ScanCodeDto {
   @IsNotEmpty({ message: 'QR-kod bo‘sh bo‘lishi mumkin emas!' })
   qrCode: string;
 }
+
+export class CompleteAuditDto {
+  @ApiProperty({ example: 'Barcha jihozlar tekshirildi, kamomad bo‘yicha INV-19 shakllantirildi', description: 'Audit yakunlash bo‘yicha izoh', required: false })
+  @IsString()
+  notes?: string;
+}

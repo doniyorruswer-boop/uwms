@@ -15,6 +15,7 @@ import {
   ImportExcelAssetsDto,
   ReturnAssetDto,
   MassMolHandoffDto,
+  ReprintQrDto,
 } from './dto/asset.dto';
 
 @ApiTags('Assets')
@@ -140,6 +141,17 @@ export class AssetsController {
     @CurrentUser() user: any,
   ) {
     return this.assetsService.massMolHandoff(dto, user?.id);
+  }
+
+  @Post(':id/reprint-qr')
+  @Roles(RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.AUDITOR)
+  @ApiOperation({ summary: 'QR-stikerni qayta chop etish sababini audit jurnaliga yozish' })
+  async reprintQr(
+    @Param('id') id: string,
+    @Body() dto: ReprintQrDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.assetsService.reprintQr(id, dto.reason, user?.id);
   }
 }
 

@@ -6,7 +6,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RoleType } from '@prisma/client';
-import { StartAuditDto, ScanCodeDto } from './dto/audit.dto';
+import { StartAuditDto, ScanCodeDto, CompleteAuditDto } from './dto/audit.dto';
 
 @ApiTags('Audits')
 @ApiBearerAuth()
@@ -39,6 +39,17 @@ export class AuditsController {
   @ApiOperation({ summary: 'QR-kodni skanerlash va bazadagi joylashuvi bilan solishtirish' })
   async scanCode(@Body() dto: ScanCodeDto) {
     return this.auditsService.scanCode(dto.roomId, dto.qrCode);
+  }
+
+  @Post(':id/complete')
+  @Roles(RoleType.AUDITOR, RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Audit sessiyasini yakunlash, kamomadlarni (MISSING) qayd etish va INV-19 shakllantirish' })
+  async completeAudit(
+    @Param('id') id: string,
+    @Body() dto: CompleteAuditDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.auditsService.completeAudit(id, dto?.notes, user?.id);
   }
 }
 
