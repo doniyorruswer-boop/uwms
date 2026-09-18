@@ -99,6 +99,7 @@ model User {
   notifications         Notification[]
   systemLogs            SystemAuditLog[]
   backups               BackupRecord[]       @relation("UserBackups")
+  labelReprints         LabelReprintLog[]    @relation("LabelReprints")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -267,17 +268,35 @@ model ItemInstance {
   invoiceId         String?
   invoice           Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
+  reprintCount      Int                  @default(0)
+  lastReprintReason String?
+  lastReprintedAt   DateTime?
+
   histories         AssetHistory[]
   transfers         TransferAcceptance[]
   repairRecords     RepairRecord[]
   writeOffRequests  WriteOffRequest[]
   movementItems     StockMovementItem[]
   auditRecords      InventoryAuditRecord[]
+  reprintLogs       LabelReprintLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("item_instances")
+}
+
+model LabelReprintLog {
+  id            String       @id @default(uuid())
+  assetId       String
+  asset         ItemInstance @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  reason        String
+  reprintNumber Int
+  printedById   String?
+  printedBy     User?        @relation("LabelReprints", fields: [printedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+
+  @@map("label_reprint_logs")
 }
 
 model AssetHistory {

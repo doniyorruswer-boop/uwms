@@ -118,6 +118,9 @@ export class AssetsService {
         responsibleUserId: inst.responsibleUserId,
         responsibleUserName: inst.responsibleUser?.fullName || 'Bosh omborchi',
         supplierName: inst.supplier?.name,
+        reprintCount: inst.reprintCount || 0,
+        lastReprintReason: inst.lastReprintReason,
+        lastReprintedAt: inst.lastReprintedAt?.toISOString(),
       };
     });
 
@@ -145,6 +148,10 @@ export class AssetsService {
         invoice: true,
         histories: {
           include: { executedBy: { select: { fullName: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+        reprintLogs: {
+          include: { printedBy: { select: { fullName: true } } },
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -878,7 +885,29 @@ export class AssetsService {
     const loc = asset.room ? `${asset.room.number}-xona (${asset.room.name})` : 'Omborxona';
 
     return this.prisma.$transaction(async (tx) => {
-      // 1. AssetHistory entry
+      const nextReprintNumber = (asset.reprintCount || 0) + 1;
+
+      // 1. Update ItemInstance reprint tracking fields
+      const updatedAsset = await tx.itemInstance.update({
+        where: { id: asset.id },
+        data: {
+          reprintCount: nextReprintNumber,
+          lastReprintReason: reason.trim(),
+          lastReprintedAt: new Date(),
+        },
+      });
+
+      // 2. Create dedicated LabelReprintLog entry
+      const reprintLog = await tx.labelReprintLog.create({
+        data: {
+          assetId: asset.id,
+          reason: reason.trim(),
+          reprintNumber: nextReprintNumber,
+          printedById: userId || null,
+        },
+      });
+
+      // 3. AssetHistory entry
       const history = await tx.assetHistory.create({
         data: {
           assetId: asset.id,
@@ -887,12 +916,12 @@ export class AssetsService {
           toLocation: loc,
           fromUser: asset.responsibleUser?.fullName,
           toUser: asset.responsibleUser?.fullName,
-          note: `QR-stiker dublikati chop etildi. Sababi: ${reason.trim()}`,
+          note: `QR-stiker dublikati chop etildi (${nextReprintNumber}-marta). Sababi: ${reason.trim()}`,
           executedById: userId,
         },
       });
 
-      // 2. SystemAuditLog entry
+      // 4. SystemAuditLog entry
       await this.systemAuditService.log({
         action: 'UPDATE',
         entity: 'ItemInstance',
@@ -902,6 +931,7 @@ export class AssetsService {
           inventoryNumber: asset.inventoryNumber,
           serialNumber: asset.serialNumber,
           qrCode: asset.qrCode,
+          reprintNumber: nextReprintNumber,
           reason: reason.trim(),
         },
         userId,
@@ -911,10 +941,14 @@ export class AssetsService {
         success: true,
         message: 'QR-stikerni qayta chop etish auditi muvaffaqiyatli qayd etildi.',
         asset: {
-          id: asset.id,
-          inventoryNumber: asset.inventoryNumber,
-          qrCode: asset.qrCode,
+          id: updatedAsset.id,
+          inventoryNumber: updatedAsset.inventoryNumber,
+          qrCode: updatedAsset.qrCode,
+          reprintCount: updatedAsset.reprintCount,
+          lastReprintReason: updatedAsset.lastReprintReason,
+          lastReprintedAt: updatedAsset.lastReprintedAt,
         },
+        reprintLogId: reprintLog.id,
         historyId: history.id,
       };
     });

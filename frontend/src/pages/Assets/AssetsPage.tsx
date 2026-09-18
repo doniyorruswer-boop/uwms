@@ -41,6 +41,7 @@ import {
   IconTool,
   IconDesktop,
   IconStorage,
+  IconExclamationCircle,
 } from '@arco-design/web-react/icon';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAssetsQuery, useTransfersQuery, TransferItem } from '../../hooks/useAssetsQuery';
@@ -129,9 +130,12 @@ export const AssetsPage: React.FC = () => {
     if (!selectedAsset) return;
     try {
       setIsPrintingQr(true);
-      await apiClient.post(API_ENDPOINTS.ASSETS.REPRINT_QR(selectedAsset.id), {
+      const res = await apiClient.post(API_ENDPOINTS.ASSETS.REPRINT_QR(selectedAsset.id), {
         reason: reprintReason.trim() || 'QR-stiker qayta chop etildi',
       });
+      if (res.data?.asset) {
+        setSelectedAsset((prev) => (prev ? { ...prev, ...res.data.asset } : null));
+      }
       refetchAssets();
       window.print();
       Message.success('QR-stikerni qayta chop etish auditi jurnalga qayd etildi');
@@ -1031,7 +1035,35 @@ export const AssetsPage: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ marginTop: 20, textAlign: 'left', background: '#f7f8fa', padding: 12, borderRadius: 4, border: '1px solid #e5e6eb' }}>
+            {selectedAsset.reprintCount && selectedAsset.reprintCount > 0 ? (
+              <div
+                style={{
+                  marginTop: 14,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: '#fff7e8',
+                  border: '1px solid #ff7d00',
+                  padding: '8px 12px',
+                  borderRadius: 4,
+                  color: '#d46b08',
+                  fontSize: 12,
+                  textAlign: 'left',
+                }}
+              >
+                <IconExclamationCircle style={{ fontSize: 16, flexShrink: 0 }} />
+                <div>
+                  <div>Ushbu stiker avval <b>{selectedAsset.reprintCount} marta</b> qayta chop etilgan.</div>
+                  {selectedAsset.lastReprintReason && (
+                    <div style={{ fontSize: 11, color: '#86909c', marginTop: 2 }}>
+                      Oxirgi sabab: {selectedAsset.lastReprintReason}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            <div style={{ marginTop: 16, textAlign: 'left', background: '#f7f8fa', padding: 12, borderRadius: 4, border: '1px solid #e5e6eb' }}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: '#4e5969' }}>
                 QR-stikerni chop etish sababi (Audit jurnali uchun majburiy):
               </div>

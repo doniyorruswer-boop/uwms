@@ -89,6 +89,9 @@ export interface ItemInstance {
   roomNumber?: string;
   responsibleUserId?: string;
   responsibleUserName?: string;
+  reprintCount?: number;
+  lastReprintReason?: string;
+  lastReprintedAt?: string;
   history?: { date: string; action: string; user: string; room?: string }[];
 }
 
