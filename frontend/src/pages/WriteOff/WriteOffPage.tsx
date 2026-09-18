@@ -295,7 +295,7 @@ export const WriteOffPage: React.FC = () => {
     {
       title: 'Amallar',
       dataIndex: 'actions',
-      width: 250,
+      width: 234,
       fixed: 'right' as const,
       render: (_: any, record: WriteOffItem) => {
         const isUserMember = record.members?.some((m) => m.userId === user?.id);
@@ -303,12 +303,12 @@ export const WriteOffPage: React.FC = () => {
         const hasVoted = userVote && userVote.vote !== 'PENDING';
 
         return (
-          <TableActions rightPadding={16} gap={6}>
+          <TableActions rightPadding={0} gap={6}>
             <Button
               size="small"
               type="outline"
               icon={<IconEye />}
-              style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+              style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap' }}
               onClick={(e) => {
                 e?.stopPropagation?.();
                 handleOpenPassport(record);
@@ -322,7 +322,7 @@ export const WriteOffPage: React.FC = () => {
                 type="primary"
                 size="small"
                 icon={<IconThumbUp />}
-                style={{ borderRadius: 0, padding: '0 8px', backgroundColor: '#165DFF', whiteSpace: 'nowrap' }}
+                style={{ borderRadius: 0, padding: '0 7px', backgroundColor: '#165DFF', whiteSpace: 'nowrap' }}
                 onClick={(e) => {
                   e?.stopPropagation?.();
                   handleOpenVote(record);
@@ -335,7 +335,7 @@ export const WriteOffPage: React.FC = () => {
                 size="small"
                 type="outline"
                 icon={<IconPrinter />}
-                style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+                style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap' }}
                 onClick={(e) => {
                   e?.stopPropagation?.();
                   handleOpenDoc(record);
