@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Table,
   Button,
   Tag,
+  Badge,
   Space,
   Input,
   Modal,
@@ -29,6 +29,7 @@ import {
   IconSafe,
   IconThumbUp,
   IconPrinter,
+  IconEye,
 } from '@arco-design/web-react/icon';
 import { useWriteOffQuery, type WriteOffItem, type WriteOffMember } from '../../hooks/useWriteOffQuery';
 import { CreateWriteOffModal } from '../../components/WriteOff/CreateWriteOffModal';
@@ -37,6 +38,7 @@ import { useAuthStore } from '../../store/authStore';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { StockLevelGauge } from '../../components/Common/StockLevelGauge';
+import { StandardTable } from '../../components/Common/StandardTable';
 import { exportToExcel } from '../../utils/exportExcel';
 import { TableActions } from '../../components/Common/TableActions';
 
@@ -184,47 +186,57 @@ export const WriteOffPage: React.FC = () => {
 
   const columns = [
     {
-      title: 'Dalolatnoma №',
-      dataIndex: 'actNumber',
-      width: 145,
-      render: (val: string) => (
+      title: 'Vosita & Dalolatnoma №',
+      dataIndex: 'asset',
+      width: 200,
+      render: (_: any, record: WriteOffItem) => (
         <div style={{ paddingLeft: 8 }}>
-          <b style={{ fontWeight: 700, color: '#F53F3F', fontFamily: 'monospace', fontSize: 13, whiteSpace: 'nowrap' }}>
-            {val}
-          </b>
+          <CategoryThumbnail
+            icon={<IconFile />}
+            name={record.asset?.item?.name || 'Asosiy vosita'}
+            subtitle={
+              record.asset?.room
+                ? `${record.asset.room.number}-xona`
+                : record.asset?.inventoryNumber
+                ? `Inv: ${record.asset.inventoryNumber}`
+                : undefined
+            }
+            tag={record.actNumber}
+            color="#F53F3F"
+            bg="#FFECE8"
+          />
         </div>
       ),
     },
     {
-      title: 'Asosiy Vosita',
-      dataIndex: 'asset',
-      width: 230,
-      render: (_: any, record: WriteOffItem) => (
-        <CategoryThumbnail
-          icon={<IconFile />}
-          name={record.asset.item.name}
-          tag={record.asset.item.category?.name || 'Asosiy vosita'}
-          color="#F53F3F"
-          bg="#FFECE8"
-        />
-      ),
-    },
-    {
-      title: 'Sabab',
+      title: 'Chiqarish Sababi & Qoldiq Qiymat',
       dataIndex: 'reason',
-      minWidth: 240,
-      render: (val: string) => (
-        <span style={{ fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.4 }}>{val}</span>
-      ),
+      minWidth: 220,
+      render: (val: string, record: WriteOffItem) => {
+        const bookVal = record.asset?.depreciation?.currentBookValue ?? record.asset?.purchasePrice ?? 0;
+        return (
+          <div>
+            <div style={{ fontSize: 13, color: 'var(--color-text-1)', lineHeight: 1.45, wordBreak: 'break-word' }}>
+              {val}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 12, color: 'var(--color-text-3)', flexWrap: 'wrap' }}>
+              <span>Qoldiq qiymat: <b style={{ color: '#F53F3F' }}>{Number(bookVal).toLocaleString()} so‘m</b></span>
+              {record.asset?.item?.category?.name ? (
+                <span style={{ color: 'var(--color-text-3)' }}>• {record.asset.item.category.name}</span>
+              ) : null}
+            </div>
+          </div>
+        );
+      },
     },
     {
       title: 'Komissiya Ovozlari',
       dataIndex: 'members',
-      width: 160,
+      width: 145,
       render: (members: WriteOffMember[]) => {
-        const mApproved = members.filter((m) => m.vote === 'APPROVED').length;
-        const mRejected = members.filter((m) => m.vote === 'REJECTED').length;
-        const total = members.length;
+        const mApproved = members?.filter((m) => m.vote === 'APPROVED').length || 0;
+        const mRejected = members?.filter((m) => m.vote === 'REJECTED').length || 0;
+        const total = members?.length || 0;
         const percent = Math.round((mApproved / (total || 1)) * 100);
 
         return (
@@ -236,80 +248,103 @@ export const WriteOffPage: React.FC = () => {
             color={mRejected > 0 ? '#F53F3F' : percent === 100 ? '#00B42A' : '#165DFF'}
             size="small"
             strokeWidth={6}
-            width={140}
+            width={120}
           />
         );
       },
     },
     {
-      title: 'Holati',
-      dataIndex: 'status',
-      width: 150,
-      render: (status: string) => {
-        if (status === 'APPROVED') {
-          return (
-            <Tag color="green" icon={<IconCheckCircle />} style={{ borderRadius: 0, fontWeight: 500 }}>
-              Tasdiqlangan (OS-4)
-            </Tag>
-          );
-        }
-        if (status === 'REJECTED') {
-          return (
-            <Tag color="red" icon={<IconCloseCircle />} style={{ borderRadius: 0, fontWeight: 500 }}>
-              Rad Etilgan
-            </Tag>
-          );
-        }
-        return (
-          <Tag color="orange" icon={<IconClockCircle />} style={{ borderRadius: 0, fontWeight: 500 }}>
-            Komissiya Ko‘rigida
-          </Tag>
-        );
-      },
+      title: 'Tashabbuskor & Sana',
+      width: 140,
+      render: (_: any, record: WriteOffItem) => (
+        <div style={{ lineHeight: 1.35, maxWidth: 130 }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: 'var(--color-text-1)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+            title={record.createdBy?.fullName || record.asset?.responsibleUser?.fullName || '—'}
+          >
+            {record.createdBy?.fullName || record.asset?.responsibleUser?.fullName || '—'}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2, whiteSpace: 'nowrap' }}>
+            {record.createdAt?.substring(0, 10)}
+          </div>
+        </div>
+      ),
     },
     {
-      title: 'Sana',
-      dataIndex: 'createdAt',
-      width: 105,
-      render: (val: string) => (
-        <span style={{ whiteSpace: 'nowrap', color: 'var(--color-text-3)', fontSize: 12 }}>
-          {val ? val.substring(0, 10) : '-'}
-        </span>
+      title: 'Bosqich',
+      dataIndex: 'status',
+      width: 165,
+      render: (status: string) => (
+        <div style={{ whiteSpace: 'nowrap' }}>
+          {status === 'APPROVED' && <Badge status="success" text="Tasdiqlangan (OS-4)" />}
+          {status === 'REJECTED' && <Badge status="error" text="Rad etilgan" />}
+          {status !== 'APPROVED' && status !== 'REJECTED' && (
+            <Badge status="processing" text="Komissiya ko‘rigida" />
+          )}
+        </div>
       ),
     },
     {
       title: 'Amallar',
       dataIndex: 'actions',
-      width: 270,
+      width: 220,
       fixed: 'right' as const,
+
+
       render: (_: any, record: WriteOffItem) => {
-        const isUserMember = record.members.some((m) => m.userId === user?.id);
-        const userVote = record.members.find((m) => m.userId === user?.id);
+        const isUserMember = record.members?.some((m) => m.userId === user?.id);
+        const userVote = record.members?.find((m) => m.userId === user?.id);
         const hasVoted = userVote && userVote.vote !== 'PENDING';
 
         return (
-          <TableActions rightPadding={16} gap={6}>
-            {record.status === 'IN_REVIEW' && isUserMember && !hasVoted && (
+          <TableActions rightPadding={0} gap={5}>
+            <Button
+              size="small"
+              type="outline"
+              icon={<IconEye />}
+              style={{ borderRadius: 0, padding: '0 8px' }}
+              onClick={(e) => {
+                e?.stopPropagation?.();
+                handleOpenPassport(record);
+              }}
+            >
+              Pasport
+            </Button>
+
+            {record.status === 'IN_REVIEW' && isUserMember && !hasVoted ? (
               <Button
                 type="primary"
                 size="small"
                 icon={<IconThumbUp />}
                 style={{ borderRadius: 0, padding: '0 8px', backgroundColor: '#165DFF' }}
-                onClick={() => handleOpenVote(record)}
+                onClick={(e) => {
+                  e?.stopPropagation?.();
+                  handleOpenVote(record);
+                }}
               >
                 Ovoz Berish
               </Button>
+            ) : (
+              <Button
+                size="small"
+                type="outline"
+                icon={<IconPrinter />}
+                style={{ borderRadius: 0, padding: '0 8px' }}
+                onClick={(e) => {
+                  e?.stopPropagation?.();
+                  handleOpenDoc(record);
+                }}
+              >
+                OS-4 Akti
+              </Button>
             )}
-
-            <Button
-              size="small"
-              type="outline"
-              icon={<IconPrinter />}
-              style={{ borderRadius: 0, padding: '0 8px' }}
-              onClick={() => handleOpenDoc(record)}
-            >
-              OS-4 Akti
-            </Button>
           </TableActions>
         );
       },
@@ -405,104 +440,91 @@ export const WriteOffPage: React.FC = () => {
         />
       )}
 
-      {/* Table with Expandable Member Votes */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: 0 }}>
-        <Table
-          rowKey="id"
-          loading={isLoading}
-          columns={columns}
-          data={filteredWriteOffs}
-          scroll={{ x: 1200 }}
-          onRow={(record: WriteOffItem) => ({
-            onClick: () => handleOpenPassport(record),
-            style: { cursor: 'pointer' },
-          })}
-          pagination={{
-            pageSize: 10,
-            sizeCanChange: true,
-            sizeOptions: [10, 20, 50, 100],
-            showTotal: (total, range) => {
-              if (!total || total === 0) return '0/0';
-              const to = range ? Math.min(range[1], total) : total;
-              return `${to}/${total}`;
-            },
-          }}
-          style={{ borderRadius: 0 }}
-          noDataElement={
-            <div style={{ padding: 40, textAlign: 'center' }}>
-              <Empty
-                description={
-                  search
-                    ? `«${search}» bo‘yicha hisobdan chiqarish arizalari topilmadi`
-                    : 'Hisobdan chiqarish dalolatnomalari mavjud emas'
-                }
-              />
+      {/* Universal Standard Table with Expandable Member Votes */}
+      <StandardTable<WriteOffItem>
+        rowKey="id"
+        loading={isLoading}
+        columns={columns}
+        data={filteredWriteOffs}
+        scrollX={1120}
+        onRowClick={(record) => handleOpenPassport(record)}
+        emptyText={
+          search
+            ? `«${search}» bo‘yicha hisobdan chiqarish arizalari topilmadi`
+            : 'Hisobdan chiqarish dalolatnomalari mavjud emas'
+        }
+        expandedRowRender={(record: WriteOffItem) => (
+          <Card
+            className="uwms-card"
+            style={{ borderRadius: 0, backgroundColor: 'var(--color-fill-1)', border: 'none' }}
+            bodyStyle={{ padding: '16px 20px' }}
+          >
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, color: 'var(--color-text-1)' }}>
+              Davlat Hisobdan Chiqarish Komissiyasi A’zolarining Xulosalari va Ovozlar Reyestri:
             </div>
-          }
-          expandedRowRender={(record: WriteOffItem) => (
-            <Card
-              className="uwms-card"
-              style={{ borderRadius: 0, backgroundColor: 'var(--color-fill-1)', border: 'none' }}
-              bodyStyle={{ padding: '16px 20px' }}
-            >
-              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, color: 'var(--color-text-1)' }}>
-                Davlat Hisobdan Chiqarish Komissiyasi A’zolarining Xulosalari va Ovozlar Reyestri:
-              </div>
-              <Row gutter={[12, 12]}>
-                {record.members.map((m) => {
-                  let badgeColor = 'orange';
-                  let voteText = 'Kutilmoqda';
-                  if (m.vote === 'APPROVED') {
-                    badgeColor = 'green';
-                    voteText = 'Tasdiqlagan';
-                  } else if (m.vote === 'REJECTED') {
-                    badgeColor = 'red';
-                    voteText = 'Rad etgan';
-                  }
+            <Row gutter={[12, 12]}>
+              {record.members.map((m) => {
+                let badgeColor = 'orange';
+                let badgeText = 'Kutilmoqda';
+                if (m.vote === 'APPROVED') {
+                  badgeColor = 'green';
+                  badgeText = 'Ma’qullandi';
+                } else if (m.vote === 'REJECTED') {
+                  badgeColor = 'red';
+                  badgeText = 'Rad etildi';
+                }
 
-                  return (
-                    <Col key={m.id} xs={24} sm={12} md={8}>
-                      <Card
-                        className="uwms-card"
-                        style={{ borderRadius: 0, border: '1px solid var(--color-border-2)' }}
-                        bodyStyle={{ padding: '12px 14px' }}
+                return (
+                  <Col xs={24} sm={12} md={8} lg={6} key={m.id}>
+                    <Card
+                      style={{
+                        borderRadius: 0,
+                        backgroundColor: 'var(--color-bg-2)',
+                        border: '1px solid var(--color-border-2)',
+                      }}
+                      bodyStyle={{ padding: '12px 14px' }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: 8,
+                        }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <b style={{ fontSize: 13 }}>{m.user.fullName}</b>
-                          <Tag color={badgeColor} size="small" style={{ borderRadius: 0 }}>
-                            {voteText}
-                          </Tag>
+                        <Tag color={badgeColor} style={{ borderRadius: 0, fontSize: 11 }}>
+                          {badgeText}
+                        </Tag>
+                        <span style={{ fontSize: 11, color: 'var(--color-text-3)' }}>{m.roleName}</span>
+                      </div>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)' }}>
+                        {m.user?.fullName}
+                      </div>
+                      {m.comment && (
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: 'var(--color-text-2)',
+                            marginTop: 6,
+                            fontStyle: 'italic',
+                          }}
+                        >
+                          «{m.comment}»
                         </div>
-                        <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 2 }}>
-                          Vazifasi: <i>{m.roleName}</i>
+                      )}
+                      {m.votedAt && (
+                        <div style={{ fontSize: 11, color: 'var(--color-text-4)', marginTop: 4 }}>
+                          Sana: {m.votedAt.replace('T', ' ').substring(0, 16)}
                         </div>
-                        {m.comment && (
-                          <div
-                            style={{
-                              fontSize: 12,
-                              marginTop: 6,
-                              color: 'var(--color-text-2)',
-                              backgroundColor: 'var(--color-fill-2)',
-                              padding: '6px 8px',
-                            }}
-                          >
-                            «{m.comment}»
-                          </div>
-                        )}
-                        {m.votedAt && (
-                          <div style={{ fontSize: 11, color: 'var(--color-text-4)', marginTop: 4 }}>
-                            Sana: {m.votedAt.replace('T', ' ').substring(0, 16)}
-                          </div>
-                        )}
-                      </Card>
-                    </Col>
-                  );
-                })}
-              </Row>
-            </Card>
-          )}
-        />
-      </Card>
+                      )}
+                    </Card>
+                  </Col>
+                );
+              })}
+            </Row>
+          </Card>
+        )}
+      />
 
       {/* Create Modal */}
       <CreateWriteOffModal
