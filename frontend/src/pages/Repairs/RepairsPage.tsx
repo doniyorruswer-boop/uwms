@@ -128,9 +128,9 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Nosozlik / Sabab',
       dataIndex: 'issueDescription',
-      minWidth: 260,
+      minWidth: 200,
       render: (val: string) => (
-        <div style={{ minWidth: 220, fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.4, wordBreak: 'break-word' }}>
+        <div style={{ minWidth: 200, fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.4, wordBreak: 'break-word' }}>
           {val}
         </div>
       ),
@@ -138,7 +138,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Ustaxona / Servis',
       dataIndex: 'serviceProvider',
-      width: 190,
+      width: 175,
       render: (val: string) => <span style={{ color: 'var(--color-text-2)' }}>{val || 'OTM ustaxonasi'}</span>,
     },
     {
@@ -173,7 +173,7 @@ export const RepairsPage: React.FC = () => {
         if (status === 'UNREPAIRABLE') {
           return (
             <Tag color="red" icon={<IconCloseCircle />} style={{ borderRadius: 0 }}>
-              Yaroqsiz (Spisanie)
+              Yaroqsiz
             </Tag>
           );
         }
@@ -187,7 +187,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Yuboruvchi',
       dataIndex: 'requestedBy',
-      width: 130,
+      width: 140,
       render: (u: any) => (
         <span style={{ whiteSpace: 'nowrap', color: 'var(--color-text-2)' }}>
           {u ? u.fullName : '—'}
@@ -207,30 +207,30 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Amallar',
       dataIndex: 'actions',
-      width: 200,
+      width: 140,
       fixed: 'right' as const,
       render: (_: any, record: RepairItem) => (
-        <TableActions rightPadding={20}>
+        <TableActions rightPadding={16}>
           {record.status === 'IN_REPAIR' || record.status === 'PENDING' ? (
             <Button
               type="outline"
               status="success"
               size="small"
               icon={<IconSync />}
-              style={{ borderRadius: 0, fontWeight: 500, padding: '0 8px' }}
+              style={{ borderRadius: 0, padding: '0 10px' }}
               onClick={() => handleOpenUpdate(record)}
             >
-              Holatni Yangilash
+              Yangilash
             </Button>
           ) : (
             <Button
               type="outline"
               size="small"
               icon={<IconCheckCircle />}
-              style={{ borderRadius: 0, color: 'var(--color-text-2)', padding: '0 8px' }}
+              style={{ borderRadius: 0, color: 'var(--color-text-2)', padding: '0 10px' }}
               onClick={() => handleOpenUpdate(record)}
             >
-              Tafsilot (Yopilgan)
+              Tafsilot
             </Button>
           )}
         </TableActions>
@@ -351,7 +351,7 @@ export const RepairsPage: React.FC = () => {
           loading={isLoading}
           columns={columns}
           data={filteredRepairs}
-          scroll={{ x: 1420 }}
+          scroll={{ x: 1280 }}
           pagination={{
             pageSize: 10,
             sizeCanChange: true,
