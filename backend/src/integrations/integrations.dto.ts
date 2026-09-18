@@ -1,7 +1,26 @@
 import { IsOptional, IsString, IsIn } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
+export type HemisSyncMode = 'LIVE' | 'DEMO_STUB';
+
 export class HemisSyncDto {
+  @ApiPropertyOptional({ description: 'Sinxronizatsiya rejimi', enum: ['LIVE', 'DEMO_STUB'], default: 'LIVE' })
+  @IsOptional()
+  @IsIn(['LIVE', 'DEMO_STUB'], { message: 'mode faqat LIVE yoki DEMO_STUB bo\'lishi mumkin!' })
+  mode?: HemisSyncMode;
+
+  @ApiPropertyOptional({ description: 'HEMIS API URL manzili (ixtiyoriy, .env dan olish mumkin)', example: 'https://hemis.edu.uz/api/v1' })
+  @IsOptional()
+  @IsString()
+  hemisApiUrl?: string;
+
+  @ApiPropertyOptional({ description: 'HEMIS API kalit (ixtiyoriy, .env dan olish mumkin)' })
+  @IsOptional()
+  @IsString()
+  apiKey?: string;
+}
+
+export class HemisTestConnectionDto {
   @ApiPropertyOptional({ description: 'HEMIS API URL manzili (ixtiyoriy, .env dan olish mumkin)', example: 'https://hemis.edu.uz/api/v1' })
   @IsOptional()
   @IsString()

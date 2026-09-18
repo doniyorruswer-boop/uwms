@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { IntegrationsService } from './integrations.service';
-import { HemisSyncDto, UzAsboExportQueryDto } from './integrations.dto';
+import { HemisSyncDto, HemisTestConnectionDto, UzAsboExportQueryDto } from './integrations.dto';
 
 @ApiTags('integrations')
 @ApiBearerAuth()
@@ -18,6 +18,13 @@ export class IntegrationsController {
   @ApiOperation({ summary: 'HEMIS integratsiyasi holati va statistikasi' })
   async getHemisStatus() {
     return this.integrationsService.getHemisStatus();
+  }
+
+  @Post('hemis/test-connection')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'HEMIS serveriga ulanishni tekshirish (Ping)' })
+  async testHemisConnection(@Body() dto: HemisTestConnectionDto) {
+    return this.integrationsService.testHemisConnection(dto);
   }
 
   @Post('hemis/sync')

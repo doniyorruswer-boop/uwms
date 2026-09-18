@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import { SystemAuditService } from '../system-audit/system-audit.service';
 import * as bcrypt from 'bcrypt';
 import { UnauthorizedException } from '@nestjs/common';
 import { RoleType } from '@prisma/client';
@@ -10,6 +11,7 @@ describe('AuthService (Unit Tests)', () => {
   let service: AuthService;
   let prisma: any;
   let jwt: any;
+  let systemAuditService: any;
 
   const mockUser = {
     id: 'user-uuid-123',
@@ -38,11 +40,16 @@ describe('AuthService (Unit Tests)', () => {
       sign: jest.fn().mockReturnValue('mock-jwt-token-xyz'),
     };
 
+    systemAuditService = {
+      log: jest.fn().mockResolvedValue({}),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: jwt },
+        { provide: SystemAuditService, useValue: systemAuditService },
       ],
     }).compile();
 

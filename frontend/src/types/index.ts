@@ -236,14 +236,38 @@ export interface PublicVerifyResult {
 }
 
 // HEMIS & UzASBO Integratsiyalari
+export type HemisStatusType =
+  | 'CONNECTED'
+  | 'DEMO_STUB'
+  | 'NOT_CONFIGURED'
+  | 'CONNECTION_FAILED'
+  | 'AUTHENTICATION_FAILED';
+
 export interface HemisStatusResult {
-  status: string;
+  status: HemisStatusType;
+  isConfigured: boolean;
+  mode: 'LIVE' | 'DEMO_STUB' | 'NOT_CONFIGURED';
   hemisVersion: string;
+  apiUrl?: string | null;
   lastSyncAt: string | null;
+  lastSyncType?: string | null;
   stats: {
     syncedDepartments: number;
     syncedRooms: number;
     syncedUsers: number;
   };
+  pingMs?: number;
+  errorMessage?: string;
+  message?: string;
+}
+
+export interface HemisTestConnectionResult {
+  success: boolean;
+  status: string;
+  statusCode: number;
+  pingMs: number;
+  targetUrl: string;
+  errorMessage?: string;
+  message: string;
 }
 

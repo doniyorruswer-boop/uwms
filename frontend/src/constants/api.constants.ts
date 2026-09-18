@@ -144,6 +144,7 @@ export const API_ENDPOINTS = {
   // HEMIS va 1C / UzASBO Integratsiyalari
   INTEGRATIONS: {
     HEMIS_STATUS: '/integrations/hemis/status',
+    HEMIS_TEST_CONNECTION: '/integrations/hemis/test-connection',
     HEMIS_SYNC: '/integrations/hemis/sync',
     UZASBO_EXPORT: '/integrations/uzasbo/export',
   },
