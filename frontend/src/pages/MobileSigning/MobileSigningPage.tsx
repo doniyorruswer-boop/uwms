@@ -146,34 +146,21 @@ export const MobileSigningPage: React.FC = () => {
 
     // Provide haptic feedback if mobile device supports it
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try {
-        navigator.vibrate([40, 80, 40]);
-      } catch {
-        // ignore
-      }
+      try { navigator.vibrate([40, 80, 40]); } catch { /* ignore */ }
     }
 
     let detectedBiometric = 'WEBAUTHN_TOUCH_ID';
     let credentialId: string | undefined = undefined;
 
     try {
-      // 1. Detect platform authenticator availability
-      const isPlatformAvailable =
-        window.PublicKeyCredential &&
-        typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function' &&
-        (await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false));
-
-      const isApple =
-        typeof navigator !== 'undefined' &&
-        /iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent);
-
+      // iOS/Safari: WebAuthn MUST be called as close to user gesture as possible.
+      // Any preceding await breaks the gesture chain and causes NotAllowedError.
+      // Solution: attempt credentials.create() FIRST, then do async checks after.
+      const isApple = /iPad|iPhone|iPod|Macintosh/.test(navigator?.userAgent || '');
       detectedBiometric = isApple ? 'WEBAUTHN_FACE_ID' : 'WEBAUTHN_TOUCH_ID';
       setBiometricType(detectedBiometric);
 
-      // 2. Biometrik tasdiqlash: credentials.create() Touch ID / Face ID ni ishga tushiradi
-      // credentials.get() "No passkeys available" beradi (ro'yxatdan o'tilgan passkey yo'q)
-      // credentials.create() esa har doim biometrik so'raydi
-      if (isPlatformAvailable && navigator.credentials && typeof navigator.credentials.create === 'function') {
+      if (window.PublicKeyCredential && navigator.credentials?.create) {
         const challengeBuffer = new Uint8Array(32);
         window.crypto.getRandomValues(challengeBuffer);
 
@@ -181,10 +168,7 @@ export const MobileSigningPage: React.FC = () => {
           const credential = (await navigator.credentials.create({
             publicKey: {
               challenge: challengeBuffer,
-              rp: {
-                name: 'UWMS Elektron Imzo',
-                id: window.location.hostname,
-              },
+              rp: { name: 'UWMS Elektron Imzo', id: window.location.hostname },
               user: {
                 id: new TextEncoder().encode(signerName.trim() + Date.now()),
                 name: signerName.trim(),
@@ -202,17 +186,14 @@ export const MobileSigningPage: React.FC = () => {
               timeout: 60000,
             },
           })) as any;
-
-          if (credential) {
-            credentialId = credential.id;
-          }
+          if (credential) credentialId = credential.id;
         } catch (authErr: any) {
+          // Faqat foydalanuvchi o'zi bekor qilsa xato chiqaramiz
           if (authErr?.name === 'NotAllowedError') {
-            // Foydalanuvchi "Bekor qilish" bosdi — to'xtatish kerak
-            throw new Error('Biometrik tasdiqlash foydalanuvchi tomonidan bekor qilindi.');
+            throw new Error('Biometrik tasdiqlash bekor qilindi. Qaytadan urinib ko\'ring.');
           }
-          // Boshqa xatolar (domain, policy, qurilma muammolari) — imzolashni davom ettiramiz
-          // Shaxs JWT token orqali allaqachon aniqlanган
+          // Boshqa barcha xatolar (domain, policy, iOS gesture chain) — imzolashni davom ettiramiz
+          // Shaxs allaqachon login orqali aniqlanган, JWT token mavjud
         }
       }
 
@@ -239,7 +220,13 @@ export const MobileSigningPage: React.FC = () => {
       setSignedResult(res.data);
       Message.success('Hujjat biometrika orqali muvaffaqiyatli imzolandi!');
     } catch (err: any) {
-      Message.error(err?.message || err?.response?.data?.message || 'Imzolashda xatolik yuz berdi.');
+      const serverMsg = err?.response?.data?.message || '';
+      // 60 soniyalik sessiya muddati tugagan — aniq xabar
+      if (serverMsg.includes('muddati tugagan') || serverMsg.includes('60 soniya') || err?.response?.status === 400) {
+        Message.error('QR kod muddati tugagan (60 soniya). Kompyuterda QR kodni yangilang va qaytadan skaner qiling.');
+      } else {
+        Message.error(err?.message || serverMsg || 'Imzolashda xatolik yuz berdi.');
+      }
     } finally {
       setSigningInProgress(false);
       setScanModalVisible(false);
