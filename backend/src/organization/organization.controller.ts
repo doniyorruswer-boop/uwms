@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   Req,
 } from '@nestjs/common';
@@ -19,6 +20,8 @@ import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
+import { CreateBuildingDto } from './dto/create-building.dto';
+import { UpdateBuildingDto } from './dto/update-building.dto';
 
 @ApiTags('Organization')
 @ApiBearerAuth()
@@ -26,6 +29,54 @@ import { UpdateRoomDto } from './dto/update-room.dto';
 @Controller('api/organization')
 export class OrganizationController {
   constructor(private readonly orgService: OrganizationService) {}
+
+  // ==================== BUILDINGS ====================
+
+  @Get('buildings')
+  @ApiOperation({ summary: 'Barcha universitet binolari va korpuslari ro‘yxati' })
+  async getBuildings(@Query('showDeleted') showDeleted?: string) {
+    return this.orgService.getBuildings(showDeleted === 'true');
+  }
+
+  @Get('buildings/:id')
+  @ApiOperation({ summary: 'Bitta bino tafsilotlari, undagi qavatlar va xonalar xaritasi' })
+  async getBuildingDetails(@Param('id') id: string) {
+    return this.orgService.getBuildingDetails(id);
+  }
+
+  @Post('buildings')
+  @Roles(RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Yangi bino yoki korpus qo‘shish (Faqat Super Admin)' })
+  async createBuilding(@Body() dto: CreateBuildingDto, @Req() req: any) {
+    return this.orgService.createBuilding(dto, req.user?.id || req.user?.sub);
+  }
+
+  @Put('buildings/:id')
+  @Roles(RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Bino ma’lumotlarini tahrirlash (Faqat Super Admin)' })
+  async updateBuilding(
+    @Param('id') id: string,
+    @Body() dto: UpdateBuildingDto,
+    @Req() req: any,
+  ) {
+    return this.orgService.updateBuilding(id, dto, req.user?.id || req.user?.sub);
+  }
+
+  @Delete('buildings/:id')
+  @Roles(RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Binoni o‘chirish (Faqat Super Admin)' })
+  async deleteBuilding(@Param('id') id: string, @Req() req: any) {
+    return this.orgService.deleteBuilding(id, req.user?.id || req.user?.sub);
+  }
+
+  @Post('buildings/:id/restore')
+  @Roles(RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'O‘chirilgan binoni qayta tiklash (Faqat Super Admin)' })
+  async restoreBuilding(@Param('id') id: string, @Req() req: any) {
+    return this.orgService.restoreBuilding(id, req.user?.id || req.user?.sub);
+  }
+
+  // ==================== TREE & DEPARTMENTS ====================
 
   @Get('tree')
   @ApiOperation({ summary: 'Universitet iyerarxik tuzilmasi (Fakultet -> Kafedra -> Xonalar)' })
@@ -35,8 +86,8 @@ export class OrganizationController {
 
   @Get('departments')
   @ApiOperation({ summary: 'Barcha bo‘limlar va kafedralar ro‘yxati' })
-  async getAllDepartments() {
-    return this.orgService.getAllDepartments();
+  async getAllDepartments(@Query('showDeleted') showDeleted?: string) {
+    return this.orgService.getAllDepartments(showDeleted === 'true');
   }
 
   @Post('departments')
@@ -64,10 +115,17 @@ export class OrganizationController {
     return this.orgService.deleteDepartment(id, req.user?.id || req.user?.sub);
   }
 
+  @Post('departments/:id/restore')
+  @Roles(RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'O‘chirilgan bo‘limni qayta tiklash (Faqat Super Admin)' })
+  async restoreDepartment(@Param('id') id: string, @Req() req: any) {
+    return this.orgService.restoreDepartment(id, req.user?.id || req.user?.sub);
+  }
+
   @Get('rooms')
   @ApiOperation({ summary: 'Barcha xonalar va ularning mas’ullari ro‘yxati' })
-  async getRooms() {
-    return this.orgService.getRooms();
+  async getRooms(@Query('showDeleted') showDeleted?: string) {
+    return this.orgService.getRooms(showDeleted === 'true');
   }
 
   @Get('rooms/:id')
@@ -99,6 +157,13 @@ export class OrganizationController {
   @ApiOperation({ summary: 'Xonani o‘chirish (Faqat Super Admin)' })
   async deleteRoom(@Param('id') id: string, @Req() req: any) {
     return this.orgService.deleteRoom(id, req.user?.id || req.user?.sub);
+  }
+
+  @Post('rooms/:id/restore')
+  @Roles(RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'O‘chirilgan xonani qayta tiklash (Faqat Super Admin)' })
+  async restoreRoom(@Param('id') id: string, @Req() req: any) {
+    return this.orgService.restoreRoom(id, req.user?.id || req.user?.sub);
   }
 
   @Get('warehouses')

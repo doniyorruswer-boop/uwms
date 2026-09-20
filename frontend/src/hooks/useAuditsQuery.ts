@@ -13,8 +13,8 @@ export function useAuditsQuery() {
   });
 
   const startAuditMutation = useMutation({
-    mutationFn: async (roomId: string) => {
-      const res = await apiClient.post(API_ENDPOINTS.AUDITS.START, { roomId });
+    mutationFn: async ({ roomId, campaignId }: { roomId: string; campaignId?: string }) => {
+      const res = await apiClient.post(API_ENDPOINTS.AUDITS.START, { roomId, campaignId });
       return res.data;
     },
     onSuccess: () => {
@@ -26,8 +26,15 @@ export function useAuditsQuery() {
   });
 
   const scanCodeMutation = useMutation({
-    mutationFn: async ({ roomId, qrCode }: { roomId: string; qrCode: string }) => {
-      const res = await apiClient.post(API_ENDPOINTS.AUDITS.SCAN, { roomId, qrCode });
+    mutationFn: async ({ roomId, qrCode, campaignId }: { roomId: string; qrCode: string; campaignId?: string }) => {
+      const res = await apiClient.post(API_ENDPOINTS.AUDITS.SCAN, { roomId, qrCode, campaignId });
+      return res.data;
+    },
+  });
+
+  const batchScanMutation = useMutation({
+    mutationFn: async (items: Array<{ roomId: string; qrCode: string; campaignId?: string }>) => {
+      const res = await apiClient.post(API_ENDPOINTS.AUDITS.BATCH_SCAN, { items });
       return res.data;
     },
   });
@@ -53,6 +60,8 @@ export function useAuditsQuery() {
     startAudit: startAuditMutation.mutateAsync,
     scanCode: scanCodeMutation.mutateAsync,
     isScanning: scanCodeMutation.isPending,
+    batchScan: batchScanMutation.mutateAsync,
+    isBatchScanning: batchScanMutation.isPending,
     completeAudit: completeAuditMutation.mutateAsync,
     isCompleting: completeAuditMutation.isPending,
   };

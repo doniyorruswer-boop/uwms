@@ -4,7 +4,8 @@ import { API_ENDPOINTS } from '../constants/api.constants';
 import { HemisStatusResult, HemisTestConnectionResult } from '../types';
 
 export interface HemisSyncPayload {
-  mode?: 'LIVE' | 'DEMO_STUB';
+  mode?: 'LIVE' | 'DEMO' | 'DEMO_STUB';
+  forceDemo?: boolean;
   hemisApiUrl?: string;
   apiKey?: string;
 }
@@ -52,9 +53,47 @@ export const useHemisSyncMutation = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hemisStatus'] });
+      queryClient.invalidateQueries({ queryKey: ['hemisLogs'] });
       queryClient.invalidateQueries({ queryKey: ['departments'] });
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+};
+
+export interface HemisSyncLogItem {
+  id: string;
+  action: string;
+  entity: string;
+  createdAt: string;
+  user?: {
+    id: string;
+    fullName: string;
+    username: string;
+    role: string;
+  };
+  details?: {
+    apiUrl?: string;
+    syncedDepartments?: number;
+    syncedRooms?: number;
+    syncedUsers?: number;
+    mode?: string;
+    status?: string;
+    error?: string;
+    isDemoStub?: boolean;
+    raw?: string;
+  };
+  ipAddress?: string;
+}
+
+export const useHemisSyncLogsQuery = (limit = 20) => {
+  return useQuery<HemisSyncLogItem[]>({
+    queryKey: ['hemisLogs', limit],
+    queryFn: async () => {
+      const response = await apiClient.get<HemisSyncLogItem[]>(API_ENDPOINTS.INTEGRATIONS.HEMIS_LOGS, {
+        params: { limit },
+      });
+      return response.data;
     },
   });
 };

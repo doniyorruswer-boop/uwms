@@ -30,6 +30,14 @@ describe('OrganizationService', () => {
         findUnique: jest.fn(),
         findMany: jest.fn(),
       },
+      building: {
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        upsert: jest.fn(),
+      },
       warehouse: {
         findMany: jest.fn(),
       },
@@ -115,29 +123,112 @@ describe('OrganizationService', () => {
     });
   });
 
+  describe('Buildings CRUD', () => {
+    it('should create building and log audit', async () => {
+      prisma.building.findFirst.mockResolvedValueOnce(null);
+      prisma.building.findUnique.mockResolvedValueOnce(null);
+      prisma.building.create.mockResolvedValueOnce({
+        id: 'b-new',
+        name: '3-o‘quv binosi',
+        code: 'B3',
+        floorsCount: 5,
+        commendant: null,
+      });
+
+      const res = await service.createBuilding(
+        { name: '3-o‘quv binosi', code: 'B3', floorsCount: 5 },
+        'admin-id',
+      );
+
+      expect(res.id).toBe('b-new');
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'BUILDING_CREATED',
+          entity: 'Building',
+        }),
+      );
+    });
+
+    it('should throw ConflictException if building name already exists', async () => {
+      prisma.building.findFirst.mockResolvedValueOnce({ id: 'b-exist', name: 'Bosh bino' });
+
+      await expect(
+        service.createBuilding({ name: 'Bosh bino' }, 'admin-id'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should prevent deleting building if active rooms exist', async () => {
+      prisma.building.findUnique.mockResolvedValueOnce({
+        id: 'b-1',
+        name: 'Bosh bino',
+        _count: { rooms: 12, warehouses: 0 },
+      });
+
+      await expect(service.deleteBuilding('b-1', 'admin-id')).rejects.toThrow(BadRequestException);
+    });
+  });
+
   describe('createRoom', () => {
     it('should throw ConflictException if room number in same building exists', async () => {
+      prisma.building.findUnique.mockResolvedValueOnce({
+        id: 'b-1',
+        name: 'Bosh bino',
+        floorsCount: 4,
+      });
       prisma.room.findFirst.mockResolvedValueOnce({
         id: 'r-1',
         number: '304',
-        building: 'Bosh bino',
+        buildingId: 'b-1',
       });
 
       await expect(
         service.createRoom(
-          { number: '304', name: 'Lab', floor: 3, building: 'Bosh bino' },
+          { number: '304', name: 'Lab', floor: 3, buildingId: 'b-1' },
           'admin-id',
         ),
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should create room and log audit', async () => {
+    it('should allow identical room numbers in different buildings (e.g. 101 in B1 and 101 in B2)', async () => {
+      prisma.building.findUnique.mockResolvedValueOnce({
+        id: 'b-2',
+        name: '2-o‘quv binosi',
+        floorsCount: 5,
+      });
+      // In B2, room 101 does not exist yet even if it exists in B1
+      prisma.room.findFirst.mockResolvedValueOnce(null);
+      prisma.room.create.mockResolvedValueOnce({
+        id: 'r-101-b2',
+        number: '101',
+        name: 'Auditoriya 101',
+        floor: 1,
+        buildingId: 'b-2',
+        building: '2-o‘quv binosi',
+      });
+
+      const res = await service.createRoom(
+        { number: '101', name: 'Auditoriya 101', floor: 1, buildingId: 'b-2' },
+        'admin-id',
+      );
+
+      expect(res.id).toBe('r-101-b2');
+      expect(res.number).toBe('101');
+      expect(res.buildingId).toBe('b-2');
+    });
+
+    it('should create room with building string fallback and log audit', async () => {
+      prisma.building.upsert.mockResolvedValueOnce({
+        id: 'b-it',
+        name: 'IT Korpus',
+        floorsCount: 6,
+      });
       prisma.room.findFirst.mockResolvedValueOnce(null);
       prisma.room.create.mockResolvedValueOnce({
         id: 'r-999',
         number: '501',
         name: 'Robototexnika Markazi',
         floor: 5,
+        buildingId: 'b-it',
         building: 'IT Korpus',
         department: { name: 'IT Fakulteti' },
         responsibleUser: { fullName: 'Alimov Jasur' },
@@ -169,7 +260,7 @@ describe('OrganizationService', () => {
       await expect(service.deleteRoom('r-1', 'admin-id')).rejects.toThrow(BadRequestException);
     });
 
-    it('should delete empty room successfully', async () => {
+    it('should delete empty room successfully (soft-delete)', async () => {
       prisma.room.findUnique.mockResolvedValueOnce({
         id: 'r-1',
         number: '101',
@@ -177,13 +268,33 @@ describe('OrganizationService', () => {
         building: 'Bosh bino',
         _count: { itemInstances: 0 },
       });
-      prisma.room.delete.mockResolvedValueOnce({ id: 'r-1' });
+      prisma.room.update.mockResolvedValueOnce({ id: 'r-1', deletedAt: new Date() });
 
       const res = await service.deleteRoom('r-1', 'admin-id');
       expect(res.success).toBe(true);
       expect(audit.log).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: 'ROOM_DELETED',
+          action: 'SOFT_DELETE',
+          entity: 'Room',
+        }),
+      );
+    });
+
+    it('should restore soft-deleted room successfully', async () => {
+      prisma.room.findUnique.mockResolvedValueOnce({
+        id: 'r-1',
+        number: '101',
+        name: 'Bo‘sh xona',
+        building: 'Bosh bino',
+        deletedAt: new Date(),
+      });
+      prisma.room.update.mockResolvedValueOnce({ id: 'r-1', deletedAt: null });
+
+      const res = await service.restoreRoom('r-1', 'admin-id');
+      expect(res).toBeDefined();
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'RESTORE',
           entity: 'Room',
         }),
       );

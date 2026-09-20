@@ -1,6 +1,7 @@
 {
   "menu": {
     "dashboard": "Boshqaruv Paneli",
+    "inbox": "Vazifalarim",
     "assets": "Asosiy Vositalar (QR)",
     "warehouse": "Sarf Tovarlari & Qoldiq",
     "suppliers": "Ta’minot & Shartnomalar",
@@ -10,11 +11,16 @@
     "writeOffs": "Spisanie (OS-4)",
     "organization": "Tuzilma & Xonalar",
     "quotas": "Kafedralar Kvotasi",
-    "audit": "Tizim Auditi",
+    "audit": "Audit & Skaner",
+    "systemAudit": "Tizim Auditi",
     "integrations": "Integratsiyalar",
     "scanner": "QR Inventarizatsiya",
+    "auditCampaigns": "Audit Rejalari",
     "backups": "Zaxira Nusxalari (Backup)",
-    "users": "Xodimlar & Rollar"
+    "users": "Xodimlar & Rollar",
+    "depreciation": "Amortizatsiya",
+    "fundingReports": "Manbalar Hisoboti",
+    "chiefAccountantLedger": "Bosh Hisobchi Daftari"
   },
   "common": {
     "appTitle": "UWMS Tizimi",
@@ -46,7 +52,12 @@
     "price": "Narxi",
     "total": "Jami",
     "totalCount": "Jami: {{count}} ta",
-    "notes": "Izoh"
+    "notes": "Izoh",
+    "forbidden": "Ruxsat yo‘q",
+    "errorOccurred": "Xatolik yuz berdi",
+    "retry": "Qayta urinish",
+    "backToHome": "Bosh sahifaga qaytish",
+    "reloadPage": "Sahifani yangilash"
   },
   "status": {
     "new": "Yangi",
@@ -112,5 +123,14 @@
     "checksum": "SHA-256 Xesh (Butunlik)",
     "restore": "Tiklash",
     "download": "Yuklash"
+  },
+  "errors": {
+    "forbiddenTitle": "Ruxsat yo‘q",
+    "forbiddenDesc": "Ushbu sahifaga kirish uchun sizda yetarli ruxsat mavjud emas.",
+    "somethingWentWrong": "Xatolik yuz berdi",
+    "unexpectedErrorDesc": "Tizimda kutilmagan xatolik yuz berdi. Iltimos, sahifani yangilang yoki administratorga murojaat qiling.",
+    "retry": "Qayta urinish",
+    "backToHome": "Bosh sahifaga qaytish",
+    "reloadPage": "Sahifani yangilash"
   }
 }

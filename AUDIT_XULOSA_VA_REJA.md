@@ -110,5 +110,5 @@ Auditning 14-bo‘limidagi qoidalar asosida loyihada quyidagi tamoyillar qat’i
 ## 5. Yakuniy Hukm
 
 * **Loyiha salohiyati:** 10/10 (Davlat OTMlari uchun to‘liq tayyor, korporativ standartdagi tizim).
-* **Hozirgi holat:** Barcha P0 bosqichlar to‘liq yakunlandi (Production-ready).
+* **Hozirgi holat:** MVP + core business ready, P0 qoldiq ishlar bor (Tashqi integratsiyalar: HEMIS/1C — ⚠️ STUB / DEMO).
 * **Natija:** Soxta ma’lumotlar, mocklar va hardcoded qiymatlardan xoli, har bir tranzaksiya atomik va audit jurnallari bilan himoyalangan, haqiqiy RBAC va haqiqiy QR auditorlik imkoniyatlariga ega barqaror tizim barpo etildi.

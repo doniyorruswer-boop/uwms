@@ -14,7 +14,7 @@ export class IntegrationsController {
   constructor(private readonly integrationsService: IntegrationsService) {}
 
   @Get('hemis/status')
-  @Roles('SUPER_ADMIN', 'HEAD_WAREHOUSE')
+  @Roles('SUPER_ADMIN')
   @ApiOperation({ summary: 'HEMIS integratsiyasi holati va statistikasi' })
   async getHemisStatus() {
     return this.integrationsService.getHemisStatus();
@@ -34,8 +34,15 @@ export class IntegrationsController {
     return this.integrationsService.syncHemis(dto, req.user.id);
   }
 
+  @Get('hemis/logs')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'HEMIS sinxronizatsiya loglari tarixi' })
+  async getHemisLogs(@Query('limit') limit?: number) {
+    return this.integrationsService.getHemisSyncLogs(limit);
+  }
+
   @Get('uzasbo/export')
-  @Roles('SUPER_ADMIN', 'HEAD_WAREHOUSE', 'AUDITOR')
+  @Roles('SUPER_ADMIN')
   @ApiOperation({ summary: '1C / UzASBO buxgalteriya formati bo‘yicha eksport qilish' })
   async exportUzAsbo(@Request() req: any, @Query() query: UzAsboExportQueryDto) {
     return this.integrationsService.exportUzAsbo(query, req.user.id);

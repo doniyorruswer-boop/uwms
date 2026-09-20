@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsArray, IsNotEmpty, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class StartAuditDto {
@@ -6,6 +7,10 @@ export class StartAuditDto {
   @IsString()
   @IsNotEmpty({ message: 'Xona tanlanishi shart!' })
   roomId: string;
+
+  @ApiProperty({ description: 'Bog‘langan kampaniya ID si (ixtiyoriy)', required: false })
+  @IsString()
+  campaignId?: string;
 }
 
 export class ScanCodeDto {
@@ -18,6 +23,18 @@ export class ScanCodeDto {
   @IsString()
   @IsNotEmpty({ message: 'QR-kod bo‘sh bo‘lishi mumkin emas!' })
   qrCode: string;
+
+  @ApiProperty({ description: 'Bog‘langan kampaniya ID si (ixtiyoriy)', required: false })
+  @IsString()
+  campaignId?: string;
+}
+
+export class BatchScanDto {
+  @ApiProperty({ type: [ScanCodeDto], description: 'Oflayn navbatdan yuborilgan skanlar ro‘yxati' })
+  @IsArray({ message: 'Skanlar ro‘yxati massiv bo‘lishi shart!' })
+  @ValidateNested({ each: true })
+  @Type(() => ScanCodeDto)
+  items: ScanCodeDto[];
 }
 
 export class CompleteAuditDto {
@@ -25,3 +42,4 @@ export class CompleteAuditDto {
   @IsString()
   notes?: string;
 }
+

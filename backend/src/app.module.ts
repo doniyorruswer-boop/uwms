@@ -1,9 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { OrganizationModule } from './organization/organization.module';
 import { AssetsModule } from './assets/assets.module';
+import { TransfersModule } from './transfers/transfers.module';
 import { WarehouseModule } from './warehouse/warehouse.module';
 import { RequestsModule } from './requests/requests.module';
 import { AuditsModule } from './audits/audits.module';
@@ -15,18 +17,27 @@ import { SystemAuditModule } from './system-audit/system-audit.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { QuotasModule } from './quotas/quotas.module';
 import { DocumentStampsModule } from './document-stamps/document-stamps.module';
+import { SigningSessionsModule } from './signing-sessions/signing-sessions.module';
+import { DocumentArchivesModule } from './document-archives/document-archives.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { BackupsModule } from './backups/backups.module';
 import { UsersModule } from './users/users.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { DepreciationModule } from './depreciation/depreciation.module';
+import { ReportsModule } from './reports/reports.module';
+import { InboxModule } from './inbox/inbox.module';
+import { SearchModule } from './search/search.module';
+import { HealthModule } from './health/health.module';
+import { IdempotencyModule } from './idempotency/idempotency.module';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
@@ -39,12 +50,15 @@ import { APP_GUARD } from '@nestjs/core';
     NotificationsModule,
     QuotasModule,
     DocumentStampsModule,
+    SigningSessionsModule,
+    DocumentArchivesModule,
     IntegrationsModule,
     BackupsModule,
     UsersModule,
     AuthModule,
     OrganizationModule,
     AssetsModule,
+    TransfersModule,
     WarehouseModule,
     RequestsModule,
     AuditsModule,
@@ -54,6 +68,11 @@ import { APP_GUARD } from '@nestjs/core';
     DashboardModule,
     UploadsModule,
     DepreciationModule,
+    ReportsModule,
+    InboxModule,
+    SearchModule,
+    HealthModule,
+    IdempotencyModule,
   ],
   providers: [
     {
@@ -62,4 +81,8 @@ import { APP_GUARD } from '@nestjs/core';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}

@@ -28,25 +28,55 @@ export const ASSET_STATUS_CONFIG: Record<AssetStatus, { label: string; color: st
 };
 
 export const REQUEST_STATUS_CONFIG: Record<RequestStatus, { label: string; color: string; stepIndex: number }> = {
+  SUBMITTED: {
+    label: '1/7: Xodim Talabnomasi',
+    color: 'orange',
+    stepIndex: 1,
+  },
   PENDING: {
     label: 'Kutilmoqda (Yangi)',
     color: 'orange',
-    stepIndex: 0,
+    stepIndex: 1,
+  },
+  APPROVED_BY_PRORECTOR: {
+    label: '2/7: Prorektor Vizasi',
+    color: 'arcoblue',
+    stepIndex: 2,
   },
   APPROVED_BY_HEAD: {
     label: 'Mudir Tasdiqladi',
     color: 'blue',
-    stepIndex: 1,
+    stepIndex: 2,
+  },
+  APPROVED_BY_RECTOR: {
+    label: '3/7: Rektor Vizasi',
+    color: 'purple',
+    stepIndex: 3,
+  },
+  FINANCED_BY_ACCOUNTANT: {
+    label: '4/7: Bosh Hisobchi Moliyalash',
+    color: 'cyan',
+    stepIndex: 4,
+  },
+  RECEIVED_AT_WAREHOUSE: {
+    label: '5/7: Ombor Kirimi (OS-1)',
+    color: 'blue',
+    stepIndex: 5,
   },
   APPROVED_BY_WAREHOUSE: {
     label: 'Omborchi Tasdiqladi',
     color: 'arcoblue',
-    stepIndex: 2,
+    stepIndex: 5,
+  },
+  HANDED_TO_COMMENDANT: {
+    label: '6/7: Komendant Qabuli (OS-2)',
+    color: 'gold',
+    stepIndex: 6,
   },
   FULFILLED: {
-    label: 'Bajarildi (Berildi)',
+    label: '7/7: To‘liq Bajarildi (Topshirildi)',
     color: 'green',
-    stepIndex: 3,
+    stepIndex: 7,
   },
   REJECTED: {
     label: 'Rad Etildi',

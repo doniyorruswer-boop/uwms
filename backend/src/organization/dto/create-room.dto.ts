@@ -2,13 +2,13 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional, IsInt, Min, IsUUID } from 'class-validator';
 
 export class CreateRoomDto {
-  @ApiProperty({
-    description: 'Xona yoki auditoriya raqami',
+  @ApiPropertyOptional({
+    description: 'Xona yoki auditoriya raqami (raqamsiz bo‘lsa bo‘sh qoldirilishi mumkin)',
     example: '304',
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Xona raqami kiritilishi shart' })
-  number: string;
+  number?: string;
 
   @ApiProperty({
     description: 'Xonaning to‘liq nomi yoki maqsadi',
@@ -27,14 +27,22 @@ export class CreateRoomDto {
   @Min(1, { message: 'Qavat kamida 1 bo‘lishi kerak' })
   floor: number;
 
-  @ApiProperty({
-    description: 'Bino nomi yoki korpusi',
+  @ApiPropertyOptional({
+    description: 'Bino ID si (Building modeli bilan bog‘lanish)',
+    example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'buildingId to‘g‘ri UUID bo‘lishi kerak' })
+  buildingId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Bino nomi yoki korpusi (agar buildingId ko‘rsatilmasa)',
     example: 'Bosh bino',
     default: 'Bosh bino',
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Bino nomi kiritilishi shart' })
-  building: string;
+  building?: string;
 
   @ApiPropertyOptional({
     description: 'Biriktirilgan fakultet yoki kafedra ID si',

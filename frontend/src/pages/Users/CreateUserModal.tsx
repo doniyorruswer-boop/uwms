@@ -128,6 +128,10 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ visible, onClo
                 <Select.Option value={RoleType.MOL}>MOL (Moddiy Javobgar Shaxs / Mudir)</Select.Option>
                 <Select.Option value={RoleType.AUDITOR}>Auditor / Nazoratchi</Select.Option>
                 <Select.Option value={RoleType.EMPLOYEE}>Xodim (O‘qituvchi / Laborant)</Select.Option>
+                <Select.Option value={RoleType.CHIEF_ACCOUNTANT}>Bosh Hisobchi</Select.Option>
+                <Select.Option value={RoleType.COMMENDANT}>Bino Komendanti</Select.Option>
+                <Select.Option value={RoleType.RECTOR}>Rektor</Select.Option>
+                <Select.Option value={RoleType.VICE_RECTOR_FINANCE}>Moliya-iqtisodiyot ishlari bo‘yicha prorektor</Select.Option>
               </Select>
             </FormItem>
           </Col>

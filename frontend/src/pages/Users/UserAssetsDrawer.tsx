@@ -35,6 +35,10 @@ const roleTagColors: Record<RoleType, string> = {
   [RoleType.MOL]: 'gold',
   [RoleType.AUDITOR]: 'purple',
   [RoleType.EMPLOYEE]: 'gray',
+  [RoleType.CHIEF_ACCOUNTANT]: 'cyan',
+  [RoleType.COMMENDANT]: 'orange',
+  [RoleType.RECTOR]: 'magenta',
+  [RoleType.VICE_RECTOR_FINANCE]: 'arcoblue',
 };
 
 const roleLabels: Record<RoleType, string> = {
@@ -43,6 +47,10 @@ const roleLabels: Record<RoleType, string> = {
   [RoleType.MOL]: 'MOL (Moddiy Javobgar)',
   [RoleType.AUDITOR]: 'Auditor',
   [RoleType.EMPLOYEE]: 'Xodim',
+  [RoleType.CHIEF_ACCOUNTANT]: 'Bosh Hisobchi',
+  [RoleType.COMMENDANT]: 'Komendant',
+  [RoleType.RECTOR]: 'Rektor',
+  [RoleType.VICE_RECTOR_FINANCE]: 'Moliya-iqtisod Prorektori',
 };
 
 const statusColors: Record<string, string> = {

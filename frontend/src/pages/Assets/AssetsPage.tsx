@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Card,
-  Table,
   Button,
   Space,
   Input,
@@ -21,6 +20,7 @@ import {
   Typography,
   Tooltip,
   Empty,
+  Alert,
 } from '@arco-design/web-react';
 import {
   IconPlus,
@@ -42,9 +42,15 @@ import {
   IconDesktop,
   IconStorage,
   IconExclamationCircle,
+  IconUser,
 } from '@arco-design/web-react/icon';
 import { QRCodeSVG } from 'qrcode.react';
-import { useAssetsQuery, useTransfersQuery, TransferItem } from '../../hooks/useAssetsQuery';
+import {
+  useAssetsQuery,
+  useTransfersQuery,
+  useCategoriesQuery,
+  TransferItem,
+} from '../../hooks/useAssetsQuery';
 import { useAssetDepreciationHistoryQuery } from '../../hooks/useDepreciationQuery';
 import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
 import { useAuthStore } from '../../store/authStore';
@@ -55,13 +61,26 @@ import { useTranslation } from 'react-i18next';
 import { ExcelImportModal } from '../../components/Warehouse/ExcelImportModal';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { TableActions } from '../../components/Common/TableActions';
+import { StandardTable } from '../../components/Common/StandardTable';
+import { ForbiddenView } from '../../components/Common/ForbiddenView';
 import { ReturnAssetModal } from '../../components/Assets/ReturnAssetModal';
 import { MassMolTransferModal } from '../../components/Assets/MassMolTransferModal';
 import { CreateRepairModal } from '../../components/Repairs/CreateRepairModal';
 import { CreateWriteOffModal } from '../../components/WriteOff/CreateWriteOffModal';
+import { AssetHandoverWizardModal } from '../../components/Assets/AssetHandoverWizardModal';
 import { apiClient } from '../../api/client';
 import { API_ENDPOINTS } from '../../constants';
 
+const ALLOWED_ASSET_ROLES = [
+  'SUPER_ADMIN',
+  'HEAD_WAREHOUSE',
+  'MOL',
+  'AUDITOR',
+  'CHIEF_ACCOUNTANT',
+  'COMMENDANT',
+  'RECTOR',
+  'VICE_RECTOR_FINANCE',
+];
 
 const FormItem = Form.Item;
 const TabPane = Tabs.TabPane;
@@ -69,29 +88,42 @@ const TimelineItem = Timeline.Item;
 const { Text } = Typography;
 
 export const AssetsPage: React.FC = () => {
-  const {
-    assets,
-    isLoading,
-    createAsset,
-    transferAsset,
-    batchTransfer,
-    writeOffAsset,
-    refetch: refetchAssets,
-  } = useAssetsQuery();
-  const { transfers, isLoading: isTransfersLoading, respondTransfer } = useTransfersQuery();
-  const { rooms } = useOrganizationQuery();
   const { user } = useAuthStore();
   const { t } = useTranslation();
-
   const [searchParams] = useSearchParams();
 
   const [activeMainTab, setActiveMainTab] = useState<'ASSETS' | 'TRANSFERS'>('ASSETS');
   const [selectedTransferDoc, setSelectedTransferDoc] = useState<TransferItem | null>(null);
   const [isDocModalVisible, setIsDocModalVisible] = useState(false);
 
+  // MOL Transfer Act Biometric Signing Modal State
+  const [molTransferDoc, setMolTransferDoc] = useState<any | null>(null);
+  const [isMolDocModalVisible, setIsMolDocModalVisible] = useState(false);
+
   const [searchText, setSearchText] = useState(searchParams.get('search') || '');
   const [quickCategory, setQuickCategory] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [fundingSourceFilter, setFundingSourceFilter] = useState<string>('ALL');
+
+  const {
+    assets,
+    isLoading,
+    isError,
+    error,
+    createAsset,
+    transferAsset,
+    batchTransfer,
+    writeOffAsset,
+    refetch: refetchAssets,
+  } = useAssetsQuery({
+    search: searchText || undefined,
+    status: statusFilter === 'ALL' ? undefined : statusFilter,
+    fundingSource: fundingSourceFilter === 'ALL' ? undefined : fundingSourceFilter,
+  });
+
+  const { transfers, isLoading: isTransfersLoading, respondTransfer } = useTransfersQuery();
+  const { categories: backendCategories, isLoading: isCategoriesLoading } = useCategoriesQuery();
+  const { rooms } = useOrganizationQuery();
 
   useEffect(() => {
     const q = searchParams.get('search');
@@ -121,6 +153,8 @@ export const AssetsPage: React.FC = () => {
   const [isMassMolModalVisible, setIsMassMolModalVisible] = useState(false);
   const [isRepairModalVisible, setIsRepairModalVisible] = useState(false);
   const [isWriteOffModalVisible, setIsWriteOffModalVisible] = useState(false);
+  const [isAssetHandoverWizardVisible, setIsAssetHandoverWizardVisible] = useState(false);
+  const [showMyAssetsOnly, setShowMyAssetsOnly] = useState<boolean>(user?.role === 'MOL');
   const [actionAsset, setActionAsset] = useState<ItemInstance | null>(null);
 
   const [reprintReason, setReprintReason] = useState('Eski stiker shikastlangan yoki xiralashgan');
@@ -182,13 +216,16 @@ export const AssetsPage: React.FC = () => {
       (a.serialNumber && a.serialNumber.toLowerCase().includes(searchText.toLowerCase()));
 
     const matchesStatus = statusFilter === 'ALL' || a.status === statusFilter;
+    const matchesFunding = fundingSourceFilter === 'ALL' || a.fundingSource === fundingSourceFilter;
     const matchesCat =
       quickCategory === 'ALL' ||
       (quickCategory === 'IT' && a.categoryName?.includes('IT')) ||
       (quickCategory === 'MEBEL' && a.categoryName?.includes('Mebel')) ||
       (quickCategory === 'NEW' && a.status === 'NEW');
 
-    return matchesSearch && matchesStatus && matchesCat;
+    const matchesMyAssets = !showMyAssetsOnly || a.responsibleUserId === user?.id;
+
+    return matchesSearch && matchesStatus && matchesFunding && matchesCat && matchesMyAssets;
   });
 
   const selectedAssetsList = assets.filter((a) => selectedRowKeys.includes(a.id));
@@ -289,6 +326,7 @@ export const AssetsPage: React.FC = () => {
         inventoryNumber: values.inventoryNumber,
         serialNumber: values.serialNumber,
         purchasePrice: Number(values.purchasePrice) || 0,
+        fundingSource: values.fundingSource || 'BYUDJET',
         roomId: values.roomId,
       });
       setIsAddModalVisible(false);
@@ -307,6 +345,7 @@ export const AssetsPage: React.FC = () => {
       'Kategoriya': a.categoryName || '',
       'Joylashuvi': a.roomName || 'Omborxona',
       'Mas’ul Shaxs': a.responsibleUserName || '',
+      'Moliyalashtirish Manbasi': a.fundingSource || 'BYUDJET',
       'Holati': a.status,
       'Balans Qiymati (so‘m)': a.purchasePrice || 0,
       'Xarid Sanasi': a.purchaseDate || '',
@@ -315,8 +354,35 @@ export const AssetsPage: React.FC = () => {
     Message.success('Excel fayl muvaffaqiyatli yuklab olindi!');
   };
 
+  // Permission checks
+  const isAllowedToView = !user?.role || ALLOWED_ASSET_ROLES.includes(user.role);
+  if (!isAllowedToView || (error && (error as any)?.response?.status === 403)) {
+    return <ForbiddenView requiredRoles={ALLOWED_ASSET_ROLES} />;
+  }
+
+  const canManageAssets =
+    user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'HEAD_WAREHOUSE' ||
+    user?.role === 'MOL';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* ERROR UX STATE (Rule 6.3) */}
+      {isError && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ borderRadius: 0 }}
+          title="Asosiy vositalarni yuklashda xatolik yuz berdi"
+          content="Server bilan aloqa uzildi yoki ma’lumotlarni olishda muammo yuzaga keldi. Iltimos, qayta urinib ko‘ring."
+          action={
+            <Button size="small" type="primary" status="danger" onClick={() => refetchAssets()} style={{ borderRadius: 0 }}>
+              Qayta yuklash
+            </Button>
+          }
+        />
+      )}
+
       {/* Main Tab Switcher */}
       <PageTabs
         activeTab={activeMainTab}
@@ -333,151 +399,142 @@ export const AssetsPage: React.FC = () => {
 
       {/* TRANSFERS TAB CONTENT */}
       {activeMainTab === 'TRANSFERS' && (
-        <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: 0 }}>
-          <Table
-            rowKey="id"
-            loading={isTransfersLoading}
-            data={transfers}
-            scroll={{ x: 1180 }}
-            noDataElement={<Empty description="Topshirish va qabul aktlari (OS-1) mavjud emas" />}
-            pagination={{
-              pageSize: 10,
-              sizeCanChange: true,
-              sizeOptions: [10, 20, 50, 100],
-              showTotal: (total, range) => {
-                if (!total || total === 0) return '0/0';
-                const to = range ? Math.min(range[1], total) : total;
-                return `${to}/${total}`;
-              },
-            }}
-            columns={[
-              {
-                title: 'Dalolatnoma №',
-                dataIndex: 'id',
-                width: 130,
-                render: (id: string) => (
+        <StandardTable
+          rowKey="id"
+          loading={isTransfersLoading}
+          data={transfers}
+          scrollX={1180}
+          emptyText="Topshirish va qabul aktlari (OS-1) mavjud emas"
+          columns={[
+            {
+              title: 'Dalolatnoma №',
+              dataIndex: 'documentNumber',
+              width: 170,
+              render: (docNum: string, r: TransferItem) => {
+                const displayNum = docNum || `TRF-${r.id.substring(0, 8).toUpperCase()}`;
+                return (
                   <div style={{ paddingLeft: 8 }}>
                     <b style={{ color: '#165DFF', whiteSpace: 'nowrap' }}>
-                      TRF-{id.substring(0, 8).toUpperCase()}
+                      {displayNum}
                     </b>
                   </div>
-                ),
+                );
               },
-              {
-                title: 'Asosiy Vosita',
-                dataIndex: 'assetName',
-                minWidth: 180,
-                render: (name: string) => (
-                  <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>
-                    {name}
+            },
+            {
+              title: 'Asosiy Vosita',
+              dataIndex: 'assetName',
+              minWidth: 180,
+              render: (name: string) => (
+                <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                  {name}
+                </div>
+              ),
+            },
+            {
+              title: 'Qayerdan / Qayerga',
+              width: 190,
+              render: (_, r: TransferItem) => (
+                <div style={{ lineHeight: 1.35 }}>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-3)' }}>
+                    Chiqish: <span style={{ color: 'var(--color-text-1)' }}>{r.fromRoomName}</span>
                   </div>
-                ),
-              },
-              {
-                title: 'Qayerdan / Qayerga',
-                width: 190,
-                render: (_, r: TransferItem) => (
-                  <div style={{ lineHeight: 1.35 }}>
-                    <div style={{ fontSize: 12, color: 'var(--color-text-3)' }}>
-                      Chiqish: <span style={{ color: 'var(--color-text-1)' }}>{r.fromRoomName}</span>
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#165DFF', marginTop: 2 }}>
-                      Kirish: {r.toRoomName}
-                    </div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#165DFF', marginTop: 2 }}>
+                    Kirish: {r.toRoomName}
                   </div>
-                ),
-              },
-              {
-                title: 'Topshiruvchi / Mas’ul (MOL)',
-                width: 190,
-                render: (_, r: TransferItem) => (
-                  <div style={{ lineHeight: 1.35 }}>
-                    <div style={{ fontSize: 12, color: 'var(--color-text-3)' }}>
-                      Topshiruvchi: <span style={{ color: 'var(--color-text-1)' }}>{r.senderName}</span>
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2 }}>
-                      Qabul qiluvchi: {r.receiverName}
-                    </div>
+                </div>
+              ),
+            },
+            {
+              title: 'Topshiruvchi / Mas’ul (MOL)',
+              width: 190,
+              render: (_, r: TransferItem) => (
+                <div style={{ lineHeight: 1.35 }}>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-3)' }}>
+                    Topshiruvchi: <span style={{ color: 'var(--color-text-1)' }}>{r.senderName}</span>
                   </div>
-                ),
+                  <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2 }}>
+                    Qabul qiluvchi: {r.receiverName}
+                  </div>
+                </div>
+              ),
+            },
+            {
+              title: 'Holat',
+              dataIndex: 'status',
+              width: 140,
+              render: (status: string) => {
+                if (status === 'PENDING') return <Badge status="warning" text="Kafedra qabuli kutilmoqda" />;
+                if (status === 'ACCEPTED') return <Badge status="success" text="Qabul qilindi va biriktirildi" />;
+                if (status === 'REJECTED') return <Badge status="error" text="Rad etildi" />;
+                return <Tag>{status}</Tag>;
               },
-              {
-                title: 'Holat',
-                dataIndex: 'status',
-                width: 140,
-                render: (status: string) => {
-                  if (status === 'PENDING') return <Badge status="warning" text="Kafedra qabuli kutilmoqda" />;
-                  if (status === 'ACCEPTED') return <Badge status="success" text="Qabul qilindi va biriktirildi" />;
-                  if (status === 'REJECTED') return <Badge status="error" text="Rad etildi" />;
-                  return <Tag>{status}</Tag>;
-                },
-              },
-              {
-                title: 'Yuborilgan Sana',
-                dataIndex: 'createdAt',
-                width: 130,
-                render: (createdAt: string) => (
-                  <span style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
-                    {createdAt ? createdAt.replace('T', ' ').substring(0, 16) : '—'}
-                  </span>
-                ),
-              },
-              {
-                title: 'Amallar',
-                width: 290,
-                fixed: 'right' as const,
-                render: (_, r: TransferItem) => {
-                  const canAccept =
-                    r.status === 'PENDING' &&
-                    (user?.role === 'MOL' || user?.role === 'SUPER_ADMIN' || user?.id === r.receiverId);
+            },
+            {
+              title: 'Yuborilgan Sana',
+              dataIndex: 'createdAt',
+              width: 130,
+              render: (createdAt: string) => (
+                <span style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                  {createdAt ? createdAt.replace('T', ' ').substring(0, 16) : '—'}
+                </span>
+              ),
+            },
+            {
+              title: 'Amallar',
+              width: 290,
+              fixed: 'right' as const,
+              render: (_, r: TransferItem) => {
+                const canAccept =
+                  r.status === 'PENDING' &&
+                  (user?.role === 'MOL' || user?.role === 'SUPER_ADMIN' || user?.id === r.receiverId);
 
-                  return (
-                    <TableActions rightPadding={24} gap={8}>
-                      {canAccept && (
-                        <Button
-                          size="small"
-                          type="primary"
-                          status="success"
-                          icon={<IconCheckCircle />}
-                          onClick={(e) => handleAcceptTransfer(r, e)}
-                          style={{ borderRadius: 0, fontWeight: 600 }}
-                        >
-                          Qabul Qilish
-                        </Button>
-                      )}
-                      {canAccept && (
-                        <Button
-                          size="small"
-                          type="secondary"
-                          status="danger"
-                          icon={<IconClose />}
-                          onClick={(e) => handleRejectTransfer(r, e)}
-                          style={{ borderRadius: 0 }}
-                        >
-                          Rad etish
-                        </Button>
-                      )}
-                      {r.status === 'ACCEPTED' && (
-                        <Button
-                          size="small"
-                          type="outline"
-                          icon={<IconPrinter />}
-                          onClick={(e) => handleOpenTransferDoc(r, e)}
-                          style={{ borderRadius: 0 }}
-                        >
-                          Rasmiy Akt (OS-1)
-                        </Button>
-                      )}
-                      {r.status === 'REJECTED' && (
-                        <span style={{ color: 'var(--color-text-3)', fontSize: 12 }}>—</span>
-                      )}
-                    </TableActions>
-                  );
-                },
+                return (
+                  <TableActions rightPadding={24} gap={8}>
+                    {canAccept && (
+                      <Button
+                        size="small"
+                        type="primary"
+                        status="success"
+                        icon={<IconCheckCircle />}
+                        onClick={(e) => handleAcceptTransfer(r, e)}
+                        style={{ borderRadius: 0, fontWeight: 600 }}
+                      >
+                        Qabul Qilish
+                      </Button>
+                    )}
+                    {canAccept && (
+                      <Button
+                        size="small"
+                        type="secondary"
+                        status="danger"
+                        icon={<IconClose />}
+                        onClick={(e) => handleRejectTransfer(r, e)}
+                        style={{ borderRadius: 0 }}
+                      >
+                        Rad etish
+                      </Button>
+                    )}
+                    {r.status === 'ACCEPTED' && (
+                      <Button
+                        size="small"
+                        type="outline"
+                        icon={<IconPrinter />}
+                        onClick={(e) => handleOpenTransferDoc(r, e)}
+                        style={{ borderRadius: 0 }}
+                      >
+                        Rasmiy Akt (OS-1)
+                      </Button>
+                    )}
+                    {r.status === 'REJECTED' && (
+                      <span style={{ color: 'var(--color-text-3)', fontSize: 12 }}>—</span>
+                    )}
+                  </TableActions>
+                );
               },
-            ]}
-          />
-        </Card>
+            },
+          ]}
+        />
       )}
 
       {/* ASSETS TAB CONTENT */}
@@ -487,10 +544,20 @@ export const AssetsPage: React.FC = () => {
           <Card className="uwms-card" bodyStyle={{ padding: '16px 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
               <Space size="medium" wrap>
+                <Radio.Group
+                  type="button"
+                  value={showMyAssetsOnly ? 'MINE' : 'ALL'}
+                  onChange={(val) => setShowMyAssetsOnly(val === 'MINE')}
+                >
+                  <Radio value="MINE">
+                    <IconUser style={{ marginRight: 4 }} /> Mening aktivlarim
+                  </Radio>
+                  <Radio value="ALL">Barchasi</Radio>
+                </Radio.Group>
                 <Input
                   prefix={<IconSearch />}
                   placeholder="Inventar №, Nomi, Seriya № yoki Xona..."
-                  style={{ width: 280 }}
+                  style={{ width: 260 }}
                   value={searchText}
                   onChange={setSearchText}
                   allowClear
@@ -500,7 +567,7 @@ export const AssetsPage: React.FC = () => {
                   value={quickCategory}
                   onChange={setQuickCategory}
                 >
-                  <Radio value="ALL">Barchasi</Radio>
+                  <Radio value="ALL">Barcha turlar</Radio>
                   <Radio value="IT">
                     <IconDesktop style={{ marginRight: 4 }} /> IT & Kompyuter
                   </Radio>
@@ -508,13 +575,13 @@ export const AssetsPage: React.FC = () => {
                     <IconStorage style={{ marginRight: 4 }} /> Mebel
                   </Radio>
                   <Radio value="NEW">
-                    <IconCheckCircle style={{ marginRight: 4 }} /> Zaxirada (Yangi)
+                    <IconCheckCircle style={{ marginRight: 4 }} /> Zaxirada
                   </Radio>
                 </Radio.Group>
                 <Select
                   value={statusFilter}
                   onChange={setStatusFilter}
-                  style={{ width: 170 }}
+                  style={{ width: 160 }}
                 >
                   <Select.Option value="ALL">Barcha holatlar</Select.Option>
                   <Select.Option value="IN_USE">Foydalanishda</Select.Option>
@@ -522,36 +589,69 @@ export const AssetsPage: React.FC = () => {
                   <Select.Option value="IN_REPAIR">Ta’mirda</Select.Option>
                   <Select.Option value="WRITTEN_OFF">Hisobdan chiqarilgan</Select.Option>
                 </Select>
+                <Select
+                  value={fundingSourceFilter}
+                  onChange={setFundingSourceFilter}
+                  style={{ width: 170 }}
+                >
+                  <Select.Option value="ALL">Barcha manbalar</Select.Option>
+                  <Select.Option value="BYUDJET">Byudjet mablag‘i</Select.Option>
+                  <Select.Option value="KONTRAKT_RIVOJLANTIRISH">Kontrakt / Fond</Select.Option>
+                  <Select.Option value="GRANT">Grant mablag‘i</Select.Option>
+                </Select>
               </Space>
 
               <Space size="small" wrap>
-                <Button
-                  type="outline"
-                  icon={<IconUndo />}
-                  onClick={() => {
-                    setActionAsset(null);
-                    setIsReturnModalVisible(true);
-                  }}
-                  style={{ borderRadius: 0, color: '#165DFF', borderColor: '#165DFF' }}
-                >
-                  Omborga Qaytarish
-                </Button>
-                <Button
-                  type="outline"
-                  icon={<IconUserGroup />}
-                  onClick={() => setIsMassMolModalVisible(true)}
-                  style={{ borderRadius: 0, color: '#00B42A', borderColor: '#00B42A' }}
-                >
-                  MOL Yalpi Almashinuvi
-                </Button>
-                <Button
-                  type="outline"
-                  icon={<IconUpload />}
-                  onClick={() => setIsExcelImportModalVisible(true)}
-                  style={{ borderRadius: 0 }}
-                >
-                  Excel Import
-                </Button>
+                {canManageAssets && (
+                  <>
+                    <Button
+                      type="primary"
+                      status="success"
+                      icon={<IconSwap />}
+                      onClick={() => {
+                        if (selectedRowKeys.length === 0) {
+                          const myAssets = assets.filter(
+                            (a) => a.responsibleUserId === user?.id && a.status !== 'WRITTEN_OFF'
+                          );
+                          if (myAssets.length > 0) {
+                            setSelectedRowKeys(myAssets.map((a) => a.id));
+                          }
+                        }
+                        setIsAssetHandoverWizardVisible(true);
+                      }}
+                      style={{ borderRadius: 0 }}
+                    >
+                      Aktivlarni Topshirish {selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : ''}
+                    </Button>
+                    <Button
+                      type="outline"
+                      icon={<IconUndo />}
+                      onClick={() => {
+                        setActionAsset(null);
+                        setIsReturnModalVisible(true);
+                      }}
+                      style={{ borderRadius: 0, color: '#165DFF', borderColor: '#165DFF' }}
+                    >
+                      Omborga Qaytarish
+                    </Button>
+                    <Button
+                      type="outline"
+                      icon={<IconUserGroup />}
+                      onClick={() => setIsMassMolModalVisible(true)}
+                      style={{ borderRadius: 0, color: '#00B42A', borderColor: '#00B42A' }}
+                    >
+                      MOL Yalpi Almashinuvi
+                    </Button>
+                    <Button
+                      type="outline"
+                      icon={<IconUpload />}
+                      onClick={() => setIsExcelImportModalVisible(true)}
+                      style={{ borderRadius: 0 }}
+                    >
+                      Excel Import
+                    </Button>
+                  </>
+                )}
                 <Button
                   type="outline"
                   icon={<IconDownload />}
@@ -560,19 +660,19 @@ export const AssetsPage: React.FC = () => {
                 >
                   Eksport
                 </Button>
-                <Button
-                  type="primary"
-                  icon={<IconPlus />}
-                  onClick={() => {
-                    addForm.setFieldsValue({
-                      categoryName: 'Kompyuter va IT uskunalari',
-                    });
-                    setIsAddModalVisible(true);
-                  }}
-                  style={{ borderRadius: 0 }}
-                >
-                  Yangi Vosita
-                </Button>
+                {canManageAssets && (
+                  <Button
+                    type="primary"
+                    icon={<IconPlus />}
+                    onClick={() => {
+                      addForm.resetFields();
+                      setIsAddModalVisible(true);
+                    }}
+                    style={{ borderRadius: 0 }}
+                  >
+                    Yangi Vosita
+                  </Button>
+                )}
               </Space>
             </div>
           </Card>
@@ -595,6 +695,14 @@ export const AssetsPage: React.FC = () => {
                   <b style={{ color: '#165DFF' }}>ta uskuna belgilandi</b>
                 </Space>
                 <Space size="small">
+                  <Button
+                    type="primary"
+                    status="success"
+                    icon={<IconSwap />}
+                    onClick={() => setIsAssetHandoverWizardVisible(true)}
+                  >
+                    Aktivlarni Topshirish ({selectedRowKeys.length})
+                  </Button>
                   <Button
                     type="primary"
                     icon={<IconSwap />}
@@ -632,205 +740,204 @@ export const AssetsPage: React.FC = () => {
           )}
 
           {/* Main Assets Table with row selection & clickable rows */}
-          <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: 0 }}>
-            <Table
-              rowKey="id"
-              loading={isLoading}
-              data={filteredAssets}
-              scroll={{ x: 1310 }}
-              rowSelection={{
-                type: 'checkbox',
-                selectedRowKeys,
-                onChange: (keys) => setSelectedRowKeys(keys),
-              }}
-              pagination={{
-                pageSize: 10,
-                sizeCanChange: true,
-                sizeOptions: [10, 20, 50, 100],
-                showTotal: (total, range) => {
-                  if (!total || total === 0) return '0/0';
-                  const to = range ? Math.min(range[1], total) : total;
-                  return `${to}/${total}`;
-                },
-              }}
-              onRow={(record) => ({
-                onClick: () => handleOpenDetail(record),
-                style: { cursor: 'pointer' },
-              })}
-              columns={[
-                {
-                  title: 'Inventar №',
-                  dataIndex: 'inventoryNumber',
-                  width: 120,
-                  render: (inv: string) => (
-                    <b style={{ color: '#165DFF', whiteSpace: 'nowrap' }}>{inv}</b>
-                  ),
-                },
-                {
-                  title: 'Jihoz Nomi va Modeli',
-                  dataIndex: 'itemName',
-                  minWidth: 200,
-                  render: (name: string, record: ItemInstance) => (
-                    <div>
-                      <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>{name}</div>
-                      {record.categoryName && (
-                        <Tag size="small" style={{ marginTop: 4, borderRadius: 0 }}>{record.categoryName}</Tag>
-                      )}
+          <StandardTable
+            rowKey="id"
+            loading={isLoading}
+            data={filteredAssets}
+            scrollX={1360}
+            emptyText="Qidiruv bo‘yicha asosiy vosita topilmadi"
+            rowSelection={{
+              type: 'checkbox',
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys(keys),
+            }}
+            onRowClick={(record) => handleOpenDetail(record)}
+            columns={[
+              {
+                title: 'Inventar №',
+                dataIndex: 'inventoryNumber',
+                width: 120,
+                render: (inv: string) => (
+                  <b style={{ color: '#165DFF', whiteSpace: 'nowrap' }}>{inv}</b>
+                ),
+              },
+              {
+                title: 'Jihoz Nomi va Modeli',
+                dataIndex: 'itemName',
+                minWidth: 200,
+                render: (name: string, record: ItemInstance) => (
+                  <div>
+                    <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>{name}</div>
+                    {record.categoryName && (
+                      <Tag size="small" style={{ marginTop: 4, borderRadius: 0 }}>{record.categoryName}</Tag>
+                    )}
+                  </div>
+                ),
+              },
+              {
+                title: 'Joylashuvi & Javobgar Shaxs',
+                dataIndex: 'roomName',
+                width: 220,
+                render: (room: string, record: ItemInstance) => (
+                  <div>
+                    <div style={{ fontWeight: 500, lineHeight: 1.35 }}>{room || 'Markaziy ombor'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 2 }}>
+                      Mas’ul: <b>{record.responsibleUserName || 'Belgilanmagan'}</b>
                     </div>
-                  ),
-                },
-                {
-                  title: 'Joylashuvi & Javobgar Shaxs',
-                  dataIndex: 'roomName',
-                  width: 220,
-                  render: (room: string, record: ItemInstance) => (
-                    <div>
-                      <div style={{ fontWeight: 500, lineHeight: 1.35 }}>{room || 'Markaziy ombor'}</div>
-                      <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 2 }}>
-                        Mas’ul: <b>{record.responsibleUserName || 'Belgilanmagan'}</b>
+                  </div>
+                ),
+              },
+              {
+                title: 'Balans & Qoldiq Qiymat',
+                width: 160,
+                sorter: (a: ItemInstance, b: ItemInstance) => (a.purchasePrice || 0) - (b.purchasePrice || 0),
+                render: (_, record: ItemInstance) => {
+                  const bookVal = record.currentBookValue !== undefined ? record.currentBookValue : record.purchasePrice || 0;
+                  return (
+                    <div style={{ lineHeight: 1.35 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
+                        {record.purchasePrice ? record.purchasePrice.toLocaleString('uz-UZ') + ' so‘m' : '—'}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#00B42A', fontWeight: 600, whiteSpace: 'nowrap', marginTop: 2 }}>
+                        Qoldiq: {Number(bookVal).toLocaleString('uz-UZ')} so‘m
                       </div>
                     </div>
-                  ),
+                  );
                 },
-                {
-                  title: 'Balans & Qoldiq Qiymat',
-                  width: 155,
-                  sorter: (a: ItemInstance, b: ItemInstance) => (a.purchasePrice || 0) - (b.purchasePrice || 0),
-                  render: (_, record: ItemInstance) => {
-                    const bookVal = record.currentBookValue !== undefined ? record.currentBookValue : record.purchasePrice || 0;
-                    return (
-                      <div style={{ lineHeight: 1.35 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
-                          {record.purchasePrice ? record.purchasePrice.toLocaleString('uz-UZ') + ' so‘m' : '—'}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#00B42A', fontWeight: 600, whiteSpace: 'nowrap', marginTop: 2 }}>
-                          Qoldiq: {Number(bookVal).toLocaleString('uz-UZ')} so‘m
-                        </div>
-                      </div>
-                    );
-                  },
+              },
+              {
+                title: 'Moliyalashtirish',
+                dataIndex: 'fundingSource',
+                width: 125,
+                render: (funding: string) => {
+                  let color = 'arcoblue';
+                  let label = 'Byudjet';
+                  if (funding === 'KONTRAKT_RIVOJLANTIRISH') {
+                    color = 'green';
+                    label = 'Kontrakt';
+                  } else if (funding === 'GRANT') {
+                    color = 'orange';
+                    label = 'Grant';
+                  }
+                  return (
+                    <Tag color={color} size="small" style={{ borderRadius: 0, whiteSpace: 'nowrap' }}>
+                      {label}
+                    </Tag>
+                  );
                 },
-                {
-                  title: 'Moliyalashtirish',
-                  dataIndex: 'fundingSource',
-                  width: 115,
-                  render: (funding: string) => {
-                    let color = 'cyan';
-                    let label = 'Byudjet';
-                    if (funding === 'KONTRAKT_RIVOJLANTIRISH') {
-                      color = 'purple';
-                      label = 'Kontrakt';
-                    } else if (funding === 'GRANT') {
-                      color = 'green';
-                      label = 'Grant';
+              },
+              {
+                title: 'Holati',
+                dataIndex: 'status',
+                width: 130,
+                render: (status: AssetStatus) => (
+                  <div style={{ whiteSpace: 'nowrap' }}>
+                    {status === 'IN_USE' && <Badge status="success" text="Foydalanishda" />}
+                    {status === 'NEW' && <Badge status="processing" text="Yangi (Omborda)" />}
+                    {status === 'IN_REPAIR' && <Badge status="warning" text="Ta’mirda" />}
+                    {status === 'WRITTEN_OFF' && <Badge status="error" text="Spisanie" />}
+                    {!['IN_USE', 'NEW', 'IN_REPAIR', 'WRITTEN_OFF'].includes(status) && <Tag>{status}</Tag>}
+                  </div>
+                ),
+              },
+              {
+                title: 'Amallar',
+                width: 340,
+                fixed: 'right' as const,
+                render: (_, record: ItemInstance) => (
+                  <TableActions
+                    onDelete={
+                      canManageAssets && record.status !== 'WRITTEN_OFF'
+                        ? () => {
+                            setActionAsset(record);
+                            setIsWriteOffModalVisible(true);
+                          }
+                        : undefined
                     }
-                    return (
-                      <Tag color={color} size="small" style={{ borderRadius: 0, whiteSpace: 'nowrap' }}>
-                        {label}
-                      </Tag>
-                    );
-                  },
-                },
-                {
-                  title: 'Holati',
-                  dataIndex: 'status',
-                  width: 125,
-                  render: (status: AssetStatus) => (
-                    <div style={{ whiteSpace: 'nowrap' }}>
-                      {status === 'IN_USE' && <Badge status="success" text="Foydalanishda" />}
-                      {status === 'NEW' && <Badge status="processing" text="Yangi (Omborda)" />}
-                      {status === 'IN_REPAIR' && <Badge status="warning" text="Ta’mirda" />}
-                      {status === 'WRITTEN_OFF' && <Badge status="error" text="Spisanie" />}
-                      {!['IN_USE', 'NEW', 'IN_REPAIR', 'WRITTEN_OFF'].includes(status) && <Tag>{status}</Tag>}
-                    </div>
-                  ),
-                },
-                {
-                  title: 'Amallar',
-                  width: 340,
-                  fixed: 'right' as const,
-                  render: (_, record: ItemInstance) => (
-                    <TableActions
-                      onDelete={
-                        record.status !== 'WRITTEN_OFF'
-                          ? () => {
-                              setActionAsset(record);
-                              setIsWriteOffModalVisible(true);
-                            }
-                          : undefined
-                      }
-                      deleteTooltip="Hisobdan chiqarish (OS-4)"
-                      deleteConfirmTitle="Ushbu vositani hisobdan chiqarish (OS-4) komissiyasiga yuborilsinmi?"
-                      deleteOkText="Ha, yuborilsin"
-                      rightPadding={16}
-                      gap={6}
+                    deleteTooltip="Hisobdan chiqarish (OS-4)"
+                    deleteConfirmTitle="Ushbu vositani hisobdan chiqarish (OS-4) komissiyasiga yuborilsinmi?"
+                    deleteOkText="Ha, yuborilsin"
+                    rightPadding={16}
+                    gap={6}
+                  >
+                    <Button
+                      size="small"
+                      type="outline"
+                      icon={<IconEye />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenDetail(record);
+                      }}
+                      style={{ borderRadius: 0 }}
                     >
-                      <Button
-                        size="small"
-                        type="outline"
-                        icon={<IconEye />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenDetail(record);
-                        }}
-                        style={{ borderRadius: 0 }}
-                      >
-                        Pasport
-                      </Button>
-                      <Button
-                        size="small"
-                        type="outline"
-                        icon={<IconQrcode />}
-                        onClick={(e) => handleOpenQr(record, e)}
-                        style={{ borderRadius: 0 }}
-                      >
-                        QR
-                      </Button>
-                      {record.status !== 'WRITTEN_OFF' && (
-                        <>
-                          <Tooltip content="Xonaga ko‘chirish">
-                            <Button
-                              size="small"
-                              type="secondary"
-                              icon={<IconSwap />}
-                              onClick={(e) => handleOpenTransfer(record, e)}
-                              style={{ borderRadius: 0 }}
-                            />
-                          </Tooltip>
-                          <Tooltip content="Omborga qaytarish">
-                            <Button
-                              size="small"
-                              type="secondary"
-                              icon={<IconUndo />}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActionAsset(record);
-                                setIsReturnModalVisible(true);
-                              }}
-                              style={{ borderRadius: 0 }}
-                            />
-                          </Tooltip>
-                          <Tooltip content="Ta’mirga yuborish">
-                            <Button
-                              size="small"
-                              type="secondary"
-                              icon={<IconTool />}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActionAsset(record);
-                                setIsRepairModalVisible(true);
-                              }}
-                              style={{ borderRadius: 0 }}
-                            />
-                          </Tooltip>
-                        </>
-                      )}
-                    </TableActions>
-                  ),
-                },
-              ]}
-            />
-          </Card>
+                      Pasport
+                    </Button>
+                    <Button
+                      size="small"
+                      type="outline"
+                      icon={<IconQrcode />}
+                      onClick={(e) => handleOpenQr(record, e)}
+                      style={{ borderRadius: 0 }}
+                    >
+                      QR
+                    </Button>
+                    {canManageAssets && record.status !== 'WRITTEN_OFF' && (
+                      <>
+                        <Tooltip content="Javobgarlikni topshirish (OS-1)">
+                          <Button
+                            size="small"
+                            type="secondary"
+                            icon={<IconSwap style={{ color: '#00B42A' }} />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedRowKeys([record.id]);
+                              setIsAssetHandoverWizardVisible(true);
+                            }}
+                            style={{ borderRadius: 0 }}
+                          />
+                        </Tooltip>
+                        <Tooltip content="Xonaga ko‘chirish">
+                          <Button
+                            size="small"
+                            type="secondary"
+                            icon={<IconSwap />}
+                            onClick={(e) => handleOpenTransfer(record, e)}
+                            style={{ borderRadius: 0 }}
+                          />
+                        </Tooltip>
+                        <Tooltip content="Omborga qaytarish">
+                          <Button
+                            size="small"
+                            type="secondary"
+                            icon={<IconUndo />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActionAsset(record);
+                              setIsReturnModalVisible(true);
+                            }}
+                            style={{ borderRadius: 0 }}
+                          />
+                        </Tooltip>
+                        <Tooltip content="Ta’mirga yuborish">
+                          <Button
+                            size="small"
+                            type="secondary"
+                            icon={<IconTool />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActionAsset(record);
+                              setIsRepairModalVisible(true);
+                            }}
+                            style={{ borderRadius: 0 }}
+                          />
+                        </Tooltip>
+                      </>
+                    )}
+                  </TableActions>
+                ),
+              },
+            ]}
+          />
         </>
       )}
 
@@ -1279,11 +1386,33 @@ export const AssetsPage: React.FC = () => {
           <FormItem label="Model / Tavsif" field="model">
             <Input placeholder="Masalan: HP ProBook 450 G9 (16GB, 512GB)" />
           </FormItem>
-          <FormItem label="Kategoriya" field="categoryName">
-            <Select>
-              <Select.Option value="Kompyuter va IT uskunalari">Kompyuter va IT uskunalari</Select.Option>
-              <Select.Option value="Laboratoriya jihozlari">Laboratoriya jihozlari</Select.Option>
-              <Select.Option value="Mebel va ofis jihozlari">Mebel va ofis jihozlari</Select.Option>
+          <FormItem
+            label="Kategoriya"
+            field="categoryName"
+            rules={[{ required: true, message: 'Iltimos, kategoriyani tanlang yoki kiriting!' }]}
+          >
+            <Select
+              placeholder="Kategoriyani tanlang..."
+              loading={isCategoriesLoading}
+              allowCreate
+            >
+              {backendCategories.map((c) => (
+                <Select.Option key={c.id} value={c.name}>
+                  {c.name}
+                </Select.Option>
+              ))}
+            </Select>
+          </FormItem>
+          <FormItem
+            label="Moliyalashtirish Manbasi (Rule 5.1)"
+            field="fundingSource"
+            rules={[{ required: true, message: 'Iltimos, moliyalashtirish manbasini tanlang!' }]}
+            initialValue="BYUDJET"
+          >
+            <Select placeholder="Moliyalashtirish manbasini tanlang">
+              <Select.Option value="BYUDJET">Davlat Byudjeti mablag‘lari</Select.Option>
+              <Select.Option value="KONTRAKT_RIVOJLANTIRISH">To‘lov-kontrakt va Rivojlantirish jamg‘armasi</Select.Option>
+              <Select.Option value="GRANT">Xalqaro Grant va Ilmiy loyihalar</Select.Option>
             </Select>
           </FormItem>
           <FormItem label="Seriya Raqami (SN)" field="serialNumber">
@@ -1310,7 +1439,8 @@ export const AssetsPage: React.FC = () => {
           visible={isDocModalVisible}
           onClose={() => setIsDocModalVisible(false)}
           docType="KIRIM"
-          docNumber={`OS1-${selectedTransferDoc.id.substring(0, 8).toUpperCase()}`}
+          entityId={selectedTransferDoc.id}
+          docNumber={selectedTransferDoc.documentNumber || `OS1-${selectedTransferDoc.id.substring(0, 8).toUpperCase()}`}
           date={selectedTransferDoc.acceptedAt || selectedTransferDoc.createdAt}
           sourceLocation={selectedTransferDoc.fromRoomName}
           targetLocation={selectedTransferDoc.toRoomName}
@@ -1325,7 +1455,6 @@ export const AssetsPage: React.FC = () => {
               unit: 'DONA',
             },
           ]}
-
           reason={selectedTransferDoc.note || 'Kafedra moddiy javobgarligiga qabul qilish'}
         />
       )}
@@ -1351,7 +1480,38 @@ export const AssetsPage: React.FC = () => {
       <MassMolTransferModal
         visible={isMassMolModalVisible}
         onClose={() => setIsMassMolModalVisible(false)}
+        onSuccess={(result) => {
+          setMolTransferDoc(result);
+          setIsMolDocModalVisible(true);
+        }}
       />
+
+      {/* RASMIY AKT MOL-TRANSFER (WORM BIOMETRIC SIGNING) */}
+      {molTransferDoc && (
+        <OfficialDocModal
+          visible={isMolDocModalVisible}
+          onClose={() => {
+            setIsMolDocModalVisible(false);
+            setMolTransferDoc(null);
+          }}
+          docType="MOL_TRANSFER"
+          entityId={molTransferDoc.actNumber}
+          docNumber={molTransferDoc.actNumber}
+          date={new Date().toISOString().substring(0, 10)}
+          senderName={molTransferDoc.fromUser?.fullName}
+          receiverName={molTransferDoc.toUser?.fullName}
+          items={
+            molTransferDoc.assets?.map((a: any) => ({
+              inventoryNumber: a.inventoryNumber,
+              name: a.itemName || 'Asosiy vosita',
+              model: a.model,
+              quantity: 1,
+              unit: 'DONA',
+            })) || []
+          }
+          reason={molTransferDoc.note || 'Moddiy javobgar shaxslar o‘rtasida vositalarni yalpi topshirish-qabul qilish'}
+        />
+      )}
 
       {/* REPAIR REQUEST MODAL */}
       <CreateRepairModal
@@ -1371,6 +1531,17 @@ export const AssetsPage: React.FC = () => {
           setActionAsset(null);
         }}
         selectedAsset={actionAsset}
+      />
+
+      {/* ASSET HANDOVER WIZARD MODAL (MOL WORKSPACE) */}
+      <AssetHandoverWizardModal
+        visible={isAssetHandoverWizardVisible}
+        onClose={() => setIsAssetHandoverWizardVisible(false)}
+        selectedAssets={selectedAssetsList}
+        onSuccess={() => {
+          setSelectedRowKeys([]);
+          refetchAssets();
+        }}
       />
     </div>
   );

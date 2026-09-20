@@ -1,12 +1,14 @@
 import { IsNotEmpty, IsOptional, IsString, IsNumber, Min, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { FundingSource } from '@prisma/client';
 
 const TransferStatus = ['ACCEPTED', 'REJECTED'] as const;
 type TransferStatusType = typeof TransferStatus[number];
 
 
 export class CreateAssetDto {
+
   @ApiProperty({ example: 'Lenovo ThinkCentre M70q', description: 'Asosiy vosita nomi' })
   @IsString()
   @IsNotEmpty({ message: 'Aktiv nomi kiritilishi shart!' })
@@ -52,6 +54,11 @@ export class CreateAssetDto {
   @IsNumber()
   @IsOptional()
   warrantyMonths?: number;
+
+  @ApiPropertyOptional({ example: 'BYUDJET', enum: FundingSource, description: 'Moliyalashtirish manbasi' })
+  @IsEnum(FundingSource, { message: 'Moliyalashtirish manbasi faqat BYUDJET, KONTRAKT_RIVOJLANTIRISH yoki GRANT bo‘lishi mumkin!' })
+  @IsOptional()
+  fundingSource?: FundingSource;
 }
 
 export class TransferAssetDto {
@@ -142,6 +149,11 @@ export class ImportExcelAssetRowDto {
   @IsString()
   @IsOptional()
   roomNumber?: string;
+
+  @ApiPropertyOptional({ example: 'mol_user', description: 'Mas’ul xodim (MOL) logini yoki ID si' })
+  @IsString()
+  @IsOptional()
+  responsibleUsername?: string;
 
   @ApiPropertyOptional({ example: 24 })
   @IsNumber()

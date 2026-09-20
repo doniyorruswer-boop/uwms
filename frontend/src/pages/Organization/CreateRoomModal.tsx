@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   Form,
@@ -20,26 +20,46 @@ interface CreateRoomModalProps {
   visible: boolean;
   onClose: () => void;
   defaultDepartmentId?: string;
+  defaultBuildingId?: string;
 }
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
   visible,
   onClose,
   defaultDepartmentId,
+  defaultBuildingId,
 }) => {
   const [form] = Form.useForm();
   const createRoomMutation = useCreateRoomMutation();
-  const { allDepartments } = useOrganizationQuery();
+  const { allDepartments, buildings } = useOrganizationQuery();
   const { data: usersData } = useUsersQuery({ pageSize: 100, isActive: true });
+
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | undefined>(defaultBuildingId);
+  const selectedBuilding = buildings.find((b) => b.id === selectedBuildingId);
+  const maxFloor = selectedBuilding?.floorsCount || 20;
+
+  useEffect(() => {
+    if (visible) {
+      const initialBuildingId = defaultBuildingId || (buildings.length > 0 ? buildings[0].id : undefined);
+      setSelectedBuildingId(initialBuildingId);
+      form.setFieldsValue({
+        floor: 1,
+        buildingId: initialBuildingId,
+        departmentId: defaultDepartmentId,
+      });
+    }
+  }, [visible, defaultBuildingId, defaultDepartmentId, buildings, form]);
 
   const handleSubmit = async () => {
     try {
       const values = await form.validate();
+      const buildingObj = buildings.find((b) => b.id === values.buildingId);
       await createRoomMutation.mutateAsync({
-        number: values.number,
-        name: values.name,
+        number: values.number?.trim() || undefined,
+        name: values.name.trim(),
         floor: Number(values.floor) || 1,
-        building: values.building || 'Bosh bino',
+        buildingId: values.buildingId,
+        building: buildingObj?.name || 'Bosh bino',
         departmentId: values.departmentId || undefined,
         responsibleUserId: values.responsibleUserId || undefined,
       });
@@ -62,25 +82,59 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
       confirmLoading={createRoomMutation.isPending}
       okText="Saqlash"
       cancelText="Bekor qilish"
-      style={{ width: 600, borderRadius: 0 }}
+      style={{ width: 620, borderRadius: 0 }}
     >
       <Form
         form={form}
         layout="vertical"
-        initialValues={{
-          floor: 1,
-          building: 'Bosh bino',
-          departmentId: defaultDepartmentId,
-        }}
       >
         <Row gutter={16}>
+          <Col span={14}>
+            <FormItem
+              label="Bino / Korpus"
+              field="buildingId"
+              rules={[{ required: true, message: 'Binoni tanlash shart!' }]}
+            >
+              <Select
+                placeholder="Xona joylashgan binoni tanlang"
+                style={{ borderRadius: 0 }}
+                onChange={(val) => {
+                  setSelectedBuildingId(val);
+                  const b = buildings.find((x) => x.id === val);
+                  if (b && form.getFieldValue('floor') > b.floorsCount) {
+                    form.setFieldValue('floor', 1);
+                  }
+                }}
+              >
+                {buildings.map((b) => (
+                  <Select.Option key={b.id} value={b.id}>
+                    {b.name} {b.code ? `(${b.code})` : ''} — {b.floorsCount} qavatli
+                  </Select.Option>
+                ))}
+              </Select>
+            </FormItem>
+          </Col>
+
           <Col span={10}>
             <FormItem
-              label="Xona Raqami"
-              field="number"
-              rules={[{ required: true, message: 'Xona raqami kiritilishi shart!' }]}
+              label={`Qavat (1 dan ${maxFloor} gacha)`}
+              field="floor"
+              rules={[{ required: true, message: 'Qavat tanlanishi shart!' }]}
             >
-              <Input placeholder="Masalan: 304, 102-A" style={{ borderRadius: 0 }} />
+              <InputNumber
+                min={1}
+                max={maxFloor}
+                style={{ width: '100%', borderRadius: 0 }}
+              />
+            </FormItem>
+          </Col>
+
+          <Col span={10}>
+            <FormItem
+              label="Xona Raqami (Ixtiyoriy)"
+              field="number"
+            >
+              <Input placeholder="Masalan: 101, 204-A (raqamsiz bo‘lsa bo‘sh qoldiring)" style={{ borderRadius: 0 }} />
             </FormItem>
           </Col>
 
@@ -94,31 +148,6 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
                 placeholder="Masalan: Dasturlash Laboratoriyasi"
                 style={{ borderRadius: 0 }}
               />
-            </FormItem>
-          </Col>
-
-          <Col span={14}>
-            <FormItem
-              label="Bino / Korpus"
-              field="building"
-              rules={[{ required: true, message: 'Bino kiritilishi shart!' }]}
-            >
-              <Select placeholder="Binoni tanlang yoki yozing" allowCreate style={{ borderRadius: 0 }}>
-                <Select.Option value="Bosh bino">Bosh bino</Select.Option>
-                <Select.Option value="IT Korpus">IT Korpus</Select.Option>
-                <Select.Option value="Laboratoriya binosi">Laboratoriya binosi</Select.Option>
-                <Select.Option value="2-o‘quv binosi">2-o‘quv binosi</Select.Option>
-              </Select>
-            </FormItem>
-          </Col>
-
-          <Col span={10}>
-            <FormItem
-              label="Qavat"
-              field="floor"
-              rules={[{ required: true, message: 'Qavat tanlanishi shart!' }]}
-            >
-              <InputNumber min={1} max={20} style={{ width: '100%', borderRadius: 0 }} />
             </FormItem>
           </Col>
 
@@ -150,6 +179,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
               <Select
                 placeholder="Xonaga mas’ul shaxsni tanlang (MOL)"
                 allowClear
+                showSearch
                 style={{ borderRadius: 0 }}
               >
                 {usersData?.items.map((u) => (

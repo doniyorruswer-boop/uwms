@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Card,
-  Table,
   Button,
   Input,
   Space,
@@ -9,22 +8,22 @@ import {
   Tag,
   Typography,
   Popconfirm,
-  Empty,
   Alert,
   Tooltip,
 } from '@arco-design/web-react';
 import {
   IconPlus,
   IconSearch,
-  IconRefresh,
   IconDownload,
   IconEdit,
   IconDelete,
   IconEye,
-  IconSafe,
-  IconFile,
   IconUserGroup,
+  IconUndo,
+  IconStorage,
   IconCheckCircle,
+  IconFile,
+  IconLock,
 } from '@arco-design/web-react/icon';
 import { useSuppliersQuery, SupplierItem } from '../../hooks/useSuppliersQuery';
 import { useAuthStore } from '../../store/authStore';
@@ -32,18 +31,24 @@ import { exportToExcel } from '../../utils/exportExcel';
 import { SupplierModal } from './SupplierModal';
 import { SupplierDetailDrawer } from './SupplierDetailDrawer';
 import { CreateInvoiceModal } from './CreateInvoiceModal';
+import { StandardTable } from '../../components/Common/StandardTable';
+import { StatHeroCard } from '../../components/Common/StatHeroCard';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { TableActions } from '../../components/Common/TableActions';
+import { ForbiddenView } from '../../components/Common/ForbiddenView';
+import { formatMoney } from '../../utils/formatters';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { Row, Col } = Grid;
 
 export const SuppliersPage: React.FC = () => {
   const { user } = useAuthStore();
-  const isManager = user?.role === 'SUPER_ADMIN' || user?.role === 'HEAD_WAREHOUSE';
+  const canManage = user?.role === 'SUPER_ADMIN' || user?.role === 'HEAD_WAREHOUSE';
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const canView = canManage || user?.role === 'CHIEF_ACCOUNTANT' || user?.role === 'AUDITOR';
 
   const [search, setSearch] = useState('');
+  const [showDeleted, setShowDeleted] = useState(false);
   const {
     suppliers,
     isLoading,
@@ -58,9 +63,11 @@ export const SuppliersPage: React.FC = () => {
     updateSupplier,
     isUpdatingSupplier,
     deleteSupplier,
+    restoreSupplier,
+    isRestoringSupplier,
     createInvoice,
     isCreatingInvoice,
-  } = useSuppliersQuery(search);
+  } = useSuppliersQuery(search, showDeleted);
 
   const [filterTab, setFilterTab] = useState<'ALL' | 'CONTRACTED' | 'DELIVERIES'>('ALL');
   const [modalVisible, setModalVisible] = useState(false);
@@ -84,6 +91,17 @@ export const SuppliersPage: React.FC = () => {
 
   const [invoiceModalVisible, setInvoiceModalVisible] = useState(false);
   const [invoiceTargetSupplier, setInvoiceTargetSupplier] = useState<SupplierItem | null>(null);
+
+  // Permission Denied UX State (Rule 6.3 & Rule 3)
+  if (!user || !canView) {
+    return (
+      <ForbiddenView
+        title="403 — Kirish Cheklangan"
+        subTitle="Ta’minotchilar va shartnomalar reestrini ko‘rish uchun sizda yetarli ruxsat mavjud emas."
+        requiredRoles={['HEAD_WAREHOUSE', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'AUDITOR']}
+      />
+    );
+  }
 
   const handleOpenCreate = () => {
     setEditingSupplier(null);
@@ -137,14 +155,224 @@ export const SuppliersPage: React.FC = () => {
     exportToExcel(data, 'Taminotchilar_va_Shartnomalar_Reestri', 'Kontragentlar');
   };
 
-  const formatPrice = (val?: number | string | null) => {
-    if (!val) return '0 so‘m';
-    const num = typeof val === 'string' ? parseFloat(val) : val;
-    return `${num.toLocaleString('uz-UZ')} so‘m`;
-  };
+  const tableColumns = [
+    {
+      title: 'Korxona Nomi',
+      dataIndex: 'name',
+      minWidth: 260,
+      render: (name: string, record: SupplierItem) => (
+        <div style={{ paddingLeft: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <CategoryThumbnail
+            icon={<IconUserGroup />}
+            name={name}
+            tag={record.contractNumber ? `Shartnoma: № ${record.contractNumber}` : 'Shartnomasiz'}
+            color="#165DFF"
+            bg="#E8F3FF"
+          />
+          {record.deletedAt && (
+            <Tag color="red" size="small">O‘chirilgan</Tag>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: 'STIR (INN)',
+      dataIndex: 'inn',
+      width: 130,
+      render: (inn?: string) =>
+        inn ? (
+          <Tag color="arcoblue" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+            {inn}
+          </Tag>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+    {
+      title: 'Shartnoma № & Sana',
+      width: 170,
+      render: (_, record: SupplierItem) => (
+        <div>
+          <div style={{ fontWeight: 500, color: '#165DFF' }}>
+            {record.contractNumber || 'Shartnomasiz'}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
+            {record.contractDate ? record.contractDate.split('T')[0] : 'Sana yo‘q'}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Bog‘lanish',
+      width: 170,
+      render: (_, record: SupplierItem) => (
+        <div>
+          <div style={{ fontSize: 12 }}>{record.phone || '—'}</div>
+          {record.email && (
+            <div style={{ fontSize: 11, color: 'var(--color-text-3)' }}>{record.email}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: 'Kirimlar & Moliyalashtirish',
+      width: 230,
+      render: (_, record: SupplierItem) => {
+        const instances = record.itemInstances || [];
+        const byudjetCount = instances.filter((i) => i.fundingSource === 'BYUDJET' || !i.fundingSource).length;
+        const kontraktCount = instances.filter(
+          (i) => i.fundingSource === 'KONTRAKT_RIVOJLANTIRISH' || i.fundingSource === 'KONTRAKT',
+        ).length;
+        const grantCount = instances.filter((i) => i.fundingSource === 'GRANT').length;
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ fontSize: 12 }}>
+              Fakturalar: <b>{record._count?.invoices || 0} ta</b> • Ashyolar: <b>{record._count?.itemInstances || 0} ta</b>
+            </div>
+            {instances.length > 0 ? (
+              <Space size="mini" wrap>
+                {byudjetCount > 0 && <Tag size="small" color="blue">Byudjet: {byudjetCount}</Tag>}
+                {kontraktCount > 0 && <Tag size="small" color="green">Kontrakt: {kontraktCount}</Tag>}
+                {grantCount > 0 && <Tag size="small" color="purple">Grant: {grantCount}</Tag>}
+              </Space>
+            ) : (
+              <span style={{ fontSize: 11, color: 'var(--color-text-3)' }}>Manba ma’lumoti yo‘q</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      title: 'Amallar',
+      width: 200,
+      fixed: 'right' as const,
+      render: (_, record: SupplierItem) => {
+        if (record.deletedAt) {
+          return isSuperAdmin ? (
+            <Popconfirm
+              title="Ushbu ta’minotchini qayta tiklashni tasdiqlaysizmi?"
+              okText="Ha, tiklash"
+              cancelText="Bekor qilish"
+              onOk={(e) => {
+                e?.stopPropagation?.();
+                restoreSupplier(record.id);
+              }}
+            >
+              <Button
+                size="small"
+                type="primary"
+                status="success"
+                icon={<IconUndo />}
+                loading={isRestoringSupplier}
+                onClick={(e) => e.stopPropagation()}
+                style={{ borderRadius: 0 }}
+              >
+                Qayta tiklash
+              </Button>
+            </Popconfirm>
+          ) : (
+            <Tag color="red">O‘chirilgan</Tag>
+          );
+        }
+
+        return (
+          <TableActions
+            onDelete={isSuperAdmin ? (e) => handleDelete(record.id, e) : undefined}
+            deleteConfirmTitle="Ta’minotchini o‘chirishni tasdiqlaysizmi?"
+            deleteOkText="Ha, o‘chirish"
+            deleteCancelText="Bekor qilish"
+            deleteTooltip="O‘chirish"
+            rightPadding={16}
+          >
+            <Button
+              size="small"
+              type="outline"
+              icon={<IconEye />}
+              onClick={(e) => handleOpenDetail(record, e)}
+              style={{ borderRadius: 0 }}
+            >
+              Pasport
+            </Button>
+            {canManage ? (
+              <Tooltip content="Tahrirlash">
+                <Button
+                  size="small"
+                  type="outline"
+                  icon={<IconEdit />}
+                  onClick={(e) => handleOpenEdit(record, e)}
+                  style={{ borderRadius: 0 }}
+                />
+              </Tooltip>
+            ) : (
+              <Tooltip content="Tahrirlash faqat Bosh omborchi va Administratorga ruxsat etilgan">
+                <Button
+                  size="small"
+                  type="outline"
+                  disabled
+                  icon={<IconLock />}
+                  style={{ borderRadius: 0 }}
+                />
+              </Tooltip>
+            )}
+          </TableActions>
+        );
+      },
+    },
+  ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Read-only Alert for Non-Managers */}
+      {!canManage && (
+        <Alert
+          type="info"
+          title="Ko‘rish Rejimi (Read-only)"
+          content="Siz ta’minotchilar va shartnomalar reestrini ko‘rish huquqiga egasiz. Kontragent qo‘shish, tahrirlash va faktura biriktirish faqat Bosh omborchi va Tizim administratori uchun ruxsat etilgan."
+          style={{ borderRadius: 0 }}
+        />
+      )}
+
+      {/* Top KPI Stat Cards */}
+      <Row gutter={16}>
+        <Col span={6}>
+          <StatHeroCard
+            title="Jami Ta’minotchilar"
+            value={stats?.totalSuppliers ?? suppliers.length}
+            icon={<IconUserGroup />}
+            color="blue"
+            subtext="Reestrdagi kontragentlar soni"
+          />
+        </Col>
+        <Col span={6}>
+          <StatHeroCard
+            title="Faol Shartnomalar"
+            value={stats?.activeContractsCount ?? contractedCount}
+            icon={<IconCheckCircle />}
+            color="green"
+            subtext="Amaldagi qonuniy shartnomalar"
+          />
+        </Col>
+        <Col span={6}>
+          <StatHeroCard
+            title="Hisob-Fakturalar"
+            value={stats?.totalInvoices ?? 0}
+            icon={<IconFile />}
+            color="purple"
+            subtext="Keltirilgan partiya fakturalari"
+          />
+        </Col>
+        <Col span={6}>
+          <StatHeroCard
+            title="Yetkazib Berish Qiymati"
+            value={formatMoney(stats?.totalInvoiceAmount ?? 0)}
+            icon={<IconStorage />}
+            color="orange"
+            subtext="Jami fakturalar summasi"
+          />
+        </Col>
+      </Row>
+
       {/* Filter and Search Bar */}
       <Card className="uwms-card" bodyStyle={{ padding: '16px 20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
@@ -170,15 +398,26 @@ export const SuppliersPage: React.FC = () => {
                 style={{ borderRadius: 0 }}
                 onClick={() => setFilterTab('CONTRACTED')}
               >
-                Faol Shartnomali ({suppliers.filter((s) => s.contractNumber).length})
+                Faol Shartnomali ({contractedCount})
               </Button>
               <Button
                 type={filterTab === 'DELIVERIES' ? 'primary' : 'secondary'}
                 style={{ borderRadius: 0 }}
                 onClick={() => setFilterTab('DELIVERIES')}
               >
-                Hisob-fakturali
+                Hisob-fakturali ({deliveryCount})
               </Button>
+              {isSuperAdmin && (
+                <Button
+                  type={showDeleted ? 'primary' : 'outline'}
+                  status={showDeleted ? 'warning' : 'default'}
+                  icon={<IconDelete />}
+                  style={{ borderRadius: 0 }}
+                  onClick={() => setShowDeleted(!showDeleted)}
+                >
+                  {showDeleted ? 'Faol kontragentlar' : 'O‘chirilganlar'}
+                </Button>
+              )}
             </Space>
           </Space>
 
@@ -190,7 +429,7 @@ export const SuppliersPage: React.FC = () => {
             >
               Excelga Yuklash
             </Button>
-            {isManager && (
+            {canManage ? (
               <Button
                 type="primary"
                 icon={<IconPlus />}
@@ -199,6 +438,12 @@ export const SuppliersPage: React.FC = () => {
               >
                 Yangi Shartnoma / Kontragent
               </Button>
+            ) : (
+              <Tooltip content="Yangi ta’minotchi qo‘shish faqat Bosh omborchi va Administrator uchun ruxsat etilgan">
+                <Button disabled icon={<IconLock />} style={{ borderRadius: 0 }}>
+                  Yangi Shartnoma (Cheklangan)
+                </Button>
+              </Tooltip>
             )}
           </Space>
         </div>
@@ -215,144 +460,20 @@ export const SuppliersPage: React.FC = () => {
               Qayta yuklash
             </Button>
           }
+          style={{ borderRadius: 0 }}
         />
       )}
 
-      {/* Main Suppliers Table */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: 0 }}>
-        <Table
-          rowKey="id"
-          loading={isLoading || isFetching}
-          data={filteredSuppliers}
-          scroll={{ x: 1100 }}
-          pagination={{
-            pageSize: 10,
-            sizeCanChange: true,
-            sizeOptions: [10, 20, 50, 100],
-            showTotal: (total, range) => {
-              if (!total || total === 0) return '0/0';
-              const to = range ? Math.min(range[1], total) : total;
-              return `${to}/${total}`;
-            },
-          }}
-          onRow={(record) => ({
-            onClick: () => handleOpenDetail(record),
-            style: { cursor: 'pointer' },
-          })}
-          noDataElement={
-            <div style={{ padding: '40px 0', textAlign: 'center' }}>
-              <Empty description={search ? 'Qidiruv bo‘yicha ta’minotchi topilmadi' : 'Hali ta’minotchilar kiritilmagan'} />
-            </div>
-          }
-          columns={[
-            {
-              title: 'Korxona Nomi',
-              dataIndex: 'name',
-              minWidth: 260,
-              render: (name: string, record: SupplierItem) => (
-                <div style={{ paddingLeft: 6 }}>
-                  <CategoryThumbnail
-                    icon={<IconUserGroup />}
-                    name={name}
-                    tag={record.contractNumber ? `Shartnoma: № ${record.contractNumber}` : 'Shartnomasiz'}
-                    color="#165DFF"
-                    bg="#E8F3FF"
-                  />
-                </div>
-              ),
-            },
-            {
-              title: 'STIR (INN)',
-              dataIndex: 'inn',
-              width: 130,
-              render: (inn?: string) =>
-                inn ? (
-                  <Tag color="arcoblue" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                    {inn}
-                  </Tag>
-                ) : (
-                  <Text type="secondary">—</Text>
-                ),
-            },
-            {
-              title: 'Shartnoma № & Sana',
-              width: 170,
-              render: (_, record: SupplierItem) => (
-                <div>
-                  <div style={{ fontWeight: 500, color: '#165DFF' }}>
-                    {record.contractNumber || 'Shartnomasiz'}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
-                    {record.contractDate ? record.contractDate.split('T')[0] : 'Sana yo‘q'}
-                  </div>
-                </div>
-              ),
-            },
-            {
-              title: 'Bog‘lanish',
-              width: 170,
-              render: (_, record: SupplierItem) => (
-                <div>
-                  <div style={{ fontSize: 12 }}>{record.phone || '—'}</div>
-                  {record.email && (
-                    <div style={{ fontSize: 11, color: 'var(--color-text-3)' }}>{record.email}</div>
-                  )}
-                </div>
-              ),
-            },
-            {
-              title: 'Kirimlar',
-              width: 150,
-              render: (_, record: SupplierItem) => (
-                <div>
-                  <div style={{ fontSize: 12 }}>
-                    Fakturalar: <b>{record._count?.invoices || 0} ta</b>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
-                    Ashyolar: <b>{record._count?.itemInstances || 0} ta</b>
-                  </div>
-                </div>
-              ),
-            },
-            {
-              title: 'Amallar',
-              width: 200,
-              fixed: 'right' as const,
-              render: (_, record: SupplierItem) => (
-                <TableActions
-                  onDelete={isSuperAdmin ? (e) => handleDelete(record.id, e) : undefined}
-                  deleteConfirmTitle="Ta’minotchini o‘chirishni tasdiqlaysizmi?"
-                  deleteOkText="Ha, o‘chirish"
-                  deleteCancelText="Bekor qilish"
-                  deleteTooltip="O‘chirish"
-                  rightPadding={16}
-                >
-                  <Button
-                    size="small"
-                    type="outline"
-                    icon={<IconEye />}
-                    onClick={(e) => handleOpenDetail(record, e)}
-                    style={{ borderRadius: 0 }}
-                  >
-                    Pasport
-                  </Button>
-                  {isManager && (
-                    <Tooltip content="Tahrirlash">
-                      <Button
-                        size="small"
-                        type="outline"
-                        icon={<IconEdit />}
-                        onClick={(e) => handleOpenEdit(record, e)}
-                        style={{ borderRadius: 0 }}
-                      />
-                    </Tooltip>
-                  )}
-                </TableActions>
-              ),
-            },
-          ]}
-        />
-      </Card>
+      {/* Main Suppliers Table using StandardTable */}
+      <StandardTable<SupplierItem>
+        rowKey="id"
+        loading={isLoading || isFetching}
+        data={filteredSuppliers}
+        scrollX={1200}
+        emptyText={search ? 'Qidiruv bo‘yicha ta’minotchi topilmadi' : 'Hali ta’minotchilar kiritilmagan'}
+        onRowClick={(record) => handleOpenDetail(record)}
+        columns={tableColumns}
+      />
 
       {/* Add / Edit Supplier Modal */}
       <SupplierModal
@@ -391,3 +512,5 @@ export const SuppliersPage: React.FC = () => {
     </div>
   );
 };
+
+export default SuppliersPage;

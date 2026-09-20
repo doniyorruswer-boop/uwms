@@ -42,7 +42,7 @@ import { RolesGuard } from './guards/roles.guard';
 
         return {
           secret,
-          signOptions: { expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '7d' },
+          signOptions: { expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '15m' },
         };
       },
     }),

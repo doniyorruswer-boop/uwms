@@ -137,6 +137,18 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
                 <Select.Option value={RoleType.EMPLOYEE}>
                   Xodim (O‘qituvchi / Laborant)
                 </Select.Option>
+                <Select.Option value={RoleType.CHIEF_ACCOUNTANT}>
+                  Bosh Hisobchi
+                </Select.Option>
+                <Select.Option value={RoleType.COMMENDANT}>
+                  Bino Komendanti
+                </Select.Option>
+                <Select.Option value={RoleType.RECTOR}>
+                  Rektor
+                </Select.Option>
+                <Select.Option value={RoleType.VICE_RECTOR_FINANCE}>
+                  Moliya-iqtisodiyot ishlari bo‘yicha prorektor
+                </Select.Option>
               </Select>
             </FormItem>
           </Col>

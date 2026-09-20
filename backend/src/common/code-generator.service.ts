@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { CODE_GENERATOR_CONFIG } from './constants';
 
 /**
@@ -6,6 +7,13 @@ import { CODE_GENERATOR_CONFIG } from './constants';
  */
 @Injectable()
 export class CodeGeneratorService {
+  /**
+   * 8 xonali to'qnashuvsiz kriptografik unikal prefiks (masalan: 816F1B1B)
+   */
+  generateUniqueSuffix(): string {
+    return crypto.randomBytes(4).toString('hex').toUpperCase();
+  }
+
   /**
    * O‘zbekiston soliq to‘lovchilarining 9 xonali rasmiy STIR/INN raqamini tartibli generatsiya qilish
    * @param seq Ketma-ketlik raqami (masalan 1, 2, 3...)
@@ -17,64 +25,57 @@ export class CodeGeneratorService {
   }
 
   /**
-   * Rasmiy shartnoma raqami (SH-2026-0001)
+   * Rasmiy shartnoma raqami (SH-2026-816F1B1B)
    */
-  generateContractNumber(seq: number, year: number = new Date().getFullYear()): string {
-    const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.CONTRACT.DIGITS, '0');
-    return `${CODE_GENERATOR_CONFIG.CONTRACT.PREFIX}-${year}-${padded}`;
+  generateContractNumber(_seq?: number, year: number = new Date().getFullYear()): string {
+    return `${CODE_GENERATOR_CONFIG.CONTRACT.PREFIX}-${year}-${this.generateUniqueSuffix()}`;
   }
 
   /**
-   * Rasmiy hisob-faktura raqami (HF-2026-0001)
+   * Rasmiy hisob-faktura raqami (HF-2026-816F1B1B)
    */
-  generateInvoiceNumber(seq: number, year: number = new Date().getFullYear()): string {
-    const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.INVOICE.DIGITS, '0');
-    return `${CODE_GENERATOR_CONFIG.INVOICE.PREFIX}-${year}-${padded}`;
+  generateInvoiceNumber(_seq?: number, year: number = new Date().getFullYear()): string {
+    return `${CODE_GENERATOR_CONFIG.INVOICE.PREFIX}-${year}-${this.generateUniqueSuffix()}`;
   }
 
   /**
-   * Asosiy vosita inventar raqami (INV-2026-00001)
+   * Asosiy vosita inventar raqami (INV-2026-816F1B1B)
    */
-  generateInventoryNumber(seq: number, year: number = new Date().getFullYear()): string {
-    const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.INVENTORY.DIGITS, '0');
-    return `${CODE_GENERATOR_CONFIG.INVENTORY.PREFIX}-${year}-${padded}`;
+  generateInventoryNumber(_seq?: number, year: number = new Date().getFullYear()): string {
+    return `${CODE_GENERATOR_CONFIG.INVENTORY.PREFIX}-${year}-${this.generateUniqueSuffix()}`;
   }
 
   /**
-   * Ombor kirim/chiqim harakat raqami (MOV-2026-00001)
+   * Ombor kirim/chiqim harakat raqami (MOV-2026-816F1B1B)
    */
-  generateMovementNumber(seq: number, year: number = new Date().getFullYear()): string {
-    const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.MOVEMENT.DIGITS, '0');
-    return `${CODE_GENERATOR_CONFIG.MOVEMENT.PREFIX}-${year}-${padded}`;
+  generateMovementNumber(_seq?: number, year: number = new Date().getFullYear()): string {
+    return `${CODE_GENERATOR_CONFIG.MOVEMENT.PREFIX}-${year}-${this.generateUniqueSuffix()}`;
   }
 
   /**
-   * Rasmiy davlat dalolatnomasi raqami (OS1-2026-0001, OS2-2026-0001...)
+   * Rasmiy davlat dalolatnomasi raqami (OS1-2026-816F1B1B, OS2-2026-816F1B1B...)
    */
   generateDocNumber(
-    type: 'OS1' | 'OS2' | 'OS4' | 'INV19',
-    seq: number,
+    type: 'OS1' | 'OS2' | 'OS4' | 'INV19' | string,
+    _seq?: number,
     year: number = new Date().getFullYear(),
   ): string {
-    const prefix = CODE_GENERATOR_CONFIG.DOCUMENTS[type] || type;
-    const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.DOCUMENTS.DIGITS, '0');
-    return `${prefix}-${year}-${padded}`;
+    const prefix = (CODE_GENERATOR_CONFIG.DOCUMENTS as any)[type] || type;
+    return `${prefix}-${year}-${this.generateUniqueSuffix()}`;
   }
 
   /**
-   * Ta'mirlash talabnomasi raqami (REP-2026-0001)
+   * Ta'mirlash talabnomasi raqami (REP-2026-816F1B1B)
    */
-  generateRepairNumber(seq: number, year: number = new Date().getFullYear()): string {
-    const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.REPAIR.DIGITS, '0');
-    return `${CODE_GENERATOR_CONFIG.REPAIR.PREFIX}-${year}-${padded}`;
+  generateRepairNumber(_seq?: number, year: number = new Date().getFullYear()): string {
+    return `${CODE_GENERATOR_CONFIG.REPAIR.PREFIX}-${year}-${this.generateUniqueSuffix()}`;
   }
 
   /**
-   * Ko'chirish arizasi raqami (TRF-2026-0001)
+   * Ko'chirish arizasi raqami (TRF-2026-816F1B1B)
    */
-  generateTransferNumber(seq: number, year: number = new Date().getFullYear()): string {
-    const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.TRANSFER.DIGITS, '0');
-    return `${CODE_GENERATOR_CONFIG.TRANSFER.PREFIX}-${year}-${padded}`;
+  generateTransferNumber(_seq?: number, year: number = new Date().getFullYear()): string {
+    return `${CODE_GENERATOR_CONFIG.TRANSFER.PREFIX}-${year}-${this.generateUniqueSuffix()}`;
   }
 
   /**

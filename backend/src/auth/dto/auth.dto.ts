@@ -14,6 +14,13 @@ export class LoginDto {
   password: string;
 }
 
+export class RefreshTokenDto {
+  @ApiProperty({ description: 'Amaldagi Refresh Token', example: 'eyJhbGciOiJIUzI1Ni...' })
+  @IsString()
+  @IsNotEmpty({ message: 'Refresh token kiritilishi shart' })
+  refreshToken: string;
+}
+
 export class ChangePasswordDto {
   @ApiProperty({ description: 'Amaldagi eski parol' })
   @IsString()

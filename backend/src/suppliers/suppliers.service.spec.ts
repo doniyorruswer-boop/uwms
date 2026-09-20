@@ -28,6 +28,9 @@ describe('SuppliersService', () => {
         findUnique: jest.fn(),
         create: jest.fn(),
       },
+      itemInstance: {
+        groupBy: jest.fn().mockResolvedValue([]),
+      },
       $transaction: jest.fn((callback) => callback(prisma)),
     };
 
@@ -90,37 +93,47 @@ describe('SuppliersService', () => {
   });
 
   describe('deleteSupplier', () => {
-    it('should block deletion if supplier has linked items or invoices', async () => {
+    it('should throw if supplier is already deleted', async () => {
       prisma.supplier.findUnique.mockResolvedValue({
         id: 'supp-1',
         name: 'Texno MCHJ',
-        _count: {
-          itemInstances: 5,
-          movements: 2,
-          invoices: 1,
-        },
+        deletedAt: new Date(),
       });
 
       await expect(service.deleteSupplier('supp-1')).rejects.toThrow(BadRequestException);
     });
 
-    it('should allow deletion if supplier has zero linked relations', async () => {
+    it('should soft delete supplier successfully', async () => {
       prisma.supplier.findUnique.mockResolvedValue({
         id: 'supp-clean',
         name: 'Bo‘sh Ta’minotchi',
-        _count: {
-          itemInstances: 0,
-          movements: 0,
-          invoices: 0,
-        },
+        deletedAt: null,
       });
-      prisma.supplier.delete.mockResolvedValue({ id: 'supp-clean' });
+      prisma.supplier.update.mockResolvedValue({ id: 'supp-clean', deletedAt: new Date() });
 
       const res = await service.deleteSupplier('supp-clean', 'admin-id');
       expect(res.success).toBe(true);
       expect(audit.log).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: 'SUPPLIER_DELETED',
+          action: 'SOFT_DELETE',
+          entityId: 'supp-clean',
+        }),
+      );
+    });
+
+    it('should restore soft-deleted supplier successfully', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({
+        id: 'supp-clean',
+        name: 'Bo‘sh Ta’minotchi',
+        deletedAt: new Date(),
+      });
+      prisma.supplier.update.mockResolvedValue({ id: 'supp-clean', deletedAt: null });
+
+      const res = await service.restoreSupplier('supp-clean', 'admin-id');
+      expect(res).toBeDefined();
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'RESTORE',
           entityId: 'supp-clean',
         }),
       );

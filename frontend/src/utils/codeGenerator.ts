@@ -4,49 +4,51 @@ import { CODE_GENERATOR_CONFIG } from '../constants/generator.constants';
  * UWMS — Frontend Unikal Kodlar Generatsiya Yordamchisi
  */
 
+export function generateUniqueSuffix(): string {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+    const arr = new Uint8Array(4);
+    window.crypto.getRandomValues(arr);
+    return Array.from(arr).map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+  }
+  return Math.random().toString(16).slice(2, 10).padEnd(8, '0').toUpperCase();
+}
+
 export function generateINN(seq: number): string {
   const num = CODE_GENERATOR_CONFIG.INN.BASE_NUM + seq;
   return num.toString().padStart(CODE_GENERATOR_CONFIG.INN.LENGTH, '0');
 }
 
-export function generateContractNumber(seq: number, year: number = new Date().getFullYear()): string {
-  const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.CONTRACT.DIGITS, '0');
-  return `${CODE_GENERATOR_CONFIG.CONTRACT.PREFIX}-${year}-${padded}`;
+export function generateContractNumber(_seq?: number, year: number = new Date().getFullYear()): string {
+  return `${CODE_GENERATOR_CONFIG.CONTRACT.PREFIX}-${year}-${generateUniqueSuffix()}`;
 }
 
-export function generateInvoiceNumber(seq: number, year: number = new Date().getFullYear()): string {
-  const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.INVOICE.DIGITS, '0');
-  return `${CODE_GENERATOR_CONFIG.INVOICE.PREFIX}-${year}-${padded}`;
+export function generateInvoiceNumber(_seq?: number, year: number = new Date().getFullYear()): string {
+  return `${CODE_GENERATOR_CONFIG.INVOICE.PREFIX}-${year}-${generateUniqueSuffix()}`;
 }
 
-export function generateInventoryNumber(seq: number, year: number = new Date().getFullYear()): string {
-  const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.INVENTORY.DIGITS, '0');
-  return `${CODE_GENERATOR_CONFIG.INVENTORY.PREFIX}-${year}-${padded}`;
+export function generateInventoryNumber(_seq?: number, year: number = new Date().getFullYear()): string {
+  return `${CODE_GENERATOR_CONFIG.INVENTORY.PREFIX}-${year}-${generateUniqueSuffix()}`;
 }
 
-export function generateMovementNumber(seq: number, year: number = new Date().getFullYear()): string {
-  const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.MOVEMENT.DIGITS, '0');
-  return `${CODE_GENERATOR_CONFIG.MOVEMENT.PREFIX}-${year}-${padded}`;
+export function generateMovementNumber(_seq?: number, year: number = new Date().getFullYear()): string {
+  return `${CODE_GENERATOR_CONFIG.MOVEMENT.PREFIX}-${year}-${generateUniqueSuffix()}`;
 }
 
-export function generateRepairNumber(seq: number, year: number = new Date().getFullYear()): string {
-  const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.REPAIR.DIGITS, '0');
-  return `${CODE_GENERATOR_CONFIG.REPAIR.PREFIX}-${year}-${padded}`;
+export function generateRepairNumber(_seq?: number, year: number = new Date().getFullYear()): string {
+  return `${CODE_GENERATOR_CONFIG.REPAIR.PREFIX}-${year}-${generateUniqueSuffix()}`;
 }
 
-export function generateTransferNumber(seq: number, year: number = new Date().getFullYear()): string {
-  const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.TRANSFER.DIGITS, '0');
-  return `${CODE_GENERATOR_CONFIG.TRANSFER.PREFIX}-${year}-${padded}`;
+export function generateTransferNumber(_seq?: number, year: number = new Date().getFullYear()): string {
+  return `${CODE_GENERATOR_CONFIG.TRANSFER.PREFIX}-${year}-${generateUniqueSuffix()}`;
 }
 
 export function generateDocNumber(
-  type: 'OS1' | 'OS2' | 'OS4' | 'INV19',
-  seq: number,
+  type: 'OS1' | 'OS2' | 'OS4' | 'INV19' | string,
+  _seq?: number,
   year: number = new Date().getFullYear(),
 ): string {
-  const prefix = CODE_GENERATOR_CONFIG.DOCUMENTS[type] || type;
-  const padded = String(seq).padStart(CODE_GENERATOR_CONFIG.DOCUMENTS.DIGITS, '0');
-  return `${prefix}-${year}-${padded}`;
+  const prefix = (CODE_GENERATOR_CONFIG.DOCUMENTS as any)[type] || type;
+  return `${prefix}-${year}-${generateUniqueSuffix()}`;
 }
 
 export function generateQRCode(inventoryNumber: string): string {

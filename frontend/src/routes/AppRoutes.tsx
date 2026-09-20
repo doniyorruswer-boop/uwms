@@ -1,27 +1,51 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { LoginPage } from '../pages/Login/LoginPage';
-import { ProtectedRoute } from './ProtectedRoute';
+import { Spin } from '@arco-design/web-react';
+import { ProtectedRoute, RoleRoute } from './ProtectedRoute';
+export { RoleRoute };
 import { AppLayout } from '../components/Layout/AppLayout';
-import { DashboardPage } from '../pages/Dashboard/DashboardPage';
-import { AssetsPage } from '../pages/Assets/AssetsPage';
-import { WarehousePage } from '../pages/Warehouse/WarehousePage';
-import { MovementsPage } from '../pages/Movements/MovementsPage';
-import { RequestsPage } from '../pages/Requests/RequestsPage';
-import { OrganizationPage } from '../pages/Organization/OrganizationPage';
-import { AuditScannerPage } from '../pages/Audit/AuditScannerPage';
-import { RepairsPage } from '../pages/Repairs/RepairsPage';
-import { WriteOffPage } from '../pages/WriteOff/WriteOffPage';
-import { QuotasPage } from '../pages/Quotas/QuotasPage';
-import { SystemAuditPage } from '../pages/SystemAudit/SystemAuditPage';
-import { IntegrationsPage } from '../pages/Integrations/IntegrationsPage';
-import { PublicVerificationPage } from '../pages/PublicVerification/PublicVerificationPage';
-import { BackupsPage } from '../pages/Backups/BackupsPage';
-import { UsersPage } from '../pages/Users/UsersPage';
-import { SuppliersPage } from '../pages/Suppliers/SuppliersPage';
-import { DepreciationPage } from '../pages/Depreciation/DepreciationPage';
-
 import { NAVIGATION_ITEMS } from '../constants';
+
+const lazyLoad = <T extends Record<string, any>, K extends keyof T>(
+  loader: () => Promise<T>,
+  exportName: K,
+) =>
+  React.lazy(() =>
+    loader().then((mod) => ({ default: mod[exportName] as React.ComponentType<any> })),
+  );
+
+// Public Pages
+const LoginPage = lazyLoad(() => import('../pages/Login/LoginPage'), 'LoginPage');
+const PublicVerificationPage = lazyLoad(() => import('../pages/PublicVerification/PublicVerificationPage'), 'PublicVerificationPage');
+const MobileSigningPage = lazyLoad(() => import('../pages/MobileSigning/MobileSigningPage'), 'MobileSigningPage');
+
+// Protected Pages
+const DashboardPage = lazyLoad(() => import('../pages/Dashboard/DashboardPage'), 'DashboardPage');
+const InboxPage = lazyLoad(() => import('../pages/Inbox/InboxPage'), 'InboxPage');
+const UsersPage = lazyLoad(() => import('../pages/Users/UsersPage'), 'UsersPage');
+const AssetsPage = lazyLoad(() => import('../pages/Assets/AssetsPage'), 'AssetsPage');
+const WarehousePage = lazyLoad(() => import('../pages/Warehouse/WarehousePage'), 'WarehousePage');
+const SuppliersPage = lazyLoad(() => import('../pages/Suppliers/SuppliersPage'), 'SuppliersPage');
+const MovementsPage = lazyLoad(() => import('../pages/Movements/MovementsPage'), 'MovementsPage');
+const RequestsPage = lazyLoad(() => import('../pages/Requests/RequestsPage'), 'RequestsPage');
+const RepairsPage = lazyLoad(() => import('../pages/Repairs/RepairsPage'), 'RepairsPage');
+const WriteOffPage = lazyLoad(() => import('../pages/WriteOff/WriteOffPage'), 'WriteOffPage');
+const DepreciationPage = lazyLoad(() => import('../pages/Depreciation/DepreciationPage'), 'DepreciationPage');
+const ChiefAccountantLedgerPage = lazyLoad(() => import('../pages/Reports/ChiefAccountantLedgerPage'), 'ChiefAccountantLedgerPage');
+const FundingReportsPage = lazyLoad(() => import('../pages/Reports/FundingReportsPage'), 'FundingReportsPage');
+const QuotasPage = lazyLoad(() => import('../pages/Quotas/QuotasPage'), 'QuotasPage');
+const SystemAuditPage = lazyLoad(() => import('../pages/SystemAudit/SystemAuditPage'), 'SystemAuditPage');
+const IntegrationsPage = lazyLoad(() => import('../pages/Integrations/IntegrationsPage'), 'IntegrationsPage');
+const BackupsPage = lazyLoad(() => import('../pages/Backups/BackupsPage'), 'BackupsPage');
+const OrganizationPage = lazyLoad(() => import('../pages/Organization/OrganizationPage'), 'OrganizationPage');
+const AuditScannerPage = lazyLoad(() => import('../pages/Audit/AuditScannerPage'), 'AuditScannerPage');
+const AuditCampaignsPage = lazyLoad(() => import('../pages/Audit/AuditCampaignsPage'), 'AuditCampaignsPage');
+
+const PageLoadingFallback: React.FC = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+    <Spin size={32} tip="Sahifa yuklanmoqda..." />
+  </div>
+);
 
 const getRoles = (keyOrPath: string) => {
   return NAVIGATION_ITEMS.find((item) => item.key === keyOrPath || item.path === `/${keyOrPath}`)?.allowedRoles;
@@ -29,41 +53,50 @@ const getRoles = (keyOrPath: string) => {
 
 export const AppRoutes: React.FC = () => {
   return (
-    <Routes>
-      {/* Public routes (no authentication required) */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/verify-doc/:docNumber" element={<PublicVerificationPage />} />
+    <Suspense fallback={<PageLoadingFallback />}>
+      <Routes>
+        {/* Public routes (no authentication required) */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/verify-doc/:docNumber" element={<PublicVerificationPage />} />
+        <Route path="/mobile/sign/:token" element={<MobileSigningPage />} />
 
-      {/* Protected Routes inside AppLayout */}
-      <Route element={<ProtectedRoute />}>
-        <Route
-          path="/*"
-          element={
-            <AppLayout>
-              <Routes>
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<ProtectedRoute allowedRoles={getRoles('dashboard')}><DashboardPage /></ProtectedRoute>} />
-                <Route path="users" element={<ProtectedRoute allowedRoles={getRoles('users')}><UsersPage /></ProtectedRoute>} />
-                <Route path="assets" element={<ProtectedRoute allowedRoles={getRoles('assets')}><AssetsPage /></ProtectedRoute>} />
-                <Route path="warehouse" element={<ProtectedRoute allowedRoles={getRoles('warehouse')}><WarehousePage /></ProtectedRoute>} />
-                <Route path="suppliers" element={<ProtectedRoute allowedRoles={getRoles('suppliers')}><SuppliersPage /></ProtectedRoute>} />
-                <Route path="movements" element={<ProtectedRoute allowedRoles={getRoles('movements')}><MovementsPage /></ProtectedRoute>} />
-                <Route path="requests" element={<ProtectedRoute allowedRoles={getRoles('requests')}><RequestsPage /></ProtectedRoute>} />
-                <Route path="repairs" element={<ProtectedRoute allowedRoles={getRoles('repairs')}><RepairsPage /></ProtectedRoute>} />
-                <Route path="write-offs" element={<ProtectedRoute allowedRoles={getRoles('write-offs')}><WriteOffPage /></ProtectedRoute>} />
-                <Route path="depreciation" element={<ProtectedRoute allowedRoles={getRoles('depreciation')}><DepreciationPage /></ProtectedRoute>} />
-                <Route path="quotas" element={<ProtectedRoute allowedRoles={getRoles('quotas')}><QuotasPage /></ProtectedRoute>} />
-                <Route path="system-audit" element={<ProtectedRoute allowedRoles={getRoles('systemAudit')}><SystemAuditPage /></ProtectedRoute>} />
-                <Route path="integrations" element={<ProtectedRoute allowedRoles={getRoles('integrations')}><IntegrationsPage /></ProtectedRoute>} />
-                <Route path="backups" element={<ProtectedRoute allowedRoles={getRoles('backups')}><BackupsPage /></ProtectedRoute>} />
-                <Route path="organization" element={<ProtectedRoute allowedRoles={getRoles('organization')}><OrganizationPage /></ProtectedRoute>} />
-                <Route path="audit" element={<ProtectedRoute allowedRoles={getRoles('audit')}><AuditScannerPage /></ProtectedRoute>} />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Routes>
-            </AppLayout>
-          }
-        />
-      </Route>
-    </Routes>
+        {/* Protected Routes inside AppLayout */}
+        <Route element={<ProtectedRoute />}>
+          <Route
+            path="/*"
+            element={
+              <AppLayout>
+                <Suspense fallback={<PageLoadingFallback />}>
+                  <Routes>
+                    <Route index element={<Navigate to="/dashboard" replace />} />
+                    <Route path="dashboard" element={<ProtectedRoute allowedRoles={getRoles('dashboard')}><DashboardPage /></ProtectedRoute>} />
+                    <Route path="inbox" element={<ProtectedRoute allowedRoles={getRoles('inbox')}><InboxPage /></ProtectedRoute>} />
+                    <Route path="users" element={<ProtectedRoute allowedRoles={getRoles('users')}><UsersPage /></ProtectedRoute>} />
+                    <Route path="assets" element={<ProtectedRoute allowedRoles={getRoles('assets')}><AssetsPage /></ProtectedRoute>} />
+                    <Route path="warehouse" element={<ProtectedRoute allowedRoles={getRoles('warehouse')}><WarehousePage /></ProtectedRoute>} />
+                    <Route path="suppliers" element={<ProtectedRoute allowedRoles={getRoles('suppliers')}><SuppliersPage /></ProtectedRoute>} />
+                    <Route path="movements" element={<ProtectedRoute allowedRoles={getRoles('movements')}><MovementsPage /></ProtectedRoute>} />
+                    <Route path="requests" element={<ProtectedRoute allowedRoles={getRoles('requests')}><RequestsPage /></ProtectedRoute>} />
+                    <Route path="repairs" element={<ProtectedRoute allowedRoles={getRoles('repairs')}><RepairsPage /></ProtectedRoute>} />
+                    <Route path="write-offs" element={<ProtectedRoute allowedRoles={getRoles('write-offs')}><WriteOffPage /></ProtectedRoute>} />
+                    <Route path="depreciation" element={<ProtectedRoute allowedRoles={getRoles('depreciation')}><DepreciationPage /></ProtectedRoute>} />
+                    <Route path="reports/chief-accountant" element={<ProtectedRoute allowedRoles={getRoles('chiefAccountantLedger')}><ChiefAccountantLedgerPage /></ProtectedRoute>} />
+                    <Route path="reports/funding" element={<ProtectedRoute allowedRoles={getRoles('fundingReports')}><FundingReportsPage /></ProtectedRoute>} />
+                    <Route path="quotas" element={<ProtectedRoute allowedRoles={getRoles('quotas')}><QuotasPage /></ProtectedRoute>} />
+                    <Route path="system-audit" element={<ProtectedRoute allowedRoles={getRoles('systemAudit')}><SystemAuditPage /></ProtectedRoute>} />
+                    <Route path="integrations" element={<ProtectedRoute allowedRoles={getRoles('integrations')}><IntegrationsPage /></ProtectedRoute>} />
+                    <Route path="backups" element={<ProtectedRoute allowedRoles={getRoles('backups')}><BackupsPage /></ProtectedRoute>} />
+                    <Route path="organization" element={<ProtectedRoute allowedRoles={getRoles('organization')}><OrganizationPage /></ProtectedRoute>} />
+                    <Route path="audit" element={<ProtectedRoute allowedRoles={getRoles('audit')}><AuditScannerPage /></ProtectedRoute>} />
+                    <Route path="audit-campaigns" element={<ProtectedRoute allowedRoles={getRoles('auditCampaigns')}><AuditCampaignsPage /></ProtectedRoute>} />
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                  </Routes>
+                </Suspense>
+              </AppLayout>
+            }
+          />
+        </Route>
+      </Routes>
+    </Suspense>
   );
 };

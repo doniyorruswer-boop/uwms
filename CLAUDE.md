@@ -16,7 +16,7 @@ Barcha AI agentlar (Claude, Antigravity, ChatGPT, Cursor) uchun ushbu loyihada i
 
 ## 3. XAVFSIZLIK VA RBAC
 - Haqiqiy JWT token va `JwtAuthGuard` + `RolesGuard`. Demo role switcher productionda taqiqlanadi.
-- Rollar: `SUPER_ADMIN`, `PRORECTOR`, `WAREHOUSE_HEAD`, `ACCOUNTANT`, `DEPARTMENT_HEAD`, `MOL`, `AUDITOR`.
+- Rollar (Prisma `RoleType` enum): `SUPER_ADMIN`, `RECTOR`, `VICE_RECTOR_FINANCE`, `HEAD_WAREHOUSE`, `CHIEF_ACCOUNTANT`, `COMMENDANT`, `MOL`, `AUDITOR`, `EMPLOYEE`.
 
 ## 4. UNIVERSITET SPETSIFIKASI
 - Moliyalashtirish manbai: `BYUDJET`, `KONTRAKT_RIVOJLANTIRISH`, `GRANT`.

@@ -72,4 +72,34 @@ describe('BackupsService (Unit Tests)', () => {
       expect(stats.schedulerActive).toBe(true);
     });
   });
+
+  describe('restoreBackup', () => {
+    it('noto‘g‘ri tasdiq kodi kiritilganda RESTORE_REJECTED audit yozib BadRequestException tashlashi kerak', async () => {
+      await expect(
+        service.restoreBackup('backup-1', 'NOTO_G_RI', 'admin-user'),
+      ).rejects.toThrow('Tasdiqlash kodi noto‘g‘ri!');
+
+      expect((service as any).auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'RESTORE_REJECTED',
+          entity: 'BackupRecord',
+          entityId: 'backup-1',
+          details: expect.objectContaining({
+            reason: expect.stringContaining('noto‘g‘ri kiritildi'),
+            enteredCode: 'NOTO_G_RI',
+            expectedCode: 'TIKLASH',
+          }),
+          userId: 'admin-user',
+        }),
+      );
+    });
+
+    it('zaxira nusxasi bazadan topilmasa NotFoundException tashlashi kerak', async () => {
+      prisma.backupRecord.findUnique = jest.fn().mockResolvedValue(null);
+
+      await expect(
+        service.restoreBackup('non-existent', 'TIKLASH', 'admin-user'),
+      ).rejects.toThrow('Ko‘rsatilgan zaxira nusxasi topilmadi!');
+    });
+  });
 });

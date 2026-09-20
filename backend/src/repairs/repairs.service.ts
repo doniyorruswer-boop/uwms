@@ -111,10 +111,10 @@ export class RepairsService {
           assetId: dto.assetId,
           issueDescription: dto.issueDescription,
           status: RepairStatus.IN_REPAIR,
-          serviceProvider: dto.serviceProvider || 'Universitet ichki ustaxonasi',
+          serviceProvider: dto.serviceProvider?.trim() || null,
           cost: dto.cost !== undefined && dto.cost !== null ? dto.cost : null,
           startDate: new Date(),
-          notes: dto.notes,
+          notes: dto.notes?.trim() || null,
           requestedById: effectiveRequesterId,
         },
       });
@@ -129,7 +129,7 @@ export class RepairsService {
       const fromLoc = asset.room
         ? `${asset.room.number}-xona: ${asset.room.name}`
         : 'Omborxona';
-      const toLoc = dto.serviceProvider || 'Ta’mirlash ustaxonasi';
+      const toLoc = dto.serviceProvider?.trim() || 'Ta’mirlash ustaxonasi';
 
       await tx.assetHistory.create({
         data: {
@@ -167,15 +167,24 @@ export class RepairsService {
       const isCompleted = dto.status === RepairStatus.COMPLETED;
       const isUnrepairable = dto.status === RepairStatus.UNREPAIRABLE;
 
+      const actNumber = dto.actNumber?.trim()
+        ? dto.actNumber.trim()
+        : isCompleted
+        ? (repair.actNumber || `AKT-REP-${repair.repairNumber}`)
+        : repair.actNumber;
+
       const updated = await tx.repairRecord.update({
         where: { id },
         data: {
           status: dto.status,
-          serviceProvider: dto.serviceProvider !== undefined ? dto.serviceProvider : repair.serviceProvider,
+          serviceProvider:
+            dto.serviceProvider !== undefined
+              ? (dto.serviceProvider?.trim() || null)
+              : repair.serviceProvider,
           cost: dto.cost !== undefined && dto.cost !== null ? dto.cost : repair.cost,
-          actNumber: dto.actNumber !== undefined ? dto.actNumber : repair.actNumber,
-          notes: dto.notes !== undefined ? dto.notes : repair.notes,
-          completionDate: isCompleted ? new Date() : repair.completionDate,
+          actNumber,
+          notes: dto.notes !== undefined ? (dto.notes?.trim() || null) : repair.notes,
+          completionDate: isCompleted ? (repair.completionDate || new Date()) : repair.completionDate,
           approvedById: effectiveApproverId,
         },
       });

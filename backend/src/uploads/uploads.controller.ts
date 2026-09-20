@@ -44,7 +44,13 @@ export class UploadsController {
       required: ['file'],
     },
   })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 15 * 1024 * 1024, // 15MB limit before parsing into memory
+      },
+    }),
+  )
   async uploadFile(
     @UploadedFile() file: any,
     @Body('isPublic') isPublic?: string | boolean,
@@ -61,6 +67,7 @@ export class UploadsController {
   async getPublicFile(@Param('filename') filename: string, @Res() res: Response) {
     const { filePath, mimeType } = this.uploadsService.getFilePath(filename, true);
     res.setHeader('Content-Type', mimeType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     return res.sendFile(filePath);
   }
 
@@ -71,6 +78,7 @@ export class UploadsController {
   async getFile(@Param('filename') filename: string, @Res() res: Response) {
     const { filePath, mimeType } = this.uploadsService.getFilePath(filename, false);
     res.setHeader('Content-Type', mimeType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     return res.sendFile(filePath);
   }
 }

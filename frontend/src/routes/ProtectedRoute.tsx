@@ -1,23 +1,37 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { Message, Spin } from '@arco-design/web-react';
+import { Spin } from '@arco-design/web-react';
 import { useAuthStore } from '../store/authStore';
 import { NAVIGATION_ITEMS } from '../constants/navigation.constants';
+import { ForbiddenView } from '../components/Common/ForbiddenView';
 import type { RoleType } from '../types';
 
 export interface ProtectedRouteProps {
   allowedRoles?: RoleType[];
+  redirectTo?: string;
+  showForbiddenPage?: boolean;
   children?: React.ReactNode;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles, children }) => {
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  allowedRoles,
+  redirectTo,
+  showForbiddenPage = true,
+  children,
+}) => {
   const { isAuthenticated, token, user, isLoading } = useAuthStore();
   const location = useLocation();
-  const lastWarnedPath = useRef<string | null>(null);
 
-  if (isLoading && !user) {
+  if (isLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh',
+        }}
+      >
         <Spin dot size={32} tip="Yuklanmoqda..." />
       </div>
     );
@@ -44,13 +58,19 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles, ch
   if (roles && roles.length > 0) {
     const isAllowed = user?.role ? roles.includes(user.role) : false;
     if (!isAllowed) {
-      if (lastWarnedPath.current !== location.pathname) {
-        lastWarnedPath.current = location.pathname;
-        Message.warning('Ushbu sahifaga kirish uchun sizda yetarli ruxsat mavjud emas!');
+      if (redirectTo) {
+        return <Navigate to={redirectTo} replace />;
       }
+
+      if (showForbiddenPage) {
+        return <ForbiddenView requiredRoles={roles} />;
+      }
+
       return <Navigate to="/dashboard" replace />;
     }
   }
 
   return children ? <>{children}</> : <Outlet />;
 };
+
+export const RoleRoute = ProtectedRoute;

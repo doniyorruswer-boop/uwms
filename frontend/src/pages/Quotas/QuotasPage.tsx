@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   Button,
@@ -13,6 +13,7 @@ import {
   Message,
   Grid,
   Alert,
+  Tooltip,
 } from '@arco-design/web-react';
 import { StockLevelGauge } from '../../components/Common/StockLevelGauge';
 import {
@@ -27,6 +28,8 @@ import {
   IconStorage,
   IconCommon,
   IconFilter,
+  IconEye,
+  IconLock,
 } from '@arco-design/web-react/icon';
 import {
   useQuotasQuery,
@@ -36,10 +39,12 @@ import {
 import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
 import { useWarehouseQuery } from '../../hooks/useWarehouseQuery';
 import { DepartmentQuota } from '../../types';
+import { useAuthStore } from '../../store/authStore';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { TableActions } from '../../components/Common/TableActions';
 import { StandardTable } from '../../components/Common/StandardTable';
+import { ForbiddenView } from '../../components/Common/ForbiddenView';
 import { exportToExcel } from '../../utils/exportExcel';
 
 const { Title, Text } = Typography;
@@ -47,7 +52,22 @@ const { Row, Col } = Grid;
 const FormItem = Form.Item;
 
 export const QuotasPage: React.FC = () => {
-  const [selectedDept, setSelectedDept] = useState<string>('ALL');
+  const { user } = useAuthStore();
+
+  const canManageQuotas =
+    user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'VICE_RECTOR_FINANCE' ||
+    user?.role === 'HEAD_WAREHOUSE';
+
+  const isDepartmentStaff = user?.role === 'EMPLOYEE' || user?.role === 'MOL';
+
+  const [selectedDept, setSelectedDept] = useState<string>(() => {
+    if (isDepartmentStaff && user?.departmentId) {
+      return user.departmentId;
+    }
+    return 'ALL';
+  });
+
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [search, setSearch] = useState<string>('');
   const [currentPeriod, setCurrentPeriod] = useState<string>(
@@ -60,6 +80,13 @@ export const QuotasPage: React.FC = () => {
   const [createForm] = Form.useForm();
   const [editForm] = Form.useForm();
 
+  // If department staff has departmentId, lock department selection
+  useEffect(() => {
+    if (isDepartmentStaff && user?.departmentId) {
+      setSelectedDept(user.departmentId);
+    }
+  }, [isDepartmentStaff, user?.departmentId]);
+
   const { data: quotas = [], isLoading, isError, refetch } = useQuotasQuery({
     departmentId: selectedDept !== 'ALL' ? selectedDept : undefined,
     period: currentPeriod || undefined,
@@ -70,6 +97,26 @@ export const QuotasPage: React.FC = () => {
 
   const setQuotaMutation = useSetQuotaMutation();
   const updateQuotaMutation = useUpdateQuotaMutation();
+
+  // Deduplicated unique consumable items from warehouse stocks
+  const consumableItems = useMemo(() => {
+    const map = new Map<string, { itemId: string; itemName: string; unit: string; totalQty: number }>();
+    for (const s of stocks) {
+      if (!s.itemId) continue;
+      if (!map.has(s.itemId)) {
+        map.set(s.itemId, {
+          itemId: s.itemId,
+          itemName: s.itemName,
+          unit: s.unit || 'dona',
+          totalQty: Number(s.quantity) || 0,
+        });
+      } else {
+        const existing = map.get(s.itemId)!;
+        existing.totalQty += Number(s.quantity) || 0;
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.itemName.localeCompare(b.itemName));
+  }, [stocks]);
 
   // Dynamic KPI Stats calculated from PostgreSQL data
   const totalQuotas = quotas.length;
@@ -97,10 +144,16 @@ export const QuotasPage: React.FC = () => {
     [quotas]
   );
 
-  // Filtered list based on status tab and search text
+  // Filtered list based on status tab, search text, and department lockdown
   const filteredQuotas = useMemo(() => {
     return quotas.filter((q) => {
-      // Status tab filter
+      // Department lockdown for department staff
+      if (isDepartmentStaff && user?.departmentId && q.departmentId !== user.departmentId) {
+        return false;
+      }
+
+      // Status tab filter (including dedicated "Rektorat ruxsati talab qilinadiganlar")
+      if (statusFilter === 'RECTOR_APPROVAL' && q.usedQuantity <= q.monthlyLimit) return false;
       if (statusFilter === 'EXCEEDED' && q.usedQuantity <= q.monthlyLimit) return false;
       if (
         statusFilter === 'WARNING' &&
@@ -120,7 +173,7 @@ export const QuotasPage: React.FC = () => {
 
       return true;
     });
-  }, [quotas, statusFilter, search]);
+  }, [quotas, statusFilter, search, isDepartmentStaff, user?.departmentId]);
 
   const handleCreateQuota = async () => {
     try {
@@ -335,13 +388,18 @@ export const QuotasPage: React.FC = () => {
     },
     {
       title: 'Holati',
-      width: 125,
+      width: 155,
       render: (_: any, record: DepartmentQuota) => {
         if (record.usedQuantity > record.monthlyLimit) {
           return (
-            <Tag color="red" icon={<IconExclamationCircle />} style={{ borderRadius: 0, fontWeight: 500, whiteSpace: 'nowrap' }}>
-              LIMIT OSHGAN
-            </Tag>
+            <Space direction="vertical" size={3}>
+              <Tag color="red" icon={<IconExclamationCircle />} style={{ borderRadius: 0, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                LIMIT OSHGAN
+              </Tag>
+              <Tag color="magenta" style={{ borderRadius: 0, fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                Rektorat ruxsati shart
+              </Tag>
+            </Space>
           );
         }
         if (record.usedQuantity >= record.monthlyLimit * 0.8) {
@@ -360,26 +418,51 @@ export const QuotasPage: React.FC = () => {
     },
     {
       title: 'Amallar',
-      width: 128,
+      width: 120,
       fixed: 'right' as const,
       render: (_: any, record: DepartmentQuota) => (
         <TableActions rightPadding={0} gap={6}>
-          <Button
-            size="small"
-            type="outline"
-            icon={<IconEdit />}
-            style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
-            onClick={(e) => {
-              e?.stopPropagation?.();
-              openEditModal(record);
-            }}
-          >
-            Tahrirlash
-          </Button>
+          {canManageQuotas ? (
+            <Button
+              size="small"
+              type="outline"
+              icon={<IconEdit />}
+              style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+              onClick={(e) => {
+                e?.stopPropagation?.();
+                openEditModal(record);
+              }}
+            >
+              Tahrirlash
+            </Button>
+          ) : (
+            <Button
+              size="small"
+              type="outline"
+              icon={<IconEye />}
+              style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+              onClick={(e) => {
+                e?.stopPropagation?.();
+                openEditModal(record);
+              }}
+            >
+              Ko‘rish
+            </Button>
+          )}
         </TableActions>
       ),
     },
   ];
+
+  // If department staff has no department assigned, show Permission Denied view
+  if (isDepartmentStaff && !user?.departmentId) {
+    return (
+      <ForbiddenView
+        title="Kafedra Biriktirilmagan"
+        subTitle="Sizning akkauntingizga rasmiy kafedra yoki bo‘linma biriktirilmagan. Kvotalarni ko‘rish uchun administratorga murojaat qiling."
+      />
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -392,6 +475,7 @@ export const QuotasPage: React.FC = () => {
           { key: 'NORMAL', title: 'Me’yorda', count: normalQuotas },
           { key: 'WARNING', title: 'Chegarada (80%+)', count: warningQuotas },
           { key: 'EXCEEDED', title: 'Limit Oshgan', count: exceededQuotas },
+          { key: 'RECTOR_APPROVAL', title: 'Rektorat Ruxsati Talab Qilinadiganlar', count: exceededQuotas },
         ]}
       />
 
@@ -416,18 +500,36 @@ export const QuotasPage: React.FC = () => {
               allowClear
             />
 
-            <Select
-              style={{ width: 220, borderRadius: 0 }}
-              value={selectedDept}
-              onChange={setSelectedDept}
-            >
-              <Select.Option value="ALL">Barcha Kafedralar</Select.Option>
-              {departments.map((d) => (
-                <Select.Option key={d.id} value={d.id}>
-                  {d.name}
-                </Select.Option>
-              ))}
-            </Select>
+            {isDepartmentStaff ? (
+              <Space size="small">
+                <Tag
+                  color="arcoblue"
+                  icon={<IconLock />}
+                  style={{ borderRadius: 0, padding: '4px 10px', fontSize: 13, height: 32, display: 'inline-flex', alignItems: 'center' }}
+                >
+                  {user?.departmentName || (user as any)?.department?.name || 'Kafedrangiz'}
+                </Tag>
+                <Tag
+                  color="gray"
+                  style={{ borderRadius: 0, padding: '4px 8px', fontSize: 12, height: 32, display: 'inline-flex', alignItems: 'center' }}
+                >
+                  Faqat o‘qish (Read-Only)
+                </Tag>
+              </Space>
+            ) : (
+              <Select
+                style={{ width: 220, borderRadius: 0 }}
+                value={selectedDept}
+                onChange={setSelectedDept}
+              >
+                <Select.Option value="ALL">Barcha Kafedralar</Select.Option>
+                {departments.map((d) => (
+                  <Select.Option key={d.id} value={d.id}>
+                    {d.name}
+                  </Select.Option>
+                ))}
+              </Select>
+            )}
 
             <Input
               type="month"
@@ -454,17 +556,41 @@ export const QuotasPage: React.FC = () => {
               Excel
             </Button>
 
-            <Button
-              type="primary"
-              icon={<IconPlus />}
-              style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
-              onClick={() => setCreateModalVisible(true)}
-            >
-              Yangi Kvota Belgilash
-            </Button>
+            {canManageQuotas && (
+              <Button
+                type="primary"
+                icon={<IconPlus />}
+                style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
+                onClick={() => setCreateModalVisible(true)}
+              >
+                Yangi Kvota Belgilash
+              </Button>
+            )}
           </Space>
         </div>
       </Card>
+
+      {/* Exceeded Quotas Alert Banner (University Rule 5.4) */}
+      {exceededQuotas > 0 && (
+        <Alert
+          type="warning"
+          title={`${exceededQuotas} ta kafedrada oylik sarf limiti oshib ketgan!`}
+          content="Universitet Nizomi 5.4-bandiga muvofiq, oylik limitdan ortiqcha berilgan talabnomalar uchun Moliya-iqtisodiyot bo‘yicha prorektor yoki Rektoratning maxsus ruxsati (rezolyutsiyasi) talab qilinadi."
+          action={
+            statusFilter !== 'RECTOR_APPROVAL' ? (
+              <Button
+                size="small"
+                type="primary"
+                status="warning"
+                style={{ borderRadius: 0 }}
+                onClick={() => setStatusFilter('RECTOR_APPROVAL')}
+              >
+                Rektorat ruxsati talab qilinuvchilarni ko‘rish
+              </Button>
+            ) : undefined
+          }
+        />
+      )}
 
       {/* Error State */}
       {isError && (
@@ -535,10 +661,10 @@ export const QuotasPage: React.FC = () => {
             field="itemId"
             rules={[{ required: true, message: 'Mahsulotni tanlang' }]}
           >
-            <Select placeholder="Mahsulotni tanlang" style={{ borderRadius: 0 }}>
-              {stocks.map((s) => (
-                <Select.Option key={s.itemId} value={s.itemId}>
-                  {s.itemName} ({s.unit}) — Omborda: {s.quantity}
+            <Select placeholder="Mahsulotni tanlang" style={{ borderRadius: 0 }} showSearch>
+              {consumableItems.map((c) => (
+                <Select.Option key={c.itemId} value={c.itemId}>
+                  {c.itemName} ({c.unit}) — Omborda mavjud: {c.totalQty} {c.unit}
                 </Select.Option>
               ))}
             </Select>
@@ -575,11 +701,15 @@ export const QuotasPage: React.FC = () => {
         </Form>
       </Modal>
 
-      {/* Edit Modal */}
+      {/* Edit / View Modal */}
       <Modal
-        title={`Kvota Limitini Tahrirlash: ${selectedQuota?.department.name || ''}`}
+        title={
+          canManageQuotas
+            ? `Kvota Limitini Tahrirlash: ${selectedQuota?.department.name || ''}`
+            : `Kvota Tafsilotlari: ${selectedQuota?.department.name || ''}`
+        }
         visible={editModalVisible}
-        onOk={handleUpdateQuota}
+        onOk={canManageQuotas ? handleUpdateQuota : () => setEditModalVisible(false)}
         onCancel={() => {
           setEditModalVisible(false);
           setSelectedQuota(null);
@@ -587,8 +717,9 @@ export const QuotasPage: React.FC = () => {
         }}
         confirmLoading={updateQuotaMutation.isPending}
         style={{ width: 480, borderRadius: 0 }}
+        okText={canManageQuotas ? 'Saqlash' : 'Yopish'}
         okButtonProps={{ style: { borderRadius: 0 } }}
-        cancelButtonProps={{ style: { borderRadius: 0 } }}
+        cancelButtonProps={canManageQuotas ? { style: { borderRadius: 0 } } : { style: { display: 'none' } }}
       >
         <Form form={editForm} layout="vertical">
           <div style={{ marginBottom: 16 }}>
@@ -599,21 +730,42 @@ export const QuotasPage: React.FC = () => {
             <Text type="secondary">
               Hozirgi sarf: <b>{selectedQuota?.usedQuantity}</b> {selectedQuota?.item.unit}
             </Text>
+            <br />
+            <Text type="secondary">
+              Davr: <b>{selectedQuota?.period}</b>
+            </Text>
+            {selectedQuota && selectedQuota.usedQuantity > selectedQuota.monthlyLimit && (
+              <div style={{ marginTop: 8 }}>
+                <Tag color="red" icon={<IconExclamationCircle />}>
+                  Limit {selectedQuota.usedQuantity - selectedQuota.monthlyLimit} {selectedQuota.item.unit} ga oshgan — Rektorat ruxsati zarur
+                </Tag>
+              </div>
+            )}
           </div>
 
           <FormItem
-            label="Yangi Oylik Limit"
+            label="Oylik Limit Miqdori"
             field="monthlyLimit"
             rules={[{ required: true, message: 'Yangi limitni kiriting' }]}
           >
-            <InputNumber min={1} style={{ width: '100%', borderRadius: 0 }} />
+            <InputNumber
+              min={1}
+              disabled={!canManageQuotas}
+              style={{ width: '100%', borderRadius: 0 }}
+            />
           </FormItem>
 
           <FormItem label="Izoh" field="notes">
-            <Input.TextArea rows={2} style={{ borderRadius: 0 }} />
+            <Input.TextArea
+              rows={2}
+              disabled={!canManageQuotas}
+              style={{ borderRadius: 0 }}
+            />
           </FormItem>
         </Form>
       </Modal>
     </div>
   );
 };
+
+

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
   Form,
@@ -31,33 +31,41 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
 }) => {
   const [form] = Form.useForm();
   const updateRoomMutation = useUpdateRoomMutation();
-  const { allDepartments } = useOrganizationQuery();
+  const { allDepartments, buildings } = useOrganizationQuery();
   const { data: usersData } = useUsersQuery({ pageSize: 100, isActive: true });
+
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | undefined>();
+  const selectedBuilding = buildings.find((b) => b.id === selectedBuildingId);
+  const maxFloor = selectedBuilding?.floorsCount || 20;
 
   useEffect(() => {
     if (visible && room) {
+      const bId = room.buildingId || buildings.find((b) => b.name === room.building)?.id;
+      setSelectedBuildingId(bId || undefined);
       form.setFieldsValue({
-        number: room.number,
-        name: room.name,
         floor: room.floor,
-        building: room.building,
+        number: room.number && !room.number.startsWith('RS-') && room.number !== 'RAQAMSIZ' ? room.number : '',
+        name: room.name,
+        buildingId: room.buildingId || undefined,
         departmentId: room.departmentId || undefined,
         responsibleUserId: room.responsibleUserId || undefined,
       });
     } else {
       form.resetFields();
     }
-  }, [visible, room, form]);
+  }, [visible, room, buildings, form]);
 
   const handleSubmit = async () => {
     if (!room) return;
     try {
       const values = await form.validate();
+      const buildingObj = buildings.find((b) => b.id === values.buildingId);
       const updateData: UpdateRoomData = {
-        number: values.number,
-        name: values.name,
+        number: values.number?.trim() || '',
+        name: values.name.trim(),
         floor: Number(values.floor) || 1,
-        building: values.building,
+        buildingId: values.buildingId || null,
+        building: buildingObj?.name || room.building,
         departmentId: values.departmentId || null,
         responsibleUserId: values.responsibleUserId || null,
       };
@@ -85,17 +93,56 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
       confirmLoading={updateRoomMutation.isPending}
       okText="Saqlash"
       cancelText="Bekor qilish"
-      style={{ width: 600, borderRadius: 0 }}
+      style={{ width: 620, borderRadius: 0 }}
     >
       <Form form={form} layout="vertical">
         <Row gutter={16}>
+          <Col span={14}>
+            <FormItem
+              label="Bino / Korpus"
+              field="buildingId"
+              rules={[{ required: true, message: 'Bino tanlanishi shart!' }]}
+            >
+              <Select
+                placeholder="Binoni tanlang"
+                style={{ borderRadius: 0 }}
+                onChange={(val) => {
+                  setSelectedBuildingId(val);
+                  const b = buildings.find((x) => x.id === val);
+                  if (b && form.getFieldValue('floor') > b.floorsCount) {
+                    form.setFieldValue('floor', 1);
+                  }
+                }}
+              >
+                {buildings.map((b) => (
+                  <Select.Option key={b.id} value={b.id}>
+                    {b.name} {b.code ? `(${b.code})` : ''} — {b.floorsCount} qavatli
+                  </Select.Option>
+                ))}
+              </Select>
+            </FormItem>
+          </Col>
+
           <Col span={10}>
             <FormItem
-              label="Xona Raqami"
-              field="number"
-              rules={[{ required: true, message: 'Xona raqami kiritilishi shart!' }]}
+              label={`Qavat (1 dan ${maxFloor} gacha)`}
+              field="floor"
+              rules={[{ required: true, message: 'Qavat tanlanishi shart!' }]}
             >
-              <Input placeholder="304, 102" style={{ borderRadius: 0 }} />
+              <InputNumber
+                min={1}
+                max={maxFloor}
+                style={{ width: '100%', borderRadius: 0 }}
+              />
+            </FormItem>
+          </Col>
+
+          <Col span={10}>
+            <FormItem
+              label="Xona Raqami (Ixtiyoriy)"
+              field="number"
+            >
+              <Input placeholder="Masalan: 304, 102 (raqamsiz bo‘lsa bo‘sh)" style={{ borderRadius: 0 }} />
             </FormItem>
           </Col>
 
@@ -106,31 +153,6 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
               rules={[{ required: true, message: 'Xona nomi kiritilishi shart!' }]}
             >
               <Input placeholder="Xona nomi" style={{ borderRadius: 0 }} />
-            </FormItem>
-          </Col>
-
-          <Col span={14}>
-            <FormItem
-              label="Bino / Korpus"
-              field="building"
-              rules={[{ required: true, message: 'Bino kiritilishi shart!' }]}
-            >
-              <Select placeholder="Binoni tanlang" allowCreate style={{ borderRadius: 0 }}>
-                <Select.Option value="Bosh bino">Bosh bino</Select.Option>
-                <Select.Option value="IT Korpus">IT Korpus</Select.Option>
-                <Select.Option value="Laboratoriya binosi">Laboratoriya binosi</Select.Option>
-                <Select.Option value="2-o‘quv binosi">2-o‘quv binosi</Select.Option>
-              </Select>
-            </FormItem>
-          </Col>
-
-          <Col span={10}>
-            <FormItem
-              label="Qavat"
-              field="floor"
-              rules={[{ required: true, message: 'Qavat tanlanishi shart!' }]}
-            >
-              <InputNumber min={1} max={20} style={{ width: '100%', borderRadius: 0 }} />
             </FormItem>
           </Col>
 
@@ -162,6 +184,7 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
               <Select
                 placeholder="Xonaga mas’ul shaxsni tanlang (MOL)"
                 allowClear
+                showSearch
                 style={{ borderRadius: 0 }}
               >
                 {usersData?.items.map((u) => (

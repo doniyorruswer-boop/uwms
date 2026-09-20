@@ -42,4 +42,10 @@ export class QueryUsersDto {
   @IsInt()
   @Min(1)
   pageSize?: number = 10;
+
+  @ApiPropertyOptional({ description: 'O‘chirilgan foydalanuvchilarni ko‘rsatish' })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  showDeleted?: boolean;
 }

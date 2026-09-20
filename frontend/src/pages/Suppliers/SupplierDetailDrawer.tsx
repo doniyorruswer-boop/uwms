@@ -10,6 +10,10 @@ import {
   Space,
   Empty,
   Badge,
+  Card,
+  Grid,
+  Typography,
+  Tooltip,
 } from '@arco-design/web-react';
 import {
   IconFile,
@@ -20,8 +24,11 @@ import {
   IconEmail,
   IconUser,
   IconIdcard,
+  IconLock,
 } from '@arco-design/web-react/icon';
 import { useSupplierDetailQuery, SupplierItem } from '../../hooks/useSuppliersQuery';
+import { useAuthStore } from '../../store/authStore';
+import { formatMoney } from '../../utils/formatters';
 
 const TabPane = Tabs.TabPane;
 
@@ -40,21 +47,48 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
 }) => {
   const { data: supplier, isLoading } = useSupplierDetailQuery(supplierId);
   const [activeTab, setActiveTab] = useState('invoices');
-
-  const formatPrice = (val?: number | string | null) => {
-    if (!val) return '—';
-    const num = typeof val === 'string' ? parseFloat(val) : val;
-    return `${num.toLocaleString('uz-UZ')} so‘m`;
-  };
+  const user = useAuthStore((s) => s.user);
+  const canManage = user?.role === 'SUPER_ADMIN' || user?.role === 'HEAD_WAREHOUSE';
 
   const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return '—';
     return dateStr.split('T')[0];
   };
 
+  const byudjetStat = supplier?.fundingSummary?.BYUDJET || {
+    count:
+      supplier?.itemInstances?.filter((i) => i.fundingSource === 'BYUDJET' || !i.fundingSource)
+        .length || 0,
+    totalAmount:
+      supplier?.itemInstances
+        ?.filter((i) => i.fundingSource === 'BYUDJET' || !i.fundingSource)
+        .reduce((sum, i) => sum + (Number(i.purchasePrice) || 0), 0) || 0,
+  };
+
+  const kontraktStat = supplier?.fundingSummary?.KONTRAKT_RIVOJLANTIRISH || {
+    count:
+      supplier?.itemInstances?.filter(
+        (i) => i.fundingSource === 'KONTRAKT_RIVOJLANTIRISH' || i.fundingSource === 'KONTRAKT',
+      ).length || 0,
+    totalAmount:
+      supplier?.itemInstances
+        ?.filter(
+          (i) => i.fundingSource === 'KONTRAKT_RIVOJLANTIRISH' || i.fundingSource === 'KONTRAKT',
+        )
+        .reduce((sum, i) => sum + (Number(i.purchasePrice) || 0), 0) || 0,
+  };
+
+  const grantStat = supplier?.fundingSummary?.GRANT || {
+    count: supplier?.itemInstances?.filter((i) => i.fundingSource === 'GRANT').length || 0,
+    totalAmount:
+      supplier?.itemInstances
+        ?.filter((i) => i.fundingSource === 'GRANT')
+        .reduce((sum, i) => sum + (Number(i.purchasePrice) || 0), 0) || 0,
+  };
+
   return (
     <Drawer
-      width={740}
+      width={780}
       title={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <IconIdcard style={{ color: '#165DFF', fontSize: 18 }} />
@@ -84,7 +118,15 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
               borderLeft: '4px solid #165DFF',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                flexWrap: 'wrap',
+                gap: 12,
+              }}
+            >
               <div>
                 <h3 style={{ margin: '0 0 6px', fontSize: 18, color: 'var(--color-text-1)' }}>
                   {supplier.name}
@@ -102,14 +144,22 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
                 </Space>
               </div>
 
-              <Button
-                type="primary"
-                icon={<IconPlus />}
-                onClick={() => onOpenCreateInvoice(supplier)}
-                style={{ borderRadius: 0 }}
-              >
-                Yangi Faktura Biriktirish
-              </Button>
+              {canManage ? (
+                <Button
+                  type="primary"
+                  icon={<IconPlus />}
+                  onClick={() => onOpenCreateInvoice(supplier)}
+                  style={{ borderRadius: 0 }}
+                >
+                  Yangi Faktura Biriktirish
+                </Button>
+              ) : (
+                <Tooltip content="Yangi faktura biriktirish faqat Bosh omborchi va Administratorga ruxsat etilgan">
+                  <Button disabled icon={<IconLock />} style={{ borderRadius: 0 }}>
+                    Faktura Biriktirish (Cheklangan)
+                  </Button>
+                </Tooltip>
+              )}
             </div>
           </div>
 
@@ -160,6 +210,116 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
             ]}
           />
 
+          {/* Funding Sources Breakdown Card (Moliyalashtirish Manbasi Kesimi) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography.Text bold style={{ fontSize: 13, color: 'var(--color-text-1)' }}>
+                Yetkazib Berilgan Ashyolar — Moliyalashtirish Manbasi Kesimi
+              </Typography.Text>
+              <Tag size="small" color="gray">
+                Jami: {supplier.itemInstances?.length || 0} ta asosiy vosita
+              </Tag>
+            </div>
+
+            <Grid.Row gutter={12}>
+              <Grid.Col span={8}>
+                <Card
+                  className="uwms-card"
+                  style={{
+                    borderRadius: 0,
+                    borderTop: '3px solid #165DFF',
+                    background: 'var(--color-bg-2)',
+                  }}
+                  bodyStyle={{ padding: '12px 14px' }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <Tag color="arcoblue" size="small">
+                      Davlat Byudjeti
+                    </Tag>
+                    <Badge count={byudjetStat.count} style={{ backgroundColor: '#165DFF' }} />
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-1)' }}>
+                    {formatMoney(byudjetStat.totalAmount)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2 }}>
+                    {byudjetStat.count} ta mahsulot
+                  </div>
+                </Card>
+              </Grid.Col>
+
+              <Grid.Col span={8}>
+                <Card
+                  className="uwms-card"
+                  style={{
+                    borderRadius: 0,
+                    borderTop: '3px solid #00B42A',
+                    background: 'var(--color-bg-2)',
+                  }}
+                  bodyStyle={{ padding: '12px 14px' }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <Tag color="green" size="small">
+                      To‘lov-Kontrakt
+                    </Tag>
+                    <Badge count={kontraktStat.count} style={{ backgroundColor: '#00B42A' }} />
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-1)' }}>
+                    {formatMoney(kontraktStat.totalAmount)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2 }}>
+                    {kontraktStat.count} ta mahsulot
+                  </div>
+                </Card>
+              </Grid.Col>
+
+              <Grid.Col span={8}>
+                <Card
+                  className="uwms-card"
+                  style={{
+                    borderRadius: 0,
+                    borderTop: '3px solid #722ED1',
+                    background: 'var(--color-bg-2)',
+                  }}
+                  bodyStyle={{ padding: '12px 14px' }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <Tag color="purple" size="small">
+                      Ilmiy Grant
+                    </Tag>
+                    <Badge count={grantStat.count} style={{ backgroundColor: '#722ED1' }} />
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-1)' }}>
+                    {formatMoney(grantStat.totalAmount)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2 }}>
+                    {grantStat.count} ta mahsulot
+                  </div>
+                </Card>
+              </Grid.Col>
+            </Grid.Row>
+          </div>
+
           {/* Content Tabs */}
           <Tabs activeTab={activeTab} onChange={setActiveTab} type="line">
             <TabPane
@@ -192,7 +352,7 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
                     title: 'Summa',
                     dataIndex: 'totalAmount',
                     render: (amount: any) => (
-                      <span style={{ fontWeight: 600 }}>{formatPrice(amount)}</span>
+                      <span style={{ fontWeight: 600 }}>{formatMoney(amount)}</span>
                     ),
                   },
                   {
@@ -243,6 +403,20 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
                     ),
                   },
                   {
+                    title: 'Moliyalashtirish Manbasi',
+                    dataIndex: 'fundingSource',
+                    width: 160,
+                    render: (src?: string) => {
+                      if (src === 'KONTRAKT_RIVOJLANTIRISH' || src === 'KONTRAKT') {
+                        return <Tag color="green">To‘lov-Kontrakt</Tag>;
+                      }
+                      if (src === 'GRANT') {
+                        return <Tag color="purple">Ilmiy Grant</Tag>;
+                      }
+                      return <Tag color="arcoblue">Davlat Byudjeti</Tag>;
+                    },
+                  },
+                  {
                     title: 'Joriy Xona',
                     render: (_, r: any) =>
                       r.room ? `${r.room.number}-xona (${r.room.name})` : 'Omborda',
@@ -250,7 +424,7 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
                   {
                     title: 'Qiymati',
                     dataIndex: 'purchasePrice',
-                    render: (p: any) => formatPrice(p),
+                    render: (p: any) => formatMoney(p),
                   },
                   {
                     title: 'Holati',
@@ -291,6 +465,20 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
                     title: 'Turi',
                     dataIndex: 'movementType',
                     render: (type: string) => <Tag color="blue">{type}</Tag>,
+                  },
+                  {
+                    title: 'Moliyalashtirish Manbasi',
+                    dataIndex: 'fundingSource',
+                    width: 160,
+                    render: (src?: string) => {
+                      if (src === 'KONTRAKT_RIVOJLANTIRISH' || src === 'KONTRAKT') {
+                        return <Tag color="green">To‘lov-Kontrakt</Tag>;
+                      }
+                      if (src === 'GRANT') {
+                        return <Tag color="purple">Ilmiy Grant</Tag>;
+                      }
+                      return <Tag color="arcoblue">Davlat Byudjeti</Tag>;
+                    },
                   },
                   {
                     title: 'Ombor',

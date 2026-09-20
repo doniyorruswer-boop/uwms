@@ -8,6 +8,7 @@ export interface JwtPayload {
   sub: string;
   username: string;
   role: string;
+  tokenType?: string;
 }
 
 @Injectable()
@@ -21,16 +22,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new Error('JWT_SECRET muhit o‘zgaruvchisi topilmadi!');
     }
     super({
-      jwtFromRequest: ExtractJwt.fromExtractors([
-        ExtractJwt.fromAuthHeaderAsBearerToken(),
-        ExtractJwt.fromUrlQueryParameter('token'),
-      ]),
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: secret,
     });
   }
 
   async validate(payload: JwtPayload) {
+    if (payload.tokenType !== 'access') {
+      throw new UnauthorizedException('Faqat haqiqiy access token orqali tizimga kirish mumkin!');
+    }
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: {

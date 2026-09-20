@@ -4,6 +4,7 @@ import {
   Post,
   Put,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -24,36 +25,78 @@ import { RoleType } from '@prisma/client';
 @ApiTags('Users')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(RoleType.SUPER_ADMIN)
 @Controller('api/users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
+  @Roles(
+    RoleType.SUPER_ADMIN,
+    RoleType.RECTOR,
+    RoleType.VICE_RECTOR_FINANCE,
+    RoleType.CHIEF_ACCOUNTANT,
+    RoleType.HEAD_WAREHOUSE,
+    RoleType.AUDITOR,
+  )
   @ApiOperation({ summary: 'Foydalanuvchilar va xodimlar ro‘yxatini olish (Qidiruv, filtrlar va paginatsiya)' })
   async findAll(@Query() query: QueryUsersDto) {
     return this.usersService.findAll(query);
   }
 
   @Get(':id')
+  @Roles(
+    RoleType.SUPER_ADMIN,
+    RoleType.RECTOR,
+    RoleType.VICE_RECTOR_FINANCE,
+    RoleType.CHIEF_ACCOUNTANT,
+    RoleType.HEAD_WAREHOUSE,
+    RoleType.AUDITOR,
+  )
   @ApiOperation({ summary: 'Bitta foydalanuvchi to‘liq tafsilotlari' })
   async findById(@Param('id') id: string) {
     return this.usersService.findById(id);
   }
 
   @Get(':id/assets')
+  @Roles(
+    RoleType.SUPER_ADMIN,
+    RoleType.RECTOR,
+    RoleType.VICE_RECTOR_FINANCE,
+    RoleType.CHIEF_ACCOUNTANT,
+    RoleType.HEAD_WAREHOUSE,
+    RoleType.AUDITOR,
+    RoleType.MOL,
+    RoleType.EMPLOYEE,
+  )
   @ApiOperation({ summary: 'Xodimga biriktirilgan xonalar va ashyolar (MOL pasporti)' })
   async getUserAssets(@Param('id') id: string) {
     return this.usersService.getUserAssets(id);
   }
 
+  @Get(':id/clearance-status')
+  @Roles(
+    RoleType.SUPER_ADMIN,
+    RoleType.RECTOR,
+    RoleType.VICE_RECTOR_FINANCE,
+    RoleType.CHIEF_ACCOUNTANT,
+    RoleType.HEAD_WAREHOUSE,
+    RoleType.AUDITOR,
+    RoleType.MOL,
+  )
+  @ApiOperation({ summary: 'Xodimning moddiy javobgarlikdan ozodlik / aylanma varaqa (Clearance) holatini tekshirish' })
+  async getClearanceStatus(@Param('id') id: string) {
+    return this.usersService.checkUserClearanceEligibility(id);
+  }
+
   @Post()
+  @Roles(RoleType.SUPER_ADMIN)
   @ApiOperation({ summary: 'Yangi xodim qo‘shish' })
   async create(@Body() dto: CreateUserDto, @Request() req: any) {
     return this.usersService.create(dto, req.user.id);
   }
 
   @Put(':id')
+  @Roles(RoleType.SUPER_ADMIN)
   @ApiOperation({ summary: 'Xodim ma’lumotlari va rolini tahrirlash' })
   async update(
     @Param('id') id: string,
@@ -64,6 +107,7 @@ export class UsersController {
   }
 
   @Patch(':id/status')
+  @Roles(RoleType.SUPER_ADMIN)
   @ApiOperation({ summary: 'Xodim faollik holatini o‘zgartirish (Faol / Nofaol)' })
   async toggleStatus(
     @Param('id') id: string,
@@ -74,6 +118,7 @@ export class UsersController {
   }
 
   @Post(':id/reset-password')
+  @Roles(RoleType.SUPER_ADMIN)
   @ApiOperation({ summary: 'Administrator tomonidan xodim parolini yangilash' })
   async resetPassword(
     @Param('id') id: string,
@@ -81,5 +126,19 @@ export class UsersController {
     @Request() req: any,
   ) {
     return this.usersService.resetPassword(id, dto, req.user.id);
+  }
+
+  @Delete(':id')
+  @Roles(RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Foydalanuvchini xavfsiz o‘chirish (Soft delete)' })
+  async remove(@Param('id') id: string, @Request() req: any) {
+    return this.usersService.remove(id, req.user.id);
+  }
+
+  @Post(':id/restore')
+  @Roles(RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'O‘chirilgan foydalanuvchini qayta tiklash (Restore)' })
+  async restore(@Param('id') id: string, @Request() req: any) {
+    return this.usersService.restore(id, req.user.id);
   }
 }

@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Body, Param, Query, Patch, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Patch, UseGuards, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Response } from 'express';
 import { AssetsService } from './assets.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -52,8 +53,15 @@ export class AssetsController {
 
   @Get()
   @ApiOperation({ summary: 'Asosiy vositalar ro‘yxati (qidiruv, filtr bilan)' })
-  async getAllAssets(@Query() query: { search?: string; status?: string; roomId?: string; page?: string; limit?: string }) {
+  async getAllAssets(@Query() query: { search?: string; status?: string; roomId?: string; fundingSource?: string; page?: string; limit?: string }) {
     return this.assetsService.getAllAssets(query);
+  }
+
+
+  @Get('categories')
+  @ApiOperation({ summary: 'Asosiy vositalar va tovarlar kategoriyalari ro‘yxati' })
+  async getCategories() {
+    return this.assetsService.getCategories();
   }
 
   @Get(':id')
@@ -99,9 +107,36 @@ export class AssetsController {
     });
   }
 
+  @Get('import-template')
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.MOL)
+  @ApiOperation({ summary: 'Asosiy vositalarni Excel orqali import qilish uchun andoza (shablon) fayl' })
+  async downloadImportTemplate(@Res() res: Response) {
+    const result = await this.assetsService.generateImportTemplate();
+    res.setHeader('Content-Type', result.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    return res.send(result.buffer);
+  }
+
+  @Post('import-preview')
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Excel import qatorlarini dastlabki tekshirish (Dry-Run, bazaga yozilmaydi)' })
+  async previewImportExcel(@Body() dto: ImportExcelAssetsDto) {
+    return this.assetsService.previewImportExcelAssets(dto);
+  }
+
+  @Post('import')
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Asosiy vositalarni tasdiqlangan qatorlar bo‘yicha import qilish' })
+  async importAssets(
+    @Body() dto: ImportExcelAssetsDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.assetsService.importExcelAssets(dto, user?.id);
+  }
+
   @Post('import-excel')
   @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Mavjud asosiy vositalarni Excel orqali ommaviy yuklash' })
+  @ApiOperation({ summary: 'Mavjud asosiy vositalarni Excel orqali ommaviy yuklash (Legacy endpoint)' })
   async importExcel(
     @Body() dto: ImportExcelAssetsDto,
     @CurrentUser() user: any,

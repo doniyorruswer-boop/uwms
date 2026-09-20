@@ -1,6 +1,7 @@
 {
   "menu": {
     "dashboard": "Dashboard",
+    "inbox": "My Tasks",
     "assets": "Fixed Assets (QR)",
     "warehouse": "Warehouse & Stock",
     "suppliers": "Suppliers & Contracts",
@@ -10,11 +11,16 @@
     "writeOffs": "Write-Off (OS-4)",
     "organization": "Faculties & Rooms",
     "quotas": "Department Quotas",
-    "audit": "System Audit",
+    "audit": "Audit & Scanner",
+    "systemAudit": "System Audit",
     "integrations": "Integrations",
     "scanner": "QR Inventory Audit",
+    "auditCampaigns": "Audit Campaigns",
     "backups": "Database Backups",
-    "users": "Staff & Roles"
+    "users": "Staff & Roles",
+    "depreciation": "Depreciation",
+    "fundingReports": "Funding Reports",
+    "chiefAccountantLedger": "Chief Accountant Ledger"
   },
   "common": {
     "appTitle": "UWMS System",
@@ -46,7 +52,12 @@
     "price": "Price",
     "total": "Total",
     "totalCount": "Total: {{count}}",
-    "notes": "Notes"
+    "notes": "Notes",
+    "forbidden": "Access Denied",
+    "errorOccurred": "An error occurred",
+    "retry": "Retry",
+    "backToHome": "Back to Dashboard",
+    "reloadPage": "Reload Page"
   },
   "status": {
     "new": "New",
@@ -63,38 +74,38 @@
   "header": {
     "darkMode": "Dark mode",
     "lightMode": "Light mode",
-    "logout": "Logout",
+    "logout": "Log out",
     "notifications": "Notifications",
     "language": "Language"
   },
   "dashboard": {
     "stats": {
       "totalAssets": "Total Fixed Assets",
-      "totalStock": "Total Stock Items",
+      "totalStock": "Consumables in Stock",
       "activeRequests": "Active Requests",
-      "totalValue": "Total Asset Value"
+      "totalValue": "Total Balance Value"
     },
-    "recentMovements": "Recent Warehouse Movements",
+    "recentMovements": "Recent Stock Movements",
     "pendingRequests": "Pending Requests"
   },
   "assets": {
-    "inventoryNumber": "Inventory No",
-    "itemName": "Item Name & Model",
+    "inventoryNumber": "Inventory #",
+    "itemName": "Equipment Name & Model",
     "location": "Location",
     "balancePrice": "Balance Price",
-    "amortization": "Depreciation & Remaining",
+    "amortization": "Depreciation",
     "fundingSource": "Funding Source",
     "qrPassport": "Passport",
     "qrSticker": "QR Sticker",
-    "transfer": "Transfer"
+    "transfer": "Internal Transfer"
   },
   "warehouse": {
     "itemName": "Item Name",
     "warehouseName": "Warehouse",
-    "currentStock": "Current Balance",
-    "replenish": "Replenish",
+    "currentStock": "Current Stock",
+    "replenish": "Ingest / Stock In",
     "lowStock": "Low Stock",
-    "normalStock": "Sufficient Stock"
+    "normalStock": "Normal Stock"
   },
   "requests": {
     "requestNumber": "Request No",
@@ -112,5 +123,14 @@
     "checksum": "SHA-256 Hash",
     "restore": "Restore",
     "download": "Download"
+  },
+  "errors": {
+    "forbiddenTitle": "Access Denied",
+    "forbiddenDesc": "You do not have permission to access this page.",
+    "somethingWentWrong": "An error occurred",
+    "unexpectedErrorDesc": "An unexpected error occurred. Please refresh the page or contact the administrator.",
+    "retry": "Retry",
+    "backToHome": "Back to Dashboard",
+    "reloadPage": "Reload Page"
   }
 }

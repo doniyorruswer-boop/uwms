@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
+import { DocumentStampsService } from '../document-stamps/document-stamps.service';
 import { CreateWriteOffDto, VoteWriteOffDto } from './dto/write-off.dto';
 import { AssetStatus, WriteOffStatus, VoteStatus, MovementType, RoleType } from '@prisma/client';
 
@@ -9,6 +10,7 @@ export class WriteOffsService {
   constructor(
     private prisma: PrismaService,
     private codeGen: CodeGeneratorService,
+    @Optional() private documentStampsService?: DocumentStampsService,
   ) {}
 
   async getWriteOffs(query?: { status?: WriteOffStatus; assetId?: string }) {
@@ -37,14 +39,48 @@ export class WriteOffsService {
       orderBy: { createdAt: 'desc' },
     });
 
+    const actNumbers = list.map((item) => item.actNumber);
+    const stamps = await this.prisma.documentStamp.findMany({
+      where: {
+        docNumber: { in: actNumbers },
+        isValid: true,
+      },
+      select: {
+        id: true,
+        docNumber: true,
+        docType: true,
+        signerName: true,
+        signerRole: true,
+        isValid: true,
+        createdAt: true,
+      },
+    });
+
+    const stampMap = new Map<string, (typeof stamps)[0]>();
+    for (const s of stamps) {
+      stampMap.set(s.docNumber, s);
+    }
+
     return list.map((item) => {
       const dep = this.codeGen.calculateDepreciation(
         Number(item.asset.purchasePrice || 0),
         item.asset.purchaseDate || item.asset.createdAt,
         item.asset.item.category.name,
       );
+      const stamp = stampMap.get(item.actNumber);
       return {
         ...item,
+        stamp: stamp
+          ? {
+              id: stamp.id,
+              docNumber: stamp.docNumber,
+              docType: stamp.docType,
+              isValid: stamp.isValid,
+              signerName: stamp.signerName,
+              signerRole: stamp.signerRole,
+            }
+          : null,
+        hasWormStamp: Boolean(stamp && stamp.isValid),
         asset: {
           ...item.asset,
           depreciation: dep,
@@ -81,8 +117,22 @@ export class WriteOffsService {
       item.asset.item.category.name,
     );
 
+    const stamp = await this.prisma.documentStamp.findFirst({
+      where: { docNumber: item.actNumber, isValid: true },
+      select: {
+        id: true,
+        docNumber: true,
+        docType: true,
+        signerName: true,
+        signerRole: true,
+        isValid: true,
+      },
+    });
+
     return {
       ...item,
+      stamp: stamp || null,
+      hasWormStamp: Boolean(stamp && stamp.isValid),
       asset: {
         ...item.asset,
         depreciation: dep,
@@ -202,12 +252,16 @@ export class WriteOffsService {
         throw new BadRequestException('Siz ushbu hujjat bo‘yicha ovoz berib bo‘lgansiz!');
       }
 
-      // 1. Record member's vote
+      // 1. Record member's vote with cryptographic signature note if QR-paired
+      const voteComment = dto.signatureHash
+        ? `${dto.comment || ''}\n[Biometrik QR-Pairing Imzosi: ${dto.signerName || 'Komissiya a’zosi'}, SHA-256: ${dto.signatureHash}]`.trim()
+        : dto.comment;
+
       await tx.writeOffMemberVote.update({
         where: { id: memberVote.id },
         data: {
           vote: dto.vote,
-          comment: dto.comment,
+          comment: voteComment,
           votedAt: new Date(),
         },
       });
@@ -296,6 +350,31 @@ export class WriteOffsService {
             executedById: userId,
           },
         });
+
+        // Cryptographic document seal on completion
+        if (this.documentStampsService) {
+          try {
+            await this.documentStampsService.stampDocument({
+              docNumber: writeOff.actNumber,
+              docType: 'OS_4',
+              title: `Hisobdan Chiqarish Dalolatnomasi (OS-4) - ${writeOff.asset.item?.name || 'Aktiv'}`,
+              signerName: dto.signerName || 'Davlat Hisobdan Chiqarish Komissiyasi',
+              signerRole: dto.signerRole || 'Komissiya A’zosi',
+              metadata: {
+                writeOffId: writeOff.id,
+                assetId: writeOff.assetId,
+                inventoryNumber: writeOff.asset.inventoryNumber,
+                itemName: writeOff.asset.item?.name,
+                reason: writeOff.reason,
+                signatureHash: dto.signatureHash,
+                approvedAt: new Date().toISOString(),
+              },
+            });
+          } catch (stampErr) {
+            // Non-blocking log
+            console.warn(`[WriteOffsService] Failed to stamp OS-4 document ${writeOff.actNumber}:`, stampErr);
+          }
+        }
       }
 
       return this.getWriteOffById(writeOffId);

@@ -48,6 +48,34 @@ export const ROLE_CONFIG: Record<RoleType, RoleMeta> = {
     color: 'purple',
     allowedRoutes: ['/dashboard', '/requests'],
   },
+  CHIEF_ACCOUNTANT: {
+    code: 'CHIEF_ACCOUNTANT',
+    label: 'Bosh Hisobchi',
+    description: 'Moliyalashtirish, manba va sub-hisoblar nazorati',
+    color: 'magenta',
+    allowedRoutes: ['/dashboard', '/requests', '/assets', '/warehouse', '/reports', '/organization'],
+  },
+  COMMENDANT: {
+    code: 'COMMENDANT',
+    label: 'Bino Komendanti',
+    description: 'Bino bo‘yicha ashyolar qabuli va xonalarga taqsimoti',
+    color: 'orange',
+    allowedRoutes: ['/dashboard', '/requests', '/assets', '/organization'],
+  },
+  RECTOR: {
+    code: 'RECTOR',
+    label: 'Universitet Rektori',
+    description: 'Xaridlar va yirik moddiy qarorlarga yakuniy viza beruvchi',
+    color: 'red',
+    allowedRoutes: ['/dashboard', '/requests', '/assets', '/audit', '/reports', '/organization'],
+  },
+  VICE_RECTOR_FINANCE: {
+    code: 'VICE_RECTOR_FINANCE',
+    label: 'Moliya Prorektori',
+    description: 'Moliya-iqtisodiyot va smeta nazorati bo‘yicha 1-viza',
+    color: 'cyan',
+    allowedRoutes: ['/dashboard', '/requests', '/assets', '/reports', '/organization'],
+  },
 };
 
 /**

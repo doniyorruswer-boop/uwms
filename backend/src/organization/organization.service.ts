@@ -11,6 +11,8 @@ import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
+import { CreateBuildingDto } from './dto/create-building.dto';
+import { UpdateBuildingDto } from './dto/update-building.dto';
 
 @Injectable()
 export class OrganizationService {
@@ -55,8 +57,10 @@ export class OrganizationService {
     return faculties;
   }
 
-  async getAllDepartments() {
+  async getAllDepartments(showDeleted?: boolean) {
+    const where: any = showDeleted ? { deletedAt: { not: null } } : { deletedAt: null };
     return this.prisma.department.findMany({
+      where,
       include: {
         parent: {
           select: { id: true, name: true, type: true },
@@ -69,10 +73,300 @@ export class OrganizationService {
     });
   }
 
-  async getRooms() {
+  // ==================== BUILDINGS ====================
+
+  async getBuildings(showDeleted?: boolean) {
+    const where: any = showDeleted ? { deletedAt: { not: null } } : { deletedAt: null };
+    return this.prisma.building.findMany({
+      where,
+      include: {
+        commendant: {
+          select: { id: true, fullName: true, phone: true, username: true, position: true },
+        },
+        _count: {
+          select: {
+            rooms: { where: { deletedAt: null } },
+            warehouses: { where: { deletedAt: null } },
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async getBuildingDetails(id: string) {
+    const building = await this.prisma.building.findUnique({
+      where: { id },
+      include: {
+        commendant: {
+          select: { id: true, fullName: true, phone: true, username: true, position: true },
+        },
+        rooms: {
+          where: { deletedAt: null },
+          include: {
+            department: { select: { id: true, name: true, type: true } },
+            responsibleUser: { select: { id: true, fullName: true, phone: true } },
+            _count: { select: { itemInstances: true } },
+          },
+          orderBy: [{ floor: 'asc' }, { number: 'asc' }],
+        },
+        warehouses: {
+          where: { deletedAt: null },
+          include: {
+            manager: { select: { id: true, fullName: true, phone: true } },
+            _count: { select: { stocks: true } },
+          },
+        },
+        _count: {
+          select: {
+            rooms: { where: { deletedAt: null } },
+            warehouses: { where: { deletedAt: null } },
+          },
+        },
+      },
+    });
+
+    if (!building) {
+      throw new NotFoundException(`Bino (ID: ${id}) topilmadi`);
+    }
+
+    return building;
+  }
+
+  async createBuilding(dto: CreateBuildingDto, executorId: string) {
+    const nameTrimmed = dto.name.trim();
+    const existing = await this.prisma.building.findFirst({
+      where: { name: { equals: nameTrimmed, mode: 'insensitive' } },
+    });
+    if (existing) {
+      throw new ConflictException(`'${nameTrimmed}' nomli bino allaqachon mavjud`);
+    }
+
+    if (dto.code && dto.code.trim().length > 0) {
+      const codeTrimmed = dto.code.trim().toUpperCase();
+      const codeConflict = await this.prisma.building.findUnique({
+        where: { code: codeTrimmed },
+      });
+      if (codeConflict) {
+        throw new ConflictException(`'${codeTrimmed}' kodli bino allaqachon mavjud`);
+      }
+    }
+
+    if (dto.commendantId) {
+      const commendant = await this.prisma.user.findUnique({
+        where: { id: dto.commendantId },
+      });
+      if (!commendant) {
+        throw new NotFoundException('Biriktirilayotgan komendant (foydalanuvchi) topilmadi');
+      }
+    }
+
+    const building = await this.prisma.$transaction(async (tx) => {
+      return tx.building.create({
+        data: {
+          name: nameTrimmed,
+          code: dto.code ? dto.code.trim().toUpperCase() : null,
+          floorsCount: dto.floorsCount || 4,
+          address: dto.address?.trim() || null,
+          description: dto.description?.trim() || null,
+          commendantId: dto.commendantId || null,
+        },
+        include: {
+          commendant: {
+            select: { id: true, fullName: true, phone: true },
+          },
+        },
+      });
+    });
+
+    await this.systemAuditService.log({
+      action: 'BUILDING_CREATED',
+      entity: 'Building',
+      entityId: building.id,
+      userId: executorId,
+      details: {
+        name: building.name,
+        code: building.code,
+        floorsCount: building.floorsCount,
+        address: building.address,
+        commendant: building.commendant?.fullName,
+      },
+    });
+
+    return building;
+  }
+
+  async updateBuilding(id: string, dto: UpdateBuildingDto, executorId: string) {
+    const existing = await this.prisma.building.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Bino topilmadi');
+    }
+
+    if (dto.name && dto.name.trim() !== existing.name) {
+      const nameConflict = await this.prisma.building.findFirst({
+        where: {
+          id: { not: id },
+          name: { equals: dto.name.trim(), mode: 'insensitive' },
+        },
+      });
+      if (nameConflict) {
+        throw new ConflictException(`'${dto.name.trim()}' nomli boshqa bino mavjud`);
+      }
+    }
+
+    if (dto.code && dto.code.trim().toUpperCase() !== existing.code) {
+      const codeConflict = await this.prisma.building.findFirst({
+        where: {
+          id: { not: id },
+          code: dto.code.trim().toUpperCase(),
+        },
+      });
+      if (codeConflict) {
+        throw new ConflictException(`'${dto.code.trim().toUpperCase()}' kodli boshqa bino mavjud`);
+      }
+    }
+
+    if (dto.commendantId) {
+      const user = await this.prisma.user.findUnique({ where: { id: dto.commendantId } });
+      if (!user) {
+        throw new NotFoundException('Tanlangan komendant topilmadi');
+      }
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const b = await tx.building.update({
+        where: { id },
+        data: {
+          name: dto.name !== undefined ? dto.name.trim() : undefined,
+          code: dto.code !== undefined ? (dto.code ? dto.code.trim().toUpperCase() : null) : undefined,
+          floorsCount: dto.floorsCount !== undefined ? dto.floorsCount : undefined,
+          address: dto.address !== undefined ? (dto.address ? dto.address.trim() : null) : undefined,
+          description: dto.description !== undefined ? (dto.description ? dto.description.trim() : null) : undefined,
+          commendantId: dto.commendantId !== undefined ? dto.commendantId : undefined,
+        },
+        include: {
+          commendant: {
+            select: { id: true, fullName: true, phone: true },
+          },
+        },
+      });
+
+      if (dto.name && dto.name.trim() !== existing.name) {
+        await tx.room.updateMany({
+          where: { buildingId: id },
+          data: { building: dto.name.trim() },
+        });
+      }
+
+      return b;
+    });
+
+    await this.systemAuditService.log({
+      action: 'BUILDING_UPDATED',
+      entity: 'Building',
+      entityId: id,
+      userId: executorId,
+      details: {
+        changes: dto,
+        targetName: updated.name,
+      },
+    });
+
+    return updated;
+  }
+
+  async deleteBuilding(id: string, executorId: string) {
+    const building = await this.prisma.building.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            rooms: { where: { deletedAt: null } },
+            warehouses: { where: { deletedAt: null } },
+          },
+        },
+      },
+    });
+
+    if (!building) {
+      throw new NotFoundException('Bino topilmadi');
+    }
+
+    if (building._count.rooms > 0) {
+      throw new BadRequestException(
+        `Binoda ${building._count.rooms} ta auditoriya/xona mavjud! Avval xonalarni boshqa binoga ko‘chiring yoki o‘chiring`,
+      );
+    }
+
+    if (building._count.warehouses > 0) {
+      throw new BadRequestException(
+        `Binoda ${building._count.warehouses} ta omborxona joylashgan! Avval omborlarni ko‘chiring`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.building.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
+    });
+
+    await this.systemAuditService.log({
+      action: 'SOFT_DELETE',
+      entity: 'Building',
+      entityId: id,
+      userId: executorId,
+      details: {
+        deletedName: building.name,
+        code: building.code,
+      },
+    });
+
+    return {
+      success: true,
+      message: `'${building.name}' binosi muvaffaqiyatli o‘chirildi (Soft delete)`,
+    };
+  }
+
+  async restoreBuilding(id: string, executorId: string) {
+    const building = await this.prisma.building.findUnique({ where: { id } });
+    if (!building) {
+      throw new NotFoundException('Bino topilmadi');
+    }
+    if (!building.deletedAt) {
+      throw new BadRequestException('Ushbu bino o‘chirilmagan!');
+    }
+
+    const restored = await this.prisma.$transaction(async (tx) => {
+      return tx.building.update({
+        where: { id },
+        data: { deletedAt: null },
+      });
+    });
+
+    await this.systemAuditService.log({
+      action: 'RESTORE',
+      entity: 'Building',
+      entityId: id,
+      userId: executorId,
+      details: {
+        name: building.name,
+        code: building.code,
+      },
+    });
+
+    return restored;
+  }
+
+  // ==================== ROOMS ====================
+
+  async getRooms(showDeleted?: boolean) {
+    const where: any = showDeleted ? { deletedAt: { not: null } } : { deletedAt: null };
     const rooms = await this.prisma.room.findMany({
+      where,
       include: {
         department: true,
+        buildingRelation: true,
         responsibleUser: {
           select: { id: true, fullName: true, position: true, phone: true },
         },
@@ -88,7 +382,10 @@ export class OrganizationService {
       number: r.number,
       name: r.name,
       floor: r.floor,
-      building: r.building,
+      buildingId: r.buildingId,
+      building: r.buildingRelation?.name || r.building,
+      buildingCode: r.buildingRelation?.code,
+      buildingFloorsCount: r.buildingRelation?.floorsCount || 4,
       departmentId: r.departmentId,
       departmentName: r.department?.name,
       responsibleUserId: r.responsibleUserId,
@@ -103,6 +400,7 @@ export class OrganizationService {
       where: { id },
       include: {
         department: true,
+        buildingRelation: true,
         responsibleUser: true,
         itemInstances: {
           include: {
@@ -125,10 +423,13 @@ export class OrganizationService {
 
   async getWarehouses() {
     return this.prisma.warehouse.findMany({
+      where: { deletedAt: null },
       include: {
+        building: { select: { id: true, name: true, code: true } },
+        manager: { select: { id: true, fullName: true, username: true, phone: true } },
         _count: { select: { stocks: true } },
       },
-      orderBy: { isMain: 'desc' },
+      orderBy: [{ isMain: 'desc' }, { name: 'asc' }],
     });
   }
 
@@ -295,11 +596,14 @@ export class OrganizationService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.department.delete({ where: { id } });
+      await tx.department.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
     });
 
     await this.systemAuditService.log({
-      action: 'DEPARTMENT_DELETED',
+      action: 'SOFT_DELETE',
       entity: 'Department',
       entityId: id,
       userId: executorId,
@@ -311,38 +615,112 @@ export class OrganizationService {
 
     return {
       success: true,
-      message: `'${dept.name}' bo‘limi muvaffaqiyatli o‘chirildi`,
+      message: `'${dept.name}' bo‘limi muvaffaqiyatli o‘chirildi (Soft delete)`,
     };
+  }
+
+  async restoreDepartment(id: string, executorId: string) {
+    const dept = await this.prisma.department.findUnique({ where: { id } });
+    if (!dept) {
+      throw new NotFoundException(`Bo‘lim topilmadi`);
+    }
+    if (!dept.deletedAt) {
+      throw new BadRequestException(`Ushbu bo‘lim o‘chirilmagan!`);
+    }
+
+    const restored = await this.prisma.$transaction(async (tx) => {
+      return tx.department.update({
+        where: { id },
+        data: { deletedAt: null },
+      });
+    });
+
+    await this.systemAuditService.log({
+      action: 'RESTORE',
+      entity: 'Department',
+      entityId: id,
+      userId: executorId,
+      details: {
+        name: dept.name,
+        code: dept.code,
+      },
+    });
+
+    return restored;
   }
 
   // ==================== ROOM CRUD ====================
 
   async createRoom(dto: CreateRoomDto, executorId: string) {
-    // 1. Check duplicate room in same building
-    const existing = await this.prisma.room.findFirst({
-      where: {
-        number: dto.number.trim(),
-        building: dto.building.trim(),
-      },
-    });
+    let targetBuildingId: string | null = null;
+    let targetBuildingName = 'Bosh bino';
+    let maxFloors = 20;
 
-    if (existing) {
-      throw new ConflictException(
-        `'${dto.building}' binosida '${dto.number}'-xona allaqachon mavjud`,
+    // 1. Resolve Building
+    if (dto.buildingId) {
+      const b = await this.prisma.building.findUnique({
+        where: { id: dto.buildingId },
+      });
+      if (!b) {
+        throw new NotFoundException('Biriktirilayotgan bino topilmadi');
+      }
+      targetBuildingId = b.id;
+      targetBuildingName = b.name;
+      maxFloors = b.floorsCount;
+    } else if (dto.building && dto.building.trim().length > 0) {
+      targetBuildingName = dto.building.trim();
+      const b = await this.prisma.building.upsert({
+        where: { name: targetBuildingName },
+        update: {},
+        create: {
+          name: targetBuildingName,
+          code: targetBuildingName.slice(0, 4).toUpperCase(),
+          floorsCount: Math.max(dto.floor || 1, 4),
+        },
+      });
+      targetBuildingId = b.id;
+      maxFloors = b.floorsCount;
+    }
+
+    if (dto.floor > maxFloors) {
+      throw new BadRequestException(
+        `'${targetBuildingName}' binosi ${maxFloors} qavatdan iborat. ${dto.floor}-qavat kiritish mumkin emas!`,
       );
     }
 
-    // 2. Check department if provided
+    // 2. Check duplicate room in same building (for numbered rooms)
+    const hasExplicitNumber = Boolean(dto.number && dto.number.trim().length > 0);
+    const finalNumber = hasExplicitNumber
+      ? dto.number!.trim()
+      : `RS-${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
+
+    if (hasExplicitNumber) {
+      const existing = await this.prisma.room.findFirst({
+        where: {
+          number: finalNumber,
+          buildingId: targetBuildingId,
+          deletedAt: null,
+        },
+      });
+
+      if (existing) {
+        throw new ConflictException(
+          `'${targetBuildingName}' binosida '${dto.number}'-xona allaqachon mavjud`,
+        );
+      }
+    }
+
+    // 3. Check department if provided
     if (dto.departmentId) {
       const dept = await this.prisma.department.findUnique({
         where: { id: dto.departmentId },
       });
       if (!dept) {
-        throw new NotFoundException(`Biriktirilayotgan bo‘lim topilmadi`);
+        throw new NotFoundException(`Biriktirilayotgan bo‘lim yoki kafedra topilmadi`);
       }
     }
 
-    // 3. Check responsible user if provided
+    // 4. Check responsible user if provided
     if (dto.responsibleUserId) {
       const user = await this.prisma.user.findUnique({
         where: { id: dto.responsibleUserId },
@@ -355,15 +733,17 @@ export class OrganizationService {
     const room = await this.prisma.$transaction(async (tx) => {
       return tx.room.create({
         data: {
-          number: dto.number.trim(),
+          number: finalNumber,
           name: dto.name.trim(),
           floor: dto.floor,
-          building: dto.building.trim(),
+          buildingId: targetBuildingId,
+          building: targetBuildingName,
           departmentId: dto.departmentId || null,
           responsibleUserId: dto.responsibleUserId || null,
         },
         include: {
           department: true,
+          buildingRelation: true,
           responsibleUser: {
             select: { id: true, fullName: true, username: true, phone: true },
           },
@@ -394,21 +774,41 @@ export class OrganizationService {
       throw new NotFoundException(`Xona topilmadi`);
     }
 
-    // Check conflict if number or building changed
-    const targetNumber = dto.number !== undefined ? dto.number.trim() : existing.number;
-    const targetBuilding = dto.building !== undefined ? dto.building.trim() : existing.building;
+    let targetBuildingId = existing.buildingId;
+    let targetBuildingName = existing.building;
 
-    if (targetNumber !== existing.number || targetBuilding !== existing.building) {
+    if (dto.buildingId !== undefined) {
+      if (dto.buildingId) {
+        const b = await this.prisma.building.findUnique({ where: { id: dto.buildingId } });
+        if (!b) throw new NotFoundException('Tanlangan bino topilmadi');
+        targetBuildingId = b.id;
+        targetBuildingName = b.name;
+      } else {
+        targetBuildingId = null;
+      }
+    } else if (dto.building !== undefined) {
+      targetBuildingName = dto.building.trim();
+      const b = await this.prisma.building.findUnique({ where: { name: targetBuildingName } });
+      if (b) targetBuildingId = b.id;
+    }
+
+    const hasExplicitUpdateNumber = dto.number !== undefined && dto.number.trim().length > 0;
+    const targetNumber = dto.number !== undefined
+      ? (hasExplicitUpdateNumber ? dto.number.trim() : (existing.number.startsWith('RS-') ? existing.number : `RS-${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 90)}`))
+      : existing.number;
+
+    if (hasExplicitUpdateNumber && (targetNumber !== existing.number || targetBuildingId !== existing.buildingId)) {
       const conflict = await this.prisma.room.findFirst({
         where: {
           id: { not: id },
           number: targetNumber,
-          building: targetBuilding,
+          buildingId: targetBuildingId,
+          deletedAt: null,
         },
       });
       if (conflict) {
         throw new ConflictException(
-          `'${targetBuilding}' binosida '${targetNumber}'-xona allaqachon mavjud`,
+          `'${targetBuildingName}' binosida '${targetNumber}'-xona allaqachon mavjud`,
         );
       }
     }
@@ -430,12 +830,14 @@ export class OrganizationService {
           number: dto.number !== undefined ? dto.number.trim() : undefined,
           name: dto.name !== undefined ? dto.name.trim() : undefined,
           floor: dto.floor !== undefined ? dto.floor : undefined,
-          building: dto.building !== undefined ? dto.building.trim() : undefined,
+          buildingId: dto.buildingId !== undefined ? dto.buildingId : targetBuildingId,
+          building: targetBuildingName,
           departmentId: dto.departmentId !== undefined ? dto.departmentId : undefined,
           responsibleUserId: dto.responsibleUserId !== undefined ? dto.responsibleUserId : undefined,
         },
         include: {
           department: true,
+          buildingRelation: true,
           responsibleUser: {
             select: { id: true, fullName: true, username: true, phone: true },
           },
@@ -480,11 +882,14 @@ export class OrganizationService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.room.delete({ where: { id } });
+      await tx.room.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
     });
 
     await this.systemAuditService.log({
-      action: 'ROOM_DELETED',
+      action: 'SOFT_DELETE',
       entity: 'Room',
       entityId: id,
       userId: executorId,
@@ -494,9 +899,43 @@ export class OrganizationService {
       },
     });
 
+    const roomLabel = room.number && !room.number.startsWith('RS-')
+      ? `${room.number}-xona (${room.name})`
+      : room.name;
+
     return {
       success: true,
-      message: `'${room.number}-xona (${room.name})' muvaffaqiyatli o‘chirildi`,
+      message: `'${roomLabel}' muvaffaqiyatli o‘chirildi (Soft delete)`,
     };
+  }
+
+  async restoreRoom(id: string, executorId: string) {
+    const room = await this.prisma.room.findUnique({ where: { id } });
+    if (!room) {
+      throw new NotFoundException(`Xona topilmadi`);
+    }
+    if (!room.deletedAt) {
+      throw new BadRequestException(`Ushbu xona o‘chirilmagan!`);
+    }
+
+    const restored = await this.prisma.$transaction(async (tx) => {
+      return tx.room.update({
+        where: { id },
+        data: { deletedAt: null },
+      });
+    });
+
+    await this.systemAuditService.log({
+      action: 'RESTORE',
+      entity: 'Room',
+      entityId: id,
+      userId: executorId,
+      details: {
+        roomNumber: room.number,
+        building: room.building,
+      },
+    });
+
+    return restored;
   }
 }

@@ -31,16 +31,26 @@ async function main() {
     departmentId?: string;
     responsibleUserId?: string;
   }) {
+    const buildingRecord = await prisma.building.upsert({
+      where: { name: data.building },
+      update: {},
+      create: {
+        name: data.building,
+        code: data.building.slice(0, 4).toUpperCase(),
+        floorsCount: Math.max(data.floor, 4),
+      },
+    });
+
     const existing = await prisma.room.findFirst({
-      where: { number: data.number, building: data.building },
+      where: { number: data.number, buildingId: buildingRecord.id },
     });
     if (existing) {
       return prisma.room.update({
         where: { id: existing.id },
-        data,
+        data: { ...data, buildingId: buildingRecord.id },
       });
     }
-    return prisma.room.create({ data });
+    return prisma.room.create({ data: { ...data, buildingId: buildingRecord.id } });
   }
 
   async function getOrCreateSupplier(data: {
@@ -930,6 +940,70 @@ async function main() {
     },
   });
 
+  // 2.6 Moliya-iqtisodiyot Prorektori
+  const viceRector = await prisma.user.upsert({
+    where: { username: 'prorektor_moliya' },
+    update: { password: passwordHash, isActive: true, role: RoleType.VICE_RECTOR_FINANCE, departmentId: rectorate.id },
+    create: {
+      fullName: 'Prof. Mahmudov Elyor',
+      username: 'prorektor_moliya',
+      email: 'elyor.prorektor@university.uz',
+      password: passwordHash,
+      phone: '+998 90 777 00 11',
+      position: 'Moliya va iqtisodiy ishlar bo‘yicha prorektor',
+      role: RoleType.VICE_RECTOR_FINANCE,
+      departmentId: rectorate.id,
+    },
+  });
+
+  // 2.7 Universitet Rektori
+  const rector = await prisma.user.upsert({
+    where: { username: 'rektor' },
+    update: { password: passwordHash, isActive: true, role: RoleType.RECTOR, departmentId: rectorate.id },
+    create: {
+      fullName: 'Akad. Karimov O‘ktam',
+      username: 'rektor',
+      email: 'rector@university.uz',
+      password: passwordHash,
+      phone: '+998 71 200 00 00',
+      position: 'Universitet Rektori',
+      role: RoleType.RECTOR,
+      departmentId: rectorate.id,
+    },
+  });
+
+  // 2.8 Bosh Hisobchi
+  const chiefAccountant = await prisma.user.upsert({
+    where: { username: 'bosh_hisobchi' },
+    update: { password: passwordHash, isActive: true, role: RoleType.CHIEF_ACCOUNTANT, departmentId: accountingDept.id },
+    create: {
+      fullName: 'Nazarova Munira',
+      username: 'bosh_hisobchi',
+      email: 'munira.hisobchi@university.uz',
+      password: passwordHash,
+      phone: '+998 93 888 99 00',
+      position: 'Bosh hisobchi',
+      role: RoleType.CHIEF_ACCOUNTANT,
+      departmentId: accountingDept.id,
+    },
+  });
+
+  // 2.9 Bino Komendanti
+  const commendant = await prisma.user.upsert({
+    where: { username: 'komendant' },
+    update: { password: passwordHash, isActive: true, role: RoleType.COMMENDANT, departmentId: facilitiesDept.id },
+    create: {
+      fullName: 'Sodiqov Anvar',
+      username: 'komendant',
+      email: 'anvar.komendant@university.uz',
+      password: passwordHash,
+      phone: '+998 94 999 11 22',
+      position: 'Bosh bino komendanti',
+      role: RoleType.COMMENDANT,
+      departmentId: facilitiesDept.id,
+    },
+  });
+
   // =========================================================================
   // 3. XONALAR VA AUDITORIYALAR (25 TA XONA)
   // =========================================================================
@@ -1520,7 +1594,7 @@ async function main() {
 
   async function upsertStock(warehouseId: string, itemId: string, quantity: number, fundingSource: any) {
     await prisma.stock.upsert({
-      where: { warehouseId_itemId: { warehouseId, itemId } },
+      where: { warehouseId_itemId_fundingSource: { warehouseId, itemId, fundingSource } },
       update: { quantity, fundingSource },
       create: { warehouseId, itemId, quantity, fundingSource },
     });

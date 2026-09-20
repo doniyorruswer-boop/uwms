@@ -49,4 +49,19 @@ export class VoteWriteOffDto {
   @IsString()
   @IsOptional()
   comment?: string;
+
+  @ApiPropertyOptional({ description: 'Biometrik imzo heshi (SHA-256)' })
+  @IsString()
+  @IsOptional()
+  signatureHash?: string;
+
+  @ApiPropertyOptional({ description: 'Imzolovchi shaxs F.I.Sh.' })
+  @IsString()
+  @IsOptional()
+  signerName?: string;
+
+  @ApiPropertyOptional({ description: 'Imzolovchi lavozimi' })
+  @IsString()
+  @IsOptional()
+  signerRole?: string;
 }

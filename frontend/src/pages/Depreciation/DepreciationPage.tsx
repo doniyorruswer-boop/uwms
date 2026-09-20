@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Card,
+  Table,
   Grid,
   Button,
   Input,
@@ -17,6 +18,7 @@ import {
   Tabs,
   DatePicker,
   Spin,
+  Tooltip,
 } from '@arco-design/web-react';
 import {
   IconPlayArrow,
@@ -28,9 +30,13 @@ import {
   IconExclamationCircle,
   IconEye,
   IconFile,
+  IconLock,
 } from '@arco-design/web-react/icon';
 import { StatHeroCard } from '../../components/Common/StatHeroCard';
 import { StandardTable } from '../../components/Common/StandardTable';
+import { ForbiddenView } from '../../components/Common/ForbiddenView';
+import { formatMoney } from '../../utils/formatters';
+import { useAuthStore } from '../../store/authStore';
 import { useAssetsQuery } from '../../hooks/useAssetsQuery';
 import {
   useDepreciationRunsQuery,
@@ -39,6 +45,7 @@ import {
   useRunDepreciationMutation,
   useAssetDepreciationHistoryQuery,
   useDepreciationStatementQuery,
+  DepreciationRunItem,
 } from '../../hooks/useDepreciationQuery';
 
 const { Row, Col } = Grid;
@@ -46,6 +53,13 @@ const { Title, Text } = Typography;
 const TabPane = Tabs.TabPane;
 
 export const DepreciationPage: React.FC = () => {
+  const user = useAuthStore((s) => s.user);
+  const canExecute =
+    user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'CHIEF_ACCOUNTANT' ||
+    user?.role === 'VICE_RECTOR_FINANCE';
+  const canView = canExecute || user?.role === 'AUDITOR';
+
   // Current period in YYYY-MM
   const defaultPeriod = useMemo(() => {
     const d = new Date();
@@ -70,15 +84,29 @@ export const DepreciationPage: React.FC = () => {
   const { assets, isLoading: assetsLoading } = useAssetsQuery();
   const { data: runsData, isLoading: runsLoading } = useDepreciationRunsQuery({ limit: 50 });
   const { data: runDetails, isLoading: runDetailsLoading } = useDepreciationRunDetailsQuery(selectedRunId);
-  const { data: previewData, isLoading: previewLoading, refetch: refetchPreview } = useDepreciationPreviewQuery(
+  const { data: previewData, isLoading: previewLoading } = useDepreciationPreviewQuery(
     { period: runPeriod },
-    previewRequested || isRunModalVisible,
+    (previewRequested || isRunModalVisible) && canView,
   );
   const { data: assetHistory, isLoading: assetHistoryLoading } = useAssetDepreciationHistoryQuery(selectedAssetId);
-  const { data: statementData, isLoading: statementLoading } = useDepreciationStatementQuery(statementPeriod, activeTab === 'statement');
+  const { data: statementData, isLoading: statementLoading } = useDepreciationStatementQuery(
+    statementPeriod,
+    activeTab === 'statement' && canView,
+  );
 
   // Mutation
   const runMutation = useRunDepreciationMutation();
+
+  // Permission Denied UX State (Rule 6.3 & Rule 3)
+  if (!user || !canView) {
+    return (
+      <ForbiddenView
+        title="403 — Kirish Cheklangan"
+        subTitle="Amortizatsiya hisobi va qoldiq qiymat moduliga kirish faqat Bosh hisobchi, Moliya prorektori va Tizim administratori uchun ruxsat etilgan."
+        requiredRoles={['CHIEF_ACCOUNTANT', 'VICE_RECTOR_FINANCE', 'SUPER_ADMIN']}
+      />
+    );
+  }
 
   // Statistics calculation across all assets
   const stats = useMemo(() => {
@@ -138,19 +166,29 @@ export const DepreciationPage: React.FC = () => {
 
   // Handle open run modal
   const handleOpenRunModal = () => {
+    if (!canExecute) return;
     setRunPeriod(defaultPeriod);
     setRunNotes('');
     setPreviewRequested(true);
     setIsRunModalVisible(true);
   };
 
-  // Handle execute run
+  // Handle execute run with DTO binding
   const handleExecuteRun = async () => {
-    await runMutation.mutateAsync({
-      period: runPeriod,
-      notes: runNotes || `${runPeriod} davri uchun OTM oylik amortizatsiya hisobi`,
-    });
-    setIsRunModalVisible(false);
+    if (!canExecute) return;
+    try {
+      const res = await runMutation.mutateAsync({
+        period: runPeriod,
+        notes: runNotes || `${runPeriod} davri uchun OTM oylik amortizatsiya hisobi`,
+      });
+      setIsRunModalVisible(false);
+      if (res?.run?.id) {
+        setActiveTab('runs');
+        setSelectedRunId(res.run.id);
+      }
+    } catch {
+      // Handled by onError in mutation
+    }
   };
 
   // Asset Registry Columns
@@ -168,7 +206,7 @@ export const DepreciationPage: React.FC = () => {
         <div>
           <div style={{ fontWeight: 600, color: 'var(--color-text-1)' }}>{val}</div>
           <div style={{ fontSize: 12, color: 'var(--color-text-3)' }}>
-            {r.categoryName} • {r.fundingSource}
+            {r.categoryName} • {r.fundingSource || 'BYUDJET'}
           </div>
         </div>
       ),
@@ -185,10 +223,10 @@ export const DepreciationPage: React.FC = () => {
     {
       title: 'Boshlang‘ich Narx',
       dataIndex: 'purchasePrice',
-      width: 150,
+      width: 160,
       align: 'right' as const,
       render: (val: number) => (
-        <span style={{ fontWeight: 600 }}>{Number(val || 0).toLocaleString('uz-UZ')} so‘m</span>
+        <span style={{ fontWeight: 600 }}>{formatMoney(val)}</span>
       ),
     },
     {
@@ -200,12 +238,12 @@ export const DepreciationPage: React.FC = () => {
     },
     {
       title: 'Oylik Eskirish',
-      width: 140,
+      width: 150,
       align: 'right' as const,
       render: (_: any, r: any) => {
         const rate = (r.depreciationRate || 20) / 100 / 12;
         const monthly = Math.round(Number(r.purchasePrice || 0) * rate);
-        return <span style={{ color: '#F53F3F', fontWeight: 600 }}>+{monthly.toLocaleString('uz-UZ')} so‘m</span>;
+        return <span style={{ color: '#F53F3F', fontWeight: 600 }}>+{formatMoney(monthly)}</span>;
       },
     },
     {
@@ -214,13 +252,13 @@ export const DepreciationPage: React.FC = () => {
       width: 160,
       align: 'right' as const,
       render: (val: number) => (
-        <span style={{ color: '#F53F3F', fontWeight: 600 }}>{Number(val || 0).toLocaleString('uz-UZ')} so‘m</span>
+        <span style={{ color: '#F53F3F', fontWeight: 600 }}>{formatMoney(val)}</span>
       ),
     },
     {
       title: 'Joriy Qoldiq (Book Value)',
       dataIndex: 'currentBookValue',
-      width: 170,
+      width: 180,
       align: 'right' as const,
       render: (val: number, r: any) => {
         const price = Number(r.purchasePrice || 0);
@@ -229,7 +267,7 @@ export const DepreciationPage: React.FC = () => {
         return (
           <div>
             <div style={{ color: isZero ? '#86909C' : '#00B42A', fontWeight: 700 }}>
-              {bookVal.toLocaleString('uz-UZ')} so‘m
+              {formatMoney(bookVal)}
             </div>
             {price > 0 && (
               <Progress
@@ -263,7 +301,11 @@ export const DepreciationPage: React.FC = () => {
           type="text"
           size="small"
           icon={<IconHistory />}
-          onClick={() => setSelectedAssetId(r.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedAssetId(r.id);
+          }}
+          style={{ borderRadius: 0 }}
         >
           Daftar
         </Button>
@@ -304,7 +346,7 @@ export const DepreciationPage: React.FC = () => {
       align: 'right' as const,
       render: (val: number) => (
         <span style={{ color: '#F53F3F', fontWeight: 700 }}>
-          -{Number(val || 0).toLocaleString('uz-UZ')} so‘m
+          -{formatMoney(val)}
         </span>
       ),
     },
@@ -315,7 +357,7 @@ export const DepreciationPage: React.FC = () => {
       align: 'right' as const,
       render: (val: number) => (
         <span style={{ color: '#00B42A', fontWeight: 700 }}>
-          {Number(val || 0).toLocaleString('uz-UZ')} so‘m
+          {formatMoney(val)}
         </span>
       ),
     },
@@ -345,7 +387,11 @@ export const DepreciationPage: React.FC = () => {
           type="text"
           size="small"
           icon={<IconEye />}
-          onClick={() => setSelectedRunId(r.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedRunId(r.id);
+          }}
+          style={{ borderRadius: 0 }}
         >
           Tafsilot
         </Button>
@@ -354,47 +400,57 @@ export const DepreciationPage: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '0 4px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', minWidth: 0, maxWidth: '100%' }}>
+      {/* Read-only Alert for Non-Executors (e.g. AUDITOR) */}
+      {!canExecute && (
+        <Alert
+          type="info"
+          title="Ko‘rish Rejimi (Read-only)"
+          content="Siz amortizatsiya reestri va hisobotlarini ko‘rish huquqiga egasiz. Oylik eskirish hisoblashni amalga oshirish faqat Bosh hisobchi, Moliya ishlari bo‘yicha prorektor va Tizim administratori uchun ruxsat etilgan."
+          style={{ borderRadius: 0 }}
+        />
+      )}
+
       {/* Header Toolbar */}
-      <Card style={{ marginBottom: 16, borderRadius: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <Title heading={5} style={{ margin: 0 }}>
-              Amortizatsiya va Qoldiq Qiymat Dvigateli (Depreciation Engine)
-            </Title>
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              O‘zbekiston OTM davlat standarti bo‘yicha oylik teng me’yorli eskirish va balans qiymati nazorati
-            </Text>
-          </div>
-          <Space>
-            <Button
-              type="outline"
-              icon={<IconPrinter />}
-              onClick={() => {
-                setActiveTab('statement');
-              }}
-            >
-              Rasmiy Qaydnoma
-            </Button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+        <Space>
+          <Button
+            type="outline"
+            icon={<IconPrinter />}
+            onClick={() => {
+              setActiveTab('statement');
+            }}
+            style={{ borderRadius: 0 }}
+          >
+            Rasmiy Qaydnoma
+          </Button>
+
+          {canExecute ? (
             <Button
               type="primary"
               icon={<IconPlayArrow />}
-              style={{ backgroundColor: '#165DFF' }}
+              style={{ backgroundColor: '#165DFF', borderRadius: 0 }}
               onClick={handleOpenRunModal}
             >
               Oylik Amortizatsiyani Hisoblash
             </Button>
-          </Space>
-        </div>
-      </Card>
+          ) : (
+            <Tooltip content="Amortizatsiyani hisoblash faqat Bosh hisobchi, Moliya prorektori va Admin uchun ruxsat etilgan">
+              <Button disabled icon={<IconLock />} style={{ borderRadius: 0 }}>
+                Amortizatsiyani Hisoblash (Cheklangan)
+              </Button>
+            </Tooltip>
+          )}
+        </Space>
+      </div>
 
       {/* Hero Stat Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+      <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} md={6}>
           <StatHeroCard
             title="Jami Boshlang‘ich Qiymat"
             value={`${(stats.totalCost / 1_000_000).toFixed(1)} mln`}
-            subtext={`${stats.totalCost.toLocaleString('uz-UZ')} so‘m`}
+            subtext={formatMoney(stats.totalCost)}
             icon={<IconFile />}
             color="blue"
           />
@@ -403,7 +459,7 @@ export const DepreciationPage: React.FC = () => {
           <StatHeroCard
             title="Jamg‘arilgan Eskirish"
             value={`${(stats.totalDepreciation / 1_000_000).toFixed(1)} mln`}
-            subtext={`${stats.totalDepreciation.toLocaleString('uz-UZ')} so‘m`}
+            subtext={formatMoney(stats.totalDepreciation)}
             icon={<IconHistory />}
             color="red"
           />
@@ -412,7 +468,7 @@ export const DepreciationPage: React.FC = () => {
           <StatHeroCard
             title="Joriy Qoldiq Balans Qiymati"
             value={`${(stats.totalBookValue / 1_000_000).toFixed(1)} mln`}
-            subtext={`${stats.totalBookValue.toLocaleString('uz-UZ')} so‘m`}
+            subtext={formatMoney(stats.totalBookValue)}
             icon={<IconCheckCircle />}
             color="green"
           />
@@ -429,10 +485,10 @@ export const DepreciationPage: React.FC = () => {
       </Row>
 
       {/* Main Tabs */}
-      <Tabs activeTab={activeTab} onChange={setActiveTab} type="card">
+      <Tabs activeTab={activeTab} onChange={setActiveTab} type="line">
         {/* Tab 1: Registry */}
         <TabPane key="registry" title="Asosiy Vositalar Amortizatsiya Reestri">
-          <Card style={{ borderRadius: 0, marginBottom: 12 }}>
+          <Card className="uwms-card" style={{ borderRadius: 0, marginBottom: 12 }} bodyStyle={{ padding: '12px 16px' }}>
             <Row gutter={16} align="center">
               <Col xs={24} sm={12} md={8}>
                 <Input
@@ -441,13 +497,14 @@ export const DepreciationPage: React.FC = () => {
                   value={search}
                   onChange={setSearch}
                   allowClear
+                  style={{ borderRadius: 0 }}
                 />
               </Col>
               <Col xs={24} sm={12} md={6}>
                 <Select
                   value={categoryFilter}
                   onChange={setCategoryFilter}
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', borderRadius: 0 }}
                 >
                   <Select.Option value="ALL">Barcha Kategoriyalar</Select.Option>
                   {categories.map((c) => (
@@ -471,23 +528,27 @@ export const DepreciationPage: React.FC = () => {
             loading={assetsLoading}
             rowKey="id"
             scrollX={1450}
+            emptyText={search ? 'Qidiruv bo‘yicha asosiy vosita topilmadi' : 'Asosiy vositalar ro‘yxati bo‘sh'}
+            onRowClick={(r) => setSelectedAssetId(r.id)}
           />
         </TabPane>
 
         {/* Tab 2: Runs History */}
         <TabPane key="runs" title="O‘tkazilgan Partiyalar Tarixi (Runs)">
-          <StandardTable
+          <StandardTable<DepreciationRunItem>
             columns={runsColumns}
             data={runsData?.data || []}
             loading={runsLoading}
             rowKey="id"
             scrollX={1200}
+            emptyText="O‘tkazilgan amortizatsiya partiyalari mavjud emas"
+            onRowClick={(r) => setSelectedRunId(r.id)}
           />
         </TabPane>
 
         {/* Tab 3: Official Statement */}
         <TabPane key="statement" title="Davlat OTM Rasmiy Amortizatsiya Qaydnomasi">
-          <Card style={{ borderRadius: 0, marginBottom: 12 }}>
+          <Card className="uwms-card" style={{ borderRadius: 0, marginBottom: 12 }} bodyStyle={{ padding: '12px 16px' }}>
             <Row justify="space-between" align="center">
               <Col span={12}>
                 <Space>
@@ -495,12 +556,12 @@ export const DepreciationPage: React.FC = () => {
                   <DatePicker.MonthPicker
                     value={statementPeriod}
                     onChange={(dateString) => setStatementPeriod(dateString)}
-                    style={{ width: 160 }}
+                    style={{ width: 160, borderRadius: 0 }}
                   />
                 </Space>
               </Col>
               <Col span={12} style={{ textAlign: 'right' }}>
-                <Button icon={<IconPrinter />} type="primary" onClick={() => window.print()}>
+                <Button icon={<IconPrinter />} type="primary" onClick={() => window.print()} style={{ borderRadius: 0 }}>
                   Chop Etish (Print)
                 </Button>
               </Col>
@@ -512,7 +573,7 @@ export const DepreciationPage: React.FC = () => {
               <Spin tip="Qaydnoma tayyorlanmoqda..." />
             </div>
           ) : statementData ? (
-            <Card style={{ borderRadius: 0, padding: 16 }} id="printable-statement">
+            <Card className="uwms-card" style={{ borderRadius: 0, padding: 16 }} id="printable-statement">
               <div style={{ textAlign: 'center', marginBottom: 24, borderBottom: '2px solid #1D2129', paddingBottom: 16 }}>
                 <Title heading={4} style={{ margin: '0 0 8px 0', textTransform: 'uppercase' }}>
                   {statementData.documentName}
@@ -534,7 +595,7 @@ export const DepreciationPage: React.FC = () => {
                   <Card style={{ textAlign: 'center', background: '#F2F3F5', borderRadius: 0 }}>
                     <div style={{ fontSize: 12, color: '#4E5969' }}>Boshlang‘ich Narx</div>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>
-                      {statementData.totals.initialCost.toLocaleString('uz-UZ')} so‘m
+                      {formatMoney(statementData.totals.initialCost)}
                     </div>
                   </Card>
                 </Col>
@@ -542,7 +603,7 @@ export const DepreciationPage: React.FC = () => {
                   <Card style={{ textAlign: 'center', background: '#FFECE8', borderRadius: 0 }}>
                     <div style={{ fontSize: 12, color: '#F53F3F' }}>Oylik Eskirish</div>
                     <div style={{ fontSize: 18, fontWeight: 700, color: '#F53F3F' }}>
-                      {statementData.totals.monthlyDepreciation.toLocaleString('uz-UZ')} so‘m
+                      {formatMoney(statementData.totals.monthlyDepreciation)}
                     </div>
                   </Card>
                 </Col>
@@ -550,7 +611,7 @@ export const DepreciationPage: React.FC = () => {
                   <Card style={{ textAlign: 'center', background: '#E8FFEA', borderRadius: 0 }}>
                     <div style={{ fontSize: 12, color: '#00B42A' }}>Yakuniy Qoldiq Qiymat</div>
                     <div style={{ fontSize: 18, fontWeight: 700, color: '#00B42A' }}>
-                      {statementData.totals.closingBookValue.toLocaleString('uz-UZ')} so‘m
+                      {formatMoney(statementData.totals.closingBookValue)}
                     </div>
                   </Card>
                 </Col>
@@ -579,16 +640,16 @@ export const DepreciationPage: React.FC = () => {
                       <td style={{ padding: '8px 12px', textAlign: 'center' }}>{cat.count}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'center' }}>{cat.annualRate}%</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                        {cat.initialCost.toLocaleString('uz-UZ')} so‘m
+                        {formatMoney(cat.initialCost)}
                       </td>
                       <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                        {cat.openingBookValue.toLocaleString('uz-UZ')} so‘m
+                        {formatMoney(cat.openingBookValue)}
                       </td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', color: '#F53F3F', fontWeight: 600 }}>
-                        {cat.depreciationAmount.toLocaleString('uz-UZ')} so‘m
+                        {formatMoney(cat.depreciationAmount)}
                       </td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', color: '#00B42A', fontWeight: 700 }}>
-                        {cat.closingBookValue.toLocaleString('uz-UZ')} so‘m
+                        {formatMoney(cat.closingBookValue)}
                       </td>
                     </tr>
                   ))}
@@ -608,7 +669,7 @@ export const DepreciationPage: React.FC = () => {
               </div>
             </Card>
           ) : (
-            <Card style={{ borderRadius: 0, textAlign: 'center', padding: 40 }}>
+            <Card className="uwms-card" style={{ borderRadius: 0, textAlign: 'center', padding: 40 }}>
               <IconExclamationCircle style={{ fontSize: 36, color: '#F7BA1E', marginBottom: 12 }} />
               <div style={{ fontSize: 16, fontWeight: 600 }}>Ushbu davr uchun qaydnoma mavjud emas</div>
               <div style={{ color: '#86909C', marginTop: 6 }}>
@@ -619,7 +680,7 @@ export const DepreciationPage: React.FC = () => {
         </TabPane>
       </Tabs>
 
-      {/* Modal 1: Oylik Amortizatsiyani Hisoblash (Dry-Run Preview + Run) */}
+      {/* Modal 1: Oylik Amortizatsiyani Hisoblash (Dry-Run Preview + Run with DTO) */}
       <Modal
         title={
           <Space>
@@ -630,7 +691,7 @@ export const DepreciationPage: React.FC = () => {
         visible={isRunModalVisible}
         onCancel={() => setIsRunModalVisible(false)}
         footer={null}
-        style={{ width: 850, borderRadius: 0 }}
+        style={{ width: 900, borderRadius: 0 }}
       >
         <div style={{ marginBottom: 16 }}>
           <Descriptions
@@ -646,7 +707,7 @@ export const DepreciationPage: React.FC = () => {
                       setRunPeriod(dateString);
                       setPreviewRequested(true);
                     }}
-                    style={{ width: 180 }}
+                    style={{ width: 180, borderRadius: 0 }}
                   />
                 ),
               },
@@ -691,7 +752,7 @@ export const DepreciationPage: React.FC = () => {
                 <Card style={{ background: '#FFECE8', textAlign: 'center', borderRadius: 0 }}>
                   <div style={{ fontSize: 12, color: '#F53F3F' }}>Oylik Eskirish Summasi</div>
                   <div style={{ fontSize: 18, fontWeight: 700, color: '#F53F3F' }}>
-                    -{previewData.totalProjectedDepreciation.toLocaleString('uz-UZ')} so‘m
+                    -{formatMoney(previewData.totalProjectedDepreciation)}
                   </div>
                 </Card>
               </Col>
@@ -699,11 +760,77 @@ export const DepreciationPage: React.FC = () => {
                 <Card style={{ background: '#E8FFEA', textAlign: 'center', borderRadius: 0 }}>
                   <div style={{ fontSize: 12, color: '#00B42A' }}>Yangi Qoldiq Qiymat</div>
                   <div style={{ fontSize: 18, fontWeight: 700, color: '#00B42A' }}>
-                    {previewData.totalProjectedBookValue.toLocaleString('uz-UZ')} so‘m
+                    {formatMoney(previewData.totalProjectedBookValue)}
                   </div>
                 </Card>
               </Col>
             </Row>
+
+            {/* Preview Items Table bound to DTO */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text bold style={{ fontSize: 13 }}>
+                  Hisoblanuvchi Vositalar Ro‘yxati (DTO Prognozi):
+                </Text>
+                <Tag size="small" color="arcoblue">{previewData.items?.length || 0} ta aktiv</Tag>
+              </div>
+              <Table
+                size="small"
+                rowKey="assetId"
+                data={previewData.items || []}
+                scroll={{ x: 750, y: 220 }}
+                pagination={{ pageSize: 5, sizeCanChange: false }}
+                columns={[
+                  {
+                    title: 'Inventar №',
+                    dataIndex: 'inventoryNumber',
+                    width: 120,
+                    render: (inv) => <b style={{ color: '#165DFF' }}>{inv}</b>,
+                  },
+                  {
+                    title: 'Vosita Nomi',
+                    dataIndex: 'itemName',
+                    render: (name, r) => (
+                      <div>
+                        <div>{name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-3)' }}>{r.categoryName}</div>
+                      </div>
+                    ),
+                  },
+                  {
+                    title: 'Manba',
+                    dataIndex: 'fundingSource',
+                    width: 110,
+                    render: (fs) => (
+                      <Tag size="small" color={fs === 'KONTRAKT_RIVOJLANTIRISH' ? 'green' : fs === 'GRANT' ? 'purple' : 'arcoblue'}>
+                        {fs === 'KONTRAKT_RIVOJLANTIRISH' ? 'Kontrakt' : fs === 'GRANT' ? 'Grant' : 'Byudjet'}
+                      </Tag>
+                    ),
+                  },
+                  {
+                    title: 'Boshiga Qoldiq',
+                    dataIndex: 'openingBookValue',
+                    width: 130,
+                    align: 'right' as const,
+                    render: (v) => formatMoney(v),
+                  },
+                  {
+                    title: 'Oylik Eskirish',
+                    dataIndex: 'monthlyDepreciation',
+                    width: 130,
+                    align: 'right' as const,
+                    render: (v) => <span style={{ color: '#F53F3F', fontWeight: 600 }}>-{formatMoney(v)}</span>,
+                  },
+                  {
+                    title: 'Yangi Qoldiq',
+                    dataIndex: 'closingBookValue',
+                    width: 130,
+                    align: 'right' as const,
+                    render: (v) => <span style={{ color: '#00B42A', fontWeight: 700 }}>{formatMoney(v)}</span>,
+                  },
+                ]}
+              />
+            </div>
 
             <div style={{ marginBottom: 16 }}>
               <Text bold style={{ display: 'block', marginBottom: 6 }}>
@@ -713,14 +840,15 @@ export const DepreciationPage: React.FC = () => {
                 placeholder="Masalan: 2026-yil sentabr oyi reja bo‘yicha OTM oylik amortizatsiyasi"
                 value={runNotes}
                 onChange={setRunNotes}
+                style={{ borderRadius: 0 }}
               />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <Button onClick={() => setIsRunModalVisible(false)}>Bekor Qilish</Button>
+              <Button onClick={() => setIsRunModalVisible(false)} style={{ borderRadius: 0 }}>Bekor Qilish</Button>
               <Popconfirm
                 title="Amortizatsiyani Tasdiqlash"
-                content={`Rostdan ham ${previewData.period} davri uchun ${previewData.newlyEligibleCount} ta aktivga jami ${previewData.totalProjectedDepreciation.toLocaleString('uz-UZ')} so‘m amortizatsiya hisoblanib, bazada qoldiq qiymat yangilansinmi?`}
+                content={`Rostdan ham ${previewData.period} davri uchun ${previewData.newlyEligibleCount} ta aktivga jami ${formatMoney(previewData.totalProjectedDepreciation)} amortizatsiya hisoblanib, bazada qoldiq qiymat yangilansinmi?`}
                 okText="Ha, Tasdiqlash va Saqlash"
                 cancelText="Yo‘q"
                 onOk={handleExecuteRun}
@@ -728,8 +856,8 @@ export const DepreciationPage: React.FC = () => {
                 <Button
                   type="primary"
                   loading={runMutation.isPending}
-                  disabled={previewData.newlyEligibleCount === 0}
-                  style={{ backgroundColor: '#165DFF' }}
+                  disabled={!canExecute || previewData.newlyEligibleCount === 0}
+                  style={{ backgroundColor: '#165DFF', borderRadius: 0 }}
                 >
                   Tasdiqlash va Bazaga Saqlash
                 </Button>
@@ -765,13 +893,13 @@ export const DepreciationPage: React.FC = () => {
               data={[
                 { label: 'Inventar №', value: <Tag color="arcoblue">{assetHistory.asset.inventoryNumber}</Tag> },
                 { label: 'Vosita Nomi', value: assetHistory.asset.itemName },
-                { label: 'Boshlang‘ich Narx', value: `${assetHistory.asset.purchasePrice.toLocaleString('uz-UZ')} so‘m` },
+                { label: 'Boshlang‘ich Narx', value: formatMoney(assetHistory.asset.purchasePrice) },
                 { label: 'Yillik Me’yor', value: `${assetHistory.asset.depreciationRate}% (yillik)` },
                 {
                   label: 'Jamg‘arilgan Eskirish',
                   value: (
                     <span style={{ color: '#F53F3F', fontWeight: 600 }}>
-                      {assetHistory.asset.accumulatedDepreciation.toLocaleString('uz-UZ')} so‘m
+                      {formatMoney(assetHistory.asset.accumulatedDepreciation)}
                     </span>
                   ),
                 },
@@ -779,7 +907,7 @@ export const DepreciationPage: React.FC = () => {
                   label: 'Joriy Qoldiq (Book Value)',
                   value: (
                     <span style={{ color: '#00B42A', fontWeight: 700 }}>
-                      {assetHistory.asset.currentBookValue.toLocaleString('uz-UZ')} so‘m
+                      {formatMoney(assetHistory.asset.currentBookValue)}
                     </span>
                   ),
                 },
@@ -814,14 +942,14 @@ export const DepreciationPage: React.FC = () => {
                       <td style={{ padding: '8px' }}>
                         <Tag size="small">{h.batchNumber}</Tag>
                       </td>
-                      <td style={{ padding: '8px', textAlign: 'right' }}>{h.openingBookValue.toLocaleString('uz-UZ')} so‘m</td>
+                      <td style={{ padding: '8px', textAlign: 'right' }}>{formatMoney(h.openingBookValue)}</td>
                       <td style={{ padding: '8px', textAlign: 'right', color: '#F53F3F', fontWeight: 600 }}>
-                        -{h.depreciationAmount.toLocaleString('uz-UZ')} so‘m
+                        -{formatMoney(h.depreciationAmount)}
                       </td>
                       <td style={{ padding: '8px', textAlign: 'right', color: '#00B42A', fontWeight: 700 }}>
-                        {h.closingBookValue.toLocaleString('uz-UZ')} so‘m
+                        {formatMoney(h.closingBookValue)}
                       </td>
-                      <td style={{ padding: '8px', textAlign: 'right' }}>{h.accumulatedTotal.toLocaleString('uz-UZ')} so‘m</td>
+                      <td style={{ padding: '8px', textAlign: 'right' }}>{formatMoney(h.accumulatedTotal)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -831,7 +959,7 @@ export const DepreciationPage: React.FC = () => {
         ) : null}
       </Modal>
 
-      {/* Modal 3: Run Details Modal */}
+      {/* Modal 3: Run Details Modal with DTO records */}
       <Modal
         title={
           <Space>
@@ -842,7 +970,7 @@ export const DepreciationPage: React.FC = () => {
         visible={Boolean(selectedRunId)}
         onCancel={() => setSelectedRunId(null)}
         footer={null}
-        style={{ width: 900, borderRadius: 0 }}
+        style={{ width: 920, borderRadius: 0 }}
       >
         {runDetailsLoading ? (
           <div style={{ padding: 40, textAlign: 'center' }}>
@@ -862,7 +990,7 @@ export const DepreciationPage: React.FC = () => {
                   label: 'Jami Oylik Eskirish',
                   value: (
                     <span style={{ color: '#F53F3F', fontWeight: 700 }}>
-                      -{runDetails.totalDepreciationAmount.toLocaleString('uz-UZ')} so‘m
+                      -{formatMoney(runDetails.totalDepreciationAmount)}
                     </span>
                   ),
                 },
@@ -870,34 +998,39 @@ export const DepreciationPage: React.FC = () => {
                   label: 'Yakuniy Qoldiq Balans',
                   value: (
                     <span style={{ color: '#00B42A', fontWeight: 700 }}>
-                      {runDetails.totalBookValue.toLocaleString('uz-UZ')} so‘m
+                      {formatMoney(runDetails.totalBookValue)}
                     </span>
                   ),
                 },
-                { label: 'Ijrochi', value: runDetails.executedByName },
+                { label: 'Ijrochi', value: `${runDetails.executedByName} (${runDetails.executedByRole || 'Mas’ul'})` },
               ]}
             />
 
             <Title heading={6} style={{ marginBottom: 8 }}>
-              Partiyaga Kiritilgan Asosiy Vositalar Ro‘yxati:
+              Partiyaga Kiritilgan Asosiy Vositalar Ro‘yxati (DTO Jurnali):
             </Title>
-            <StandardTable
+            <Table
               columns={[
-                { title: 'Inventar №', dataIndex: 'inventoryNumber', width: 140 },
+                {
+                  title: 'Inventar №',
+                  dataIndex: 'inventoryNumber',
+                  width: 140,
+                  render: (v) => <b style={{ color: '#165DFF' }}>{v}</b>,
+                },
                 { title: 'Vosita Nomi', dataIndex: 'itemName' },
                 { title: 'Kategoriya', dataIndex: 'categoryName', width: 160 },
                 {
                   title: 'Boshlang‘ich Narx',
                   dataIndex: 'initialCost',
                   align: 'right' as const,
-                  render: (v: number) => `${v.toLocaleString('uz-UZ')} so‘m`,
+                  render: (v: number) => formatMoney(v),
                 },
                 {
                   title: 'Oylik Eskirish',
                   dataIndex: 'depreciationAmount',
                   align: 'right' as const,
                   render: (v: number) => (
-                    <span style={{ color: '#F53F3F', fontWeight: 600 }}>-{v.toLocaleString('uz-UZ')} so‘m</span>
+                    <span style={{ color: '#F53F3F', fontWeight: 600 }}>-{formatMoney(v)}</span>
                   ),
                 },
                 {
@@ -905,13 +1038,14 @@ export const DepreciationPage: React.FC = () => {
                   dataIndex: 'closingBookValue',
                   align: 'right' as const,
                   render: (v: number) => (
-                    <span style={{ color: '#00B42A', fontWeight: 700 }}>{v.toLocaleString('uz-UZ')} so‘m</span>
+                    <span style={{ color: '#00B42A', fontWeight: 700 }}>{formatMoney(v)}</span>
                   ),
                 },
               ]}
               data={runDetails.records || []}
               rowKey="id"
-              scrollX={800}
+              scroll={{ x: 800 }}
+              pagination={{ pageSize: 8 }}
             />
           </div>
         ) : null}
@@ -919,3 +1053,5 @@ export const DepreciationPage: React.FC = () => {
     </div>
   );
 };
+
+export default DepreciationPage;

@@ -16,6 +16,10 @@ RUN npm ci
 # Manba kodlarini nusxalash
 COPY . .
 
+# API URL konfiguratsiyasi (brauzer faqat o‘z Nginx domeniga /api orqali murojaat qilishi uchun)
+ARG VITE_API_URL=/api
+ENV VITE_API_URL=$VITE_API_URL
+
 # Production bundle yaratish (TypeScript + Vite)
 RUN npm run build
 

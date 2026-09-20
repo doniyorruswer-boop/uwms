@@ -53,6 +53,15 @@ export interface WriteOffItem {
   technicalConclusion?: string;
   status: 'IN_REVIEW' | 'APPROVED' | 'REJECTED';
   approvedAt?: string;
+  hasWormStamp?: boolean;
+  stamp?: {
+    id: string;
+    docNumber: string;
+    docType: string;
+    isValid: boolean;
+    signerName: string;
+    signerRole?: string;
+  } | null;
   createdBy: { id: string; fullName: string; role: string };
   members: WriteOffMember[];
   createdAt: string;
@@ -95,12 +104,24 @@ export function useWriteOffQuery(params?: { status?: string; assetId?: string })
       id,
       vote,
       comment,
+      signatureHash,
+      signerName,
+      signerRole,
     }: {
       id: string;
       vote: 'APPROVED' | 'REJECTED';
       comment?: string;
+      signatureHash?: string;
+      signerName?: string;
+      signerRole?: string;
     }) => {
-      const res = await apiClient.post(API_ENDPOINTS.WRITE_OFFS.VOTE(id), { vote, comment });
+      const res = await apiClient.post(API_ENDPOINTS.WRITE_OFFS.VOTE(id), {
+        vote,
+        comment,
+        signatureHash,
+        signerName,
+        signerRole,
+      });
       return res.data;
     },
     onSuccess: (data) => {

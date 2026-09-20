@@ -6,15 +6,12 @@ import {
   Badge,
   Space,
   Input,
-  Select,
-  Grid,
   Modal,
   Form,
   InputNumber,
   Radio,
-  Typography,
   Alert,
-  Empty,
+  Tooltip,
 } from '@arco-design/web-react';
 import {
   IconTool,
@@ -22,28 +19,32 @@ import {
   IconSearch,
   IconCheckCircle,
   IconCloseCircle,
-  IconClockCircle,
-  IconSafe,
   IconDownload,
   IconRefresh,
   IconSync,
   IconEye,
   IconFile,
+  IconDelete,
 } from '@arco-design/web-react/icon';
 import { useRepairsQuery, type RepairItem } from '../../hooks/useRepairsQuery';
+import { useAuthStore } from '../../store/authStore';
 import { CreateRepairModal } from '../../components/Repairs/CreateRepairModal';
+import { CreateWriteOffModal } from '../../components/WriteOff/CreateWriteOffModal';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { TableActions } from '../../components/Common/TableActions';
 import { StandardTable } from '../../components/Common/StandardTable';
 import { exportToExcel } from '../../utils/exportExcel';
 
-const { Row, Col } = Grid;
-const { Title, Text } = Typography;
 const FormItem = Form.Item;
 const { TextArea } = Input;
 
 export const RepairsPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const canManageRepairs = ['COMMENDANT', 'HEAD_WAREHOUSE', 'MOL', 'SUPER_ADMIN'].includes(
+    user?.role || '',
+  );
+
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [search, setSearch] = useState<string>('');
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -52,6 +53,10 @@ export const RepairsPage: React.FC = () => {
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
   const [selectedRepair, setSelectedRepair] = useState<RepairItem | null>(null);
   const [updateForm] = Form.useForm();
+
+  // Direct Write-Off modal state for UNREPAIRABLE assets
+  const [writeOffModalVisible, setWriteOffModalVisible] = useState(false);
+  const [writeOffAsset, setWriteOffAsset] = useState<any | null>(null);
 
   const { repairs, isLoading, isError, refetch, updateRepairStatus, isUpdating } = useRepairsQuery();
 
@@ -75,24 +80,37 @@ export const RepairsPage: React.FC = () => {
   const handleOpenUpdate = (repair: RepairItem) => {
     setSelectedRepair(repair);
     updateForm.setFieldsValue({
-      status: repair.status === 'COMPLETED' || repair.status === 'UNREPAIRABLE' ? repair.status : 'COMPLETED',
-      serviceProvider: repair.serviceProvider || 'Universitet ichki ustaxonasi',
+      status:
+        repair.status === 'PENDING'
+          ? 'IN_REPAIR'
+          : repair.status === 'IN_REPAIR'
+          ? 'COMPLETED'
+          : repair.status,
+      serviceProvider: repair.serviceProvider || '',
       cost: repair.cost !== undefined && repair.cost !== null ? Number(repair.cost) : 0,
-      actNumber: repair.actNumber || `AKT-REP-${new Date().getFullYear()}-${repair.repairNumber.split('-').pop()}`,
+      actNumber: repair.actNumber || '',
       notes: repair.notes || '',
     });
     setUpdateModalVisible(true);
   };
 
+  const handleOpenWriteOff = (repair: RepairItem) => {
+    setWriteOffAsset(repair.asset);
+    setWriteOffModalVisible(true);
+  };
+
   const handleUpdateSubmit = async () => {
-    if (!selectedRepair) return;
+    if (!selectedRepair || !canManageRepairs) return;
     try {
       const values = await updateForm.validate();
       await updateRepairStatus({
         id: selectedRepair.id,
         status: values.status,
         serviceProvider: values.serviceProvider ? String(values.serviceProvider).trim() : undefined,
-        cost: values.cost !== undefined && values.cost !== null && values.cost !== '' ? Number(values.cost) : 0,
+        cost:
+          values.cost !== undefined && values.cost !== null && values.cost !== ''
+            ? Number(values.cost)
+            : 0,
         actNumber: values.actNumber ? String(values.actNumber).trim() : undefined,
         notes: values.notes ? String(values.notes).trim() : undefined,
       });
@@ -133,13 +151,42 @@ export const RepairsPage: React.FC = () => {
       minWidth: 280,
       render: (val: string, record: RepairItem) => (
         <div>
-          <div style={{ fontSize: 13, color: 'var(--color-text-1)', lineHeight: 1.45, wordBreak: 'break-word' }}>
+          <div
+            style={{
+              fontSize: 13,
+              color: 'var(--color-text-1)',
+              lineHeight: 1.45,
+              wordBreak: 'break-word',
+            }}
+          >
             {val}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 12, color: 'var(--color-text-3)', flexWrap: 'wrap' }}>
-            <span>Ustaxona: <span style={{ color: 'var(--color-text-2)' }}>{record.serviceProvider || 'OTM ustaxonasi'}</span></span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 4,
+              fontSize: 12,
+              color: 'var(--color-text-3)',
+              flexWrap: 'wrap',
+            }}
+          >
+            <span>
+              Ustaxona:{' '}
+              <span style={{ color: 'var(--color-text-2)' }}>
+                {record.serviceProvider || '—'}
+              </span>
+            </span>
             {record.cost ? (
-              <span style={{ color: '#165DFF', fontWeight: 600 }}>• {Number(record.cost).toLocaleString()} so‘m</span>
+              <span style={{ color: '#165DFF', fontWeight: 600 }}>
+                • {Number(record.cost).toLocaleString()} so‘m
+              </span>
+            ) : null}
+            {record.actNumber ? (
+              <Tag color="cyan" style={{ borderRadius: 0, fontSize: 11, padding: '0 4px' }}>
+                {record.actNumber}
+              </Tag>
             ) : null}
           </div>
         </div>
@@ -150,10 +197,24 @@ export const RepairsPage: React.FC = () => {
       width: 150,
       render: (_: any, record: RepairItem) => (
         <div style={{ lineHeight: 1.35 }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-1)', whiteSpace: 'nowrap' }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: 'var(--color-text-1)',
+              whiteSpace: 'nowrap',
+            }}
+          >
             {record.requestedBy?.fullName || '—'}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2, whiteSpace: 'nowrap' }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: 'var(--color-text-3)',
+              marginTop: 2,
+              whiteSpace: 'nowrap',
+            }}
+          >
             {record.createdAt?.substring(0, 10)}
           </div>
         </div>
@@ -168,7 +229,8 @@ export const RepairsPage: React.FC = () => {
         if (status === 'IN_REPAIR') badge = <Badge status="processing" text="Ta’mir jarayonida" />;
         else if (status === 'PENDING') badge = <Badge status="warning" text="Kutilmoqda" />;
         else if (status === 'COMPLETED') badge = <Badge status="success" text="Yakunlangan" />;
-        else if (status === 'UNREPAIRABLE') badge = <Badge status="error" text="Yaroqsiz (Spisanie)" />;
+        else if (status === 'UNREPAIRABLE')
+          badge = <Badge status="error" text="Yaroqsiz (Spisanie)" />;
         else badge = <Tag style={{ borderRadius: 0 }}>{status}</Tag>;
         return <div style={{ whiteSpace: 'nowrap' }}>{badge}</div>;
       },
@@ -176,7 +238,7 @@ export const RepairsPage: React.FC = () => {
     {
       title: 'Amallar',
       dataIndex: 'actions',
-      width: 224,
+      width: 250,
       fixed: 'right' as const,
       render: (_: any, record: RepairItem) => (
         <TableActions rightPadding={0} gap={6}>
@@ -188,25 +250,60 @@ export const RepairsPage: React.FC = () => {
               e?.stopPropagation?.();
               handleOpenUpdate(record);
             }}
-            style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap', width: 88 }}
+            style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap' }}
           >
             Batafsil
           </Button>
-          {record.status === 'IN_REPAIR' || record.status === 'PENDING' ? (
+
+          {/* Direct Write-off action button for UNREPAIRABLE assets */}
+          {record.status === 'UNREPAIRABLE' && (
             <Button
               size="small"
               type="primary"
-              status="success"
-              icon={<IconSync />}
+              status="danger"
+              icon={<IconDelete />}
               onClick={(e) => {
                 e?.stopPropagation?.();
-                handleOpenUpdate(record);
+                handleOpenWriteOff(record);
               }}
-              style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap', width: 104 }}
+              style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
             >
-              Yangilash
+              Spisanie (OS-4)
             </Button>
-          ) : (
+          )}
+
+          {(record.status === 'IN_REPAIR' || record.status === 'PENDING') && (
+            canManageRepairs ? (
+              <Button
+                size="small"
+                type="primary"
+                status="success"
+                icon={<IconSync />}
+                onClick={(e) => {
+                  e?.stopPropagation?.();
+                  handleOpenUpdate(record);
+                }}
+                style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap', width: 96 }}
+              >
+                Yangilash
+              </Button>
+            ) : (
+              <Tooltip content="Ta’mir statusini yangilash faqat Komendant, Omborchi yoki IT mutaxassisiga ruxsat etilgan">
+                <Button
+                  size="small"
+                  type="primary"
+                  status="success"
+                  disabled
+                  icon={<IconSync />}
+                  style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap', width: 96 }}
+                >
+                  Yangilash
+                </Button>
+              </Tooltip>
+            )
+          )}
+
+          {record.status === 'COMPLETED' && (
             <Button
               size="small"
               type="outline"
@@ -215,9 +312,9 @@ export const RepairsPage: React.FC = () => {
                 e?.stopPropagation?.();
                 handleOpenUpdate(record);
               }}
-              style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap', width: 104 }}
+              style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap' }}
             >
-              Akt (OS-3)
+              Akt ({record.actNumber ? record.actNumber.substring(0, 12) : 'OS-3'})
             </Button>
           )}
         </TableActions>
@@ -229,7 +326,6 @@ export const RepairsPage: React.FC = () => {
   const pendingCount = repairs.filter((r) => r.status === 'PENDING').length;
   const completedCount = repairs.filter((r) => r.status === 'COMPLETED').length;
   const unrepairableCount = repairs.filter((r) => r.status === 'UNREPAIRABLE').length;
-  const totalRepairCost = repairs.reduce((sum, r) => sum + (Number(r.cost) || 0), 0);
 
   const handleExportExcel = () => {
     const data = filteredRepairs.map((r) => ({
@@ -238,8 +334,9 @@ export const RepairsPage: React.FC = () => {
       'Inventar №': r.asset?.inventoryNumber || '—',
       'Model': r.asset?.item?.model || '—',
       'Nosozlik / Sabab': r.issueDescription,
-      'Ustaxona / Servis': r.serviceProvider || 'OTM ustaxonasi',
+      'Ustaxona / Servis': r.serviceProvider || '—',
       'Xarajat (so‘m)': r.cost || 0,
+      'Dalolatnoma №': r.actNumber || '—',
       'Holati':
         r.status === 'IN_REPAIR'
           ? 'Ta’mirda'
@@ -306,19 +403,32 @@ export const RepairsPage: React.FC = () => {
             >
               Excelga Yuklash
             </Button>
-            <Button
-              type="primary"
-              icon={<IconPlus />}
-              style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
-              onClick={() => setCreateModalVisible(true)}
-            >
-              Yangi Ta’mir Talabnomasi
-            </Button>
+            {canManageRepairs ? (
+              <Button
+                type="primary"
+                icon={<IconPlus />}
+                style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
+                onClick={() => setCreateModalVisible(true)}
+              >
+                Yangi Ta’mir Talabnomasi
+              </Button>
+            ) : (
+              <Tooltip content="Ta’mir talabnomasini faqat mas’ul xodimlar (MOL, Komendant, Omborchi) yarata oladi">
+                <Button
+                  type="primary"
+                  icon={<IconPlus />}
+                  disabled
+                  style={{ borderRadius: 0 }}
+                >
+                  Yangi Ta’mir Talabnomasi
+                </Button>
+              </Tooltip>
+            )}
           </Space>
         </div>
       </Card>
 
-      {/* Error state */}
+      {/* Error state (Rule 6.3) */}
       {isError && (
         <Alert
           type="error"
@@ -328,6 +438,7 @@ export const RepairsPage: React.FC = () => {
               Qayta urinish
             </Button>
           }
+          style={{ borderRadius: 0 }}
         />
       )}
 
@@ -337,9 +448,11 @@ export const RepairsPage: React.FC = () => {
         loading={isLoading}
         columns={columns}
         data={filteredRepairs}
-        scrollX={1050}
+        scrollX={1150}
         onRowClick={(record) => handleOpenUpdate(record)}
-        emptyText={search ? 'Qidiruv bo‘yicha ariza topilmadi' : 'Hozircha ta’mirlash arizalari mavjud emas'}
+        emptyText={
+          search ? 'Qidiruv bo‘yicha ariza topilmadi' : 'Hozircha ta’mirlash arizalari mavjud emas'
+        }
       />
 
       {/* Create Modal */}
@@ -348,7 +461,17 @@ export const RepairsPage: React.FC = () => {
         onClose={() => setCreateModalVisible(false)}
       />
 
-      {/* Update Repair Status Modal */}
+      {/* Direct Write-off modal for UNREPAIRABLE assets */}
+      <CreateWriteOffModal
+        visible={writeOffModalVisible}
+        onClose={() => {
+          setWriteOffModalVisible(false);
+          setWriteOffAsset(null);
+        }}
+        selectedAsset={writeOffAsset}
+      />
+
+      {/* Update Repair Status Modal (Rule 2.1 & 3) */}
       <Modal
         title={
           <Space>
@@ -358,23 +481,34 @@ export const RepairsPage: React.FC = () => {
         }
         visible={updateModalVisible}
         onCancel={() => setUpdateModalVisible(false)}
-        style={{ width: 560, borderRadius: 0 }}
+        style={{ width: 580, borderRadius: 0 }}
         footer={
           <Space>
             <Button onClick={() => setUpdateModalVisible(false)} style={{ borderRadius: 0 }}>
-              Bekor Qilish
+              Yopish
             </Button>
-            <Button
-              type="primary"
-              loading={isUpdating}
-              onClick={handleUpdateSubmit}
-              style={{ borderRadius: 0, backgroundColor: '#00B42A' }}
-            >
-              Natijani Saqlash
-            </Button>
+            {canManageRepairs && (
+              <Button
+                type="primary"
+                loading={isUpdating}
+                onClick={handleUpdateSubmit}
+                style={{ borderRadius: 0, backgroundColor: '#00B42A' }}
+              >
+                Natijani Saqlash
+              </Button>
+            )}
           </Space>
         }
       >
+        {!canManageRepairs && (
+          <Alert
+            type="warning"
+            title="Ruxsat cheklangan"
+            content="Ta’mir holatini yangilash faqat Komendant, Omborchi yoki IT mutaxassisiga ruxsat etilgan. Siz ma’lumotlarni ko‘rish rejimidasiz."
+            style={{ marginBottom: 16, borderRadius: 0 }}
+          />
+        )}
+
         {selectedRepair && (
           <div
             style={{
@@ -391,42 +525,80 @@ export const RepairsPage: React.FC = () => {
           </div>
         )}
 
-        <Form form={updateForm} layout="vertical">
+        {/* Direct Write-Off CTA inside update modal when UNREPAIRABLE */}
+        {selectedRepair?.status === 'UNREPAIRABLE' && (
+          <Alert
+            type="warning"
+            title="Texnika yaroqsiz deb topilgan"
+            content="Ushbu ashyoni balansdan hisobdan chiqarish uchun OS-4 dalolatnomasi tuzilishi lozim."
+            action={
+              <Button
+                size="small"
+                type="primary"
+                status="danger"
+                icon={<IconDelete />}
+                onClick={() => {
+                  setUpdateModalVisible(false);
+                  handleOpenWriteOff(selectedRepair);
+                }}
+                style={{ borderRadius: 0 }}
+              >
+                Hisobdan Chiqarish (OS-4)
+              </Button>
+            }
+            style={{ marginBottom: 16, borderRadius: 0 }}
+          />
+        )}
+
+        <Form form={updateForm} layout="vertical" disabled={!canManageRepairs}>
           <FormItem
-            label="Ta’mirlash Natijasi (Holati)"
+            label="Ta’mirlash Holati (Status)"
             field="status"
-            rules={[{ required: true, message: 'Natijani tanlang!' }]}
+            rules={[{ required: true, message: 'Statusni tanlang!' }]}
           >
             <Radio.Group type="button" style={{ width: '100%' }}>
+              <Radio value="IN_REPAIR">
+                <IconSync style={{ color: '#165DFF', marginRight: 6 }} />
+                Ta’mirda
+              </Radio>
               <Radio value="COMPLETED">
                 <IconCheckCircle style={{ color: '#00B42A', marginRight: 6 }} />
-                Muvaffaqiyatli Ta’mirlandi (Foydalanishga)
+                Tuzatildi (Yaroqli)
               </Radio>
               <Radio value="UNREPAIRABLE">
                 <IconCloseCircle style={{ color: '#F53F3F', marginRight: 6 }} />
-                Yaroqsiz Deb Topildi (Spisaniega)
+                Yaroqsiz (Spisanie)
               </Radio>
             </Radio.Group>
           </FormItem>
 
           <FormItem label="Servis Markazi / Ustaxona" field="serviceProvider">
-            <Input style={{ borderRadius: 0 }} />
+            <Input placeholder="Masalan: TexnoServis MCHJ" style={{ borderRadius: 0 }} allowClear />
           </FormItem>
 
           <FormItem label="Yakuniy Ta’mirlash Xarajati (so‘m)" field="cost">
-            <InputNumber min={0} style={{ width: '100%', borderRadius: 0 }} />
+            <InputNumber min={0} placeholder="0" style={{ width: '100%', borderRadius: 0 }} />
           </FormItem>
 
-          <FormItem label="Rasmiy Ta’mirlash Dalolatnomasi №" field="actNumber">
-            <Input placeholder="AKT-REP-2026-0001" style={{ borderRadius: 0 }} />
+          <FormItem
+            label="Rasmiy Ta’mirlash Dalolatnomasi №"
+            field="actNumber"
+            extra="Bo‘sh qoldirilsa, server tomonidan rasmiy dalolatnoma raqami beriladi."
+          >
+            <Input placeholder="Masalan: AKT-OS3-2026-0001" style={{ borderRadius: 0 }} allowClear />
           </FormItem>
 
           <FormItem label="Xulosa yoki Mas’ul Izohi" field="notes">
-            <TextArea rows={3} placeholder="Bajarilgan ishlar ro‘yxati, almashtirilgan detallar..." style={{ borderRadius: 0 }} />
+            <TextArea
+              rows={3}
+              placeholder="Bajarilgan ishlar ro‘yxati, almashtirilgan detallar..."
+              style={{ borderRadius: 0 }}
+            />
           </FormItem>
         </Form>
       </Modal>
     </div>
   );
 };
+
 export default RepairsPage;

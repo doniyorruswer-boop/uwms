@@ -13,7 +13,6 @@ import {
   Alert,
   Spin,
   Descriptions,
-  Radio,
   Divider,
 } from '@arco-design/web-react';
 import {
@@ -26,14 +25,25 @@ import {
   IconSettings,
   IconCopy,
   IconPlayArrow,
+  IconUser,
+  IconStorage,
+  IconLock,
+  IconHistory,
+  IconDown,
+  IconUp,
 } from '@arco-design/web-react/icon';
 import {
   useHemisStatusQuery,
   useHemisSyncMutation,
   useHemisTestConnectionMutation,
+  useHemisSyncLogsQuery,
+  HemisSyncLogItem,
 } from '../../hooks/useIntegrationsQuery';
 import { apiClient } from '../../api/client';
 import { PageTabs } from '../../components/Common/PageTabs';
+import { StandardTable } from '../../components/Common/StandardTable';
+import { ForbiddenView } from '../../components/Common/ForbiddenView';
+import { useAuthStore } from '../../store/authStore';
 import { API_ENDPOINTS } from '../../constants/api.constants';
 import type { HemisTestConnectionResult } from '../../types';
 
@@ -41,6 +51,9 @@ const { Title, Text, Paragraph } = Typography;
 const { Row, Col } = Grid;
 
 export const IntegrationsPage: React.FC = () => {
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
   const [activeTab, setActiveTab] = useState<string>('hemis');
   const [exportPeriod, setExportPeriod] = useState<string>(
     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
@@ -50,16 +63,16 @@ export const IntegrationsPage: React.FC = () => {
   const [exportLoading, setExportLoading] = useState<boolean>(false);
   const [exportResult, setExportResult] = useState<string | null>(null);
 
-  // Sozlamalar va Sinxronlash modallari
+  // Modals & Expandable Panel
   const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
   const [isSyncConfirmOpen, setIsSyncConfirmOpen] = useState<boolean>(false);
+  const [isLogsExpanded, setIsLogsExpanded] = useState<boolean>(false);
 
-  // Sozlamalar form qiymatlari
+  // Form inputs for config/ping
   const [apiUrlInput, setApiUrlInput] = useState<string>('');
   const [apiKeyInput, setApiKeyInput] = useState<string>('');
-  const [syncMode, setSyncMode] = useState<'LIVE' | 'DEMO_STUB'>('DEMO_STUB');
 
-  // Ping holati
+  // Ping result
   const [pingResult, setPingResult] = useState<HemisTestConnectionResult | null>(null);
 
   const {
@@ -68,8 +81,25 @@ export const IntegrationsPage: React.FC = () => {
     refetch: refetchStatus,
   } = useHemisStatusQuery();
 
+  const {
+    data: syncLogs = [],
+    isLoading: isLogsLoading,
+    refetch: refetchLogs,
+  } = useHemisSyncLogsQuery(25);
+
   const hemisSyncMutation = useHemisSyncMutation();
   const hemisTestConnectionMutation = useHemisTestConnectionMutation();
+
+  // Permission Denied State (Rule 3 & Rule 6.3)
+  if (!user || !isSuperAdmin) {
+    return (
+      <ForbiddenView
+        title="403 — Kirish Cheklangan"
+        subTitle="Tashqi tizimlar (HEMIS REST API, UzASBO/1C) integratsiyasini sozlash va sinxronizatsiya qilish faqat Bosh Administrator (SUPER_ADMIN) vakolatiga kiradi."
+        requiredRoles={['SUPER_ADMIN']}
+      />
+    );
+  }
 
   const handleOpenConfigModal = () => {
     setApiUrlInput(hemisStatus?.apiUrl || '');
@@ -100,26 +130,30 @@ export const IntegrationsPage: React.FC = () => {
     }
   };
 
+  // Execute sync directly adhering to real server mode
   const handleExecuteSync = async () => {
     try {
+      const isLive = hemisStatus?.mode === 'LIVE';
       const res = await hemisSyncMutation.mutateAsync({
-        mode: syncMode,
+        mode: isLive ? 'LIVE' : 'DEMO',
+        forceDemo: isLive ? undefined : true,
         hemisApiUrl: apiUrlInput || undefined,
         apiKey: apiKeyInput || undefined,
       });
 
       if (res.isDemoStub) {
         Message.warning(
-          `[DEMO / STUB] Sinov ma’lumotlari muvaffaqiyatli yangilandi: ${res.syncedDepartments} ta kafedra, ${res.syncedRooms} ta xona!`,
+          `[DEMO] Namunaviy ma’lumotlar yangilandi: ${res.syncedDepartments} ta kafedra, ${res.syncedRooms} ta xona!`,
         );
       } else {
         Message.success(
-          `Jonli HEMIS sinxronizatsiyasi yakunlandi: ${res.syncedDepartments} ta kafedra, ${res.syncedRooms} ta xona!`,
+          `Jonli HEMIS sinxronizatsiyasi yakunlandi: ${res.syncedDepartments} ta kafedra, ${res.syncedRooms} ta xona, ${res.syncedUsers || 0} ta xodim!`,
         );
       }
 
       setIsSyncConfirmOpen(false);
       refetchStatus();
+      refetchLogs();
     } catch (err: any) {
       Message.error(
         err?.response?.data?.message ||
@@ -180,29 +214,32 @@ export const IntegrationsPage: React.FC = () => {
             ULANGAN (CONNECTED)
           </Tag>
         );
+      case 'CONFIGURED_BUT_STUB':
+        return (
+          <Tag color="arcoblue" icon={<IconExclamationCircle />} style={{ borderRadius: 0 }}>
+            SOZLANGAN (STUB REJIMI)
+          </Tag>
+        );
+      case 'DEMO':
       case 'DEMO_STUB':
         return (
-          <Tag color="orange" icon={<IconExclamationCircle />} style={{ borderRadius: 0 }}>
-            DEMO / STUB REJIMI
+          <Tag color="gold" icon={<IconExclamationCircle />} style={{ borderRadius: 0 }}>
+            DEMO REJIMI
           </Tag>
         );
       case 'CONNECTION_FAILED':
-        return (
-          <Tag color="red" icon={<IconCloseCircle />} style={{ borderRadius: 0 }}>
-            ULANISHDA XATOLIK
-          </Tag>
-        );
+      case 'ERROR':
       case 'AUTHENTICATION_FAILED':
         return (
           <Tag color="red" icon={<IconCloseCircle />} style={{ borderRadius: 0 }}>
-            RUXSAT XATOSI (AUTH FAILED)
+            ULANISHDA XATOLIK
           </Tag>
         );
       case 'NOT_CONFIGURED':
       default:
         return (
           <Tag color="gray" icon={<IconInfoCircle />} style={{ borderRadius: 0 }}>
-            SOZLANMAGAN (NOT CONFIGURED)
+            SOZLANMAGAN
           </Tag>
         );
     }
@@ -210,53 +247,22 @@ export const IntegrationsPage: React.FC = () => {
 
   const renderStatusAlert = () => {
     const status = hemisStatus?.status;
-    if (status === 'CONNECTED') {
-      return (
-        <Alert
-          type="success"
-          title="HEMIS REST API Bilan Real Aloqa O‘rnatilgan"
-          content={
-            hemisStatus?.message ||
-            'OTM axborot tizimining REST API interfeysi orqali fakultetlar, kafedralar va auditoriyalar real vaqtda bazaga sinxronlashtiriladi.'
-          }
-          style={{ borderRadius: 0 }}
-        />
-      );
-    }
-    if (status === 'DEMO_STUB') {
-      return (
-        <Alert
-          type="warning"
-          title="DIQQAT: Tizim DEMO / STUB Rejimida Ishlamoqda"
-          content="Haqiqiy HEMIS API serveriga ulanish mavjud emas. Sinov va ko‘rgazma maqsadida OTMning standart namunaviy kafedralari va xonalari ro‘yxati ishlatilmoqda. Tizim audit jurnalida barcha amallar STUB sifatida qayd etiladi."
-          style={{ borderRadius: 0 }}
-        />
-      );
-    }
-    if (status === 'CONNECTION_FAILED' || status === 'AUTHENTICATION_FAILED') {
+    if (status === 'ERROR' || status === 'CONNECTION_FAILED' || status === 'AUTHENTICATION_FAILED' || hemisStatus?.lastError) {
       return (
         <Alert
           type="error"
-          title="HEMIS API Serveriga Ulanishda Xatolik Yuz Berdi"
+          title="HEMIS Serveri Bilan Aloqada Xatolik"
           content={
+            hemisStatus?.lastError ||
             hemisStatus?.errorMessage ||
             hemisStatus?.message ||
-            'Tashqi HEMIS serveridan javob olinmadi. Iltimos, server manzili va API kalitini tekshiring.'
+            'Tashqi HEMIS serveridan javob olinmadi. Iltimos, ulanish sozlamalarini tekshiring.'
           }
           style={{ borderRadius: 0 }}
         />
       );
     }
-
-    // Default: NOT_CONFIGURED
-    return (
-      <Alert
-        type="info"
-        title="HEMIS API Integratsiyasi Sozlanmagan"
-        content="OTM axborot tizimiga ulanish uchun API URL va API Kalit kiritilmagan. Real tizimga ulanish uchun 'Sozlamalar' tugmasini bosing yoki sinov maqsadida 'DEMO / STUB' rejimini tanlang."
-        style={{ borderRadius: 0 }}
-      />
-    );
+    return null;
   };
 
   const hemisItems = [
@@ -278,16 +284,16 @@ export const IntegrationsPage: React.FC = () => {
       label: 'Ishlash Rejimi',
       value:
         hemisStatus?.mode === 'LIVE' ? (
-          <Tag color="green" style={{ borderRadius: 0 }}>
+          <Tag color="green" style={{ borderRadius: 0, fontWeight: 600 }}>
             Haqiqiy Jonli API (Live)
           </Tag>
-        ) : hemisStatus?.mode === 'DEMO_STUB' ? (
-          <Tag color="orange" style={{ borderRadius: 0 }}>
-            Demo / Stub Sinov Rejimi
+        ) : hemisStatus?.mode === 'DEMO' || hemisStatus?.mode === 'DEMO_STUB' ? (
+          <Tag color="gold" style={{ borderRadius: 0, fontWeight: 600 }}>
+            Demo Sinov Rejimi
           </Tag>
         ) : (
           <Tag color="gray" style={{ borderRadius: 0 }}>
-            Sozlanmagan (Nofaol)
+            Sozlanmagan
           </Tag>
         ),
     },
@@ -301,11 +307,19 @@ export const IntegrationsPage: React.FC = () => {
         <Space>
           <span>{new Date(hemisStatus.lastSyncAt).toLocaleString('uz-UZ')}</span>
           <Tag
-            color={hemisStatus.lastSyncType === 'HEMIS_STUB_SYNC' ? 'orange' : 'green'}
+            color={
+              hemisStatus.lastSyncType === 'HEMIS_SYNC_DEMO' ||
+              hemisStatus.lastSyncType === 'HEMIS_STUB_SYNC'
+                ? 'gold'
+                : 'green'
+            }
             size="small"
             style={{ borderRadius: 0 }}
           >
-            {hemisStatus.lastSyncType === 'HEMIS_STUB_SYNC' ? 'Demo/Stub' : 'Jonli Sinxronizatsiya'}
+            {hemisStatus.lastSyncType === 'HEMIS_SYNC_DEMO' ||
+            hemisStatus.lastSyncType === 'HEMIS_STUB_SYNC'
+              ? 'Demo Seed'
+              : 'Jonli Sinxron'}
           </Tag>
         </Space>
       ) : (
@@ -319,6 +333,147 @@ export const IntegrationsPage: React.FC = () => {
     {
       label: 'Sinxronlangan Auditoriyalar',
       value: `${hemisStatus?.stats?.syncedRooms || 0} ta xona / laboratoriya`,
+    },
+    {
+      label: 'Sinxronlangan Xodimlar',
+      value: `${hemisStatus?.stats?.syncedUsers || 0} ta mas’ul xodim / o‘qituvchi`,
+    },
+    ...(hemisStatus?.lastError
+      ? [
+          {
+            label: 'Oxirgi Xatolik Tafsiloti',
+            value: (
+              <Text type="error" bold>
+                {hemisStatus.lastError}
+              </Text>
+            ),
+          },
+        ]
+      : []),
+  ];
+
+  // Columns for Live HEMIS Sync Logs Table
+  const syncLogColumns = [
+    {
+      title: 'Vaqt',
+      dataIndex: 'createdAt',
+      width: 140,
+      render: (val: string) => {
+        if (!val) return '—';
+        const d = new Date(val);
+        const dateStr = d.toLocaleDateString('uz-UZ', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timeStr = d.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return (
+          <div style={{ paddingLeft: 8, lineHeight: 1.35 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-1)', whiteSpace: 'nowrap' }}>
+              {dateStr}
+            </div>
+            <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--color-text-3)', whiteSpace: 'nowrap' }}>
+              {timeStr}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      title: 'Rejim / Amal',
+      dataIndex: 'action',
+      width: 150,
+      render: (action: string, record: HemisSyncLogItem) => {
+        if (action === 'HEMIS_LIVE_SYNC' || record.details?.mode === 'LIVE') {
+          return (
+            <Tag color="green" icon={<IconCheckCircle />} style={{ borderRadius: 0, fontWeight: 600 }}>
+              JONLI (LIVE)
+            </Tag>
+          );
+        }
+        if (action === 'HEMIS_SYNC_FAILED') {
+          return (
+            <Tag color="red" icon={<IconCloseCircle />} style={{ borderRadius: 0, fontWeight: 600 }}>
+              XATOLIK
+            </Tag>
+          );
+        }
+        return (
+          <Tag color="gold" icon={<IconInfoCircle />} style={{ borderRadius: 0, fontWeight: 600 }}>
+            DEMO SEED
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'Xodimlar',
+      width: 120,
+      render: (_: any, record: HemisSyncLogItem) => {
+        const count = record.details?.syncedUsers;
+        return (
+          <Tag color="arcoblue" style={{ borderRadius: 0, fontWeight: 500 }}>
+            {count !== undefined ? `${count} ta xodim` : '—'}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'Xonalar',
+      width: 120,
+      render: (_: any, record: HemisSyncLogItem) => {
+        const count = record.details?.syncedRooms;
+        return (
+          <Tag color="purple" style={{ borderRadius: 0, fontWeight: 500 }}>
+            {count !== undefined ? `${count} ta xona` : '—'}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'Kafedralar',
+      width: 130,
+      render: (_: any, record: HemisSyncLogItem) => {
+        const count = record.details?.syncedDepartments;
+        return (
+          <Tag color="teal" style={{ borderRadius: 0, fontWeight: 500 }}>
+            {count !== undefined ? `${count} ta kafedra` : '—'}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'Ijrochi (Mas’ul)',
+      width: 160,
+      render: (_: any, record: HemisSyncLogItem) => (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 500 }}>
+            {record.user?.fullName || 'Tizim (Rejali Cron)'}
+          </div>
+          {record.user?.role && (
+            <div style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
+              @{record.user.username} • {record.user.role}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: 'Tafsilotlar & Holat',
+      minWidth: 200,
+      render: (_: any, record: HemisSyncLogItem) => {
+        if (record.details?.error) {
+          return (
+            <Text type="error" style={{ fontSize: 12 }}>
+              {record.details.error}
+            </Text>
+          );
+        }
+        if (record.details?.apiUrl) {
+          return (
+            <div style={{ fontSize: 12, color: 'var(--color-text-2)' }}>
+              <span>Endpoint: </span>
+              <Text code style={{ fontSize: 11 }}>{record.details.apiUrl}</Text>
+            </div>
+          );
+        }
+        return <Text type="secondary" style={{ fontSize: 12 }}>Muvaffaqiyatli sinxronlandi</Text>;
+      },
     },
   ];
 
@@ -352,6 +507,7 @@ export const IntegrationsPage: React.FC = () => {
               />
             )}
 
+            {/* Action Bar */}
             <Card
               style={{
                 borderRadius: 0,
@@ -371,13 +527,19 @@ export const IntegrationsPage: React.FC = () => {
               >
                 <div>
                   <Title heading={6} style={{ margin: 0 }}>
-                    Kafedra va Auditoriyalarni Sinxronlash
+                    Kafedra, Auditoriya va Xodimlarni Sinxronlash
                   </Title>
-                  <Paragraph type="secondary" style={{ margin: '4px 0 0 0', fontSize: 13 }}>
-                    HEMIS REST API orqali universitetning yangi ochilgan kafedralari va auditoriyalarini yangilash.
-                  </Paragraph>
                 </div>
                 <Space>
+                  <Button
+                    icon={<IconHistory />}
+                    type={isLogsExpanded ? 'primary' : 'default'}
+                    style={{ borderRadius: 0 }}
+                    onClick={() => setIsLogsExpanded(!isLogsExpanded)}
+                  >
+                    {isLogsExpanded ? 'Sinxronizatsiyalar Tarixini Yashirish' : `Sinxronizatsiyalar Tarixi (${syncLogs.length})`}{' '}
+                    {isLogsExpanded ? <IconUp style={{ marginLeft: 4 }} /> : <IconDown style={{ marginLeft: 4 }} />}
+                  </Button>
                   <Button
                     icon={<IconSettings />}
                     style={{ borderRadius: 0 }}
@@ -390,16 +552,140 @@ export const IntegrationsPage: React.FC = () => {
                     icon={<IconSync />}
                     loading={hemisSyncMutation.isPending}
                     style={{ borderRadius: 0 }}
-                    onClick={() => {
-                      setSyncMode(hemisStatus?.status === 'CONNECTED' ? 'LIVE' : 'DEMO_STUB');
-                      setIsSyncConfirmOpen(true);
-                    }}
+                    onClick={() => setIsSyncConfirmOpen(true)}
                   >
-                    Sinxronlashni Boshlash
+                    {hemisStatus?.mode === 'LIVE' ? 'Jonli Sinxronlashni Boshlash' : 'Demo Sinxronlashni Boshlash'}
                   </Button>
                 </Space>
               </div>
             </Card>
+
+            {/* Recent Sync Clean Summary Bar (Clickable to expand table below) */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 16px',
+                backgroundColor: 'var(--color-fill-2)',
+                border: '1px dashed var(--color-border-3)',
+                borderRadius: 0,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onClick={() => setIsLogsExpanded(!isLogsExpanded)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <IconHistory style={{ fontSize: 18, color: 'var(--color-primary-6)' }} />
+                <div>
+                  <Text style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-1)' }}>
+                    Oxirgi sinxronizatsiya:
+                  </Text>{' '}
+                  {syncLogs.length > 0 ? (
+                    <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>
+                      {new Date(syncLogs[0].createdAt).toLocaleString('uz-UZ')} —{' '}
+                      {syncLogs[0].action === 'HEMIS_LIVE_SYNC' ? (
+                        <Tag color="green" size="small" style={{ borderRadius: 0 }}>JONLI</Tag>
+                      ) : syncLogs[0].action === 'HEMIS_SYNC_FAILED' ? (
+                        <Tag color="red" size="small" style={{ borderRadius: 0 }}>XATOLIK</Tag>
+                      ) : (
+                        <Tag color="gold" size="small" style={{ borderRadius: 0 }}>DEMO SEED</Tag>
+                      )}{' '}
+                      ({syncLogs[0].details?.syncedDepartments || 0} ta kafedra, {syncLogs[0].details?.syncedRooms || 0} ta xona, {syncLogs[0].details?.syncedUsers || 0} ta xodim)
+                    </span>
+                  ) : (
+                    <Text type="secondary" style={{ fontSize: 13 }}>
+                      Hali sinxronizatsiya o‘tkazilmagan
+                    </Text>
+                  )}
+                </div>
+              </div>
+              <Button
+                type="text"
+                size="small"
+                style={{ borderRadius: 0, fontWeight: 500 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsLogsExpanded(!isLogsExpanded);
+                }}
+              >
+                {isLogsExpanded ? (
+                  <Space size={4}>
+                    <span>Jurnalni yashirish</span>
+                    <IconUp />
+                  </Space>
+                ) : (
+                  <Space size={4}>
+                    <span>Barcha jurnallarni pastda ochish ({syncLogs.length})</span>
+                    <IconDown />
+                  </Space>
+                )}
+              </Button>
+            </div>
+
+            {/* Expandable HEMIS Sync Logs Table (Full Width directly underneath) */}
+            {isLogsExpanded && (
+              <div
+                style={{
+                  padding: 16,
+                  backgroundColor: 'var(--color-bg-2)',
+                  border: '1px solid var(--color-border-2)',
+                  borderRadius: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 8,
+                  }}
+                >
+                  <Space>
+                    <IconHistory style={{ fontSize: 18, color: 'var(--color-primary-6)' }} />
+                    <Title heading={6} style={{ margin: 0 }}>
+                      HEMIS Sinxronizatsiyalari Tarixi va Audit Jurnali
+                    </Title>
+                    <Tag color="blue" size="small" style={{ borderRadius: 0 }}>
+                      Jami: {syncLogs.length} ta yozuv
+                    </Tag>
+                  </Space>
+
+                  <Space>
+                    <Button
+                      size="small"
+                      icon={<IconSync />}
+                      style={{ borderRadius: 0 }}
+                      loading={isLogsLoading}
+                      onClick={() => refetchLogs()}
+                    >
+                      Jurnalni Yangilash
+                    </Button>
+                    <Button
+                      size="small"
+                      style={{ borderRadius: 0 }}
+                      onClick={() => setIsLogsExpanded(false)}
+                    >
+                      Yashirish ▲
+                    </Button>
+                  </Space>
+                </div>
+
+                <StandardTable<HemisSyncLogItem>
+                  rowKey="id"
+                  columns={syncLogColumns}
+                  data={syncLogs}
+                  loading={isLogsLoading}
+                  scrollX={1000}
+                  emptyText="HEMIS sinxronizatsiya jurnali mavjud emas"
+                  pagination={{ pageSize: 10 }}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -480,7 +766,7 @@ export const IntegrationsPage: React.FC = () => {
                     Shakllantirilgan Eksport Natijasi ({exportFormat.toUpperCase()}):
                   </Text>
                   <Space>
-                    <Button size="small" icon={<IconCopy />} onClick={handleCopyResult}>
+                    <Button size="small" icon={<IconCopy />} onClick={handleCopyResult} style={{ borderRadius: 0 }}>
                       Nusxa Olish
                     </Button>
                     <Button
@@ -584,7 +870,7 @@ export const IntegrationsPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* MODAL 2: SINXRONLASHNI TASDIQLASH VA REJIM TANLASH */}
+      {/* MODAL 2: SINXRONLASHNI TASDIQLASH (SERVER KONFIGURATSIYASIGA ASOSLANGAN) */}
       <Modal
         title="HEMIS Sinxronizatsiyasini Boshlash"
         visible={isSyncConfirmOpen}
@@ -596,41 +882,25 @@ export const IntegrationsPage: React.FC = () => {
         onOk={handleExecuteSync}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Paragraph style={{ margin: 0 }}>
-            Universitet fakultetlari, kafedralari va auditoriyalarini yangilash uchun sinxronizatsiya rejimini tanlang:
-          </Paragraph>
-
-          <Radio.Group
-            direction="vertical"
-            value={syncMode}
-            onChange={(val) => setSyncMode(val)}
-          >
-            <Radio value="DEMO_STUB" style={{ alignItems: 'flex-start' }}>
-              <div>
-                <Text bold>Demo / Stub Sinov Rejimi (Tavsiya etiladi - Sinov uchun)</Text>
-                <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 2 }}>
-                  Tashqi tarmoqqa ulanmasdan, standart OTM namunaviy kafedra va xonalarini bazaga yuklaydi. Tizim audit logida STUB deb qayd etiladi.
-                </div>
-              </div>
-            </Radio>
-            <Radio value="LIVE" style={{ alignItems: 'flex-start', marginTop: 12 }}>
-              <div>
-                <Text bold>Haqiqiy HEMIS REST API (Live Ulanish)</Text>
-                <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 2 }}>
-                  Sozlangan API URL va Token orqali davlat HEMIS serveridan real vaqtda yangi ma’lumotlarni qabul qiladi. Server ulanmasa, xatolik beradi.
-                </div>
-              </div>
-            </Radio>
-          </Radio.Group>
-
-          {syncMode === 'LIVE' && !apiUrlInput && !hemisStatus?.apiUrl && (
+          {hemisStatus?.mode === 'LIVE' ? (
             <Alert
-              type="warning"
-              title="API URL kiritilmagan"
-              content="Live rejimida sinxronlash uchun avval 'HEMIS Sozlamalari' bo‘limidan API URL va kalitni kiriting!"
+              type="success"
               style={{ borderRadius: 0 }}
+              title="Jonli (LIVE) HEMIS REST API Sinxronizatsiyasi"
+              content={`"${hemisStatus?.apiUrl || 'HEMIS REST API'}" manziliga so‘rov yuborilib, universitet fakultetlari, kafedralari va xodimlari real vaqtda bazaga sinxronlashtiriladi.`}
+            />
+          ) : (
+            <Alert
+              type="info"
+              style={{ borderRadius: 0 }}
+              title="Namunaviy Sinxronizatsiya (Demo Rejim)"
+              content="Namunaviy ma’lumotlar asosida sinxronizatsiya amalga oshiriladi va bu harakat audit jurnalida qayd etiladi."
             />
           )}
+
+          <div style={{ fontSize: 13, color: 'var(--color-text-2)' }}>
+            Sinxronizatsiyani ishga tushirishni tasdiqlaysizmi?
+          </div>
         </div>
       </Modal>
     </div>

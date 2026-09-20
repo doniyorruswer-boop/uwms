@@ -24,6 +24,7 @@ import { QuerySuppliersDto } from './dto/query-suppliers.dto';
 @ApiTags('Suppliers')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.AUDITOR)
 @Controller('api/suppliers')
 export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
@@ -41,6 +42,7 @@ export class SuppliersController {
   }
 
   @Get('next-codes')
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
   @ApiOperation({ summary: 'Navbatdagi unikal INN, shartnoma va faktura kodlarini olish' })
   async getNextCodes() {
     return this.suppliersService.getNextCodes();
@@ -72,9 +74,16 @@ export class SuppliersController {
 
   @Delete(':id')
   @Roles(RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Ta’minotchini o‘chirish (agar bog‘langan tovarlar bo‘lmasa)' })
+  @ApiOperation({ summary: 'Ta’minotchini xavfsiz o‘chirish (Soft delete)' })
   async deleteSupplier(@Param('id') id: string, @Request() req: any) {
     return this.suppliersService.deleteSupplier(id, req.user?.id);
+  }
+
+  @Post(':id/restore')
+  @Roles(RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'O‘chirilgan ta’minotchini qayta tiklash (Restore)' })
+  async restoreSupplier(@Param('id') id: string, @Request() req: any) {
+    return this.suppliersService.restoreSupplier(id, req.user?.id);
   }
 
   @Get(':id/invoices')

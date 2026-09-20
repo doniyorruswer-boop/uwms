@@ -12,8 +12,8 @@ export const APP_CONFIG = {
   // Tashkilot va yurisdiksiya ma'lumotlari (Davlat standarti)
   ministryName: 'O‘zbekiston Respublikasi Oliy Ta’lim, Fan va Innovatsiyalar Vazirligi',
   defaultOrganizationName: 'Universitet Moddiy-Texnik Ta’minot va Ombor Boshqarmasi',
-  universityName: 'O‘zbekiston Milliy Universiteti',
-  city: 'Toshkent shahri',
+  universityName: 'Namangan davlat texnika universiteti',
+  city: 'Namangan shahri',
   country: 'O‘zbekiston',
 
   // Formatlash va lokalizatsiya

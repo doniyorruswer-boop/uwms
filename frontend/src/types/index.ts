@@ -4,6 +4,10 @@ export const RoleType = {
   MOL: 'MOL',
   EMPLOYEE: 'EMPLOYEE',
   AUDITOR: 'AUDITOR',
+  CHIEF_ACCOUNTANT: 'CHIEF_ACCOUNTANT',
+  COMMENDANT: 'COMMENDANT',
+  RECTOR: 'RECTOR',
+  VICE_RECTOR_FINANCE: 'VICE_RECTOR_FINANCE',
 } as const;
 
 export type RoleType = typeof RoleType[keyof typeof RoleType];
@@ -12,7 +16,19 @@ export type ItemType = 'FIXED_ASSET' | 'CONSUMABLE';
 
 export type AssetStatus = 'NEW' | 'IN_USE' | 'IN_REPAIR' | 'WRITTEN_OFF';
 
-export type RequestStatus = 'PENDING' | 'APPROVED_BY_HEAD' | 'APPROVED_BY_WAREHOUSE' | 'REJECTED' | 'FULFILLED' | 'CANCELLED';
+export type RequestStatus =
+  | 'SUBMITTED'
+  | 'PENDING'
+  | 'APPROVED_BY_PRORECTOR'
+  | 'APPROVED_BY_RECTOR'
+  | 'FINANCED_BY_ACCOUNTANT'
+  | 'RECEIVED_AT_WAREHOUSE'
+  | 'HANDED_TO_COMMENDANT'
+  | 'FULFILLED'
+  | 'REJECTED'
+  | 'CANCELLED'
+  | 'APPROVED_BY_HEAD'
+  | 'APPROVED_BY_WAREHOUSE';
 
 export type MovementType = 'INCOMING' | 'OUTGOING' | 'TRANSFER' | 'WRITE_OFF' | 'RETURN';
 
@@ -23,9 +39,22 @@ export interface User {
   email?: string;
   role: RoleType;
   phone?: string;
+  position?: string;
   departmentId?: string;
   departmentName?: string;
   mustChangePassword?: boolean;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  refresh_token: string;
+  mustChangePassword?: boolean;
+  user: User;
+}
+
+export interface RefreshResponse {
+  access_token: string;
+  refresh_token: string;
 }
 
 export interface Department {
@@ -110,6 +139,24 @@ export interface StockItem {
   status: 'NORMAL' | 'LOW';
 }
 
+export interface LowStockItem {
+  id: string;
+  stockId: string;
+  warehouseId: string;
+  warehouseName: string;
+  itemId: string;
+  itemName: string;
+  model?: string | null;
+  categoryName: string;
+  unit: string;
+  quantity: number;
+  minStockLimit: number;
+  deficit: number;
+  recommendedOrderQty: number;
+  fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT' | string;
+  status: 'LOW';
+}
+
 export interface RequestItem {
   id: string;
   itemId: string;
@@ -128,8 +175,35 @@ export interface RequestRecord {
   specialApprovalNeeded?: boolean;
   requesterId: string;
   requesterName: string;
+  requesterRole?: string;
+  requesterPosition?: string;   // Foydalanuvchi lavozimi (masalan: "Kafedra mudiri", "Prorektor", "Laborant")
   departmentName?: string;
   approvalNote?: string;
+  fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT' | string;
+  subAccountCode?: string;
+  allocatedAmount?: number;
+  targetRoomId?: string;
+  targetRoomName?: string;
+  targetRoomNumber?: string;
+  commendantId?: string;
+  commendantName?: string;
+  submittedAt?: string;
+  prorektorApprovedAt?: string;
+  prorektorApprovedById?: string;
+  prorektorApprovedByName?: string;
+  rectorApprovedAt?: string;
+  rectorApprovedById?: string;
+  rectorApprovedByName?: string;
+  accountantFinancedAt?: string;
+  accountantFinancedById?: string;
+  accountantFinancedByName?: string;
+  warehouseReceivedAt?: string;
+  warehouseReceivedById?: string;
+  warehouseReceivedByName?: string;
+  commendantHandedAt?: string;
+  commendantHandedById?: string;
+  commendantHandedByName?: string;
+  fulfilledAt?: string;
   createdAt: string;
   items: RequestItem[];
 }
@@ -138,13 +212,28 @@ export interface StockMovement {
   id: string;
   movementNumber: string;
   movementType: MovementType;
-  referenceDoc?: string;
+  referenceDoc?: string | null;
   note?: string;
   executedByName: string;
   sourceLocation?: string;
   targetLocation?: string;
   createdAt: string;
   itemSummary: string;
+  fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT' | string;
+  hasWormStamp?: boolean;
+  stamp?: {
+    id: string;
+    docNumber: string;
+    docType: string;
+    isValid: boolean;
+    signerName: string;
+    signerRole?: string;
+  } | null;
+  items?: Array<{
+    name: string;
+    quantity: number;
+    unit: string;
+  }>;
 }
 
 // Bildirishnomalar
@@ -223,7 +312,7 @@ export interface SystemAuditLogItem {
 // Kriptografik Muhr & Public Verifikatsiya
 export interface PublicVerifyResult {
   isValid: boolean;
-  status: 'VERIFIED' | 'REVOKED';
+  status: 'VERIFIED' | 'REVOKED' | 'IN_PROGRESS';
   certificateTitle: string;
   docNumber: string;
   docType: string;
@@ -232,25 +321,109 @@ export interface PublicVerifyResult {
   signerRole: string;
   verificationHash: string;
   issuedAt: string;
+  revokedAt?: string | null;
+  revokedReason?: string | null;
+  verificationMethod?: string;
+  securityNotice?: string;
   metadata?: any;
+  signingProgress?: {
+    totalRequired: number;
+    completedCount: number;
+    percent: number;
+    isFullySigned: boolean;
+    signers: Array<{
+      role: string;
+      name: string;
+      isSigned: boolean;
+      signedAt?: string | null;
+      method: string;
+    }>;
+  };
 }
+
+// 60s Dinamik QR-Pairing va Mobil Biometrik Imzo
+export type SigningSessionStatusType = 'PENDING' | 'SCANNED' | 'SIGNED' | 'EXPIRED' | 'CANCELLED';
+
+export interface InitSigningSessionPayload {
+  docNumber: string;
+  docType: string;
+  title: string;
+  departmentName?: string;
+  roomName?: string;
+  itemSummary: string;
+  metadata?: any;
+  targetSignerName?: string;
+  targetSignerRole?: string;
+  targetUserId?: string;
+}
+
+export interface SigningSessionInitResult {
+  sessionId: string;
+  sessionToken: string;
+  qrUrl: string;
+  docNumber: string;
+  docType: string;
+  title: string;
+  itemSummary: string;
+  expiresAt: string;
+  remainingSeconds: number;
+  expectedSignerName?: string | null;
+  expectedSignerRole?: string | null;
+}
+
+export interface SigningSessionStatusResult {
+  sessionId: string;
+  status: SigningSessionStatusType;
+  remainingSeconds: number;
+  docNumber: string;
+  title: string;
+  signerName?: string | null;
+  signerRole?: string | null;
+  signedAt?: string | null;
+  biometricType?: string | null;
+  stamp?: any;
+}
+
+export interface MobileSigningDetailsResult {
+  sessionId: string;
+  sessionToken: string;
+  docNumber: string;
+  docType: string;
+  title: string;
+  departmentName?: string | null;
+  roomName?: string | null;
+  itemSummary: string;
+  metadata?: any;
+  status: SigningSessionStatusType;
+  expiresAt: string;
+  remainingSeconds: number;
+  message?: string;
+  stamp?: any;
+  expectedSignerName?: string | null;
+  expectedSignerRole?: string | null;
+}
+
 
 // HEMIS & UzASBO Integratsiyalari
 export type HemisStatusType =
   | 'CONNECTED'
+  | 'DEMO'
   | 'DEMO_STUB'
+  | 'CONFIGURED_BUT_STUB'
   | 'NOT_CONFIGURED'
   | 'CONNECTION_FAILED'
-  | 'AUTHENTICATION_FAILED';
+  | 'AUTHENTICATION_FAILED'
+  | 'ERROR';
 
 export interface HemisStatusResult {
   status: HemisStatusType;
   isConfigured: boolean;
-  mode: 'LIVE' | 'DEMO_STUB' | 'NOT_CONFIGURED';
+  mode: 'LIVE' | 'DEMO' | 'DEMO_STUB' | 'NOT_CONFIGURED';
   hemisVersion: string;
   apiUrl?: string | null;
   lastSyncAt: string | null;
   lastSyncType?: string | null;
+  lastError?: string | null;
   stats: {
     syncedDepartments: number;
     syncedRooms: number;
@@ -270,4 +443,176 @@ export interface HemisTestConnectionResult {
   errorMessage?: string;
   message: string;
 }
+
+// Moddiy Javobgarlikni Topshirish (Responsibility Handover & MOL Offboarding)
+export type HandoverType =
+  | 'FULL_TRANSFER'
+  | 'PARTIAL_TRANSFER'
+  | 'ROOM_TRANSFER'
+  | 'RETURN_TO_WAREHOUSE'
+  | 'FINAL_CLEARANCE';
+
+export type HandoverStatus =
+  | 'DRAFT'
+  | 'PENDING_AUDIT'
+  | 'PENDING_SIGNATURES'
+  | 'COMPLETED'
+  | 'REJECTED'
+  | 'CANCELLED';
+
+export type HandoverItemActionType =
+  | 'TRANSFER_TO_MOL'
+  | 'RETURN_TO_WAREHOUSE'
+  | 'SEND_TO_REPAIR'
+  | 'WRITE_OFF'
+  | 'SHORTAGE';
+
+export interface HandoverItemActionInput {
+  itemInstanceId: string;
+  actionType: HandoverItemActionType;
+  targetUserId?: string;
+  targetWarehouseId?: string;
+  conditionNote?: string;
+  investigationNote?: string;
+}
+
+export interface CreateResponsibilityHandoverPayload {
+  type: HandoverType;
+  departingUserId: string;
+  targetUserId?: string;
+  targetWarehouseId?: string;
+  buildingId?: string;
+  commandantUserId?: string;
+  accountantUserId?: string;
+  roomId?: string;
+  note?: string;
+  items: HandoverItemActionInput[];
+}
+
+export interface SignHandoverPayload {
+  pin?: string;
+  note?: string;
+}
+
+export interface RejectHandoverPayload {
+  reason: string;
+}
+
+export interface HandoverItemAction {
+  id: string;
+  handoverId: string;
+  itemInstanceId: string;
+  actionType: HandoverItemActionType;
+  targetUserId?: string | null;
+  targetWarehouseId?: string | null;
+  conditionNote?: string | null;
+  investigationNote?: string | null;
+  itemInstance?: {
+    id: string;
+    inventoryNumber: string;
+    serialNumber?: string | null;
+    status: AssetStatus;
+    cost?: number | string | null;
+    item: {
+      id: string;
+      name: string;
+      model?: string | null;
+      category?: { id: string; name: string } | null;
+    };
+    room?: {
+      id: string;
+      number: string;
+      name: string;
+    } | null;
+  };
+}
+
+export interface ResponsibilityHandover {
+  id: string;
+  handoverNumber: string;
+  type: HandoverType;
+  status: HandoverStatus;
+  departingUserId: string;
+  targetUserId?: string | null;
+  targetWarehouseId?: string | null;
+  buildingId?: string | null;
+  commandantUserId?: string | null;
+  accountantUserId?: string | null;
+  approvedByUserId?: string | null;
+  roomId?: string | null;
+  note?: string | null;
+  docArchiveId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  departingUser?: Partial<User> & { phone?: string; position?: string };
+  targetUser?: Partial<User> & { phone?: string; position?: string } | null;
+  commandantUser?: Partial<User> & { phone?: string; position?: string } | null;
+  accountantUser?: Partial<User> & { phone?: string; position?: string } | null;
+  approvedByUser?: Partial<User> | null;
+  building?: { id: string; name: string; code?: string } | null;
+  room?: { id: string; number: string; name: string; floor?: number } | null;
+  targetWarehouse?: { id: string; name: string; code?: string } | null;
+  items?: HandoverItemAction[];
+  _count?: { items: number };
+  docArchive?: {
+    id: string;
+    docNumber: string;
+    docType: string;
+    title: string;
+    contentHtml: string;
+    pdfUrl?: string | null;
+    qrPayloadUrl: string;
+    documentHash: string;
+    signatories?: any[];
+  } | null;
+}
+
+export interface PaginatedHandoversResponse {
+  items: ResponsibilityHandover[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface UserClearanceStatus {
+  userId: string;
+  fullName: string;
+  canDeactivate: boolean;
+  activeAssets: number;
+  pendingHandovers: number;
+  openShortages: number;
+  responsibleRooms: number;
+  statusSummary: string;
+}
+
+export interface ClearanceCertificate {
+  certificateNumber: string;
+  issueDate: string;
+  userId: string;
+  fullName: string;
+  role: string;
+  position?: string | null;
+  departmentName?: string | null;
+  isCleared: boolean;
+  activeAssets: number;
+  responsibleRooms: number;
+  pendingHandovers: number;
+  openShortages: number;
+  completedHandovers: Array<{
+    id: string;
+    handoverNumber: string;
+    type: string;
+    createdAt: string;
+    updatedAt: string;
+    targetUser?: { fullName: string } | null;
+    targetWarehouse?: { name: string } | null;
+    _count?: { items: number };
+  }>;
+  verificationHash: string;
+  qrPayloadUrl: string;
+  contentHtml: string;
+}
+
+
 

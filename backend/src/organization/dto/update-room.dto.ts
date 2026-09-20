@@ -28,6 +28,14 @@ export class UpdateRoomDto {
   floor?: number;
 
   @ApiPropertyOptional({
+    description: 'Bino ID si (Building modeli bilan bog‘lanish)',
+    example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'buildingId to‘g‘ri UUID bo‘lishi kerak' })
+  buildingId?: string | null;
+
+  @ApiPropertyOptional({
     description: 'Bino nomi yoki korpusi',
     example: 'Bosh bino',
   })

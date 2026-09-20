@@ -158,22 +158,43 @@ export function useDepreciationPreviewQuery(
   });
 }
 
+export interface RunDepreciationResponse {
+  success: boolean;
+  message: string;
+  run: {
+    id: string;
+    batchNumber: string;
+    period: string;
+    totalAssetsCount: number;
+    totalDepreciationAmount: number;
+    totalBookValue: number;
+    status: string;
+    createdAt?: string;
+  };
+}
+
 export function useRunDepreciationMutation() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: async (dto: {
+  return useMutation<
+    RunDepreciationResponse,
+    any,
+    {
       period: string;
       categoryIds?: string[];
       notes?: string;
-    }) => {
-      const res = await apiClient.post(API_ENDPOINTS.DEPRECIATION.RUN, dto);
+    }
+  >({
+    mutationFn: async (dto) => {
+      const res = await apiClient.post<RunDepreciationResponse>(API_ENDPOINTS.DEPRECIATION.RUN, dto);
       return res.data;
     },
     onSuccess: (data) => {
       Message.success(data?.message || 'Amortizatsiya hisobi muvaffaqiyatli yakunlandi!');
       queryClient.invalidateQueries({ queryKey: ['depreciation-runs'] });
+      queryClient.invalidateQueries({ queryKey: ['depreciation-run'] });
       queryClient.invalidateQueries({ queryKey: ['depreciation-preview'] });
+      queryClient.invalidateQueries({ queryKey: ['depreciation-statement'] });
       queryClient.invalidateQueries({ queryKey: ['assets'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-analytics'] });
     },

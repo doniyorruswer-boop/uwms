@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
 import { CreateBackupDto, QueryBackupDto } from './dto/backup.dto';
@@ -145,7 +146,29 @@ export class BackupsService {
     }
   }
 
-  async createBackup(dto: CreateBackupDto, userId?: string) {
+  /**
+   * Har kuni soat 02:00 da (UTC+5) avtomatik zaxira nusxasi olish (Task 6.3 Cron Scheduler)
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  async handleAutomaticDailyBackup() {
+    this.logger.log('Rejali avtomatik zaxira nusxasi yaratilishi boshlanmoqda (Cron 02:00)...');
+    try {
+      await this.createBackup(
+        { notes: 'Rejali avtomatik kunlik zaxira nusxasi (Cron 02:00)' },
+        undefined,
+        BackupType.AUTOMATIC,
+      );
+      this.logger.log('Rejali avtomatik zaxira nusxasi muvaffaqiyatli yakunlandi.');
+    } catch (error: any) {
+      this.logger.error(`Rejali avtomatik zaxira nusxasi yaratishda xatolik: ${error.message}`);
+    }
+  }
+
+  async createBackup(
+    dto: CreateBackupDto,
+    userId?: string,
+    backupType: BackupType = BackupType.MANUAL,
+  ) {
     const timestamp = new Date().toISOString().replace(/[-:T.]/g, '_').slice(0, 19);
     const filename = `uwms_backup_${timestamp}.dump`;
     const filePath = path.join(this.backupDir, filename);
@@ -155,9 +178,9 @@ export class BackupsService {
       data: {
         filename,
         filePath,
-        backupType: BackupType.MANUAL,
+        backupType,
         status: BackupStatus.IN_PROGRESS,
-        notes: dto.notes || 'Foydalanuvchi tomonidan qo‘lda yaratilgan zaxira nusxasi',
+        notes: dto.notes || (backupType === BackupType.AUTOMATIC ? 'Rejali avtomatik zaxira nusxasi' : 'Foydalanuvchi tomonidan qo‘lda yaratilgan zaxira nusxasi'),
         triggeredById: userId || null,
       },
     });
@@ -232,6 +255,17 @@ export class BackupsService {
 
   async restoreBackup(id: string, confirmation: string, userId?: string) {
     if (confirmation.trim().toUpperCase() !== 'TIKLASH') {
+      await this.auditService.log({
+        action: 'RESTORE_REJECTED',
+        entity: 'BackupRecord',
+        entityId: id,
+        details: {
+          reason: 'Ikki bosqichli xavfsizlik tasdiq kodi noto‘g‘ri kiritildi',
+          enteredCode: confirmation,
+          expectedCode: 'TIKLASH',
+        },
+        userId,
+      });
       throw new BadRequestException('Tasdiqlash kodi noto‘g‘ri! Davom etish uchun "TIKLASH" so‘zini kiriting.');
     }
 
@@ -285,7 +319,14 @@ export class BackupsService {
       action: 'RESTORE',
       entity: 'BackupRecord',
       entityId: backup.id,
-      details: { filename: backup.filename, confirmedBy: userId, restoredAt: new Date().toISOString() },
+      details: {
+        filename: backup.filename,
+        confirmedBy: userId,
+        confirmationCode: 'TIKLASH',
+        twoFactorConfirmed: true,
+        checksum: backup.checksum,
+        restoredAt: new Date().toISOString(),
+      },
       userId,
     });
 

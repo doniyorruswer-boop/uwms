@@ -26,6 +26,7 @@ export interface UserItem {
   };
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
 }
 
 export interface QueryUsersParams {
@@ -35,6 +36,7 @@ export interface QueryUsersParams {
   isActive?: boolean;
   page?: number;
   pageSize?: number;
+  showDeleted?: boolean;
 }
 
 export interface PaginatedUsersResponse {
@@ -67,7 +69,10 @@ export interface UpdateUserData {
   isActive?: boolean;
 }
 
-export function useUsersQuery(params?: QueryUsersParams) {
+export function useUsersQuery(
+  params?: QueryUsersParams,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
     queryKey: ['users', params],
     queryFn: async () => {
@@ -76,6 +81,7 @@ export function useUsersQuery(params?: QueryUsersParams) {
       });
       return res.data;
     },
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -178,6 +184,40 @@ export function useResetUserPasswordMutation() {
     },
     onError: (err: any) => {
       Message.error(err?.response?.data?.message || 'Parolni yangilashda xatolik yuz berdi');
+    },
+  });
+}
+
+export function useDeleteUserMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.delete(`/users/${id}`);
+      return res.data;
+    },
+    onSuccess: () => {
+      Message.success('Foydalanuvchi muvaffaqiyatli o‘chirildi (Soft delete)');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: any) => {
+      Message.error(err?.response?.data?.message || 'Foydalanuvchini o‘chirishda xatolik yuz berdi');
+    },
+  });
+}
+
+export function useRestoreUserMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.post(`/users/${id}/restore`);
+      return res.data;
+    },
+    onSuccess: () => {
+      Message.success('Foydalanuvchi muvaffaqiyatli qayta tiklandi (Restore)');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: any) => {
+      Message.error(err?.response?.data?.message || 'Qayta tiklashda xatolik yuz berdi');
     },
   });
 }

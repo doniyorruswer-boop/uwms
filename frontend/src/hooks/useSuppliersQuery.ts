@@ -27,9 +27,15 @@ export interface SupplierItem {
   email?: string | null;
   address?: string | null;
   notes?: string | null;
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   invoices?: InvoiceItem[];
+  itemInstances?: {
+    id: string;
+    fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT' | string;
+    purchasePrice?: number | null;
+  }[];
   _count?: {
     itemInstances: number;
     invoices: number;
@@ -39,12 +45,18 @@ export interface SupplierItem {
 
 export interface SupplierDetail extends SupplierItem {
   invoices: (InvoiceItem & { _count?: { instances: number } })[];
+  fundingSummary?: {
+    BYUDJET: { count: number; totalAmount: number };
+    KONTRAKT_RIVOJLANTIRISH: { count: number; totalAmount: number };
+    GRANT: { count: number; totalAmount: number };
+  };
   itemInstances: {
     id: string;
     inventoryNumber: string;
     serialNumber?: string | null;
     qrCode: string;
     status: string;
+    fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT' | string;
     purchasePrice?: number | null;
     createdAt: string;
     item: {
@@ -62,6 +74,7 @@ export interface SupplierDetail extends SupplierItem {
     id: string;
     movementNumber: string;
     movementType: string;
+    fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT' | string;
     createdAt: string;
     toWarehouse?: {
       name: string;
@@ -74,6 +87,11 @@ export interface SupplierStats {
   activeContractsCount: number;
   totalInvoices: number;
   totalInvoiceAmount: number;
+  fundingSummary?: {
+    BYUDJET: { count: number; totalAmount: number };
+    KONTRAKT_RIVOJLANTIRISH: { count: number; totalAmount: number };
+    GRANT: { count: number; totalAmount: number };
+  };
 }
 
 export interface NextCodesData {
@@ -83,14 +101,17 @@ export interface NextCodesData {
   nextInvoiceNumber: string;
 }
 
-export function useSuppliersQuery(search?: string) {
+export function useSuppliersQuery(search?: string, showDeleted?: boolean) {
   const queryClient = useQueryClient();
 
   const suppliersQuery = useQuery({
-    queryKey: ['suppliers', search],
+    queryKey: ['suppliers', search, showDeleted],
     queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (search) params.search = search;
+      if (showDeleted) params.showDeleted = 'true';
       const res = await apiClient.get<SupplierItem[]>(API_ENDPOINTS.SUPPLIERS.BASE, {
-        params: search ? { search } : undefined,
+        params,
       });
       return res.data;
     },
@@ -188,6 +209,22 @@ export function useSuppliersQuery(search?: string) {
     },
   });
 
+  const restoreSupplierMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.post(API_ENDPOINTS.SUPPLIERS.RESTORE(id));
+      return res.data;
+    },
+    onSuccess: () => {
+      Message.success('Ta’minotchi muvaffaqiyatli qayta tiklandi!');
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers-next-codes'] });
+    },
+    onError: (err: any) => {
+      Message.error(err.response?.data?.message || 'Ta’minotchini qayta tiklashda xatolik!');
+    },
+  });
+
   const createInvoiceMutation = useMutation({
     mutationFn: async ({
       supplierId,
@@ -236,6 +273,8 @@ export function useSuppliersQuery(search?: string) {
     isUpdatingSupplier: updateSupplierMutation.isPending,
     deleteSupplier: deleteSupplierMutation.mutateAsync,
     isDeletingSupplier: deleteSupplierMutation.isPending,
+    restoreSupplier: restoreSupplierMutation.mutateAsync,
+    isRestoringSupplier: restoreSupplierMutation.isPending,
     createInvoice: createInvoiceMutation.mutateAsync,
     isCreatingInvoice: createInvoiceMutation.isPending,
   };

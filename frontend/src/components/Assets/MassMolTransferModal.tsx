@@ -13,11 +13,13 @@ const { Text } = Typography;
 interface MassMolTransferModalProps {
   visible: boolean;
   onClose: () => void;
+  onSuccess?: (transferResult: any) => void;
 }
 
 export const MassMolTransferModal: React.FC<MassMolTransferModalProps> = ({
   visible,
   onClose,
+  onSuccess,
 }) => {
   const [form] = Form.useForm();
   const { massMolHandoff, isHandoffPending, assets } = useAssetsQuery();
@@ -47,7 +49,7 @@ export const MassMolTransferModal: React.FC<MassMolTransferModalProps> = ({
   const handleOk = async () => {
     try {
       const values = await form.validate();
-      await massMolHandoff({
+      const res = await massMolHandoff({
         fromUserId: values.fromUserId,
         toUserId: values.toUserId,
         roomId: values.roomId,
@@ -56,6 +58,9 @@ export const MassMolTransferModal: React.FC<MassMolTransferModalProps> = ({
       form.resetFields();
       setSelectedFromUser(null);
       onClose();
+      if (res && onSuccess) {
+        onSuccess(res);
+      }
     } catch (err) {
       console.error(err);
     }

@@ -2,7 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { WarehouseService } from './warehouse.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { SystemAuditService } from '../system-audit/system-audit.service';
+import { BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 
 describe('WarehouseService (Unit Tests)', () => {
   let service: WarehouseService;
@@ -29,6 +30,16 @@ describe('WarehouseService (Unit Tests)', () => {
       warehouse: {
         findFirst: jest.fn(),
         findUnique: jest.fn(),
+        findMany: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+      },
+      building: {
+        findUnique: jest.fn(),
+      },
+      user: {
+        findUnique: jest.fn(),
       },
       item: {
         findUnique: jest.fn(),
@@ -52,6 +63,7 @@ describe('WarehouseService (Unit Tests)', () => {
         WarehouseService,
         { provide: PrismaService, useValue: prisma },
         { provide: CodeGeneratorService, useValue: codeGen },
+        { provide: SystemAuditService, useValue: { log: jest.fn() } },
       ],
     }).compile();
 
@@ -109,6 +121,53 @@ describe('WarehouseService (Unit Tests)', () => {
       const res = (await service.getStocks({ page: 1, limit: 10 })) as any;
 
       expect(res.data[0].status).toBe('LOW');
+    });
+  });
+
+  describe('getLowStockItems', () => {
+    it('faqat minimal qoldiqdan kam qolgan tovarlarni qaytarishi, kamomad va tavsiya miqdorini hisoblashi kerak', async () => {
+      prisma.stock.findMany.mockResolvedValue([
+        {
+          id: 'st-low',
+          warehouseId: 'wh-1',
+          warehouse: { name: 'Markaziy Ombor' },
+          itemId: 'it-1',
+          item: {
+            name: 'A4 Qog‘oz',
+            model: 'SvetoCopy A4',
+            unit: 'PACHKA',
+            minStockLimit: 20,
+            category: { name: 'Kanselyariya' },
+          },
+          quantity: 5, // 5 <= 20
+          fundingSource: 'BYUDJET',
+        },
+        {
+          id: 'st-ok',
+          warehouseId: 'wh-1',
+          warehouse: { name: 'Markaziy Ombor' },
+          itemId: 'it-2',
+          item: {
+            name: 'Koptokli ruchka',
+            model: '0.7mm',
+            unit: 'DONA',
+            minStockLimit: 10,
+            category: { name: 'Kanselyariya' },
+          },
+          quantity: 50, // 50 > 10 (normal, low-stock ga kirmaydi)
+          fundingSource: 'BYUDJET',
+        },
+      ]);
+
+      const res = await service.getLowStockItems();
+
+      expect(res).toHaveLength(1);
+      expect(res[0].itemName).toBe('A4 Qog‘oz');
+      expect(res[0].quantity).toBe(5);
+      expect(res[0].minStockLimit).toBe(20);
+      expect(res[0].deficit).toBe(15); // 20 - 5
+      expect(res[0].recommendedOrderQty).toBe(35); // 20*2 - 5 = 35
+      expect(res[0].status).toBe('LOW');
     });
   });
 
@@ -274,6 +333,58 @@ describe('WarehouseService (Unit Tests)', () => {
           'user-1',
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('Warehouse Management (CRUD)', () => {
+    it('should create warehouse successfully and log audit', async () => {
+      prisma.warehouse.findFirst.mockResolvedValueOnce(null);
+      prisma.warehouse.findUnique.mockResolvedValueOnce(null);
+      prisma.warehouse.create.mockResolvedValueOnce({
+        id: 'wh-new',
+        name: 'IT Jihozlar Ombori',
+        code: 'WH-IT',
+        location: 'IT Bino podval',
+        isMain: false,
+      });
+
+      const res = await service.createWarehouse(
+        { name: 'IT Jihozlar Ombori', code: 'WH-IT', location: 'IT Bino podval' },
+        'admin-id',
+      );
+
+      expect(res.id).toBe('wh-new');
+      expect(res.name).toBe('IT Jihozlar Ombori');
+    });
+
+    it('should throw ConflictException if warehouse name exists', async () => {
+      prisma.warehouse.findFirst.mockResolvedValueOnce({ id: 'wh-1', name: 'Asosiy Ombor' });
+
+      await expect(
+        service.createWarehouse({ name: 'Asosiy Ombor' }, 'admin-id'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should prevent deleting warehouse if active stock quantity exists', async () => {
+      prisma.warehouse.findUnique.mockResolvedValueOnce({
+        id: 'wh-1',
+        name: 'Asosiy Ombor',
+        stocks: [{ id: 'st-1', quantity: 15 }],
+      });
+
+      await expect(service.deleteWarehouse('wh-1', 'admin-id')).rejects.toThrow(BadRequestException);
+    });
+
+    it('should soft delete warehouse if stocks are empty', async () => {
+      prisma.warehouse.findUnique.mockResolvedValueOnce({
+        id: 'wh-empty',
+        name: 'Bo‘sh Ombor',
+        stocks: [],
+      });
+      prisma.warehouse.update.mockResolvedValueOnce({ id: 'wh-empty', deletedAt: new Date() });
+
+      const res = await service.deleteWarehouse('wh-empty', 'admin-id');
+      expect(res.success).toBe(true);
     });
   });
 });

@@ -3,22 +3,71 @@ import {
   Logger,
   BadRequestException,
   BadGatewayException,
+  Optional,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { HemisSyncDto, HemisTestConnectionDto, UzAsboExportQueryDto } from './integrations.dto';
 import { NotificationType, RoleType } from '@prisma/client';
+import {
+  HemisAdapter,
+  HttpHemisAdapter,
+  mapHemisDepartment,
+  mapHemisRoom,
+  mapHemisUser,
+} from './hemis-adapter.interface';
+
+export const DEMO_HEMIS_SEED_DATA = {
+  departments: [
+    { code: 'FAC_IT', name: 'Axborot Texnologiyalari Fakulteti', type: 'FACULTY' as const },
+    { code: 'DEP_CS', name: 'Dasturiy Injiniring Kafedrasi', type: 'DEPARTMENT' as const },
+    { code: 'DEP_AI', name: 'Sun’iy Intellekt va Kiberxavfsizlik Kafedrasi', type: 'DEPARTMENT' as const },
+    { code: 'DEP_NET', name: 'Tarmoq Texnologiyalari va Telekommunikatsiya Kafedrasi', type: 'DEPARTMENT' as const },
+    { code: 'FAC_ECON', name: 'Raqamli Iqtisodiyot Fakulteti', type: 'FACULTY' as const },
+    { code: 'DEP_FIN', name: 'Moliya va Buxgalteriya Hisobi Kafedrasi', type: 'DEPARTMENT' as const },
+  ],
+  rooms: [
+    { number: '101', name: 'Kompyuter Laboratoriyasi №1', floor: 1, building: 'Bosh bino', deptCode: 'DEP_CS' },
+    { number: '102', name: 'Sun’iy Intellekt Ilmiy Markazi', floor: 1, building: 'Bosh bino', deptCode: 'DEP_AI' },
+    { number: '204', name: 'Kiberxavfsizlik Server Xonasi', floor: 2, building: 'Bosh bino', deptCode: 'DEP_AI' },
+    { number: '305', name: 'Cisco Tarmoq Akademiyasi Xonasi', floor: 3, building: 'Bosh bino', deptCode: 'DEP_NET' },
+    { number: '410', name: 'Raqamli Iqtisodiyot Ma’ruza Zali', floor: 4, building: 'Bosh bino', deptCode: 'DEP_FIN' },
+  ],
+};
 
 @Injectable()
 export class IntegrationsService {
   private readonly logger = new Logger(IntegrationsService.name);
+  private adapter: HemisAdapter = new HttpHemisAdapter();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly systemAuditService: SystemAuditService,
     private readonly notificationsService: NotificationsService,
+    @Optional() private readonly configService?: ConfigService,
   ) {}
+
+  setAdapter(adapter: HemisAdapter) {
+    this.adapter = adapter;
+  }
+
+  private getHemisApiUrl(): string | undefined {
+    return this.configService?.get<string>('HEMIS_API_URL')?.trim() || process.env.HEMIS_API_URL?.trim();
+  }
+
+  private getHemisApiKey(): string | undefined {
+    return this.configService?.get<string>('HEMIS_API_KEY')?.trim() || process.env.HEMIS_API_KEY?.trim();
+  }
+
+  private getHemisMode(): string {
+    const mode =
+      this.configService?.get<string>('HEMIS_MODE')?.trim().toLowerCase() ||
+      process.env.HEMIS_MODE?.trim().toLowerCase();
+    return mode || 'demo';
+  }
 
   private maskUrl(url: string): string {
     try {
@@ -93,98 +142,140 @@ export class IntegrationsService {
       this.prisma.user.count(),
     ]);
 
-    const lastSyncLog = await this.prisma.systemAuditLog.findFirst({
-      where: {
-        action: { in: ['HEMIS_SYNC', 'HEMIS_STUB_SYNC', 'HEMIS_LIVE_SYNC'] },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [lastSyncLog, lastFailedLog] = await Promise.all([
+      this.prisma.systemAuditLog.findFirst({
+        where: {
+          action: { in: ['HEMIS_SYNC', 'HEMIS_SYNC_DEMO', 'HEMIS_STUB_SYNC', 'HEMIS_LIVE_SYNC'] },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.systemAuditLog.findFirst({
+        where: {
+          action: 'HEMIS_SYNC_FAILED',
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
 
-    const envUrl = process.env.HEMIS_API_URL;
-    const envKey = process.env.HEMIS_API_KEY;
-    const envMode = process.env.HEMIS_MODE; // 'DEMO_STUB' | 'LIVE'
+    const envUrl = this.getHemisApiUrl();
+    const envKey = this.getHemisApiKey();
+    const envMode = this.getHemisMode();
 
-    // 1. Agar muhitda DEMO_STUB deb aniq belgilangan bo'lsa
-    if (envMode === 'DEMO_STUB') {
+    // 1. Agar HEMIS_API_URL va HEMIS_API_KEY yo'q bo'lsa -> NOT_CONFIGURED yoki DEMO
+    if (!envUrl && !envKey) {
+      const isDemoMode = envMode === 'demo' || envMode === 'demo_stub';
       return {
-        status: 'DEMO_STUB',
+        status: isDemoMode ? 'DEMO' : 'NOT_CONFIGURED',
         isConfigured: false,
-        mode: 'DEMO_STUB',
-        hemisVersion: 'HEMIS REST API v2.4 (Demo / Stub Rejimi)',
-        apiUrl: envUrl ? this.maskUrl(envUrl) : null,
+        mode: isDemoMode ? 'DEMO' : 'NOT_CONFIGURED',
+        hemisVersion: 'HEMIS REST API v2.4 (Demo Rejimi)',
+        apiUrl: null,
         lastSyncAt: lastSyncLog ? lastSyncLog.createdAt : null,
         lastSyncType: lastSyncLog?.action || null,
+        lastError: null,
         stats: {
           syncedDepartments: deptCount,
           syncedRooms: roomCount,
           syncedUsers: userCount,
         },
-        message: 'Tizim DEMO / STUB rejimida ishlamoqda. Haqiqiy HEMIS axborot tizimi ulanmagan.',
+        message: 'Hozircha demo rejim. HEMIS_API_URL sozlanmagan',
       };
     }
 
-    // 2. Agar API URL kiritilmagan bo'lsa -> NOT_CONFIGURED
-    if (!envUrl) {
+    // 2. Agar parametrlar chala bo'lsa (faqat bittasi kiritilgan)
+    if (!envUrl || !envKey) {
       return {
         status: 'NOT_CONFIGURED',
         isConfigured: false,
         mode: 'NOT_CONFIGURED',
-        hemisVersion: 'HEMIS REST API v2.4 (Oliy Ta’lim Muassasasi Standarti)',
-        apiUrl: null,
+        hemisVersion: 'HEMIS REST API v2.4',
+        apiUrl: envUrl ? this.maskUrl(envUrl) : null,
         lastSyncAt: lastSyncLog ? lastSyncLog.createdAt : null,
         lastSyncType: lastSyncLog?.action || null,
+        lastError: 'HEMIS_API_URL yoki HEMIS_API_KEY to‘liq kiritilmagan',
         stats: {
           syncedDepartments: deptCount,
           syncedRooms: roomCount,
           syncedUsers: userCount,
         },
-        message: 'HEMIS API integratsiyasi sozlanmagan. Iltimos, HEMIS_API_URL va HEMIS_API_KEY ni sozlang.',
+        message: 'Hozircha demo rejim. HEMIS_API_URL sozlanmagan',
       };
     }
 
-    // 3. Agar URL sozlangan bo'lsa, real HTTP ping qilib ko'ramiz
+    // 3. Agar env bor bo'lsa, lekin DEMO rejimida bo'lsa -> CONFIGURED_BUT_STUB
+    if (envMode === 'demo' || envMode === 'demo_stub') {
+      return {
+        status: 'CONFIGURED_BUT_STUB',
+        isConfigured: true,
+        mode: 'DEMO',
+        hemisVersion: 'HEMIS REST API v2.4 (Stub / Sinov Rejimi)',
+        apiUrl: this.maskUrl(envUrl),
+        lastSyncAt: lastSyncLog ? lastSyncLog.createdAt : null,
+        lastSyncType: lastSyncLog?.action || null,
+        lastError: null,
+        stats: {
+          syncedDepartments: deptCount,
+          syncedRooms: roomCount,
+          syncedUsers: userCount,
+        },
+        message: 'HEMIS API sozlamalari mavjud, biroq tizim STUB/DEMO rejimida turibdi.',
+      };
+    }
+
+    // 4. Agar env bor bo'lsa va LIVE rejimda bo'lsa:
     const pingResult = await this.pingHemis(envUrl, envKey);
+    const latestFailed =
+      lastFailedLog && (!lastSyncLog || lastFailedLog.createdAt > lastSyncLog.createdAt);
+    const lastErrorMsg = latestFailed
+      ? (lastFailedLog.details as any)?.error || 'Oxirgi sinxronizatsiyada xatolik yuz bergan'
+      : undefined;
+
     if (pingResult.ok) {
       return {
-        status: 'CONNECTED',
+        status: latestFailed ? 'ERROR' : 'CONNECTED',
         isConfigured: true,
         mode: 'LIVE',
         hemisVersion: 'HEMIS REST API v2.4 (Jonli Ulanish)',
         apiUrl: this.maskUrl(envUrl),
         lastSyncAt: lastSyncLog ? lastSyncLog.createdAt : null,
         lastSyncType: lastSyncLog?.action || null,
+        lastError: lastErrorMsg,
         stats: {
           syncedDepartments: deptCount,
           syncedRooms: roomCount,
           syncedUsers: userCount,
         },
         pingMs: pingResult.pingMs,
-        message: 'HEMIS REST API bilan aloqa faol va tekshirildi.',
+        message: latestFailed
+          ? `HEMIS oxirgi sinxronizatsiyasida xatolik: ${lastErrorMsg}`
+          : 'HEMIS REST API bilan aloqa faol va tekshirildi.',
       };
     }
 
     const isAuthErr = pingResult.status === 401 || pingResult.status === 403;
+    const errorDetails = pingResult.errorMessage || lastErrorMsg || 'HEMIS serveriga ulanishda xatolik';
     return {
-      status: isAuthErr ? 'AUTHENTICATION_FAILED' : 'CONNECTION_FAILED',
+      status: isAuthErr ? 'AUTHENTICATION_FAILED' : 'ERROR',
       isConfigured: true,
       mode: 'LIVE',
       hemisVersion: 'HEMIS REST API v2.4 (Oliy Ta’lim Muassasasi Standarti)',
       apiUrl: this.maskUrl(envUrl),
       lastSyncAt: lastSyncLog ? lastSyncLog.createdAt : null,
       lastSyncType: lastSyncLog?.action || null,
+      lastError: errorDetails,
       stats: {
         syncedDepartments: deptCount,
         syncedRooms: roomCount,
         syncedUsers: userCount,
       },
-      errorMessage: pingResult.errorMessage,
-      message: `HEMIS serveriga ulanishda xatolik: ${pingResult.errorMessage}`,
+      errorMessage: errorDetails,
+      message: `HEMIS serveriga ulanishda xatolik: ${errorDetails}`,
     };
   }
 
   async testHemisConnection(dto: HemisTestConnectionDto) {
-    const targetUrl = dto.hemisApiUrl || process.env.HEMIS_API_URL;
-    const targetKey = dto.apiKey || process.env.HEMIS_API_KEY;
+    const targetUrl = dto.hemisApiUrl || this.getHemisApiUrl();
+    const targetKey = dto.apiKey || this.getHemisApiKey();
 
     if (!targetUrl) {
       throw new BadRequestException('HEMIS API URL manzili kiritilishi shart!');
@@ -209,19 +300,27 @@ export class IntegrationsService {
   }
 
   async syncHemis(dto: HemisSyncDto, userId: string) {
-    const targetUrl = dto.hemisApiUrl || process.env.HEMIS_API_URL;
-    const targetKey = dto.apiKey || process.env.HEMIS_API_KEY;
-    const requestedMode =
-      dto.mode ||
-      (targetUrl ? 'LIVE' : process.env.HEMIS_MODE === 'DEMO_STUB' ? 'DEMO_STUB' : undefined);
+    const targetUrl = dto.hemisApiUrl || this.getHemisApiUrl();
+    const targetKey = dto.apiKey || this.getHemisApiKey();
+    const envMode = this.getHemisMode();
 
-    if (requestedMode === 'DEMO_STUB') {
+    const isDemoMode =
+      dto.mode === 'DEMO' ||
+      dto.mode === 'DEMO_STUB' ||
+      (!dto.mode && (envMode === 'demo' || envMode === 'demo_stub' || !targetUrl));
+
+    if (isDemoMode) {
+      if (dto.forceDemo !== true) {
+        throw new BadRequestException(
+          "Demo sinxronizatsiya faqat 'forceDemo: true' bayrog'i tasdiqlanganda ishlaydi. Bu haqiqiy HEMIS ulanishi emasligini tasdiqlang.",
+        );
+      }
       return this.executeStubSync(userId);
     }
 
-    if (!targetUrl) {
+    if (!targetUrl || !targetKey) {
       throw new BadRequestException(
-        "HEMIS API sozlanmagan! Iltimos, API URL va API kalitni kiriting yoki 'DEMO_STUB' sinov rejimini tanlang.",
+        "HEMIS API sozlanmagan! Iltimos, HEMIS_API_URL va HEMIS_API_KEY ni sozlang yoki 'DEMO' rejimida forceDemo: true bilan bajaring.",
       );
     }
 
@@ -229,48 +328,24 @@ export class IntegrationsService {
   }
 
   private async executeLiveSync(apiUrl: string, apiKey: string | undefined, userId: string) {
-    const cleanUrl = apiUrl.replace(/\/+$/, '');
-    const headers: Record<string, string> = { Accept: 'application/json' };
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
-      headers['api-key'] = apiKey;
-    }
-
-    let deptsData: any[] = [];
-    let roomsData: any[] = [];
+    let rawDepts: any[] = [];
+    let rawRooms: any[] = [];
+    let rawUsers: any[] = [];
 
     try {
-      const deptsRes = await fetch(`${cleanUrl}/rest/v1/data/department-list`, { headers });
-      if (!deptsRes.ok) {
-        const fallbackDepts = await fetch(`${cleanUrl}/departments`, { headers });
-        if (!fallbackDepts.ok) {
-          throw new Error(`Kafedralar ro'yxatini olib bo'lmadi (HTTP ${deptsRes.status})`);
-        }
-        const json = await fallbackDepts.json();
-        deptsData = Array.isArray(json) ? json : json.data || [];
-      } else {
-        const json = await deptsRes.json();
-        deptsData = Array.isArray(json) ? json : json.data || [];
-      }
-
-      const roomsRes = await fetch(`${cleanUrl}/rest/v1/data/auditorium-list`, { headers });
-      if (roomsRes.ok) {
-        const json = await roomsRes.json();
-        roomsData = Array.isArray(json) ? json : json.data || [];
-      } else {
-        const fallbackRooms = await fetch(`${cleanUrl}/auditoriums`, { headers });
-        if (fallbackRooms.ok) {
-          const json = await fallbackRooms.json();
-          roomsData = Array.isArray(json) ? json : json.data || [];
-        }
-      }
+      // 1. Departments, Rooms, Users endpointlariga GET so'rovlar (Strict Read-Only, timeout handling)
+      [rawDepts, rawRooms, rawUsers] = await Promise.all([
+        this.adapter.fetchDepartments(apiUrl, apiKey),
+        this.adapter.fetchRooms(apiUrl, apiKey),
+        this.adapter.fetchUsers(apiUrl, apiKey),
+      ]);
     } catch (err: any) {
       await this.systemAuditService.log({
         action: 'HEMIS_SYNC_FAILED',
         entity: 'Integration',
         details: {
           apiUrl: this.maskUrl(apiUrl),
-          error: err.message,
+          error: err.message || 'HEMIS serveriga so‘rov yuborishda xatolik',
           mode: 'LIVE',
           status: 'FAILED',
         },
@@ -282,55 +357,109 @@ export class IntegrationsService {
       );
     }
 
-    let syncedDepts = 0;
-    for (const d of deptsData) {
-      const code = d.code || d.id?.toString();
-      const name = d.name || d.name_uz || d.title;
-      const type =
-        d.structureType?.code === '11' || d.type === 'FACULTY' ? 'FACULTY' : 'DEPARTMENT';
-      if (code && name) {
-        await this.prisma.department.upsert({
-          where: { code },
-          update: { name, type },
-          create: { code, name, type },
+    // 2. Mapping: tashqi kontrakt ma'lumotlarini ichki tizim DTO/strukturasiga xaritalash
+    const mappedDepts = rawDepts
+      .map(mapHemisDepartment)
+      .filter((d): d is NonNullable<typeof d> => d !== null);
+    const mappedRooms = rawRooms
+      .map(mapHemisRoom)
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+    const mappedUsers = rawUsers
+      .map(mapHemisUser)
+      .filter((u): u is NonNullable<typeof u> => u !== null);
+
+    // 3. Majburiy Tranzaksion Zanjir: prisma.$transaction orqali xavfsiz upsert
+    const { syncedDepts, syncedRooms, syncedUsers } = await this.prisma.$transaction(async (tx) => {
+      let sDepts = 0;
+      for (const d of mappedDepts) {
+        await tx.department.upsert({
+          where: { code: d.code },
+          update: { name: d.name, type: d.type },
+          create: { code: d.code, name: d.name, type: d.type },
         });
-        syncedDepts++;
+        sDepts++;
       }
-    }
 
-    let syncedRooms = 0;
-    for (const r of roomsData) {
-      const number = r.code || r.name || r.number;
-      const name = r.name || `Auditoriya ${number}`;
-      const building = r.building?.name || r.building || 'Bosh bino';
-      const floor = Number(r.floor) || 1;
-      const deptCode = r.department?.code || r.deptCode;
-
-      if (number) {
+      let sRooms = 0;
+      for (const r of mappedRooms) {
         let deptId: string | null = null;
-        if (deptCode) {
-          const dept = await this.prisma.department.findUnique({ where: { code: deptCode } });
+        if (r.deptCode) {
+          const dept = await tx.department.findUnique({ where: { code: r.deptCode } });
           deptId = dept?.id || null;
         }
 
-        const existingRoom = await this.prisma.room.findFirst({
-          where: { number, building },
+        const existingRoom = await tx.room.findFirst({
+          where: { number: r.number, building: r.building },
         });
 
         if (existingRoom) {
-          await this.prisma.room.update({
+          await tx.room.update({
             where: { id: existingRoom.id },
-            data: { name, floor, departmentId: deptId },
+            data: { name: r.name, floor: r.floor, departmentId: deptId },
           });
         } else {
-          await this.prisma.room.create({
-            data: { number, name, floor, building, departmentId: deptId },
+          await tx.room.create({
+            data: {
+              number: r.number,
+              name: r.name,
+              floor: r.floor,
+              building: r.building,
+              departmentId: deptId,
+            },
           });
         }
-        syncedRooms++;
+        sRooms++;
       }
-    }
 
+      let sUsers = 0;
+      const defaultHashedPassword = await bcrypt.hash('HemisUser2026!', 10);
+
+      for (const u of mappedUsers) {
+        let deptId: string | null = null;
+        if (u.deptCode) {
+          const dept = await tx.department.findUnique({ where: { code: u.deptCode } });
+          deptId = dept?.id || null;
+        }
+
+        const existingUser = await tx.user.findUnique({
+          where: { username: u.username },
+        });
+
+        if (existingUser) {
+          await tx.user.update({
+            where: { id: existingUser.id },
+            data: {
+              fullName: u.fullName,
+              email: u.email || existingUser.email,
+              phone: u.phone || existingUser.phone,
+              position: u.position || existingUser.position,
+              departmentId: deptId || existingUser.departmentId,
+            },
+          });
+        } else {
+          await tx.user.create({
+            data: {
+              username: u.username,
+              fullName: u.fullName,
+              email: u.email,
+              phone: u.phone,
+              position: u.position,
+              departmentId: deptId,
+              role: RoleType.EMPLOYEE,
+              password: defaultHashedPassword,
+              mustChangePassword: true,
+            },
+          });
+        }
+        sUsers++;
+      }
+
+      return { syncedDepts: sDepts, syncedRooms: sRooms, syncedUsers: sUsers };
+    });
+
+    const lastSyncAt = new Date();
+
+    // 4. Audit Log va Notification
     await this.systemAuditService.log({
       action: 'HEMIS_LIVE_SYNC',
       entity: 'Integration',
@@ -338,6 +467,7 @@ export class IntegrationsService {
         apiUrl: this.maskUrl(apiUrl),
         syncedDepartments: syncedDepts,
         syncedRooms: syncedRooms,
+        syncedUsers: syncedUsers,
         mode: 'LIVE',
         status: 'SUCCESS',
       },
@@ -347,7 +477,7 @@ export class IntegrationsService {
     await this.notificationsService.notifyRole(
       RoleType.SUPER_ADMIN,
       'HEMIS Jonli Sinxronizatsiyasi Yakunlandi',
-      `HEMIS REST API orqali ${syncedDepts} ta kafedra va ${syncedRooms} ta xona muvaffaqiyatli yangilandi.`,
+      `HEMIS REST API orqali ${syncedDepts} ta kafedra, ${syncedRooms} ta xona va ${syncedUsers} ta xodim muvaffaqiyatli yangilandi.`,
       NotificationType.SUCCESS,
       '/organization',
     );
@@ -359,82 +489,72 @@ export class IntegrationsService {
       message: 'Haqiqiy HEMIS REST API orqali sinxronizatsiya muvaffaqiyatli amalga oshirildi.',
       syncedDepartments: syncedDepts,
       syncedRooms: syncedRooms,
-      timestamp: new Date(),
+      syncedUsers: syncedUsers,
+      lastSyncAt,
     };
   }
 
   private async executeStubSync(userId: string) {
-    const hemisData = {
-      departments: [
-        { code: 'FAC_IT', name: 'Axborot Texnologiyalari Fakulteti', type: 'FACULTY' },
-        { code: 'DEP_CS', name: 'Dasturiy Injiniring Kafedrasi', type: 'DEPARTMENT' },
-        { code: 'DEP_AI', name: 'Sun’iy Intellekt va Kiberxavfsizlik Kafedrasi', type: 'DEPARTMENT' },
-        { code: 'DEP_NET', name: 'Tarmoq Texnologiyalari va Telekommunikatsiya Kafedrasi', type: 'DEPARTMENT' },
-        { code: 'FAC_ECON', name: 'Raqamli Iqtisodiyot Fakulteti', type: 'FACULTY' },
-        { code: 'DEP_FIN', name: 'Moliya va Buxgalteriya Hisobi Kafedrasi', type: 'DEPARTMENT' },
-      ],
-      rooms: [
-        { number: '101', name: 'Kompyuter Laboratoriyasi №1', floor: 1, building: 'Bosh bino', deptCode: 'DEP_CS' },
-        { number: '102', name: 'Sun’iy Intellekt Ilmiy Markazi', floor: 1, building: 'Bosh bino', deptCode: 'DEP_AI' },
-        { number: '204', name: 'Kiberxavfsizlik Server Xonasi', floor: 2, building: 'Bosh bino', deptCode: 'DEP_AI' },
-        { number: '305', name: 'Cisco Tarmoq Akademiyasi Xonasi', floor: 3, building: 'Bosh bino', deptCode: 'DEP_NET' },
-        { number: '410', name: 'Raqamli Iqtisodiyot Ma’ruza Zali', floor: 4, building: 'Bosh bino', deptCode: 'DEP_FIN' },
-      ],
-    };
+    // Majburiy Tranzaksion Zanjir: prisma.$transaction orqali demo seed data yozish
+    const { syncedDepts, syncedRooms } = await this.prisma.$transaction(async (tx) => {
+      let sDepts = 0;
+      let sRooms = 0;
 
-    let syncedDepts = 0;
-    let syncedRooms = 0;
-
-    for (const d of hemisData.departments) {
-      await this.prisma.department.upsert({
-        where: { code: d.code },
-        update: { name: d.name, type: d.type },
-        create: { code: d.code, name: d.name, type: d.type },
-      });
-      syncedDepts++;
-    }
-
-    for (const r of hemisData.rooms) {
-      const dept = await this.prisma.department.findUnique({
-        where: { code: r.deptCode },
-      });
-
-      const existingRoom = await this.prisma.room.findFirst({
-        where: { number: r.number, building: r.building },
-      });
-
-      if (existingRoom) {
-        await this.prisma.room.update({
-          where: { id: existingRoom.id },
-          data: {
-            name: r.name,
-            floor: r.floor,
-            departmentId: dept ? dept.id : null,
-          },
+      for (const d of DEMO_HEMIS_SEED_DATA.departments) {
+        await tx.department.upsert({
+          where: { code: d.code },
+          update: { name: d.name, type: d.type },
+          create: { code: d.code, name: d.name, type: d.type },
         });
-      } else {
-        await this.prisma.room.create({
-          data: {
-            number: r.number,
-            name: r.name,
-            floor: r.floor,
-            building: r.building,
-            departmentId: dept ? dept.id : null,
-          },
-        });
+        sDepts++;
       }
-      syncedRooms++;
-    }
 
+      for (const r of DEMO_HEMIS_SEED_DATA.rooms) {
+        const dept = await tx.department.findUnique({
+          where: { code: r.deptCode },
+        });
+
+        const existingRoom = await tx.room.findFirst({
+          where: { number: r.number, building: r.building },
+        });
+
+        if (existingRoom) {
+          await tx.room.update({
+            where: { id: existingRoom.id },
+            data: {
+              name: r.name,
+              floor: r.floor,
+              departmentId: dept ? dept.id : null,
+            },
+          });
+        } else {
+          await tx.room.create({
+            data: {
+              number: r.number,
+              name: r.name,
+              floor: r.floor,
+              building: r.building,
+              departmentId: dept ? dept.id : null,
+            },
+          });
+        }
+        sRooms++;
+      }
+
+      return { syncedDepts: sDepts, syncedRooms: sRooms };
+    });
+
+    // DEMO rejimida action: HEMIS_SYNC_DEMO deb yoziladi
     await this.systemAuditService.log({
-      action: 'HEMIS_STUB_SYNC',
+      action: 'HEMIS_SYNC_DEMO',
       entity: 'Integration',
       details: {
         syncedDepartments: syncedDepts,
         syncedRooms: syncedRooms,
-        mode: 'DEMO_STUB',
+        mode: 'DEMO',
         isStub: true,
-        note: 'Namunaviy demo/stub ma’lumotlari orqali sinxronlashtirildi',
+        forceDemo: true,
+        note: 'Namunaviy demo seed ma’lumotlari orqali sinxronlashtirildi',
         status: 'SUCCESS',
       },
       userId,
@@ -442,19 +562,21 @@ export class IntegrationsService {
 
     await this.notificationsService.notifyRole(
       RoleType.SUPER_ADMIN,
-      'HEMIS Demo/Stub Sinxronizatsiyasi Yakunlandi',
-      `[DEMO / STUB] Sinov ma’lumotlari bo‘yicha ${syncedDepts} ta kafedra va ${syncedRooms} ta xona yangilandi.`,
+      'HEMIS Demo Sinxronizatsiyasi Yakunlandi',
+      `[DEMO] Sinov ma’lumotlari bo‘yicha ${syncedDepts} ta kafedra va ${syncedRooms} ta xona yangilandi.`,
       NotificationType.INFO,
       '/organization',
     );
 
     return {
       success: true,
-      mode: 'DEMO_STUB',
+      mode: 'DEMO',
       isDemoStub: true,
-      message: 'DEMO / STUB rejimida sinov ma’lumotlari muvaffaqiyatli yuklandi (Haqiqiy HEMIS ulanishi emas!).',
+      message: 'DEMO rejimida sinov ma’lumotlari muvaffaqiyatli yuklandi (Haqiqiy HEMIS ulanishi emas!).',
       syncedDepartments: syncedDepts,
       syncedRooms: syncedRooms,
+      syncedUsers: 0,
+      lastSyncAt: new Date(),
       timestamp: new Date(),
     };
   }
@@ -612,5 +734,48 @@ export class IntegrationsService {
       .join('')}
   </Movements>
 </UzASBOExport>`;
+  }
+
+  async getHemisSyncLogs(limit = 20) {
+    const logs = await this.prisma.systemAuditLog.findMany({
+      where: {
+        OR: [
+          { action: { in: ['HEMIS_SYNC', 'HEMIS_SYNC_DEMO', 'HEMIS_STUB_SYNC', 'HEMIS_LIVE_SYNC', 'HEMIS_SYNC_FAILED'] } },
+          { entity: 'Integration' },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Number(limit) || 20,
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    return logs.map((log) => {
+      let parsedDetails: any = null;
+      if (log.details) {
+        try {
+          parsedDetails = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+        } catch {
+          parsedDetails = { raw: log.details };
+        }
+      }
+      return {
+        id: log.id,
+        action: log.action,
+        entity: log.entity,
+        createdAt: log.createdAt,
+        user: log.user,
+        details: parsedDetails,
+        ipAddress: log.ipAddress,
+      };
+    });
   }
 }

@@ -9,35 +9,35 @@ export const CODE_GENERATOR_CONFIG = {
     LENGTH: 9,
     BASE_NUM: 300000000,
   },
-  // Shartnoma raqami (SH-YYYY-XXXX)
+  // Shartnoma raqami (SH-YYYY-XXXXXXXX)
   CONTRACT: {
     PREFIX: 'SH',
-    DIGITS: 4,
+    DIGITS: 8,
   },
-  // Hisob-faktura raqami (HF-YYYY-XXXX)
+  // Hisob-faktura raqami (HF-YYYY-XXXXXXXX)
   INVOICE: {
     PREFIX: 'HF',
-    DIGITS: 4,
+    DIGITS: 8,
   },
-  // Asosiy vosita inventar raqami (INV-YYYY-XXXXX)
+  // Asosiy vosita inventar raqami (INV-YYYY-XXXXXXXX)
   INVENTORY: {
     PREFIX: 'INV',
-    DIGITS: 5,
+    DIGITS: 8,
   },
-  // Harakat jurnali raqami (MOV-YYYY-XXXXX)
+  // Harakat jurnali raqami (MOV-YYYY-XXXXXXXX)
   MOVEMENT: {
     PREFIX: 'MOV',
-    DIGITS: 5,
+    DIGITS: 8,
   },
-  // Ta'mirlash talabnomasi raqami (REP-YYYY-XXXX)
+  // Ta'mirlash talabnomasi raqami (REP-YYYY-XXXXXXXX)
   REPAIR: {
     PREFIX: 'REP',
-    DIGITS: 4,
+    DIGITS: 8,
   },
-  // Ko'chirish arizasi raqami (TRF-YYYY-XXXX)
+  // Ko'chirish arizasi raqami (TRF-YYYY-XXXXXXXX)
   TRANSFER: {
     PREFIX: 'TRF',
-    DIGITS: 4,
+    DIGITS: 8,
   },
   // Davlat dalolatnomalari (OS1, OS2, OS4, INV19)
   DOCUMENTS: {
@@ -45,7 +45,7 @@ export const CODE_GENERATOR_CONFIG = {
     OS2: 'OS2',
     OS4: 'OS4',
     INV19: 'INV19',
-    DIGITS: 4,
+    DIGITS: 8,
   },
   // QR-kod prefiksi
   QR_PREFIX: 'UWMS:ASSET',

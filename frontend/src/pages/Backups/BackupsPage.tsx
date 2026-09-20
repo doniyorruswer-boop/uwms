@@ -37,9 +37,10 @@ import { StatHeroCard } from '../../components/Common/StatHeroCard';
 import { TableActions } from '../../components/Common/TableActions';
 import { StandardTable } from '../../components/Common/StandardTable';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
+import { ForbiddenView } from '../../components/Common/ForbiddenView';
 import { useAuthStore } from '../../store/authStore';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text } = Typography;
 const { Row, Col } = Grid;
 
 export const BackupsPage: React.FC = () => {
@@ -111,35 +112,32 @@ export const BackupsPage: React.FC = () => {
     }
   };
 
-  // 1. Permission Denied UX State
+  // 1. Permission Denied UX State (Rule 3 & Rule 6.3)
   if (!isSuperAdmin) {
     return (
-      <Card style={{ margin: 20 }}>
-        <Alert
-          type="warning"
-          icon={<IconLock />}
-          title="Ruxsat Cheklangan (Permission Denied)"
-          content="Ma’lumotlar bazasi zaxira nusxalarini (Backup & Restore) boshqarish faqat Bosh Administrator (SUPER_ADMIN) vakolatiga kiradi."
-        />
-      </Card>
+      <ForbiddenView
+        title="403 — Kirish Cheklangan"
+        subTitle="Ma’lumotlar bazasi zaxira nusxalarini (Backup & Restore) boshqarish faqat Tizim administratori (SUPER_ADMIN) vakolatiga kiradi."
+        requiredRoles={['SUPER_ADMIN']}
+      />
     );
   }
 
   // 2. Error UX State
   if (isBackupsError) {
     return (
-      <Card style={{ margin: 20 }}>
+      <div style={{ padding: '16px 0' }}>
         <Alert
           type="error"
           title="Ma’lumotlarni yuklashda xatolik yuz berdi"
           content="Server bilan aloqa uzilgan yoki ichki xatolik yuzaga keldi. Iltimos, qaytadan urinib ko‘ring."
           action={
-            <Button size="small" type="primary" status="danger" onClick={handleRefresh}>
+            <Button size="small" type="primary" status="danger" onClick={handleRefresh} style={{ borderRadius: 0 }}>
               Qayta yuklash
             </Button>
           }
         />
-      </Card>
+      </div>
     );
   }
 
@@ -155,8 +153,8 @@ export const BackupsPage: React.FC = () => {
             icon={<IconStorage />}
             name={filename}
             subtitle={record.notes || undefined}
-            color="#165DFF"
-            bg="#E8F3FF"
+            color="var(--color-primary-6)"
+            bg="var(--color-fill-2)"
           />
         </div>
       ),
@@ -304,22 +302,14 @@ export const BackupsPage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Page Title & Action Bar */}
+      {/* Action Bar */}
       <div
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-end',
           alignItems: 'center',
         }}
       >
-        <div>
-          <Title heading={5} style={{ margin: 0 }}>
-            Ma’lumotlar Bazasi Zaxiralari (Disaster Recovery)
-          </Title>
-          <Text type="secondary" style={{ fontSize: 13 }}>
-            Tizim ma’lumotlar bazasining to‘liq xavfsizlik nusxalari va tiklash jurnali
-          </Text>
-        </div>
         <Space>
           <Button icon={<IconRefresh />} style={{ borderRadius: 0 }} onClick={handleRefresh}>
             Yangilash
@@ -327,7 +317,7 @@ export const BackupsPage: React.FC = () => {
           <Button
             type="primary"
             icon={<IconPlus />}
-            style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
+            style={{ borderRadius: 0 }}
             onClick={() => {
               createForm.resetFields();
               setCreateModalVisible(true);
@@ -438,26 +428,24 @@ export const BackupsPage: React.FC = () => {
         onCancel={() => setCreateModalVisible(false)}
         footer={
           <Space>
-            <Button onClick={() => setCreateModalVisible(false)}>Bekor qilish</Button>
+            <Button onClick={() => setCreateModalVisible(false)} style={{ borderRadius: 0 }}>Bekor qilish</Button>
             <Button
               type="primary"
               loading={createMutation.isPending}
               onClick={handleCreateSubmit}
+              style={{ borderRadius: 0 }}
             >
               Zaxirani Boshlash
             </Button>
           </Space>
         }
       >
-        <Paragraph type="secondary">
-          Tizim PostgreSQL ma’lumotlar bazasining to‘liq xavfsizlik nusxasini (.dump) yaratadi va
-          diskda xesh qiymati bilan arxivlaydi.
-        </Paragraph>
         <Form form={createForm} layout="vertical">
           <Form.Item label="Izoh yoki Sabab" field="notes">
             <Input.TextArea
               placeholder="Masalan: Tizim versiyasi yangilanishidan oldingi zaxira..."
               rows={4}
+              style={{ borderRadius: 0 }}
             />
           </Form.Item>
         </Form>
@@ -473,13 +461,14 @@ export const BackupsPage: React.FC = () => {
         }}
         footer={
           <Space>
-            <Button onClick={() => setRestoreModalVisible(false)}>Bekor qilish</Button>
+            <Button onClick={() => setRestoreModalVisible(false)} style={{ borderRadius: 0 }}>Bekor qilish</Button>
             <Button
               type="primary"
               status="danger"
               loading={restoreMutation.isPending}
               disabled={confirmationCode.trim().toUpperCase() !== 'TIKLASH'}
               onClick={handleRestoreSubmit}
+              style={{ borderRadius: 0 }}
             >
               Tiklashni Tasdiqlash
             </Button>
@@ -488,16 +477,17 @@ export const BackupsPage: React.FC = () => {
       >
         <Alert
           type="error"
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 16, borderRadius: 0 }}
           title="DIQQAT: Ma’lumotlar qayta yozilishi mumkin!"
-          content={`Siz "${selectedBackup?.filename}" faylidan ma’lumotlar bazasini tiklamoqchisiz. Davom etish uchun pastdagi maydonga "TIKLASH" so‘zini bosh harflar bilan kiriting.`}
+          content={`"${selectedBackup?.filename}" zaxirasidan tiklash barcha mavjud bazani yangilaydi. Jarayonni tasdiqlash uchun xavfsizlik kodini kiriting.`}
         />
         <Form layout="vertical">
-          <Form.Item label="Tasdiqlash kodi: TIKLASH">
+          <Form.Item label="Ikki bosqichli xavfsizlik tasdiq kodi (TIKLASH)">
             <Input
-              placeholder="TIKLASH deb yozing"
+              placeholder="TIKLASH"
               value={confirmationCode}
               onChange={(val) => setConfirmationCode(val)}
+              style={{ borderRadius: 0 }}
             />
           </Form.Item>
         </Form>

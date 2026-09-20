@@ -3,6 +3,7 @@
 
 :root {
   --primary-color: #165dff;
+  --color-primary-6: #165dff;
   --bg-color: #f7f8fa;
   --card-bg: #ffffff;
   --text-main: #1d2129;
@@ -45,8 +46,12 @@ body {
 
 /* Custom modern scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -56,6 +61,182 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #a9aeb8;
+}
+
+/* ==========================================================
+   TABLE OVERFLOW HORIZONTAL & VERTICAL SCROLLBAR (QALIN USHLAB TORTADIGAN)
+   Foydalanuvchi qulay ushlab tortishi uchun qalin (14px), yo'naltiruvchi strelkali,
+   aniq ko'rinadigan yo'lak va kontrastli tutqich bilan jihozlangan jadval scrollbari.
+   ========================================================== */
+
+.arco-table-body,
+.arco-table-scroll,
+.arco-table-content,
+.arco-table-container,
+.arco-table {
+  scrollbar-width: auto !important;
+  scrollbar-color: #86909c #f2f3f5 !important;
+}
+
+[arco-theme='dark'] .arco-table-body,
+[arco-theme='dark'] .arco-table-scroll,
+[arco-theme='dark'] .arco-table-content,
+[arco-theme='dark'] .arco-table-container,
+[arco-theme='dark'] .arco-table {
+  scrollbar-color: #6b778c #232324 !important;
+}
+
+/* Table scrollbar o'lchami: gorizontal 14px (qalin va ushlashga juda qulay) */
+.arco-table-body::-webkit-scrollbar,
+.arco-table-scroll::-webkit-scrollbar,
+.arco-table-content::-webkit-scrollbar,
+.arco-table-container::-webkit-scrollbar,
+.arco-table::-webkit-scrollbar,
+.arco-table-content-scroll::-webkit-scrollbar,
+.arco-table-content-inner::-webkit-scrollbar,
+.arco-table table::-webkit-scrollbar {
+  height: 14px !important;
+  width: 12px !important;
+}
+
+/* Table scrollbar yo'lagi (track) */
+.arco-table-body::-webkit-scrollbar-track,
+.arco-table-scroll::-webkit-scrollbar-track,
+.arco-table-content::-webkit-scrollbar-track,
+.arco-table-container::-webkit-scrollbar-track,
+.arco-table::-webkit-scrollbar-track,
+.arco-table-content-scroll::-webkit-scrollbar-track,
+.arco-table-content-inner::-webkit-scrollbar-track,
+.arco-table table::-webkit-scrollbar-track {
+  background: #f2f3f5 !important;
+  border-top: 1px solid #e5e6eb !important;
+  border-bottom: 1px solid #e5e6eb !important;
+}
+
+[arco-theme='dark'] .arco-table-body::-webkit-scrollbar-track,
+[arco-theme='dark'] .arco-table-scroll::-webkit-scrollbar-track,
+[arco-theme='dark'] .arco-table-content::-webkit-scrollbar-track,
+[arco-theme='dark'] .arco-table-container::-webkit-scrollbar-track,
+[arco-theme='dark'] .arco-table::-webkit-scrollbar-track,
+[arco-theme='dark'] .arco-table-content-scroll::-webkit-scrollbar-track,
+[arco-theme='dark'] .arco-table-content-inner::-webkit-scrollbar-track,
+[arco-theme='dark'] .arco-table table::-webkit-scrollbar-track {
+  background: #232324 !important;
+  border-top: 1px solid #333335 !important;
+  border-bottom: 1px solid #333335 !important;
+}
+
+/* Table scrollbar ushlab tortadigan qismi (thumb) */
+.arco-table-body::-webkit-scrollbar-thumb,
+.arco-table-scroll::-webkit-scrollbar-thumb,
+.arco-table-content::-webkit-scrollbar-thumb,
+.arco-table-container::-webkit-scrollbar-thumb,
+.arco-table::-webkit-scrollbar-thumb,
+.arco-table-content-scroll::-webkit-scrollbar-thumb,
+.arco-table-content-inner::-webkit-scrollbar-thumb,
+.arco-table table::-webkit-scrollbar-thumb {
+  background: #a9aeb8 !important;
+  border-radius: 4px !important;
+  border: 2px solid #f2f3f5 !important;
+  cursor: grab !important;
+}
+
+[arco-theme='dark'] .arco-table-body::-webkit-scrollbar-thumb,
+[arco-theme='dark'] .arco-table-scroll::-webkit-scrollbar-thumb,
+[arco-theme='dark'] .arco-table-content::-webkit-scrollbar-thumb,
+[arco-theme='dark'] .arco-table-container::-webkit-scrollbar-thumb,
+[arco-theme='dark'] .arco-table::-webkit-scrollbar-thumb,
+[arco-theme='dark'] .arco-table-content-scroll::-webkit-scrollbar-thumb,
+[arco-theme='dark'] .arco-table-content-inner::-webkit-scrollbar-thumb,
+[arco-theme='dark'] .arco-table table::-webkit-scrollbar-thumb {
+  background: #595959 !important;
+  border: 2px solid #232324 !important;
+}
+
+.arco-table-body::-webkit-scrollbar-thumb:hover,
+.arco-table-scroll::-webkit-scrollbar-thumb:hover,
+.arco-table-content::-webkit-scrollbar-thumb:hover,
+.arco-table-container::-webkit-scrollbar-thumb:hover,
+.arco-table::-webkit-scrollbar-thumb:hover,
+.arco-table-content-scroll::-webkit-scrollbar-thumb:hover,
+.arco-table-content-inner::-webkit-scrollbar-thumb:hover,
+.arco-table table::-webkit-scrollbar-thumb:hover {
+  background: #6b778c !important;
+}
+
+.arco-table-body::-webkit-scrollbar-thumb:active,
+.arco-table-scroll::-webkit-scrollbar-thumb:active,
+.arco-table-content::-webkit-scrollbar-thumb:active,
+.arco-table-container::-webkit-scrollbar-thumb:active,
+.arco-table::-webkit-scrollbar-thumb:active,
+.arco-table-content-scroll::-webkit-scrollbar-thumb:active,
+.arco-table-content-inner::-webkit-scrollbar-thumb:active,
+.arco-table table::-webkit-scrollbar-thumb:active {
+  background: #2e3a59 !important;
+  cursor: grabbing !important;
+}
+
+/* Chap va o'ngdagi navigatsiya strelkalari (2-rasmdagi strelkalar) */
+.arco-table-body::-webkit-scrollbar-button:horizontal:decrement,
+.arco-table-scroll::-webkit-scrollbar-button:horizontal:decrement,
+.arco-table-content::-webkit-scrollbar-button:horizontal:decrement,
+.arco-table-container::-webkit-scrollbar-button:horizontal:decrement,
+.arco-table::-webkit-scrollbar-button:horizontal:decrement {
+  display: block !important;
+  width: 16px !important;
+  height: 14px !important;
+  background-color: #e5e6eb !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  background-size: 8px 8px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M10 3L5 8l5 5' stroke='%234e5969' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E") !important;
+  cursor: pointer !important;
+  border-right: 1px solid #d9d9d9 !important;
+}
+
+.arco-table-body::-webkit-scrollbar-button:horizontal:increment,
+.arco-table-scroll::-webkit-scrollbar-button:horizontal:increment,
+.arco-table-content::-webkit-scrollbar-button:horizontal:increment,
+.arco-table-container::-webkit-scrollbar-button:horizontal:increment,
+.arco-table::-webkit-scrollbar-button:horizontal:increment {
+  display: block !important;
+  width: 16px !important;
+  height: 14px !important;
+  background-color: #e5e6eb !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  background-size: 8px 8px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6 3l5 5-5 5' stroke='%234e5969' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E") !important;
+  cursor: pointer !important;
+  border-left: 1px solid #d9d9d9 !important;
+}
+
+.arco-table-body::-webkit-scrollbar-button:hover,
+.arco-table-scroll::-webkit-scrollbar-button:hover,
+.arco-table-content::-webkit-scrollbar-button:hover,
+.arco-table-container::-webkit-scrollbar-button:hover,
+.arco-table::-webkit-scrollbar-button:hover {
+  background-color: #c9cdd4 !important;
+}
+
+[arco-theme='dark'] .arco-table-body::-webkit-scrollbar-button:horizontal:decrement,
+[arco-theme='dark'] .arco-table-scroll::-webkit-scrollbar-button:horizontal:decrement,
+[arco-theme='dark'] .arco-table-content::-webkit-scrollbar-button:horizontal:decrement,
+[arco-theme='dark'] .arco-table-container::-webkit-scrollbar-button:horizontal:decrement,
+[arco-theme='dark'] .arco-table::-webkit-scrollbar-button:horizontal:decrement {
+  background-color: #2e2e30 !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M10 3L5 8l5 5' stroke='%23e5e6eb' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E") !important;
+  border-right: 1px solid #404040 !important;
+}
+
+[arco-theme='dark'] .arco-table-body::-webkit-scrollbar-button:horizontal:increment,
+[arco-theme='dark'] .arco-table-scroll::-webkit-scrollbar-button:horizontal:increment,
+[arco-theme='dark'] .arco-table-content::-webkit-scrollbar-button:horizontal:increment,
+[arco-theme='dark'] .arco-table-container::-webkit-scrollbar-button:horizontal:increment,
+[arco-theme='dark'] .arco-table::-webkit-scrollbar-button:horizontal:increment {
+  background-color: #2e2e30 !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6 3l5 5-5 5' stroke='%23e5e6eb' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E") !important;
+  border-left: 1px solid #404040 !important;
 }
 
 /* Glassmorphism & Card styling */
@@ -255,3 +436,17 @@ td.arco-table-cell-fixed-right {
   border-radius: 0 !important;
   font-weight: 500;
 }
+
+/* Login Container Zero Border-Radius & Design Tokens */
+.login-container-no-radius * {
+  border-radius: 0 !important;
+}
+
+.login-container-no-radius .arco-input-inner-wrapper,
+.login-container-no-radius .arco-input,
+.login-container-no-radius .arco-btn,
+.login-container-no-radius .arco-card,
+.login-container-no-radius .arco-tag,
+.login-container-no-radius .arco-alert {
+  border-radius: 0 !important;
+}

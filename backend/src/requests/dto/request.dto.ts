@@ -4,12 +4,12 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { RequestStatus } from '@prisma/client';
 
 export class RequestItemDto {
-  @ApiProperty({ description: 'Ombor katalogidagi mavjud mahsulot ID si (majburiy)' })
+  @ApiPropertyOptional({ description: 'Ombor katalogidagi mavjud mahsulot ID si (agar mavjud bo‘lsa)' })
   @IsString()
-  @IsNotEmpty({ message: 'Mahsulot ID si (itemId) kiritilishi shart! Katalogdan tanlang.' })
-  itemId: string;
+  @IsOptional()
+  itemId?: string;
 
-  @ApiPropertyOptional({ example: 'A4 Formatli qog\'oz (SvetoCopy)', description: 'Mahsulot nomi (ixtiyoriy, faqat ma\'lumot uchun)' })
+  @ApiPropertyOptional({ example: 'A4 Formatli qog\'oz (SvetoCopy)', description: 'Mahsulot nomi' })
   @IsString()
   @IsOptional()
   itemName?: string;
@@ -94,4 +94,87 @@ export class QueryRequestsDto {
   @IsString()
   sortOrder?: 'asc' | 'desc';
 }
+
+export class FinanceWorkflowDto {
+  @ApiProperty({ description: 'Moliyalashtirish manbasi (BYUDJET, KONTRAKT_RIVOJLANTIRISH, GRANT)' })
+  @IsNotEmpty({ message: 'Moliyalashtirish manbasi kiritilishi shart!' })
+  @IsString()
+  fundingSource: string;
+
+  @ApiProperty({ example: '013', description: 'Sub-hisob kodi (masalan: 013, 060, 212)' })
+  @IsNotEmpty({ message: 'Sub-hisob kodi kiritilishi shart!' })
+  @IsString()
+  subAccountCode: string;
+
+  @ApiPropertyOptional({ example: 4500000, description: 'Ajratilgan smeta summasi' })
+  @IsOptional()
+  @IsNumber()
+  allocatedAmount?: number;
+
+  @ApiPropertyOptional({ example: '2026-yil smetasi bo‘yicha tasdiqlandi', description: 'Bosh hisobchi izohi' })
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+export class HandoverWorkflowDto {
+  @ApiPropertyOptional({ description: 'Bino komendanti ID si' })
+  @IsOptional()
+  @IsString()
+  commendantId?: string;
+
+  @ApiPropertyOptional({ example: 'Bosh bino komendantiga topshirildi', description: 'Izoh' })
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+export class FulfillWorkflowDto {
+  @ApiPropertyOptional({ description: 'Yakuniy joylashtiriladigan xona ID si' })
+  @IsOptional()
+  @IsString()
+  targetRoomId?: string;
+
+  @ApiPropertyOptional({ example: '304-laboratoriyaga joylashtirildi va qabul qilindi', description: 'Izoh' })
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+export class WorkflowAdvanceDto {
+  @ApiProperty({ enum: RequestStatus, description: 'Keyingi o‘tish statusi' })
+  @IsEnum(RequestStatus)
+  status: RequestStatus;
+
+  @ApiPropertyOptional({ description: 'Izoh yoki sabab' })
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @ApiPropertyOptional({ description: 'Moliyalashtirish manbasi' })
+  @IsOptional()
+  @IsString()
+  fundingSource?: string;
+
+  @ApiPropertyOptional({ description: 'Sub-hisob kodi' })
+  @IsOptional()
+  @IsString()
+  subAccountCode?: string;
+
+  @ApiPropertyOptional({ description: 'Ajratilgan summa' })
+  @IsOptional()
+  @IsNumber()
+  allocatedAmount?: number;
+
+  @ApiPropertyOptional({ description: 'Komendant ID si' })
+  @IsOptional()
+  @IsString()
+  commendantId?: string;
+
+  @ApiPropertyOptional({ description: 'Xona ID si' })
+  @IsOptional()
+  @IsString()
+  targetRoomId?: string;
+}
+
 

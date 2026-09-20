@@ -103,6 +103,8 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:Password123!@localhost:5432/uwms_db?schema=public
           JWT_SECRET: enterprise-secure-jwt-secret-key-for-uwms-ci-32-chars
+          JWT_REFRESH_SECRET: enterprise-secure-refresh-jwt-secret-key-32-chars
+          DOCUMENT_HMAC_SECRET: enterprise-secure-hmac-secret-key-for-uwms-32-chars
         run: |
           npx prisma db push
           npx prisma db seed
@@ -112,6 +114,8 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:Password123!@localhost:5432/uwms_db?schema=public
           JWT_SECRET: enterprise-secure-jwt-secret-key-for-uwms-ci-32-chars
+          JWT_REFRESH_SECRET: enterprise-secure-refresh-jwt-secret-key-32-chars
+          DOCUMENT_HMAC_SECRET: enterprise-secure-hmac-secret-key-for-uwms-32-chars
           PORT: 4000
         run: npm run start:dev &
 

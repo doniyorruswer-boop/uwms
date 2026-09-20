@@ -12,7 +12,7 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:5173',
-    channel: process.env.CI ? undefined : (process.env.PLAYWRIGHT_CHANNEL || undefined),
+    channel: process.env.PLAYWRIGHT_CHANNEL || 'chrome',
     headless: true,
     screenshot: 'only-on-failure',
     video: 'off',

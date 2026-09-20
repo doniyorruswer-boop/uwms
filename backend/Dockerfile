@@ -48,4 +48,4 @@ RUN mkdir -p /app/backups
 EXPOSE 4000
 
 # Ishga tushirish buyrug‘i
-CMD ["node", "dist/src/main.js"]
+CMD ["node", "dist/main.js"]

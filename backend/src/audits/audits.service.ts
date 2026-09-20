@@ -19,7 +19,7 @@ export class AuditsService {
     return `AUD-${year}-${uniqueSuffix}`;
   }
 
-  async startAudit(roomId: string, createdById?: string) {
+  async startAudit(roomId: string, createdById?: string, campaignId?: string) {
     let creatorId = createdById;
     if (!creatorId) {
       const auditor = await this.prisma.user.findFirst({ where: { role: 'AUDITOR' } });
@@ -34,6 +34,7 @@ export class AuditsService {
         auditNumber: auditNum,
         title: `${room?.number || ''}-xona reja bo‘yicha inventarizatsiyasi`,
         roomId,
+        campaignId: campaignId || null,
         createdById: creatorId!,
         status: AuditStatus.IN_PROGRESS,
         startedAt: new Date(),
@@ -51,14 +52,14 @@ export class AuditsService {
       action: 'CREATE',
       entity: 'InventoryAudit',
       entityId: audit.id,
-      details: { auditNumber: auditNum, roomId, roomNumber: room?.number },
+      details: { auditNumber: auditNum, roomId, roomNumber: room?.number, campaignId },
       userId: creatorId,
     });
 
     return audit;
   }
 
-  async scanCode(roomId: string, qrCode: string) {
+  async scanCode(roomId: string, qrCode: string, campaignId?: string) {
     const asset = await this.prisma.itemInstance.findUnique({
       where: { qrCode },
       include: {
@@ -82,7 +83,11 @@ export class AuditsService {
 
     // Find active audit for this room or create/link to current session
     let audit = await this.prisma.inventoryAudit.findFirst({
-      where: { roomId, status: AuditStatus.IN_PROGRESS },
+      where: {
+        roomId,
+        status: AuditStatus.IN_PROGRESS,
+        ...(campaignId ? { campaignId } : {}),
+      },
       orderBy: { startedAt: 'desc' },
     });
 
@@ -95,6 +100,7 @@ export class AuditsService {
           auditNumber: this.generateAuditNumber(),
           title: `${room?.number || ''}-xona tezkor inventarizatsiyasi`,
           roomId,
+          campaignId: campaignId || null,
           createdById: auditor?.id || (await this.prisma.user.findFirst())!.id,
           status: AuditStatus.IN_PROGRESS,
           startedAt: new Date(),
@@ -145,6 +151,108 @@ export class AuditsService {
         ? `Topildi: ${asset.item.name} (${asset.inventoryNumber})`
         : `DIQQAT! Bu uskuna ${asset.room?.name || 'ombor'}ga tegishli!`,
     };
+  }
+
+  async batchScan(items: Array<{ roomId: string; qrCode: string; campaignId?: string }>, userId?: string) {
+    if (!items || items.length === 0) {
+      return { processed: 0, matched: 0, relocated: 0, notFound: 0, auditIds: [] };
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      let matched = 0;
+      let relocated = 0;
+      let notFound = 0;
+      const auditIds = new Set<string>();
+
+      for (const item of items) {
+        const trimmedQr = item.qrCode?.trim();
+        if (!trimmedQr) continue;
+
+        const asset = await tx.itemInstance.findUnique({
+          where: { qrCode: trimmedQr },
+          include: {
+            item: true,
+            room: true,
+            responsibleUser: { select: { fullName: true } },
+          },
+        });
+
+        if (!asset) {
+          notFound++;
+          continue;
+        }
+
+        const isMatch = asset.roomId === item.roomId;
+        const recordStatus: AuditRecordStatus = isMatch
+          ? AuditRecordStatus.MATCHED
+          : AuditRecordStatus.RELOCATED;
+
+        if (isMatch) matched++;
+        else relocated++;
+
+        let audit = await tx.inventoryAudit.findFirst({
+          where: {
+            roomId: item.roomId,
+            status: AuditStatus.IN_PROGRESS,
+            ...(item.campaignId ? { campaignId: item.campaignId } : {}),
+          },
+          orderBy: { startedAt: 'desc' },
+        });
+
+        if (!audit) {
+          const room = await tx.room.findUnique({ where: { id: item.roomId } });
+          const defaultAuditor = userId
+            ? await tx.user.findUnique({ where: { id: userId } })
+            : await tx.user.findFirst({ where: { role: 'AUDITOR' } });
+          const fallbackUser = defaultAuditor || (await tx.user.findFirst());
+
+          audit = await tx.inventoryAudit.create({
+            data: {
+              auditNumber: this.generateAuditNumber(),
+              title: `${room?.number || ''}-xona oflayn inventarizatsiyasi`,
+              roomId: item.roomId,
+              campaignId: item.campaignId || null,
+              createdById: fallbackUser?.id || '',
+              status: AuditStatus.IN_PROGRESS,
+              startedAt: new Date(),
+            },
+          });
+        }
+
+        auditIds.add(audit.id);
+
+        const existingRecord = await tx.inventoryAuditRecord.findFirst({
+          where: {
+            auditId: audit.id,
+            itemInstanceId: asset.id,
+          },
+        });
+
+        if (!existingRecord) {
+          await tx.inventoryAuditRecord.create({
+            data: {
+              auditId: audit.id,
+              itemInstanceId: asset.id,
+              expectedRoomId: asset.roomId,
+              foundRoomId: item.roomId,
+              status: recordStatus,
+              scannedAt: new Date(),
+              notes: isMatch
+                ? 'Oflayn navbatdan tranzaksion sinxronlandi (Mavjud)'
+                : `Oflayn navbatdan tranzaksion sinxronlandi (Ko‘chirilgan / Boshqa joy: ${asset.room?.name || 'ombor'})`,
+            },
+          });
+        }
+      }
+
+      return {
+        processed: items.length,
+        matched,
+        relocated,
+        notFound,
+        auditIds: Array.from(auditIds),
+      };
+    });
   }
 
   async completeAudit(id: string, notes?: string, userId?: string) {

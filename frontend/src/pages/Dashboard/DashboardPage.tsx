@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Card,
   Grid,
@@ -12,6 +12,7 @@ import {
   Empty,
   Badge,
   Tooltip,
+  Skeleton,
 } from '@arco-design/web-react';
 import {
   IconScan,
@@ -31,13 +32,17 @@ import {
   IconUserGroup,
   IconRight,
   IconSync,
+  IconClockCircle,
+  IconCalendar,
 } from '@arco-design/web-react/icon';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useDashboardAnalyticsQuery } from '../../hooks/useDashboardAnalyticsQuery';
+import { useQuotasQuery } from '../../hooks/useQuotasQuery';
 import { exportToExcel } from '../../utils/exportExcel';
 import { StatHeroCard } from '../../components/Common/StatHeroCard';
 import { StockLevelGauge } from '../../components/Common/StockLevelGauge';
+import { formatMoney, formatMln, formatPercent } from '../../utils/formatters';
 
 const { Title, Text } = Typography;
 const { Row, Col } = Grid;
@@ -46,6 +51,29 @@ export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { analytics, isLoading, isError, refetch } = useDashboardAnalyticsQuery();
+
+  // Current period for quotas (YYYY-MM)
+  const currentPeriod = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+
+  const { data: quotas = [], isLoading: isQuotasLoading, refetch: refetchQuotas } = useQuotasQuery({
+    period: currentPeriod,
+  });
+
+  const exceededQuotas = useMemo(
+    () => quotas.filter((q) => q.usedQuantity > q.monthlyLimit),
+    [quotas]
+  );
+
+  const warningQuotas = useMemo(
+    () =>
+      quotas.filter(
+        (q) => q.usedQuantity > q.monthlyLimit * 0.8 && q.usedQuantity <= q.monthlyLimit
+      ),
+    [quotas]
+  );
 
   const summary = analytics?.summary;
   const needsAttention = analytics?.needsAttention;
@@ -56,26 +84,15 @@ export const DashboardPage: React.FC = () => {
   const recentRequests = analytics?.recentRequests || [];
   const lowStocks = analytics?.lowStockItems || [];
 
-  const formatPrice = (val?: number | string | null) => {
-    if (!val) return '0 so‘m';
-    const num = typeof val === 'string' ? parseFloat(val) : val;
-    return `${num.toLocaleString('uz-UZ')} so‘m`;
-  };
-
-  const formatMln = (val?: number | string | null) => {
-    if (!val) return '0.0';
-    const num = typeof val === 'string' ? parseFloat(val) : val;
-    return (num / 1000000).toFixed(1);
-  };
 
   const handleExportExecutiveExcel = () => {
     if (!analytics) return;
 
     const summaryReport = [
       { 'Ko‘rsatkich': 'Jami Asosiy Vositalar Soni', 'Qiymat': `${summary?.totalAssets || 0} dona` },
-      { 'Ko‘rsatkich': 'Dastlabki Balans Qiymati', 'Qiymat': formatPrice(summary?.totalInitialCost) },
-      { 'Ko‘rsatkich': 'Jami Hisoblangan Amortizatsiya', 'Qiymat': formatPrice(summary?.totalDepreciated) },
-      { 'Ko‘rsatkich': 'Joriy Qoldiq Balans Qiymati (Book Value)', 'Qiymat': formatPrice(summary?.totalNetBookValue) },
+      { 'Ko‘rsatkich': 'Dastlabki Balans Qiymati', 'Qiymat': formatMoney(summary?.totalInitialCost) },
+      { 'Ko‘rsatkich': 'Jami Hisoblangan Amortizatsiya', 'Qiymat': formatMoney(summary?.totalDepreciated) },
+      { 'Ko‘rsatkich': 'Joriy Qoldiq Balans Qiymati (Book Value)', 'Qiymat': formatMoney(summary?.totalNetBookValue) },
       { 'Ko‘rsatkich': 'Eskirish Foizi', 'Qiymat': `${summary?.depreciationPercentage || 0}%` },
       { 'Ko‘rsatkich': 'Ombordagi Sarf Tovarlar Zaxirasi', 'Qiymat': `${summary?.totalStockUnits || 0} birlik` },
       { 'Ko‘rsatkich': 'Zaxirasi Kam Qolgan Mahsulotlar', 'Qiymat': `${summary?.lowStockCount || 0} ta` },
@@ -83,6 +100,7 @@ export const DashboardPage: React.FC = () => {
       { 'Ko‘rsatkich': 'Kutilayotgan Ko‘chirish Dalolatnomalari', 'Qiymat': `${summary?.pendingTransfersCount || 0} ta` },
       { 'Ko‘rsatkich': 'Ta’mirdagi Texnikalar Soni', 'Qiymat': `${summary?.statusCounts?.IN_REPAIR || 0} ta` },
       { 'Ko‘rsatkich': 'Hamkor Ta’minotchilar Soni', 'Qiymat': `${summary?.suppliersCount || 0} ta` },
+      { 'Ko‘rsatkich': 'Kafedralar Kvotasidan Oshgan Holatlar', 'Qiymat': `${exceededQuotas.length} ta` },
     ];
 
     exportToExcel(summaryReport, 'Universitet_Boshqaruv_Tahliliy_Balansi', 'Tahliliy Hisobot');
@@ -122,20 +140,49 @@ export const DashboardPage: React.FC = () => {
           </Button>
           <Button
             icon={<IconSync />}
-            onClick={() => refetch()}
+            loading={isLoading || isQuotasLoading}
+            onClick={() => {
+              refetch();
+              refetchQuotas();
+            }}
             style={{ borderRadius: 0 }}
           />
         </Space>
       </div>
 
-      {/* ERROR STATE */}
-      {isError && (
+      {/* ERROR STATE: ROBUST ERROR HANDLING */}
+      {isError && !analytics && (
+        <Card style={{ borderRadius: 0, border: '1px solid #F53F3F' }}>
+          <Alert
+            type="error"
+            title="Tahliliy ko‘rsatkichlarni yuklashda xatolik yuz berdi"
+            content="Server bilan aloqada uzilish yuz berdi yoki ichki xatolik mavjud. Iltimos, qaytadan urinib ko‘ring."
+            action={
+              <Button
+                size="small"
+                type="primary"
+                status="danger"
+                icon={<IconSync />}
+                onClick={() => {
+                  refetch();
+                  refetchQuotas();
+                }}
+              >
+                Qayta yuklash
+              </Button>
+            }
+          />
+        </Card>
+      )}
+
+      {isError && analytics && (
         <Alert
-          type="error"
-          title="Tahliliy ko‘rsatkichlarni yuklashda xatolik yuz berdi"
+          type="warning"
+          banner
+          title="Diqqat: Yangi ma’lumotlarni sinxronlashda xatolik yuz berdi. Keshdagi tahliliy ko‘rsatkichlar namoyish etilmoqda."
           action={
-            <Button size="small" type="primary" status="danger" onClick={() => refetch()}>
-              Qayta urinish
+            <Button size="mini" type="outline" onClick={() => { refetch(); refetchQuotas(); }}>
+              Qayta yangilash
             </Button>
           }
         />
@@ -414,6 +461,38 @@ export const DashboardPage: React.FC = () => {
                     </Button>
                   )}
                 </div>
+
+                {/* 6. Over-Quota Departments Alert */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    backgroundColor: exceededQuotas.length > 0 ? 'var(--color-danger-light-1, #FFECE8)' : 'var(--color-fill-2)',
+                    borderLeft: `4px solid ${exceededQuotas.length > 0 ? '#F53F3F' : '#00B42A'}`,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Badge count={exceededQuotas.length} maxCount={99} dotStyle={{ borderRadius: 0 }} />
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>
+                      Kafedralar oylik sarf limitidan (kvota) oshgan holatlar
+                    </div>
+                  </div>
+                  {exceededQuotas.length > 0 ? (
+                    <Button
+                      size="mini"
+                      type="primary"
+                      status="danger"
+                      style={{ borderRadius: 0 }}
+                      onClick={() => navigate('/quotas')}
+                    >
+                      Ruxsat berish
+                    </Button>
+                  ) : (
+                    <Tag color="green" size="small" style={{ borderRadius: 0 }}>Me’yorda</Tag>
+                  )}
+                </div>
               </div>
             )}
           </Card>
@@ -554,21 +633,21 @@ export const DashboardPage: React.FC = () => {
                   <div style={{ padding: '12px 14px', backgroundColor: 'var(--color-fill-2)', borderLeft: '3px solid #165DFF' }}>
                     <div style={{ fontSize: 11, color: 'var(--color-text-3)' }}>Dastlabki Balans Qiymati</div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-1)', marginTop: 4 }}>
-                      {formatPrice(summary?.totalInitialCost)}
+                      {formatMoney(summary?.totalInitialCost)}
                     </div>
                   </div>
 
                   <div style={{ padding: '12px 14px', backgroundColor: 'var(--color-fill-2)', borderLeft: '3px solid #F53F3F' }}>
                     <div style={{ fontSize: 11, color: '#F53F3F' }}>Jami Amortizatsiya</div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#F53F3F', marginTop: 4 }}>
-                      - {formatPrice(summary?.totalDepreciated)}
+                      - {formatMoney(summary?.totalDepreciated)}
                     </div>
                   </div>
 
                   <div style={{ padding: '12px 14px', backgroundColor: 'var(--color-fill-2)', borderLeft: '3px solid #00B42A' }}>
                     <div style={{ fontSize: 11, color: '#00B42A' }}>Joriy Qoldiq Qiymat</div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#00B42A', marginTop: 4 }}>
-                      {formatPrice(summary?.totalNetBookValue)}
+                      {formatMoney(summary?.totalNetBookValue)}
                     </div>
                   </div>
                 </div>
@@ -601,6 +680,15 @@ export const DashboardPage: React.FC = () => {
                 <span style={{ fontWeight: 600 }}>Moliyalashtirish Manbalari Balansi</span>
               </div>
             }
+            extra={
+              <Button
+                size="mini"
+                type="text"
+                onClick={() => navigate('/reports/funding')}
+              >
+                Batafsil hisobot <IconRight />
+              </Button>
+            }
           >
             {isLoading ? (
               <div style={{ textAlign: 'center', padding: '40px 0' }}>
@@ -622,7 +710,7 @@ export const DashboardPage: React.FC = () => {
                       }
                       subLabel={
                         <span style={{ fontWeight: 700, color: '#165DFF', fontSize: 13 }}>
-                          {formatPrice(fs.initialCost)}{' '}
+                          {formatMoney(fs.initialCost)}{' '}
                           <span style={{ fontSize: 12, color: 'var(--color-text-3)' }}>({fs.percentage}%)</span>
                         </span>
                       }
@@ -643,6 +731,154 @@ export const DashboardPage: React.FC = () => {
           </Card>
         </Col>
       </Row>
+
+      {/* ROW 3.5: KAFEDRALAR OYLIK KVOTA MONITORINGI (DEPARTMENT QUOTA LIMIT WATCHER) */}
+      <Card
+        className="uwms-card"
+        style={{ borderRadius: 0 }}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <IconCalendar style={{ color: '#165DFF', fontSize: 18 }} />
+              <span style={{ fontWeight: 600, fontSize: 14 }}>
+                Kafedralar Oylik Sarf Kvotalari Nazorati ({currentPeriod} davri)
+              </span>
+              {exceededQuotas.length > 0 ? (
+                <Tag color="red" size="small" style={{ borderRadius: 0, fontWeight: 600 }}>
+                  {exceededQuotas.length} ta kafedrada oylik limitdan oshish qayd etildi!
+                </Tag>
+              ) : (
+                <Tag color="green" size="small" style={{ borderRadius: 0 }}>
+                  Barcha kafedralar me’yoriy limit doirasida
+                </Tag>
+              )}
+            </div>
+            <Button size="mini" type="outline" onClick={() => navigate('/quotas')}>
+              Barcha kvotalar reestri <IconRight />
+            </Button>
+          </div>
+        }
+      >
+        {isQuotasLoading ? (
+          <div style={{ textAlign: 'center', padding: '30px 0' }}>
+            <Spin tip="Kafedralar oylik kvotalari monitoringi yuklanmoqda..." />
+          </div>
+        ) : quotas.length === 0 ? (
+          <div style={{ padding: '24px 0', textAlign: 'center' }}>
+            <Empty description="Joriy oy uchun kafedralar sarf kvotasi belgilanmagan" />
+          </div>
+        ) : (
+          <Table
+            rowKey="id"
+            pagination={{ pageSize: 5, sizeCanChange: false }}
+            size="small"
+            data={quotas}
+            columns={[
+              {
+                title: 'Kafedra / Bo‘lim',
+                dataIndex: 'department',
+                render: (dept: any) => (
+                  <span style={{ fontWeight: 600, color: 'var(--color-text-1)' }}>
+                    {dept?.name || 'Kafedra'}
+                  </span>
+                ),
+              },
+              {
+                title: 'Sarf Materiali',
+                dataIndex: 'item',
+                render: (item: any) => (
+                  <span style={{ color: 'var(--color-text-2)' }}>
+                    {item?.name || 'Mahsulot'}
+                  </span>
+                ),
+              },
+              {
+                title: 'Oylik Limit',
+                dataIndex: 'monthlyLimit',
+                width: 120,
+                render: (lim: number, record: any) => (
+                  <span>
+                    {lim} {record?.item?.unit || 'dona'}
+                  </span>
+                ),
+              },
+              {
+                title: 'Sarflangan Miqdor',
+                dataIndex: 'usedQuantity',
+                width: 140,
+                render: (used: number, record: any) => {
+                  const isExceeded = used > record.monthlyLimit;
+                  return (
+                    <b style={{ color: isExceeded ? '#F53F3F' : 'var(--color-text-1)' }}>
+                      {used} {record?.item?.unit || 'dona'}
+                    </b>
+                  );
+                },
+              },
+              {
+                title: 'Limit Iste’moli',
+                width: 180,
+                render: (_: any, record: any) => {
+                  const percent = record.monthlyLimit > 0 ? Math.round((record.usedQuantity / record.monthlyLimit) * 100) : 0;
+                  const isExceeded = percent > 100;
+                  return (
+                    <div style={{ width: '100%' }}>
+                      <StockLevelGauge
+                        percent={percent}
+                        label={<span style={{ fontSize: 11 }}>{percent}%</span>}
+                        color={isExceeded ? '#F53F3F' : percent > 80 ? '#FF7D00' : '#00B42A'}
+                        strokeWidth={6}
+                        width="100%"
+                      />
+                    </div>
+                  );
+                },
+              },
+              {
+                title: 'Holati',
+                width: 170,
+                render: (_: any, record: any) => {
+                  if (record.usedQuantity > record.monthlyLimit) {
+                    return (
+                      <Tag color="red" style={{ borderRadius: 0, fontWeight: 600 }}>
+                        Limitdan oshgan (+{record.usedQuantity - record.monthlyLimit})
+                      </Tag>
+                    );
+                  }
+                  if (record.usedQuantity > record.monthlyLimit * 0.8) {
+                    return (
+                      <Tag color="orange" style={{ borderRadius: 0 }}>
+                        Kritik chegara (80%+)
+                      </Tag>
+                    );
+                  }
+                  return (
+                    <Tag color="green" style={{ borderRadius: 0 }}>
+                      Me’yorda
+                    </Tag>
+                  );
+                },
+              },
+              {
+                title: 'Amal',
+                width: 110,
+                render: (_: any, record: any) => (
+                  <Button
+                    size="mini"
+                    type={record.usedQuantity > record.monthlyLimit ? 'primary' : 'outline'}
+                    status={record.usedQuantity > record.monthlyLimit ? 'danger' : 'default'}
+                    style={{ borderRadius: 0 }}
+                    onClick={() => navigate('/quotas')}
+                  >
+                    {record.usedQuantity > record.monthlyLimit ? 'Ruxsat Berish' : 'Tahrirlash'}
+                  </Button>
+                ),
+              },
+            ]}
+          />
+        )}
+      </Card>
+
 
       {/* ROW 4: RECENT MOVEMENTS & REQUESTS AUDIT LOG TABLES */}
       <Row gutter={[16, 16]}>

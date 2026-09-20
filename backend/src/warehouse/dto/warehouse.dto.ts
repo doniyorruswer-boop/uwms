@@ -7,6 +7,11 @@ export class ReplenishStockDto {
   @IsNumber({}, { message: 'Miqdor son bo‘lishi shart!' })
   @Min(1, { message: 'Kirim miqdori kamida 1 bo‘lishi lozim!' })
   amount: number;
+
+  @ApiProperty({ enum: ['BYUDJET', 'KONTRAKT_RIVOJLANTIRISH', 'GRANT'], required: false })
+  @IsOptional()
+  @IsEnum(['BYUDJET', 'KONTRAKT_RIVOJLANTIRISH', 'GRANT'], { message: 'Noto‘g‘ri moliyalashtirish manbasi!' })
+  fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT';
 }
 
 export class IngestStockItemDto {
@@ -83,10 +88,10 @@ export class IngestStockDto {
   @IsString()
   warehouseId?: string;
 
-  @ApiProperty({ enum: ['BYUDJET', 'KONTRAKT_RIVOJLANTIRISH', 'GRANT'], required: false })
-  @IsOptional()
+  @ApiProperty({ enum: ['BYUDJET', 'KONTRAKT_RIVOJLANTIRISH', 'GRANT'], required: true })
+  @IsNotEmpty({ message: 'Moliyalashtirish manbasi tanlanishi shart!' })
   @IsEnum(['BYUDJET', 'KONTRAKT_RIVOJLANTIRISH', 'GRANT'], { message: 'Noto‘g‘ri moliyalashtirish manbasi!' })
-  fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT';
+  fundingSource: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT';
 
   @ApiProperty({ description: 'Izoh yoki qo‘shimcha ma’lumot', required: false })
   @IsOptional()

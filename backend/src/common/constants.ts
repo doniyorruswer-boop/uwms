@@ -43,34 +43,34 @@ export const CODE_GENERATOR_CONFIG = {
   },
   CONTRACT: {
     PREFIX: 'SH',
-    DIGITS: 4,
+    DIGITS: 8,
   },
   INVOICE: {
     PREFIX: 'HF',
-    DIGITS: 4,
+    DIGITS: 8,
   },
   INVENTORY: {
     PREFIX: 'INV',
-    DIGITS: 5,
+    DIGITS: 8,
   },
   MOVEMENT: {
     PREFIX: 'MOV',
-    DIGITS: 5,
+    DIGITS: 8,
   },
   REPAIR: {
     PREFIX: 'REP',
-    DIGITS: 4,
+    DIGITS: 8,
   },
   TRANSFER: {
     PREFIX: 'TRF',
-    DIGITS: 4,
+    DIGITS: 8,
   },
   DOCUMENTS: {
     OS1: 'OS1',
     OS2: 'OS2',
     OS4: 'OS4',
     INV19: 'INV19',
-    DIGITS: 4,
+    DIGITS: 8,
   },
   QR_PREFIX: 'UWMS:ASSET',
 } as const;
@@ -100,6 +100,12 @@ export const SYSTEM_AUDIT_ACTIONS = {
   QUOTA_UPDATE: 'QUOTA_UPDATE',
   HEMIS_SYNC: 'HEMIS_SYNC',
   EXPORT: 'EXPORT',
+  DOCUMENT_REVOKED: 'DOCUMENT_REVOKED',
+  BIOMETRIC_SIGNED: 'BIOMETRIC_SIGNED',
+  BIOMETRIC_SIGN: 'BIOMETRIC_SIGN',
+  REPRINT_LABEL: 'REPRINT_LABEL',
+  WORM_STAMP_GENERATE: 'WORM_STAMP_GENERATE',
+  QUOTA_OVERRIDE: 'QUOTA_OVERRIDE',
 } as const;
 
 export const NOTIFICATION_TYPES = {
@@ -115,8 +121,82 @@ export const NOTIFICATION_TYPES = {
   QUOTA: 'QUOTA',
 } as const;
 
+export const KNOWN_INSECURE_SECRETS = [
+  'uwms_jwt_secret_dev_key_2026_super_secure',
+  'your_jwt_secret_key_change_in_production',
+  'secret',
+  'admin123',
+  'change_me',
+  'default_secret',
+  'UWMS_VERIFY_SALT_2026_GOV_UZ',
+  'UWMS_DEV_HMAC_SECRET_NON_PRODUCTION_ONLY_2026',
+  'uwms_super_secret_jwt_key_2026',
+] as const;
+
+export function validateEnvironmentSecretsOnStartup(): void {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const jwtSecret = process.env.JWT_SECRET?.trim();
+  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET?.trim();
+
+  if (!jwtSecret) {
+    console.error('FATAL ERROR: JWT_SECRET muhit o‘zgaruvchisi aniqlanmagan! Xavfsizlik tufayli backend to‘xtatildi.');
+    process.exit(1);
+  }
+
+  if (isProduction) {
+    if (KNOWN_INSECURE_SECRETS.includes(jwtSecret as any) || jwtSecret.length < 32) {
+      console.error(
+        'FATAL SECURITY ERROR: Production muhitida standart yoki zaif JWT_SECRET ishlatish qat’iyan taqiqlanadi!\n' +
+        'Iltimos, kamida 32 belgidan iborat tasodifiy kriptografik kalit o‘rnating.',
+      );
+      process.exit(1);
+    }
+
+    if (!jwtRefreshSecret || KNOWN_INSECURE_SECRETS.includes(jwtRefreshSecret as any) || jwtRefreshSecret.length < 32) {
+      console.error(
+        'FATAL SECURITY ERROR: Production muhitida JWT_REFRESH_SECRET o‘rnatilishi va kamida 32 belgidan iborat bo‘lishi shart!',
+      );
+      process.exit(1);
+    }
+
+    if (jwtRefreshSecret === jwtSecret) {
+      console.error(
+        'FATAL SECURITY ERROR: JWT_REFRESH_SECRET va JWT_SECRET bir xil bo‘lishi mumkin emas!',
+      );
+      process.exit(1);
+    }
+
+    try {
+      getDocumentHmacSecret();
+    } catch (err: any) {
+      console.error(`FATAL SECURITY ERROR: ${err.message}`);
+      process.exit(1);
+    }
+  }
+}
+
+export function getDocumentHmacSecret(): string {
+  const secret = process.env.DOCUMENT_HMAC_SECRET?.trim();
+  if (process.env.NODE_ENV === 'production') {
+    if (!secret || KNOWN_INSECURE_SECRETS.includes(secret as any) || secret.length < 32) {
+      throw new Error('FATAL: Production muhitida DOCUMENT_HMAC_SECRET yaroqli emas yoki kiritilmagan!');
+    }
+  }
+  return secret || 'UWMS_DEV_HMAC_SECRET_NON_PRODUCTION_ONLY_2026';
+}
+
+export function getPublicBaseUrl(): string {
+  return process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+}
+
 export const DOCUMENT_VERIFICATION = {
-  PUBLIC_BASE_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
-  SECRET_SALT: 'UWMS_VERIFY_SALT_2026_GOV_UZ',
+  get PUBLIC_BASE_URL(): string {
+    return getPublicBaseUrl();
+  },
+  get SECRET_SALT(): string {
+    return getDocumentHmacSecret();
+  },
 } as const;
+
+
 

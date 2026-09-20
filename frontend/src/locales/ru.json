@@ -1,6 +1,7 @@
 {
   "menu": {
     "dashboard": "Панель управления",
+    "inbox": "Мои задачи",
     "assets": "Основные средства (QR)",
     "warehouse": "Складские запасы",
     "suppliers": "Поставщики и договоры",
@@ -10,11 +11,16 @@
     "writeOffs": "Списание (ОС-4)",
     "organization": "Факультеты и аудитории",
     "quotas": "Квоты кафедр",
-    "audit": "Аудит системы",
+    "audit": "Аудит и сканер",
+    "systemAudit": "Аудит системы",
     "integrations": "Интеграции",
     "scanner": "QR Инвентаризация",
+    "auditCampaigns": "Планы аудита",
     "backups": "Резервные копии (Backup)",
-    "users": "Сотрудники и роли"
+    "users": "Сотрудники и роли",
+    "depreciation": "Амортизация",
+    "fundingReports": "Отчет по источникам",
+    "chiefAccountantLedger": "Книга Главного Бухгалтера"
   },
   "common": {
     "appTitle": "Система UWMS",
@@ -46,7 +52,12 @@
     "price": "Цена",
     "total": "Итого",
     "totalCount": "Всего: {{count}}",
-    "notes": "Примечание"
+    "notes": "Примечание",
+    "forbidden": "Доступ запрещен",
+    "errorOccurred": "Произошла ошибка",
+    "retry": "Повторить попытку",
+    "backToHome": "Вернуться на главную",
+    "reloadPage": "Обновить страницу"
   },
   "status": {
     "new": "Новый",
@@ -70,19 +81,19 @@
   "dashboard": {
     "stats": {
       "totalAssets": "Всего основных средств",
-      "totalStock": "Расходные материалы",
+      "totalStock": "Расходных товаров на складе",
       "activeRequests": "Активные заявки",
       "totalValue": "Общая балансовая стоимость"
     },
-    "recentMovements": "Последние движения склада",
+    "recentMovements": "Последние перемещения",
     "pendingRequests": "Ожидающие заявки"
   },
   "assets": {
     "inventoryNumber": "Инвентарный №",
     "itemName": "Наименование и модель",
-    "location": "Расположение",
-    "balancePrice": "Балансовая стоимость",
-    "amortization": "Амортизация и остаток",
+    "location": "Местоположение",
+    "balancePrice": "Балансовая цена",
+    "amortization": "Амортизация",
     "fundingSource": "Источник финансирования",
     "qrPassport": "Паспорт",
     "qrSticker": "QR Стикер",
@@ -90,7 +101,7 @@
   },
   "warehouse": {
     "itemName": "Наименование товара",
-    "warehouseName": "Складское помещение",
+    "warehouseName": "Склад",
     "currentStock": "Текущий остаток",
     "replenish": "Оприходовать",
     "lowStock": "Заканчивающиеся",
@@ -112,5 +123,14 @@
     "checksum": "SHA-256 Хэш (Целостность)",
     "restore": "Восстановить",
     "download": "Скачать"
+  },
+  "errors": {
+    "forbiddenTitle": "Доступ запрещен",
+    "forbiddenDesc": "У вас нет необходимых прав для доступа к этой странице.",
+    "somethingWentWrong": "Произошла ошибка",
+    "unexpectedErrorDesc": "Произошла непредвиденная ошибка. Пожалуйста, обновите страницу или обратитесь к администратору.",
+    "retry": "Повторить попытку",
+    "backToHome": "Вернуться на главную",
+    "reloadPage": "Обновить страницу"
   }
 }

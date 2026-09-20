@@ -49,7 +49,11 @@ export class SystemAuditService {
     const where: any = {};
 
     if (action) {
-      where.action = action;
+      if (action === 'BIOMETRIC_SIGN') {
+        where.action = { in: ['BIOMETRIC_SIGN', 'BIOMETRIC_SIGNED'] };
+      } else {
+        where.action = action;
+      }
     }
 
     if (entity) {

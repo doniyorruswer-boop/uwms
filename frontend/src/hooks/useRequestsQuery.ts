@@ -42,7 +42,16 @@ export function useRequestsQuery() {
       status: RequestStatus;
       note?: string;
     }) => {
-      const res = await apiClient.patch(API_ENDPOINTS.REQUESTS.STATUS(id), { status, note });
+      const idempotencyKey = crypto.randomUUID();
+      const res = await apiClient.patch(
+        API_ENDPOINTS.REQUESTS.STATUS(id),
+        { status, note },
+        {
+          headers: {
+            'Idempotency-Key': idempotencyKey,
+          },
+        },
+      );
       return res.data;
     },
     onSuccess: (_, variables) => {
@@ -59,6 +68,58 @@ export function useRequestsQuery() {
     },
   });
 
+  const advanceWorkflowMutation = useMutation({
+    mutationFn: async ({
+      id,
+      status,
+      note,
+      fundingSource,
+      subAccountCode,
+      allocatedAmount,
+      commendantId,
+      targetRoomId,
+    }: {
+      id: string;
+      status: RequestStatus;
+      note?: string;
+      fundingSource?: string;
+      subAccountCode?: string;
+      allocatedAmount?: number;
+      commendantId?: string;
+      targetRoomId?: string;
+    }) => {
+      const idempotencyKey = crypto.randomUUID();
+      const res = await apiClient.post(
+        API_ENDPOINTS.REQUESTS.WORKFLOW_ADVANCE(id),
+        {
+          status,
+          note,
+          fundingSource,
+          subAccountCode,
+          allocatedAmount,
+          commendantId,
+          targetRoomId,
+        },
+        {
+          headers: {
+            'Idempotency-Key': idempotencyKey,
+          },
+        },
+      );
+      return res.data;
+    },
+    onSuccess: (_, variables) => {
+      Message.success('Xarid zanjiri navbatdagi bosqichga muvaffaqiyatli o‘tkazildi!');
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      if (variables.status === 'FULFILLED' || variables.status === 'RECEIVED_AT_WAREHOUSE') {
+        queryClient.invalidateQueries({ queryKey: ['stocks'] });
+      }
+    },
+    onError: (err: any) => {
+      Message.error(err.response?.data?.message || 'Bosqichni yangilashda xatolik yuz berdi!');
+    },
+  });
+
   return {
     requests: requestsQuery.data || [],
     isLoading: requestsQuery.isLoading,
@@ -68,5 +129,6 @@ export function useRequestsQuery() {
     refetch: requestsQuery.refetch,
     createRequest: createRequestMutation.mutateAsync,
     updateRequestStatus: updateStatusMutation.mutateAsync,
+    advanceWorkflow: advanceWorkflowMutation.mutateAsync,
   };
 }

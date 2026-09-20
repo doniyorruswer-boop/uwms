@@ -1,13 +1,16 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AssetStatus, TransferStatus, MovementType, RoleType } from '@prisma/client';
+import { AssetStatus, RoleType, FundingSource } from '@prisma/client';
 import { CodeGeneratorService } from '../common/code-generator.service';
-import { ImportExcelAssetRowDto, ReturnAssetDto, MassMolHandoffDto } from './dto/asset.dto';
+import { ImportExcelAssetRowDto, ReturnAssetDto, MassMolHandoffDto, BatchTransferAssetDto } from './dto/asset.dto';
+import * as XLSX from 'xlsx';
+import { TransfersService } from '../transfers/transfers.service';
 
 import { NotificationsService } from '../notifications/notifications.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
 import { DocumentStampsService } from '../document-stamps/document-stamps.service';
 import { NotificationType } from '@prisma/client';
+import { SYSTEM_AUDIT_ACTIONS } from '../common/constants';
 
 @Injectable()
 export class AssetsService {
@@ -18,12 +21,14 @@ export class AssetsService {
     private notificationsService: NotificationsService,
     private systemAuditService: SystemAuditService,
     private documentStampsService: DocumentStampsService,
+    @Optional() private transfersService?: TransfersService,
   ) {}
 
   async getAllAssets(query?: {
     search?: string;
     status?: string;
     roomId?: string;
+    fundingSource?: string;
     page?: number | string;
     limit?: number | string;
   }) {
@@ -35,6 +40,10 @@ export class AssetsService {
 
     if (query?.roomId && query.roomId !== 'ALL') {
       where.roomId = query.roomId;
+    }
+
+    if (query?.fundingSource && query.fundingSource !== 'ALL') {
+      where.fundingSource = query.fundingSource as FundingSource;
     }
 
     if (query?.search) {
@@ -196,6 +205,12 @@ export class AssetsService {
     };
   }
 
+  async getCategories() {
+    return this.prisma.category.findMany({
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async createAsset(dto: {
     itemName: string;
     model?: string;
@@ -206,6 +221,7 @@ export class AssetsService {
     roomId?: string;
     supplierId?: string;
     warrantyMonths?: number;
+    fundingSource?: FundingSource;
     executedById?: string;
   }) {
     return this.prisma.$transaction(async (tx) => {
@@ -250,12 +266,14 @@ export class AssetsService {
           accumulatedDepreciation: 0,
           purchaseDate: new Date(),
           warrantyMonths: dto.warrantyMonths || 24,
+          fundingSource: dto.fundingSource || FundingSource.BYUDJET,
           itemId: item.id,
           roomId: dto.roomId,
           responsibleUserId,
           supplierId: dto.supplierId,
         },
       });
+
 
       // 5. Create audit history log
       await tx.assetHistory.create({
@@ -274,252 +292,30 @@ export class AssetsService {
   }
 
   async getTransfers(query?: { status?: string; receiverId?: string; assetId?: string }) {
-    const where: any = {};
-    if (query?.status && query.status !== 'ALL') {
-      where.status = query.status as TransferStatus;
+    if (this.transfersService) {
+      return this.transfersService.getTransfers(query);
     }
-    if (query?.receiverId) {
-      where.receiverId = query.receiverId;
-    }
-    if (query?.assetId) {
-      where.assetId = query.assetId;
-    }
-
-    const list = await this.prisma.transferAcceptance.findMany({
-      where,
-      include: {
-        asset: { include: { item: true } },
-        fromRoom: true,
-        toRoom: true,
-        toWarehouse: true,
-        sender: { select: { id: true, fullName: true, username: true } },
-        receiver: { select: { id: true, fullName: true, username: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return list.map((t) => ({
-      id: t.id,
-      assetId: t.assetId,
-      assetName: t.asset.item.name,
-      assetModel: t.asset.item.model,
-      inventoryNumber: t.asset.inventoryNumber,
-      status: t.status,
-      isReturn: t.isReturn,
-      note: t.note,
-      fromRoomName: t.fromRoom ? `${t.fromRoom.number}-xona: ${t.fromRoom.name}` : 'Bosh omborxona',
-      toRoomName: t.isReturn
-        ? (t.toWarehouse ? t.toWarehouse.name : 'Bosh omborxona')
-        : (t.toRoom ? `${t.toRoom.number}-xona: ${t.toRoom.name}` : 'Bosh omborxona'),
-      toRoomId: t.toRoomId,
-      toWarehouseId: t.toWarehouseId,
-      senderName: t.sender.fullName,
-      receiverName: t.receiver?.fullName || (t.isReturn ? 'Bosh omborchi' : 'Kafedra mudiri'),
-      receiverId: t.receiverId,
-      createdAt: t.createdAt.toISOString().substring(0, 16).replace('T', ' '),
-      acceptedAt: t.acceptedAt ? t.acceptedAt.toISOString().substring(0, 16).replace('T', ' ') : null,
-    }));
+    throw new BadRequestException('TransfersService mavjud emas');
   }
 
   async transferAsset(
     assetId: string,
     dto: { toRoomId: string; note?: string; executedById?: string },
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      const asset = await tx.itemInstance.findUnique({
-        where: { id: assetId },
-        include: { room: true },
-      });
-      if (!asset) throw new NotFoundException('Asosiy vosita topilmadi!');
-
-      const targetRoom = await tx.room.findUnique({
-        where: { id: dto.toRoomId },
-        include: { responsibleUser: true },
-      });
-      if (!targetRoom) throw new NotFoundException('Ko‘chirilayotgan xona topilmadi!');
-
-      const fromLoc = asset.room ? `${asset.room.number}-xona: ${asset.room.name}` : 'Bosh omborxona';
-      const toLoc = `${targetRoom.number}-xona: ${targetRoom.name}`;
-
-      // Resolve sender
-      const senderId =
-        dto.executedById || (await tx.user.findFirst({ where: { role: 'HEAD_WAREHOUSE' } }))!.id;
-
-      // Create 2-sided transfer acceptance record in PENDING state
-      const transfer = await tx.transferAcceptance.create({
-        data: {
-          assetId,
-          fromRoomId: asset.roomId,
-          toRoomId: targetRoom.id,
-          senderId,
-          receiverId: targetRoom.responsibleUserId,
-          status: TransferStatus.PENDING,
-          note: dto.note || 'Xonaga ko‘chirish va topshirish-qabul qilish dalolatnomasi',
-        },
-      });
-
-      // Log asset history: Pending acceptance
-      await tx.assetHistory.create({
-        data: {
-          assetId,
-          action: 'KO‘CHIRISHGA_YUBORILDI',
-          fromLocation: fromLoc,
-          toLocation: toLoc,
-          referenceDoc: `TRF-${transfer.id.substring(0, 8).toUpperCase()}`,
-          note: dto.note || 'Kafedra mudiriga qabul qilish uchun yuborildi',
-          executedById: senderId,
-        },
-      });
-
-      return transfer;
-    });
+    if (this.transfersService) {
+      return this.transfersService.transferAsset(assetId, dto);
+    }
+    throw new BadRequestException('TransfersService mavjud emas');
   }
 
   async respondTransfer(
     transferId: string,
     dto: { status: 'ACCEPTED' | 'REJECTED'; note?: string; responderId?: string },
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      const transfer = await tx.transferAcceptance.findUnique({
-        where: { id: transferId },
-        include: {
-          asset: { include: { item: true } },
-          fromRoom: true,
-          toRoom: true,
-          toWarehouse: true,
-          sender: true,
-          receiver: true,
-        },
-      });
-
-      if (!transfer) {
-        throw new NotFoundException('Topshirish-qabul qilish arizasi topilmadi!');
-      }
-
-      if (transfer.status !== TransferStatus.PENDING) {
-        throw new NotFoundException('Ushbu ko‘chirish arizasi allaqachon ko‘rib chiqilgan!');
-      }
-
-      const fromLoc = transfer.fromRoom
-        ? `${transfer.fromRoom.number}-xona: ${transfer.fromRoom.name}`
-        : 'Bosh omborxona';
-      const toLoc = transfer.isReturn
-        ? (transfer.toWarehouse ? transfer.toWarehouse.name : 'Bosh omborxona')
-        : (transfer.toRoom ? `${transfer.toRoom.number}-xona: ${transfer.toRoom.name}` : 'Bosh omborxona');
-
-      if (dto.status === 'ACCEPTED') {
-        // 1. Mark transfer accepted
-        const updatedTransfer = await tx.transferAcceptance.update({
-          where: { id: transferId },
-          data: {
-            status: TransferStatus.ACCEPTED,
-            acceptedAt: new Date(),
-            note: dto.note || transfer.note,
-          },
-        });
-
-        if (transfer.isReturn) {
-          // Return to warehouse
-          await tx.itemInstance.update({
-            where: { id: transfer.assetId },
-            data: {
-              roomId: null,
-              responsibleUserId: null,
-              status: AssetStatus.NEW,
-            },
-          });
-
-          // Create stock movement for return
-          const movCount = await tx.stockMovement.count();
-          const movNum = this.codeGen.generateMovementNumber(movCount + 1);
-
-          const movement = await tx.stockMovement.create({
-            data: {
-              movementNumber: movNum,
-              movementType: MovementType.RETURN,
-              referenceDoc: 'Qaytarish dalolatnomasi',
-              note: dto.note || transfer.note || 'Kafedradan omborga qaytarildi',
-              executedById: dto.responderId || transfer.receiverId || transfer.senderId,
-              fromRoomId: transfer.fromRoomId,
-              toWarehouseId: transfer.toWarehouseId,
-              fundingSource: transfer.asset.fundingSource,
-            },
-          });
-
-          await tx.stockMovementItem.create({
-            data: {
-              movementId: movement.id,
-              itemId: transfer.asset.itemId,
-              itemInstanceId: transfer.assetId,
-              quantity: 1,
-              note: 'Omborga qaytarib qabul qilindi',
-            },
-          });
-
-          await tx.assetHistory.create({
-            data: {
-              assetId: transfer.assetId,
-              action: 'QAYTARILDI_OMBORGA',
-              fromLocation: fromLoc,
-              toLocation: toLoc,
-              fromUser: transfer.sender.fullName,
-              toUser: transfer.receiver?.fullName || 'Bosh omborchi',
-              referenceDoc: 'Qaytarish dalolatnomasi',
-              note: dto.note || 'Omborga muvaffaqiyatli qabul qilindi va balansga olindi',
-              executedById: dto.responderId || transfer.receiverId,
-            },
-          });
-        } else {
-          // Transfer to room
-          await tx.itemInstance.update({
-            where: { id: transfer.assetId },
-            data: {
-              roomId: transfer.toRoomId,
-              responsibleUserId: transfer.receiverId,
-              status: AssetStatus.IN_USE,
-            },
-          });
-
-          await tx.assetHistory.create({
-            data: {
-              assetId: transfer.assetId,
-              action: 'TOPSHIRILDI_QABUL_QILINDI',
-              fromLocation: fromLoc,
-              toLocation: toLoc,
-              fromUser: transfer.sender.fullName,
-              toUser: transfer.receiver?.fullName || 'Kafedra mudiri',
-              referenceDoc: 'Qabul qilish-topshirish dalolatnomasi (OS-1)',
-              note: dto.note || 'Kafedra mudiri tomonidan to‘liq qabul qilindi va hisobga olindi',
-              executedById: dto.responderId || transfer.receiverId,
-            },
-          });
-        }
-
-        return updatedTransfer;
-      } else {
-        // Mark transfer rejected
-        const updatedTransfer = await tx.transferAcceptance.update({
-          where: { id: transferId },
-          data: {
-            status: TransferStatus.REJECTED,
-            note: dto.note || 'Rad etildi',
-          },
-        });
-
-        await tx.assetHistory.create({
-          data: {
-            assetId: transfer.assetId,
-            action: 'KO‘CHIRISH_RAD_ETILDI',
-            fromLocation: fromLoc,
-            toLocation: toLoc,
-            note: dto.note || 'Qabul qiluvchi tomonidan dalolatnoma rad etildi',
-            executedById: dto.responderId || transfer.receiverId,
-          },
-        });
-
-        return updatedTransfer;
-      }
-    });
+    if (this.transfersService) {
+      return this.transfersService.respondTransfer(transferId, dto);
+    }
+    throw new BadRequestException('TransfersService mavjud emas');
   }
 
   async transferBatch(dto: {
@@ -528,36 +324,10 @@ export class AssetsService {
     note?: string;
     executedById?: string;
   }) {
-    return this.prisma.$transaction(async (tx) => {
-      const targetRoom = await tx.room.findUnique({
-        where: { id: dto.toRoomId },
-      });
-      if (!targetRoom) throw new NotFoundException('Xona topilmadi!');
-
-      const toLoc = `${targetRoom.number}-xona (${targetRoom.name})`;
-
-      await tx.itemInstance.updateMany({
-        where: { id: { in: dto.assetIds } },
-        data: {
-          roomId: targetRoom.id,
-          responsibleUserId: targetRoom.responsibleUserId,
-        },
-      });
-
-      for (const assetId of dto.assetIds) {
-        await tx.assetHistory.create({
-          data: {
-            assetId,
-            action: 'OMMAVIY_KO‘CHIRILDI',
-            toLocation: toLoc,
-            note: dto.note || 'Ommaviy qayta taqsimlash',
-            executedById: dto.executedById,
-          },
-        });
-      }
-
-      return { count: dto.assetIds.length, targetRoom: toLoc };
-    });
+    if (this.transfersService) {
+      return this.transfersService.transferBatch(dto);
+    }
+    throw new BadRequestException('TransfersService mavjud emas');
   }
 
   async writeOffAsset(
@@ -586,93 +356,434 @@ export class AssetsService {
     });
   }
 
+  async generateImportTemplate() {
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Template data with headers and 3 example rows
+    const templateData = [
+      {
+        'Inventar raqami': 'INV-2026-00050',
+        'Aktiv nomi (*majburiy)': 'Lenovo ThinkCentre M70q',
+        'Modeli': 'M70q Gen 3',
+        'Kategoriya nomi': 'Kompyuter va IT uskunalari',
+        'Zavod seriya raqami': 'SN-LN-88310',
+        'Xona raqami': '101',
+        'Mas’ul xodim (MOL logini)': 'mol_user',
+        'Boshlang‘ich xarid narxi (so‘m)': 8500000,
+        'Moliyalashtirish manbasi': 'BYUDJET',
+        'Kafolat muddati (oy)': 24,
+      },
+      {
+        'Inventar raqami': '', // bo'sh qoldirilsa avtomatik generatsiya qilinadi
+        'Aktiv nomi (*majburiy)': 'HP LaserJet Pro M404dn',
+        'Modeli': 'M404dn',
+        'Kategoriya nomi': 'Orgtexnika va printerlar',
+        'Zavod seriya raqami': 'SN-HP-3391',
+        'Xona raqami': '102',
+        'Mas’ul xodim (MOL logini)': '',
+        'Boshlang‘ich xarid narxi (so‘m)': 3800000,
+        'Moliyalashtirish manbasi': 'KONTRAKT_RIVOJLANTIRISH',
+        'Kafolat muddati (oy)': 12,
+      },
+      {
+        'Inventar raqami': '',
+        'Aktiv nomi (*majburiy)': 'Cisco Catalyst 2960 Switch',
+        'Modeli': 'WS-C2960-24TC-L',
+        'Kategoriya nomi': 'Tarmoq uskunalari',
+        'Zavod seriya raqami': 'SN-CS-55421',
+        'Xona raqami': '204',
+        'Mas’ul xodim (MOL logini)': '',
+        'Boshlang‘ich xarid narxi (so‘m)': 12000000,
+        'Moliyalashtirish manbasi': 'GRANT',
+        'Kafolat muddati (oy)': 36,
+      },
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    ws['!cols'] = [
+      { wch: 22 },
+      { wch: 30 },
+      { wch: 18 },
+      { wch: 28 },
+      { wch: 22 },
+      { wch: 14 },
+      { wch: 24 },
+      { wch: 26 },
+      { wch: 26 },
+      { wch: 18 },
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, 'Aktivlar Shablon');
+
+    // Sheet 2: Guidelines / rules
+    const instructions = [
+      {
+        'Maydon nomi': 'Inventar raqami',
+        Majburiyligi: 'Ixtiyoriy',
+        'Qoida va Izoh':
+          'Agar bo‘sh qoldirilsa, tizim avtomatik navbatdagi unikal inventar raqamini yaratadi (masalan: INV-2026-00010). Agar kiritilsa, tizimda va fayl ichida takrorlanmagan bo‘lishi shart.',
+      },
+      {
+        'Maydon nomi': 'Aktiv nomi',
+        Majburiyligi: 'MAJBURIY',
+        'Qoida va Izoh': 'Asosiy vositaning to‘liq rasmiy nomi (kamida 2 ta belgi).',
+      },
+      {
+        'Maydon nomi': 'Modeli',
+        Majburiyligi: 'Ixtiyoriy',
+        'Qoida va Izoh': 'Uskunaning texnik modeli yoki modifikatsiyasi.',
+      },
+      {
+        'Maydon nomi': 'Kategoriya nomi',
+        Majburiyligi: 'Ixtiyoriy',
+        'Qoida va Izoh':
+          'Masalan: "Kompyuter va IT uskunalari", "Mebel", "Orgtexnika". Tizimda yo‘q bo‘lsa yangi kategoriya ochiladi.',
+      },
+      {
+        'Maydon nomi': 'Zavod seriya raqami',
+        Majburiyligi: 'Ixtiyoriy',
+        'Qoida va Izoh': 'Ishlab chiqaruvchi seriya raqami (S/N).',
+      },
+      {
+        'Maydon nomi': 'Xona raqami',
+        Majburiyligi: 'Ixtiyoriy',
+        'Qoida va Izoh':
+          'Universitetda mavjud xona raqami (masalan: 101, 304). Agar kiritilsa, uskunaning holati "FOYDALANISHDA" deb o‘rnatiladi, bo‘sh bo‘lsa "YANGI" bo‘lib markaziy omborga tushadi.',
+      },
+      {
+        'Maydon nomi': 'Mas’ul xodim (MOL logini)',
+        Majburiyligi: 'Ixtiyoriy',
+        'Qoida va Izoh':
+          'Xona javobgari yoki moddiy javobgar shaxsning tizimdagi foydalanuvchi logini (username).',
+      },
+      {
+        'Maydon nomi': 'Boshlang‘ich xarid narxi',
+        Majburiyligi: 'Ixtiyoriy',
+        'Qoida va Izoh': 'Musbat son, milliy valyutada (so‘m).',
+      },
+      {
+        'Maydon nomi': 'Moliyalashtirish manbasi',
+        Majburiyligi: 'Ixtiyoriy',
+        'Qoida va Izoh':
+          'Faqat quyidagi 3 tadan biri: BYUDJET, KONTRAKT_RIVOJLANTIRISH yoki GRANT. Bo‘sh bo‘lsa "BYUDJET" qo‘yiladi.',
+      },
+      {
+        'Maydon nomi': 'Kafolat muddati',
+        Majburiyligi: 'Ixtiyoriy',
+        'Qoida va Izoh': 'Oylarda kiritiladi (masalan: 12, 24, 36). Standart: 12 oy.',
+      },
+    ];
+    const wsInstructions = XLSX.utils.json_to_sheet(instructions);
+    wsInstructions['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 80 }];
+    XLSX.utils.book_append_sheet(wb, wsInstructions, 'Qoidalar va Yo‘riqnoma');
+
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    return {
+      buffer,
+      filename: 'UWMS_Aktivlar_Import_Shablon.xlsx',
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    };
+  }
+
+  async previewImportExcelAssets(dto: { rows: ImportExcelAssetRowDto[] }) {
+    if (!dto.rows || !Array.isArray(dto.rows) || dto.rows.length === 0) {
+      throw new BadRequestException('Import qilish uchun ma’lumotlar yuborilmadi!');
+    }
+
+    // 1. Preload reference data (soft-deleted excluded)
+    const [rooms, users] = await Promise.all([
+      this.prisma.room.findMany({
+        where: { deletedAt: null },
+        include: { responsibleUser: true },
+      }),
+      this.prisma.user.findMany({
+        where: { deletedAt: null },
+        select: { id: true, username: true, fullName: true, role: true },
+      }),
+    ]);
+
+    const roomMap = new Map<string, (typeof rooms)[0]>();
+    for (const r of rooms) {
+      roomMap.set(r.number.trim().toLowerCase(), r);
+      roomMap.set(r.id, r);
+    }
+
+    const userMap = new Map<string, (typeof users)[0]>();
+    for (const u of users) {
+      userMap.set(u.username.trim().toLowerCase(), u);
+      userMap.set(u.id, u);
+    }
+
+    // 2. Collect inventory numbers to check intra-file and cross-DB duplicates
+    const invFreqMap = new Map<string, number>();
+    const invNumbersToCheck: string[] = [];
+
+    for (const row of dto.rows) {
+      const inv = row.inventoryNumber?.trim();
+      if (inv) {
+        const lower = inv.toLowerCase();
+        invFreqMap.set(lower, (invFreqMap.get(lower) || 0) + 1);
+        invNumbersToCheck.push(inv);
+      }
+    }
+
+    const existingInstances =
+      invNumbersToCheck.length > 0
+        ? await this.prisma.itemInstance.findMany({
+            where: { inventoryNumber: { in: invNumbersToCheck } },
+            select: { inventoryNumber: true },
+          })
+        : [];
+
+    const existingInvSet = new Set<string>(
+      existingInstances.map((item) => item.inventoryNumber.trim().toLowerCase()),
+    );
+
+    const VALID_FUNDING_SOURCES = new Set([
+      'BYUDJET',
+      'KONTRAKT_RIVOJLANTIRISH',
+      'GRANT',
+    ]);
+
+    // 3. Row-by-row dry-run validation (WITHOUT WRITING TO DB)
+    const previewData = dto.rows.map((row, index) => {
+      const rowNum = index + 1;
+      const rowErrors: Array<{ field: string; message: string }> = [];
+
+      // Validation a: itemName
+      const cleanName = row.itemName?.trim();
+      if (!cleanName) {
+        rowErrors.push({
+          field: 'itemName',
+          message: 'Aktiv nomi kiritilishi shart!',
+        });
+      }
+
+      // Validation b: inventoryNumber
+      const inv = row.inventoryNumber?.trim();
+      if (inv) {
+        const lower = inv.toLowerCase();
+        if ((invFreqMap.get(lower) || 0) > 1) {
+          rowErrors.push({
+            field: 'inventoryNumber',
+            message: `Fayl ichida takrorlangan (dublikat) inventar raqam: "${inv}"`,
+          });
+        }
+        if (existingInvSet.has(lower)) {
+          rowErrors.push({
+            field: 'inventoryNumber',
+            message: `Bu inventar raqam bazada allaqachon mavjud: "${inv}"`,
+          });
+        }
+      }
+
+      // Validation c: fundingSource
+      if (row.fundingSource) {
+        const fsUpper = String(row.fundingSource).trim().toUpperCase();
+        if (!VALID_FUNDING_SOURCES.has(fsUpper)) {
+          rowErrors.push({
+            field: 'fundingSource',
+            message: `Moliyalashtirish manbasi noto‘g‘ri! Faqat BYUDJET, KONTRAKT_RIVOJLANTIRISH yoki GRANT bo‘lishi kerak (Kiritilgan: "${row.fundingSource}")`,
+          });
+        }
+      }
+
+      // Validation d: roomNumber
+      let matchedRoom: (typeof rooms)[0] | null = null;
+      if (row.roomNumber && String(row.roomNumber).trim()) {
+        const roomKey = String(row.roomNumber).trim().toLowerCase();
+        matchedRoom = roomMap.get(roomKey) || null;
+        if (!matchedRoom) {
+          rowErrors.push({
+            field: 'roomNumber',
+            message: `"${row.roomNumber}" raqamli xona universitet tizimida topilmadi!`,
+          });
+        }
+      }
+
+      // Validation e: responsibleUsername
+      let matchedUser: (typeof users)[0] | null = null;
+      if (row.responsibleUsername && String(row.responsibleUsername).trim()) {
+        const userKey = String(row.responsibleUsername).trim().toLowerCase();
+        matchedUser = userMap.get(userKey) || null;
+        if (!matchedUser) {
+          rowErrors.push({
+            field: 'responsibleUsername',
+            message: `"${row.responsibleUsername}" loginli mas’ul xodim tizimda topilmadi!`,
+          });
+        }
+      }
+
+      // Validation f: purchasePrice
+      if (
+        row.purchasePrice !== undefined &&
+        row.purchasePrice !== null &&
+        String(row.purchasePrice).trim() !== ''
+      ) {
+        const priceNum = Number(row.purchasePrice);
+        if (isNaN(priceNum) || priceNum < 0) {
+          rowErrors.push({
+            field: 'purchasePrice',
+            message: 'Boshlang‘ich xarid narxi 0 dan kam bo‘lmagan musbat son bo‘lishi shart!',
+          });
+        }
+      }
+
+      // Validation g: warrantyMonths
+      if (
+        row.warrantyMonths !== undefined &&
+        row.warrantyMonths !== null &&
+        String(row.warrantyMonths).trim() !== ''
+      ) {
+        const wMonths = Number(row.warrantyMonths);
+        if (isNaN(wMonths) || wMonths < 0) {
+          rowErrors.push({
+            field: 'warrantyMonths',
+            message: 'Kafolat muddati 0 dan kam bo‘lmagan son bo‘lishi shart!',
+          });
+        }
+      }
+
+      return {
+        row: rowNum,
+        isValid: rowErrors.length === 0,
+        errors: rowErrors,
+        data: {
+          ...row,
+          itemName: cleanName || row.itemName,
+          purchasePrice:
+            row.purchasePrice !== undefined && row.purchasePrice !== null
+              ? Number(row.purchasePrice)
+              : 0,
+          warrantyMonths:
+            row.warrantyMonths !== undefined && row.warrantyMonths !== null
+              ? Number(row.warrantyMonths)
+              : 12,
+          fundingSource: (row.fundingSource
+            ? String(row.fundingSource).trim().toUpperCase()
+            : 'BYUDJET') as any,
+        },
+        resolvedRoom: matchedRoom
+          ? { id: matchedRoom.id, number: matchedRoom.number, name: matchedRoom.name }
+          : null,
+        resolvedUser: matchedUser
+          ? {
+              id: matchedUser.id,
+              fullName: matchedUser.fullName,
+              username: matchedUser.username,
+            }
+          : null,
+      };
+    });
+
+    const flatErrors = previewData.flatMap((r) =>
+      r.errors.map((e) => ({
+        row: r.row,
+        field: e.field,
+        message: e.message,
+      })),
+    );
+
+    const validRows = previewData.filter((r) => r.isValid);
+
+    return {
+      totalRows: dto.rows.length,
+      validCount: validRows.length,
+      errorCount: previewData.length - validRows.length,
+      valid: validRows.map((r) => r.data),
+      errors: flatErrors,
+      previewData,
+    };
+  }
+
   async importExcelAssets(
     dto: { rows: ImportExcelAssetRowDto[] },
     executedById?: string,
   ) {
-    if (!dto.rows || dto.rows.length === 0) {
-      throw new BadRequestException('Import qilish uchun ma’lumotlar topilmadi!');
+    // 1. Dry-run validation
+    const preview = await this.previewImportExcelAssets(dto);
+
+    const validRowsToImport = preview.previewData.filter((r) => r.isValid);
+
+    if (validRowsToImport.length === 0) {
+      throw new BadRequestException(
+        'Import qilish uchun birorta ham to‘g‘ri qator topilmadi! Iltimos, xatoliklarni to‘g‘rilang.',
+      );
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const rooms = await tx.room.findMany();
-      const roomMap = new Map<string, typeof rooms[0]>();
-      for (const r of rooms) {
-        roomMap.set(r.number.trim().toLowerCase(), r);
-        roomMap.set(r.id, r);
-      }
-
-      const results = [];
+    // 2. Atomic $transaction for verified rows only
+    const results = await this.prisma.$transaction(async (tx) => {
       let currentAssetCount = await tx.itemInstance.count();
+      const imported = [];
 
-      for (const row of dto.rows) {
-        // 1. Category
+      for (const itemRow of validRowsToImport) {
+        const row = itemRow.data;
+
+        // Category upsert
+        const categoryName = row.categoryName?.trim() || 'Boshqa uskunalar';
         const cat = await tx.category.upsert({
-          where: { name: row.categoryName || 'Boshqa uskunalar' },
+          where: { name: categoryName },
           update: {},
-          create: { name: row.categoryName || 'Boshqa uskunalar' },
+          create: { name: categoryName },
         });
 
-        // 2. Item
+        // Item find or create
+        const modelName = row.model?.trim() || null;
         let item = await tx.item.findFirst({
-          where: { name: row.itemName, model: row.model || null },
+          where: { name: row.itemName.trim(), model: modelName },
         });
         if (!item) {
           item = await tx.item.create({
             data: {
-              name: row.itemName,
-              model: row.model,
+              name: row.itemName.trim(),
+              model: modelName,
               categoryId: cat.id,
             },
           });
         }
 
-        // 3. Room resolution
+        // Room & responsible resolution
         let roomId: string | null = null;
         let responsibleUserId: string | null = null;
         let roomName = 'Markaziy Omborxona';
 
-        if (row.roomNumber) {
-          const matchedRoom = roomMap.get(row.roomNumber.trim().toLowerCase());
-          if (matchedRoom) {
-            roomId = matchedRoom.id;
-            responsibleUserId = matchedRoom.responsibleUserId;
-            roomName = `${matchedRoom.number}-xona: ${matchedRoom.name}`;
+        if (itemRow.resolvedRoom) {
+          roomId = itemRow.resolvedRoom.id;
+          roomName = `${itemRow.resolvedRoom.number}-xona: ${itemRow.resolvedRoom.name}`;
+          // Default responsible from room if exists
+          const fullRoom = await tx.room.findUnique({ where: { id: roomId } });
+          if (fullRoom?.responsibleUserId) {
+            responsibleUserId = fullRoom.responsibleUserId;
           }
         }
 
-        // 4. Sequential Unique Inventory Number
-        currentAssetCount++;
+        if (itemRow.resolvedUser) {
+          responsibleUserId = itemRow.resolvedUser.id;
+        }
+
+        // Sequential or verified inventory number
         let invNumber = row.inventoryNumber?.trim();
         if (!invNumber) {
+          currentAssetCount++;
           invNumber = this.codeGeneratorService.generateInventoryNumber(currentAssetCount);
-        } else {
-          const existing = await tx.itemInstance.findUnique({
-            where: { inventoryNumber: invNumber },
-          });
-          if (existing) {
-            invNumber = this.codeGeneratorService.generateInventoryNumber(currentAssetCount);
-          }
         }
 
-        const qrCode = `UWMS:${invNumber}:${row.serialNumber || 'NA'}`;
+        const qrCode = `UWMS:${invNumber}:${row.serialNumber?.trim() || 'NA'}`;
 
         const instance = await tx.itemInstance.create({
           data: {
             inventoryNumber: invNumber,
-            serialNumber: row.serialNumber,
+            serialNumber: row.serialNumber?.trim() || null,
             qrCode,
             purchasePrice: row.purchasePrice || 0,
             purchaseDate: new Date(),
-            warrantyMonths: row.warrantyMonths || 24,
-            fundingSource: (row.fundingSource as any) || 'BYUDJET',
+            warrantyMonths: row.warrantyMonths || 12,
+            fundingSource: (row.fundingSource as any) || FundingSource.BYUDJET,
             status: roomId ? AssetStatus.IN_USE : AssetStatus.NEW,
             itemId: item.id,
             roomId,
             responsibleUserId,
           },
         });
-
 
         await tx.assetHistory.create({
           data: {
@@ -686,213 +797,50 @@ export class AssetsService {
           },
         });
 
-        results.push(instance);
+        imported.push(instance);
       }
 
-      return {
-        success: true,
-        importedCount: results.length,
-        items: results.map((r) => ({
-          id: r.id,
-          inventoryNumber: r.inventoryNumber,
-          fundingSource: r.fundingSource,
-        })),
-      };
+      return imported;
     });
+
+    // 3. System audit log
+    await this.systemAuditService.log({
+      action: 'EXCEL_IMPORT',
+      entity: 'ItemInstance',
+      userId: executedById,
+      details: {
+        totalRows: dto.rows.length,
+        importedCount: results.length,
+        failedCount: preview.errorCount,
+      },
+    });
+
+    return {
+      success: true,
+      totalProcessed: dto.rows.length,
+      importedCount: results.length,
+      failedCount: preview.errorCount,
+      items: results.map((r) => ({
+        id: r.id,
+        inventoryNumber: r.inventoryNumber,
+        fundingSource: r.fundingSource,
+      })),
+      errors: preview.errors,
+    };
   }
 
   async returnAsset(dto: ReturnAssetDto, senderId: string) {
-    const asset = await this.prisma.itemInstance.findUnique({
-      where: { id: dto.assetId },
-      include: { room: true },
-    });
-    if (!asset) throw new NotFoundException('Asosiy vosita topilmadi!');
-
-    if (asset.status === AssetStatus.WRITTEN_OFF) {
-      throw new BadRequestException('Hisobdan chiqarilgan (Spisanie) ashyoni omborga qaytarib bo‘lmaydi!');
+    if (this.transfersService) {
+      return this.transfersService.returnAsset(dto, senderId);
     }
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      // Resolve target warehouse
-      let warehouseId = dto.warehouseId;
-      if (!warehouseId) {
-        const mainWh = (await tx.warehouse.findFirst({ where: { isMain: true } })) || (await tx.warehouse.findFirst());
-        warehouseId = mainWh?.id;
-      }
-
-      if (!warehouseId) {
-        throw new NotFoundException('Qabul qiluvchi omborxona tizimda topilmadi!');
-      }
-
-      const headWh = await tx.user.findFirst({ where: { role: RoleType.HEAD_WAREHOUSE } });
-
-      const transfer = await tx.transferAcceptance.create({
-        data: {
-          assetId: dto.assetId,
-          fromRoomId: asset.roomId,
-          toWarehouseId: warehouseId,
-          isReturn: true,
-          senderId,
-          receiverId: headWh?.id,
-          status: TransferStatus.PENDING,
-          note: `Omborga qaytarish: ${dto.reason}${dto.note ? ' (' + dto.note + ')' : ''}`,
-        },
-      });
-
-      const fromLoc = asset.room ? `${asset.room.number}-xona: ${asset.room.name}` : 'Kafedra xonasi';
-      const wh = await tx.warehouse.findUnique({ where: { id: warehouseId } });
-      const toLoc = wh ? wh.name : 'Bosh omborxona';
-
-      await tx.assetHistory.create({
-        data: {
-          assetId: dto.assetId,
-          action: 'QAYTARISHGA_YUBORILDI',
-          fromLocation: fromLoc,
-          toLocation: toLoc,
-          referenceDoc: `RET-${transfer.id.substring(0, 8).toUpperCase()}`,
-          note: dto.reason,
-          executedById: senderId,
-        },
-      });
-
-      return transfer;
-    });
-
-    // Notify Warehouse Heads
-    await this.notificationsService.notifyRole(
-      RoleType.HEAD_WAREHOUSE,
-      'Omborga Qaytarish Talabnomasi',
-      `Kafedradan asosiy vosita qaytarish uchun yuborildi. Sabab: ${dto.reason}`,
-      NotificationType.TRANSFER,
-      '/assets',
-    );
-
-    // Audit log
-    await this.systemAuditService.log({
-      action: 'RETURN',
-      entity: 'ItemInstance',
-      entityId: dto.assetId,
-      details: {
-        reason: dto.reason,
-        note: dto.note,
-      },
-      userId: senderId,
-    });
-
-    return result;
+    throw new BadRequestException('TransfersService mavjud emas');
   }
 
   async massMolHandoff(dto: MassMolHandoffDto, executedById: string) {
-    const fromUser = await this.prisma.user.findUnique({ where: { id: dto.fromUserId } });
-    const toUser = await this.prisma.user.findUnique({ where: { id: dto.toUserId } });
-    if (!fromUser || !toUser) {
-      throw new NotFoundException('Topshiruvchi yoki qabul qiluvchi mas’ul shaxs topilmadi!');
+    if (this.transfersService) {
+      return this.transfersService.massMolHandoff(dto, executedById);
     }
-
-    const where: any = {
-      responsibleUserId: dto.fromUserId,
-      status: { not: AssetStatus.WRITTEN_OFF },
-    };
-    if (dto.roomId) {
-      where.roomId = dto.roomId;
-    }
-
-    const assets = await this.prisma.itemInstance.findMany({
-      where,
-      include: { room: true, item: true },
-    });
-
-    if (assets.length === 0) {
-      throw new BadRequestException('Ushbu mas’ul shaxsga biriktirilgan faol asosiy vositalar topilmadi!');
-    }
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      const year = new Date().getFullYear();
-      const count = await tx.transferAcceptance.count();
-      const actNumber = `MOL-${year}-${String(count + 1).padStart(4, '0')}`;
-
-      // Update all matching assets
-      await tx.itemInstance.updateMany({
-        where: { id: { in: assets.map((a) => a.id) } },
-        data: { responsibleUserId: dto.toUserId },
-      });
-
-      // Audit history for each asset
-      for (const a of assets) {
-        const loc = a.room ? `${a.room.number}-xona: ${a.room.name}` : 'Universitet hududi';
-        await tx.assetHistory.create({
-          data: {
-            assetId: a.id,
-            action: 'MOL_YALPI_ALMASHINUVI',
-            fromLocation: loc,
-            toLocation: loc,
-            fromUser: fromUser.fullName,
-            toUser: toUser.fullName,
-            referenceDoc: actNumber,
-            note: dto.note || `Kafedra mudiri / MOL almashinuvi: barcha jihozlar yangi mas’ul shaxsga rasmiy topshirildi`,
-            executedById,
-          },
-        });
-      }
-
-      return {
-        success: true,
-        actNumber,
-        transferredCount: assets.length,
-        fromUser: { id: fromUser.id, fullName: fromUser.fullName },
-        toUser: { id: toUser.id, fullName: toUser.fullName },
-        assets: assets.map((a) => ({ id: a.id, inventoryNumber: a.inventoryNumber })),
-      };
-    });
-
-    // Notify receiving MOL
-    await this.notificationsService.create({
-      userId: toUser.id,
-      title: 'MOL Yalpi Topshirish Akti',
-      message: `Sizga ${fromUser.fullName} tomonidan ${assets.length} ta asosiy vosita rasmiy topshirildi (${result.actNumber}).`,
-      type: NotificationType.TRANSFER,
-      link: '/assets',
-    });
-
-    // System audit log
-    await this.systemAuditService.log({
-      action: 'TRANSFER',
-      entity: 'MOL_HANDOFF',
-      entityId: result.actNumber,
-      details: {
-        actNumber: result.actNumber,
-        fromUser: fromUser.fullName,
-        toUser: toUser.fullName,
-        transferredCount: assets.length,
-      },
-      userId: executedById,
-    });
-
-    // Document Stamp for MOL Transfer
-    try {
-      await this.documentStampsService.stampDocument({
-        docType: 'MOL_TRANSFER',
-        docNumber: result.actNumber,
-        title: `MOL Yalpi Topshirish-Qabul Qilish Dalolatnomasi (${fromUser.fullName} -> ${toUser.fullName})`,
-        signerName: toUser.fullName,
-        signerRole: toUser.position || 'Kafedra Mudiri / Yangi MOL',
-        metadata: {
-          actNumber: result.actNumber,
-          fromUser: fromUser.fullName,
-          toUser: toUser.fullName,
-          itemsCount: assets.length,
-          items: assets.slice(0, 30).map((a) => ({
-            name: a.item.name,
-            inv: a.inventoryNumber,
-            room: a.room?.number,
-          })),
-        },
-      });
-    } catch (e) {
-      // ignore stamping error
-    }
-
-    return result;
+    throw new BadRequestException('TransfersService mavjud emas');
   }
 
   async reprintQr(id: string, reason: string, userId?: string) {
@@ -950,7 +898,7 @@ export class AssetsService {
 
       // 4. SystemAuditLog entry
       await this.systemAuditService.log({
-        action: 'UPDATE',
+        action: SYSTEM_AUDIT_ACTIONS.REPRINT_LABEL,
         entity: 'ItemInstance',
         entityId: asset.id,
         details: {

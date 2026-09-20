@@ -122,10 +122,11 @@ export class QuotasService {
     return updated;
   }
 
-  async checkQuota(dto: CheckQuotaDto) {
+  async checkQuota(dto: CheckQuotaDto, tx?: any) {
+    const prismaClient = tx || this.prisma;
     const period = dto.period || this.getCurrentPeriod();
 
-    const quota = await this.prisma.departmentQuota.findUnique({
+    const quota = await prismaClient.departmentQuota.findUnique({
       where: {
         departmentId_itemId_period: {
           departmentId: dto.departmentId,

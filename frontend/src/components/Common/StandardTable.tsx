@@ -27,7 +27,7 @@ export function StandardTable<T = any>({
   data = [],
   loading = false,
   emptyText = 'Ma’lumotlar topilmadi',
-  scrollX = 1200,
+  scrollX = 1300,
   rowKey = 'id',
   onRowClick,
   pagination = true,

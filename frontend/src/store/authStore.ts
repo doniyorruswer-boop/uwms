@@ -1,37 +1,62 @@
+import axios from 'axios';
 import { create } from 'zustand';
 import type { User } from '../types';
-import { apiClient } from '../api/client';
+import { apiClient, setAccessToken, API_BASE_URL } from '../api/client';
 
 interface AuthState {
   user: User | null;
   token: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   isDarkMode: boolean;
 
-  login: (token: string, user: User) => void;
-  logout: () => void;
+  login: (accessToken: string, user: User, refreshToken?: string) => void;
+  setTokens: (accessToken: string, refreshToken?: string) => void;
+  logout: () => Promise<void>;
   setPasswordChanged: () => void;
   toggleDarkMode: () => void;
   checkAuth: () => Promise<void>;
 }
 
-const savedToken = localStorage.getItem('uwms_token');
+const savedRefreshToken = localStorage.getItem('uwms_refresh_token');
 const savedUser = localStorage.getItem('uwms_user')
   ? JSON.parse(localStorage.getItem('uwms_user')!)
   : null;
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: savedUser,
-  token: savedToken,
-  isAuthenticated: !!savedToken,
-  isLoading: false,
+  token: null, // Xavfsizlik: access token faqat xotirada bo'ladi
+  refreshToken: savedRefreshToken,
+  isAuthenticated: !!savedRefreshToken,
+  isLoading: !!savedRefreshToken,
   isDarkMode: false,
 
-  login: (token: string, user: User) => {
-    localStorage.setItem('uwms_token', token);
+  login: (accessToken: string, user: User, refreshToken?: string) => {
+    setAccessToken(accessToken);
+    if (refreshToken) {
+      localStorage.setItem('uwms_refresh_token', refreshToken);
+    }
     localStorage.setItem('uwms_user', JSON.stringify(user));
-    set({ token, user, isAuthenticated: true });
+    localStorage.removeItem('uwms_token'); // Eskirgan ochiq tokenni tozalash
+    set({
+      token: accessToken,
+      refreshToken: refreshToken || null,
+      user,
+      isAuthenticated: true,
+      isLoading: false,
+    });
+  },
+
+  setTokens: (accessToken: string, refreshToken?: string) => {
+    setAccessToken(accessToken);
+    if (refreshToken) {
+      localStorage.setItem('uwms_refresh_token', refreshToken);
+    }
+    set({
+      token: accessToken,
+      ...(refreshToken ? { refreshToken } : {}),
+    });
   },
 
   setPasswordChanged: () => {
@@ -43,11 +68,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  logout: () => {
-    localStorage.removeItem('uwms_token');
+  logout: async () => {
+    try {
+      await apiClient.post('/auth/logout');
+    } catch {
+      // Sessiya allaqachon tugagan bo'lishi mumkin
+    }
+    setAccessToken(null);
+    localStorage.removeItem('uwms_refresh_token');
     localStorage.removeItem('uwms_user');
-    set({ token: null, user: null, isAuthenticated: false });
-    window.location.href = '/login';
+    localStorage.removeItem('uwms_token');
+    set({ token: null, refreshToken: null, user: null, isAuthenticated: false, isLoading: false });
+    if (!window.location.pathname.includes('/login')) {
+      window.location.href = '/login';
+    }
   },
 
   toggleDarkMode: () =>
@@ -62,21 +96,45 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }),
 
   checkAuth: async () => {
-    const token = get().token;
-    if (!token) {
-      set({ isAuthenticated: false, user: null });
+    const refreshToken = localStorage.getItem('uwms_refresh_token');
+    if (!refreshToken) {
+      setAccessToken(null);
+      set({ isAuthenticated: false, user: null, token: null, isLoading: false });
       return;
     }
 
     try {
       set({ isLoading: true });
-      const res = await apiClient.get('/auth/me');
-      set({ user: res.data, isAuthenticated: true, isLoading: false });
-      localStorage.setItem('uwms_user', JSON.stringify(res.data));
+      // Silent refresh: yangi in-memory access tokenni olish
+      const refreshRes = await axios.post(`${API_BASE_URL}/auth/refresh`, {
+        refreshToken,
+      });
+
+      const newAccessToken = refreshRes.data.access_token;
+      const newRefreshToken = refreshRes.data.refresh_token;
+
+      setAccessToken(newAccessToken);
+      if (newRefreshToken) {
+        localStorage.setItem('uwms_refresh_token', newRefreshToken);
+      }
+
+      // Foydalanuvchi ma'lumotlarini olish
+      const meRes = await apiClient.get('/auth/me');
+      set({
+        token: newAccessToken,
+        refreshToken: newRefreshToken || refreshToken,
+        user: meRes.data,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      localStorage.setItem('uwms_user', JSON.stringify(meRes.data));
     } catch {
-      localStorage.removeItem('uwms_token');
+      setAccessToken(null);
+      localStorage.removeItem('uwms_refresh_token');
       localStorage.removeItem('uwms_user');
-      set({ token: null, user: null, isAuthenticated: false, isLoading: false });
+      localStorage.removeItem('uwms_token');
+      set({ token: null, refreshToken: null, user: null, isAuthenticated: false, isLoading: false });
     }
   },
 }));
+

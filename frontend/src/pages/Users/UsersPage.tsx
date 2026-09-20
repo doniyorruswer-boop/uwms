@@ -6,11 +6,9 @@ import {
   Input,
   Select,
   Tag,
-  Typography,
-  Grid,
   Popconfirm,
-  Result,
   Tooltip,
+  Alert,
 } from '@arco-design/web-react';
 import {
   IconPlus,
@@ -18,19 +16,24 @@ import {
   IconRefresh,
   IconEdit,
   IconLock,
-  IconUserGroup,
-  IconCheckCircle,
-  IconSafe,
   IconApps,
   IconUser,
   IconDownload,
+  IconDelete,
+  IconSwap,
+  IconFile,
+  IconCheckCircle,
+  IconSafe,
 } from '@arco-design/web-react/icon';
 import { StandardTable } from '../../components/Common/StandardTable';
+import { ForbiddenView } from '../../components/Common/ForbiddenView';
 import { useAuthStore } from '../../store/authStore';
 import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
 import {
   useUsersQuery,
   useToggleUserStatusMutation,
+  useDeleteUserMutation,
+  useRestoreUserMutation,
   type UserItem,
 } from '../../hooks/useUsersQuery';
 import { RoleType } from '../../types';
@@ -38,13 +41,12 @@ import { CreateUserModal } from './CreateUserModal';
 import { EditUserModal } from './EditUserModal';
 import { ResetPasswordModal } from './ResetPasswordModal';
 import { UserAssetsDrawer } from './UserAssetsDrawer';
+import { ResponsibilityHandoverModal } from './ResponsibilityHandoverModal';
+import { ClearanceCertificateModal } from './ClearanceCertificateModal';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { TableActions } from '../../components/Common/TableActions';
 import { exportToExcel } from '../../utils/exportExcel';
-
-const { Title, Text } = Typography;
-const { Row, Col } = Grid;
 
 const roleTagColors: Record<RoleType, string> = {
   [RoleType.SUPER_ADMIN]: 'red',
@@ -52,14 +54,22 @@ const roleTagColors: Record<RoleType, string> = {
   [RoleType.MOL]: 'gold',
   [RoleType.AUDITOR]: 'purple',
   [RoleType.EMPLOYEE]: 'gray',
+  [RoleType.CHIEF_ACCOUNTANT]: 'cyan',
+  [RoleType.COMMENDANT]: 'orange',
+  [RoleType.RECTOR]: 'magenta',
+  [RoleType.VICE_RECTOR_FINANCE]: 'arcoblue',
 };
 
 const roleLabels: Record<RoleType, string> = {
-  [RoleType.SUPER_ADMIN]: 'Super Admin',
-  [RoleType.HEAD_WAREHOUSE]: 'Bosh Omborchi',
-  [RoleType.MOL]: 'MOL (Moddiy Javobgar)',
-  [RoleType.AUDITOR]: 'Auditor',
-  [RoleType.EMPLOYEE]: 'Xodim',
+  [RoleType.SUPER_ADMIN]: 'Bosh Administrator',
+  [RoleType.HEAD_WAREHOUSE]: 'Bosh Ombor Mudiri',
+  [RoleType.MOL]: 'Moddiy Javobgar Shaxs (MOL)',
+  [RoleType.AUDITOR]: 'Ichki Auditor',
+  [RoleType.EMPLOYEE]: 'Xodim / O‘qituvchi',
+  [RoleType.CHIEF_ACCOUNTANT]: 'Bosh Hisobchi',
+  [RoleType.COMMENDANT]: 'Bino Komendanti',
+  [RoleType.RECTOR]: 'Universitet Rektori',
+  [RoleType.VICE_RECTOR_FINANCE]: 'Moliya Prorektori',
 };
 
 export const UsersPage: React.FC = () => {
@@ -79,6 +89,8 @@ export const UsersPage: React.FC = () => {
   const [editingUser, setEditingUser] = useState<UserItem | null>(null);
   const [resettingUser, setResettingUser] = useState<UserItem | null>(null);
   const [drawerUser, setDrawerUser] = useState<UserItem | null>(null);
+  const [handoverUser, setHandoverUser] = useState<UserItem | null>(null);
+  const [certUser, setCertUser] = useState<UserItem | null>(null);
 
   // Map role tab to query param
   const activeRoleQuery = useMemo(() => {
@@ -88,17 +100,25 @@ export const UsersPage: React.FC = () => {
     return undefined;
   }, [roleTab]);
 
-  // Queries & Mutations
-  const { data, isLoading, isError, refetch } = useUsersQuery({
-    search: search.trim() || undefined,
-    role: activeRoleQuery,
-    departmentId: deptFilter !== 'ALL' ? deptFilter : undefined,
-    isActive: statusFilter === 'ALL' ? undefined : statusFilter === 'ACTIVE',
-    page,
-    pageSize,
-  });
-
   const toggleStatusMutation = useToggleUserStatusMutation();
+  const deleteUserMutation = useDeleteUserMutation();
+  const restoreUserMutation = useRestoreUserMutation();
+
+  const isSuperAdmin = currentUser?.role === RoleType.SUPER_ADMIN;
+
+  // Queries & Mutations
+  const { data, isLoading, isError, refetch } = useUsersQuery(
+    {
+      search: search.trim() || undefined,
+      role: roleTab === 'DELETED' ? undefined : activeRoleQuery,
+      departmentId: deptFilter !== 'ALL' ? deptFilter : undefined,
+      isActive: statusFilter === 'ALL' ? undefined : statusFilter === 'ACTIVE',
+      showDeleted: roleTab === 'DELETED',
+      page,
+      pageSize,
+    },
+    { enabled: isSuperAdmin }
+  );
 
   // Summary statistics calculation
   const totalUsers = data?.total || 0;
@@ -109,16 +129,13 @@ export const UsersPage: React.FC = () => {
       .length || 0;
 
   // Permission Check: Only SUPER_ADMIN has full control
-  if (currentUser?.role !== RoleType.SUPER_ADMIN) {
+  if (!isSuperAdmin) {
     return (
-      <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-        <Result
-          status="403"
-          title="Ruxsat Cheklangan"
-          subTitle="Xodimlar va rollarni boshqarish reestri faqat Tizim Super Admini (Rektorat/AKT) uchun ochiq."
-          style={{ borderRadius: 0 }}
-        />
-      </div>
+      <ForbiddenView
+        requiredRoles={['SUPER_ADMIN']}
+        title="Ruxsat Cheklangan"
+        subTitle="Foydalanuvchilar va xodimlarni boshqarish reestri faqat Tizim Bosh Administratori (SUPER_ADMIN) uchun ochiq."
+      />
     );
   }
 
@@ -192,24 +209,37 @@ export const UsersPage: React.FC = () => {
     {
       title: 'Mas’ul Asosiy Vositalar',
       key: 'assets',
-      width: 175,
+      width: 200,
       render: (_: any, record: UserItem) => {
         const assetCount = record._count?.responsibleInstances || 0;
         const roomCount = record._count?.responsibleRooms || 0;
+        const isFullyCleared = assetCount === 0 && roomCount === 0;
 
         return (
-          <Button
-            size="mini"
-            type="outline"
-            icon={<IconApps />}
-            style={{ borderRadius: 0 }}
-            onClick={(e) => {
-              e.stopPropagation();
-              setDrawerUser(record);
-            }}
-          >
-            {assetCount} ta ashyo / {roomCount} xona
-          </Button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+            <Button
+              size="mini"
+              type="outline"
+              icon={<IconApps />}
+              style={{ borderRadius: 0 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setDrawerUser(record);
+              }}
+            >
+              {assetCount} ta ashyo / {roomCount} xona
+            </Button>
+            {isFullyCleared && (
+              <Tag
+                color="green"
+                size="small"
+                icon={<IconCheckCircle />}
+                style={{ borderRadius: 0, fontSize: 11, fontWeight: 500 }}
+              >
+                Javobgarlikdan ozod
+              </Tag>
+            )}
+          </div>
         );
       },
     },
@@ -250,30 +280,110 @@ export const UsersPage: React.FC = () => {
     {
       title: 'Amallar',
       key: 'actions',
-      width: 88,
+      width: roleTab === 'DELETED' ? 140 : 160,
       fixed: 'right' as const,
       render: (_: any, record: UserItem) => (
         <div onClick={(e) => e.stopPropagation()}>
           <TableActions rightPadding={0} gap={6}>
-            <Tooltip content="Ma’lumotlarni tahrirlash">
-              <Button
-                size="small"
-                type="secondary"
-                icon={<IconEdit />}
-                style={{ borderRadius: 0 }}
-                onClick={() => setEditingUser(record)}
-              />
-            </Tooltip>
+            {record.deletedAt ? (
+              <Popconfirm
+                title="Ushbu foydalanuvchini qayta tiklashni (Restore) tasdiqlaysizmi?"
+                onOk={() => restoreUserMutation.mutate(record.id)}
+              >
+                <Button
+                  size="small"
+                  type="primary"
+                  status="success"
+                  icon={<IconRefresh />}
+                  style={{ borderRadius: 0 }}
+                >
+                  Tiklash
+                </Button>
+              </Popconfirm>
+            ) : (
+              <>
+                <Tooltip content="Javobgarlik holati va audit tekshiruvi (Clearance Audit)">
+                  <Button
+                    size="small"
+                    type="secondary"
+                    icon={<IconSafe />}
+                    style={{ borderRadius: 0, color: 'var(--color-primary-6)' }}
+                    onClick={() => setHandoverUser(record)}
+                  />
+                </Tooltip>
 
-            <Tooltip content="Parolni yangilash">
-              <Button
-                size="small"
-                type="secondary"
-                icon={<IconLock />}
-                style={{ borderRadius: 0 }}
-                onClick={() => setResettingUser(record)}
-              />
-            </Tooltip>
+                <Tooltip content="Elektron Aylanma Varaqa (Clearance Certificate)">
+                  <Button
+                    size="small"
+                    type="secondary"
+                    icon={<IconFile />}
+                    style={{ borderRadius: 0, color: '#00B42A' }}
+                    onClick={() => setCertUser(record)}
+                  />
+                </Tooltip>
+
+                <Tooltip content="Ma’lumotlarni tahrirlash">
+                  <Button
+                    size="small"
+                    type="secondary"
+                    icon={<IconEdit />}
+                    style={{ borderRadius: 0 }}
+                    onClick={() => setEditingUser(record)}
+                  />
+                </Tooltip>
+
+                <Tooltip content="Parolni yangilash">
+                  <Button
+                    size="small"
+                    type="secondary"
+                    icon={<IconLock />}
+                    style={{ borderRadius: 0 }}
+                    onClick={() => setResettingUser(record)}
+                  />
+                </Tooltip>
+
+                {currentUser?.role === RoleType.SUPER_ADMIN && record.id !== currentUser?.id && (
+                  (() => {
+                    const hasActiveAssets =
+                      (record._count?.responsibleInstances || 0) > 0 ||
+                      (record._count?.responsibleRooms || 0) > 0;
+
+                    if (hasActiveAssets) {
+                      return (
+                        <Tooltip
+                          content={`Zimmasida ${record._count?.responsibleInstances || 0} ta aktiv yoki ${record._count?.responsibleRooms || 0} ta xona mavjud! Avval moddiy javobgarlikni topshiring.`}
+                        >
+                          <Button
+                            size="small"
+                            status="danger"
+                            disabled
+                            icon={<IconDelete />}
+                            style={{ borderRadius: 0 }}
+                          />
+                        </Tooltip>
+                      );
+                    }
+
+                    return (
+                      <Popconfirm
+                        title="Ushbu xodimni o‘chirishni (Soft-delete) tasdiqlaysizmi?"
+                        onOk={() => deleteUserMutation.mutate(record.id)}
+                        okButtonProps={{ status: 'danger' }}
+                      >
+                        <Tooltip content="Xodimni o‘chirish (Soft delete)">
+                          <Button
+                            size="small"
+                            status="danger"
+                            icon={<IconDelete />}
+                            style={{ borderRadius: 0 }}
+                          />
+                        </Tooltip>
+                      </Popconfirm>
+                    );
+                  })()
+                )}
+              </>
+            )}
           </TableActions>
         </div>
       ),
@@ -291,6 +401,9 @@ export const UsersPage: React.FC = () => {
           { key: 'MOL', title: 'Moddiy Javobgarlar (MOL)', count: molCount },
           { key: 'ADMIN', title: 'Administratorlar', count: adminCount },
           { key: 'EMPLOYEE', title: 'Oddiy Xodimlar' },
+          ...(currentUser?.role === RoleType.SUPER_ADMIN
+            ? [{ key: 'DELETED', title: 'O‘chirilganlar' }]
+            : []),
         ]}
       />
 
@@ -371,6 +484,21 @@ export const UsersPage: React.FC = () => {
         </div>
       </Card>
 
+      {/* Error Alert State */}
+      {isError && (
+        <Alert
+          type="error"
+          showIcon
+          title="Xatolik yuz berdi"
+          content="Foydalanuvchilar ro‘yxatini yuklashda xatolik yuz berdi. Iltimos, qaytadan urinib ko‘ring."
+          action={
+            <Button size="mini" type="primary" status="danger" onClick={() => refetch()}>
+              Qayta urinish
+            </Button>
+          }
+        />
+      )}
+
       {/* Users Table */}
       <StandardTable<UserItem>
         rowKey="id"
@@ -417,6 +545,22 @@ export const UsersPage: React.FC = () => {
         visible={!!drawerUser}
         user={drawerUser}
         onClose={() => setDrawerUser(null)}
+      />
+
+      <ResponsibilityHandoverModal
+        visible={!!handoverUser}
+        user={handoverUser}
+        onClose={() => setHandoverUser(null)}
+        onSuccess={() => {
+          setHandoverUser(null);
+          refetch();
+        }}
+      />
+
+      <ClearanceCertificateModal
+        visible={!!certUser}
+        user={certUser}
+        onClose={() => setCertUser(null)}
       />
     </div>
   );

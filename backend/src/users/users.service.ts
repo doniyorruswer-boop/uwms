@@ -29,6 +29,12 @@ export class UsersService {
 
     const where: Prisma.UserWhereInput = {};
 
+    if (query.showDeleted) {
+      where.deletedAt = { not: null };
+    } else {
+      where.deletedAt = null;
+    }
+
     if (role) {
       where.role = role;
     }
@@ -241,6 +247,16 @@ export class UsersService {
       }
     }
 
+    // Safety check: if deactivating user, ensure clearance eligibility
+    if (dto.isActive === false && existing.isActive !== false) {
+      const clearance = await this.checkUserClearanceEligibility(id);
+      if (!clearance.canDeactivate) {
+        throw new BadRequestException(
+          `Xodimni nofaol holatga o‘tkazib bo‘lmaydi! Sabab: Zimmasida ${clearance.activeAssets} ta faol aktiv, ${clearance.pendingHandovers} ta kutilayotgan topshirish arizasi, ${clearance.openShortages} ta ochiq kamomad yoki ${clearance.responsibleRooms} ta xona mas’ulligi mavjud. Avval 'Moddiy Javobgarlikni Topshirish' jarayonini yakunlang.`
+        );
+      }
+    }
+
     const updatedUser = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({
         where: { id },
@@ -289,6 +305,16 @@ export class UsersService {
       });
       if (activeSuperAdmins <= 1) {
         throw new BadRequestException('Tizimdagi yagona faol Super Admin hisobini faolsizlantirib bo‘lmaydi');
+      }
+    }
+
+    // Safety check: if deactivating user, ensure clearance eligibility
+    if (!isActive) {
+      const clearance = await this.checkUserClearanceEligibility(id);
+      if (!clearance.canDeactivate) {
+        throw new BadRequestException(
+          `Xodimni nofaol holatga o‘tkazib bo‘lmaydi! Sabab: Zimmasida ${clearance.activeAssets} ta faol aktiv, ${clearance.pendingHandovers} ta kutilayotgan topshirish arizasi, ${clearance.openShortages} ta ochiq kamomad yoki ${clearance.responsibleRooms} ta xona mas’ulligi mavjud. Avval 'Moddiy Javobgarlikni Topshirish' jarayonini yakunlang.`
+        );
       }
     }
 
@@ -342,6 +368,160 @@ export class UsersService {
     return {
       success: true,
       message: `'${user.fullName}' foydalanuvchisi paroli muvaffaqiyatli yangilandi`,
+    };
+  }
+
+  async remove(id: string, executorId: string) {
+    if (id === executorId) {
+      throw new BadRequestException('Foydalanuvchi o‘z hisobini o‘chira olmaydi!');
+    }
+
+    const existing = await this.prisma.user.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Foydalanuvchi (ID: ${id}) topilmadi`);
+    }
+
+    if (existing.deletedAt) {
+      throw new BadRequestException('Ushbu foydalanuvchi allaqachon o‘chirilgan!');
+    }
+
+    // Safety check: cannot delete user with active assets or pending handovers
+    const clearance = await this.checkUserClearanceEligibility(id);
+    if (!clearance.canDeactivate) {
+      throw new BadRequestException(
+        `Xodimni o‘chirib bo‘lmaydi! Sabab: Zimmasida ${clearance.activeAssets} ta faol aktiv, ${clearance.pendingHandovers} ta kutilayotgan topshirish arizasi, ${clearance.openShortages} ta ochiq kamomad yoki ${clearance.responsibleRooms} ta xona mas’ulligi mavjud. Avval 'Moddiy Javobgarlikni Topshirish' jarayonini yakunlang.`
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          isActive: false,
+        },
+      });
+
+      return user;
+    });
+
+    await this.systemAuditService.log({
+      userId: executorId,
+      action: 'SOFT_DELETE',
+      entity: 'User',
+      entityId: id,
+      details: {
+        username: updated.username,
+        fullName: updated.fullName,
+        role: updated.role,
+      },
+    });
+
+    const { password, ...rest } = updated;
+    return rest;
+  }
+
+  async restore(id: string, executorId: string) {
+    const existing = await this.prisma.user.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Foydalanuvchi (ID: ${id}) topilmadi`);
+    }
+
+    if (!existing.deletedAt) {
+      throw new BadRequestException('Ushbu foydalanuvchi o‘chirilmagan!');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id },
+        data: {
+          deletedAt: null,
+          isActive: true,
+        },
+      });
+
+      return user;
+    });
+
+    await this.systemAuditService.log({
+      userId: executorId,
+      action: 'RESTORE',
+      entity: 'User',
+      entityId: id,
+      details: {
+        username: updated.username,
+        fullName: updated.fullName,
+        role: updated.role,
+      },
+    });
+
+    const { password, ...rest } = updated;
+    return rest;
+  }
+
+  /**
+   * Xodimning moddiy javobgarlikdan ozodlik / aylanma varaqa (Clearance) holatini tekshirish
+   */
+  async checkUserClearanceEligibility(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, fullName: true, role: true, isActive: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Foydalanuvchi topilmadi');
+    }
+
+    // 1. Faol asosiy vositalar (hisobdan chiqarilmaganlar)
+    const activeAssets = await this.prisma.itemInstance.count({
+      where: {
+        responsibleUserId: userId,
+        status: { notIn: ['WRITTEN_OFF'] },
+      },
+    });
+
+    // 2. Kutilayotgan, hali yakunlanmagan topshirish arizalari (poyga holati himoyasi)
+    const pendingHandovers = await this.prisma.responsibilityHandover.count({
+      where: {
+        departingUserId: userId,
+        status: { in: ['DRAFT', 'PENDING_AUDIT', 'PENDING_SIGNATURES'] },
+      },
+    });
+
+    // 3. Ochiq, xulosasi berilmagan kamomadlar (SHORTAGE)
+    const openShortages = await this.prisma.handoverItemAction.count({
+      where: {
+        handover: { departingUserId: userId },
+        actionType: 'SHORTAGE',
+        investigationNote: null,
+      },
+    });
+
+    // 4. Mas'ul qilib biriktirilgan auditoriya/xonalar
+    const responsibleRooms = await this.prisma.room.count({
+      where: {
+        responsibleUserId: userId,
+        deletedAt: null,
+      },
+    });
+
+    const canDeactivate =
+      activeAssets === 0 &&
+      pendingHandovers === 0 &&
+      openShortages === 0 &&
+      responsibleRooms === 0;
+
+    return {
+      userId,
+      fullName: user.fullName,
+      canDeactivate,
+      activeAssets,
+      pendingHandovers,
+      openShortages,
+      responsibleRooms,
+      statusSummary: canDeactivate
+        ? 'Javobgarlikdan to‘liq ozod qilingan (Clearance Completed)'
+        : 'Zimmasida moddiy majburiyatlar yoki kutilayotgan topshirishlar mavjud',
     };
   }
 }

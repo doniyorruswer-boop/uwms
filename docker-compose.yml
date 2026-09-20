@@ -9,15 +9,16 @@ services:
     container_name: uwms_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_2026}
-      POSTGRES_DB: ${POSTGRES_DB:-uwms_db}
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # Xavfsizlik: Baza faqat Docker ichki tarmog‘iga ochiq, 5432 tashqi dunyodan yopilgan
+    expose:
+      - "5432"
     volumes:
       - uwms_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d uwms_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -37,13 +38,17 @@ services:
       db:
         condition: service_healthy
     environment:
+      NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_secure_2026}@db:5432/${POSTGRES_DB:-uwms_db}?schema=public
-      JWT_SECRET: ${JWT_SECRET:-uwms_super_secret_production_key_2026_enterprise}
-      JWT_EXPIRES_IN: 7d
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      DOCUMENT_HMAC_SECRET: ${DOCUMENT_HMAC_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       CLIENT_URL: ${CLIENT_URL:-http://localhost}
-    ports:
-      - "4000:4000"
+    expose:
+      - "4000"
     volumes:
       - uwms_backups:/app/backups
       - uwms_uploads:/app/uploads
@@ -57,12 +62,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
     container_name: uwms_frontend
     restart: unless-stopped
     depends_on:
       - backend
     ports:
-      - "80:80"
+      - "${FRONTEND_PORT:-80}:80"
     networks:
       - uwms_network
 

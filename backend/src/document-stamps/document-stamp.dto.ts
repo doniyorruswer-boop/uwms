@@ -24,3 +24,13 @@ export class CreateDocumentStampDto {
   @IsOptional()
   metadata?: any;
 }
+
+export class RevokeDocumentStampDto {
+  @IsNotEmpty()
+  @IsString()
+  docNumber: string;
+
+  @IsNotEmpty()
+  @IsString()
+  reason: string;
+}

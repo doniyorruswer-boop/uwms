@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Card,
   Grid,
@@ -14,6 +15,7 @@ import {
   Switch,
   Typography,
   Empty,
+  Badge,
 } from '@arco-design/web-react';
 import {
   IconScan,
@@ -26,12 +28,20 @@ import {
   IconCamera,
   IconStop,
   IconFile,
+  IconCalendar,
+  IconMobile,
+  IconDesktop,
+  IconWifi,
+  IconSync,
+  IconCalendarClock,
 } from '@arco-design/web-react/icon';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useAssetsQuery } from '../../hooks/useAssetsQuery';
 import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
 import { useAuditsQuery, useAuditDetailQuery } from '../../hooks/useAuditsQuery';
+import { useAuditCampaignsQuery } from '../../hooks/useAuditCampaignsQuery';
 import { OfficialDocModal } from '../../components/OfficialDocument/OfficialDocModal';
+import { useAuthStore } from '../../store/authStore';
 import type { ItemInstance } from '../../types';
 import { exportToExcel } from '../../utils/exportExcel';
 import { playScannerBeep } from '../../utils/audio';
@@ -43,11 +53,24 @@ const { Row, Col } = Grid;
 const { Title, Text } = Typography;
 
 export const AuditScannerPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const [searchParams] = useSearchParams();
+  const campaignIdParam = searchParams.get('campaignId') || '';
+  const roomIdParam = searchParams.get('roomId') || '';
+
   const { assets } = useAssetsQuery();
   const { rooms } = useOrganizationQuery();
-  const { scanCode, completeAudit, isCompleting, audits } = useAuditsQuery();
+  const { scanCode, batchScan, completeAudit, isCompleting, audits } = useAuditsQuery();
+  const { data: campaigns = [] } = useAuditCampaignsQuery();
 
-  const [selectedRoomId, setSelectedRoomId] = useState<string>('');
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>(campaignIdParam);
+  const [selectedRoomId, setSelectedRoomId] = useState<string>(roomIdParam);
+
+  useEffect(() => {
+    if (roomIdParam) setSelectedRoomId(roomIdParam);
+    if (campaignIdParam) setSelectedCampaignId(campaignIdParam);
+  }, [roomIdParam, campaignIdParam]);
+
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
   const [manualCode, setManualCode] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -56,6 +79,123 @@ export const AuditScannerPage: React.FC = () => {
   const [isDocModalVisible, setIsDocModalVisible] = useState(false);
   const [activeAuditId, setActiveAuditId] = useState<string | null>(null);
   const [isCompleted, setIsCompleted] = useState(false);
+
+  // Phase I: Mobile Layout & Offline Queue State
+  const OFFLINE_QUEUE_KEY = 'uwms_audit_offline_queue';
+  const [offlineQueue, setOfflineQueue] = useState<Array<{
+    id: string;
+    qrCode: string;
+    roomId: string;
+    campaignId?: string;
+    timestamp: number;
+  }>>(() => {
+    try {
+      const saved = localStorage.getItem(OFFLINE_QUEUE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [isMobileView, setIsMobileView] = useState<boolean>(() => window.innerWidth <= 840);
+  const [recentScans, setRecentScans] = useState<Array<{
+    id: string;
+    qrCode: string;
+    inventoryNumber: string;
+    itemName: string;
+    roomStatus: 'MATCHED' | 'RELOCATED' | 'UNKNOWN';
+    scannedAt: string;
+    isOffline?: boolean;
+  }>>([]);
+
+  // Auto-detect online/offline & resize
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      Message.info('Internet aloqasi tiklandi. Oflayn navbat sinxronlanmoqda...');
+      syncOfflineQueue();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      Message.warning('Internet aloqasi uzildi. Skanlar oflayn xotiraga saqlanadi.');
+    };
+    const handleResize = () => {
+      if (window.innerWidth <= 840) {
+        setIsMobileView(true);
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(offlineQueue));
+    } catch (e) {
+      console.error('Failed to save offline queue', e);
+    }
+  }, [offlineQueue]);
+
+  const syncOfflineQueue = async () => {
+    const currentQueue = (() => {
+      try {
+        const saved = localStorage.getItem(OFFLINE_QUEUE_KEY);
+        return saved ? JSON.parse(saved) : [];
+      } catch {
+        return [];
+      }
+    })();
+
+    if (!currentQueue || currentQueue.length === 0) {
+      Message.info('Sinxronlash uchun oflayn skanlar mavjud emas.');
+      return;
+    }
+    if (!navigator.onLine) {
+      Message.warning('Hozirda oflayn rejimdasiz. Internetga ulaning.');
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const itemsPayload = currentQueue.map((item: any) => ({
+        roomId: item.roomId,
+        qrCode: item.qrCode,
+        campaignId: item.campaignId,
+      }));
+
+      const res = await batchScan(itemsPayload);
+
+      if (res && res.auditIds && res.auditIds.length > 0) {
+        setActiveAuditId(res.auditIds[0]);
+      }
+
+      setOfflineQueue([]);
+      localStorage.removeItem(OFFLINE_QUEUE_KEY);
+
+      setRecentScans((prev) =>
+        prev.map((r) => ({ ...r, isOffline: false }))
+      );
+
+      Message.success(
+        `Tranzaksion sinxronlandi: Jami ${res.processed} ta skandan ${res.matched} tasi o‘z xonasida topildi, ${res.relocated} tasi boshqa xonadan!`
+      );
+      await refetchAuditDetail();
+    } catch (err: any) {
+      Message.error(err.response?.data?.message || 'Oflayn skanlarni tranzaksion yuborishda xatolik yuz berdi!');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
@@ -134,7 +274,7 @@ export const AuditScannerPage: React.FC = () => {
   useEffect(() => {
     return () => {
       if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(() => {});
+        scannerRef.current.stop().catch(() => { });
       }
     };
   }, []);
@@ -144,10 +284,39 @@ export const AuditScannerPage: React.FC = () => {
       if (scannerRef.current && scannerRef.current.isScanning) {
         await scannerRef.current.stop();
       }
+
+      // Check mediaDevices support (handles desktop without camera or non-HTTPS safely)
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        Message.warning('Brauzeringizda video kamera oqimi qo‘llab-quvvatlanmaydi (yoki HTTPS xavfsiz ulanish talab etiladi). Shtrix-kod skaneri (scanner gun) yoki qo‘lda kiritishdan foydalaning.');
+        return;
+      }
+
+      let devices: any[] = [];
+      try {
+        devices = await Html5Qrcode.getCameras();
+      } catch (camErr) {
+        console.warn('Cameras getCameras check:', camErr);
+      }
+
+      if (!devices || devices.length === 0) {
+        Message.warning('Kompyuterda video kamera qurilmasi aniqlanmadi. Shtrix-kod skaneri (scanner gun) yoki qo‘lda kiritish maydonidan foydalaning.');
+        return;
+      }
+
+      const readerElem = document.getElementById('audit-qr-reader');
+      if (!readerElem) {
+        Message.warning('Skanerlash oynasi topilmadi.');
+        return;
+      }
+
       const html5QrCode = new Html5Qrcode('audit-qr-reader');
       scannerRef.current = html5QrCode;
+
+      // Prefer back camera if available, otherwise first device
+      const selectedCameraId = devices.length > 1 ? devices[devices.length - 1].id : devices[0].id;
+
       await html5QrCode.start(
-        { facingMode: 'environment' },
+        selectedCameraId,
         {
           fps: 10,
           qrbox: { width: 220, height: 220 },
@@ -155,22 +324,40 @@ export const AuditScannerPage: React.FC = () => {
         (decodedText) => {
           handleScan(decodedText);
         },
-        () => {}
+        () => { }
       );
       setIsCameraRunning(true);
       Message.success('Kamera muvaffaqiyatli ishga tushirildi');
     } catch (err: any) {
-      console.error('Camera start error:', err);
-      Message.error('Kamerani ochib bo‘lmadi. Brauzer ruxsatini tekshiring.');
+      console.warn('Camera start error:', err);
+      setIsCameraRunning(false);
+      Message.warning('Kamerani ochib bo‘lmadi (qurilma band yoki ruxsat yo‘q). Shtrix-kod skaneri yoki qo‘lda kiritishdan foydalaning.');
     }
   };
 
   const stopCamera = async () => {
-    if (scannerRef.current && scannerRef.current.isScanning) {
-      await scannerRef.current.stop();
+    try {
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        await scannerRef.current.stop();
+      }
+    } catch (err) {
+      console.warn('Camera stop warning:', err);
+    } finally {
       setIsCameraRunning(false);
       Message.info('Kamera to‘xtatildi');
     }
+  };
+
+  const handleToggleView = async (nextView: boolean) => {
+    if (isCameraRunning && scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+      } catch (e) {
+        // ignore
+      }
+      setIsCameraRunning(false);
+    }
+    setIsMobileView(nextView);
   };
 
   const handleScan = async (code: string) => {
@@ -193,22 +380,98 @@ export const AuditScannerPage: React.FC = () => {
       const foundInRoom = expectedAssets.find((a) => a.qrCode === trimmed);
       const foundElsewhere = assets.find((a) => a.qrCode === trimmed);
 
+      let status: 'MATCHED' | 'RELOCATED' | 'UNKNOWN' = 'UNKNOWN';
+      let assetName = 'Noma’lum aktiv';
+      let invNumber = trimmed;
+
       if (foundInRoom) {
+        status = 'MATCHED';
+        assetName = foundInRoom.itemName;
+        invNumber = foundInRoom.inventoryNumber;
         Message.success(`Topildi: ${foundInRoom.itemName} (${foundInRoom.inventoryNumber})`);
       } else if (foundElsewhere) {
+        status = 'RELOCATED';
+        assetName = foundElsewhere.itemName;
+        invNumber = foundElsewhere.inventoryNumber;
         Message.warning(`Diqqat! Ushbu uskuna boshqa xonaga tegishli: ${foundElsewhere.itemName}`);
       } else {
         Message.info(`Noma’lum kod: ${trimmed}`);
       }
 
+      // Offline detection & queue
+      if (!navigator.onLine) {
+        const offlineRecord = {
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `offline-${Date.now()}-${offlineQueue.length + 1}`),
+          qrCode: trimmed,
+          roomId: activeRoom,
+          campaignId: selectedCampaignId || undefined,
+          timestamp: Date.now(),
+        };
+        setOfflineQueue((prev) => [...prev, offlineRecord]);
+        setRecentScans((prev) => [
+          {
+            id: `${Date.now()}`,
+            qrCode: trimmed,
+            inventoryNumber: invNumber,
+            itemName: assetName,
+            roomStatus: status,
+            scannedAt: new Date().toLocaleTimeString('uz-UZ'),
+            isOffline: true,
+          },
+          ...prev.slice(0, 4),
+        ]);
+        Message.info('Tarmoq yo‘q. Skan offline navbatga saqlandi.');
+        setManualCode('');
+        return;
+      }
+
+      // Online scan attempt
       try {
-        const scanRes = await scanCode({ qrCode: trimmed, roomId: activeRoom });
+        const scanRes = await scanCode({
+          qrCode: trimmed,
+          roomId: activeRoom,
+          campaignId: selectedCampaignId || undefined,
+        });
         if (scanRes && scanRes.auditId) {
           setActiveAuditId(scanRes.auditId);
         }
         await refetchAuditDetail();
+
+        setRecentScans((prev) => [
+          {
+            id: `${Date.now()}`,
+            qrCode: trimmed,
+            inventoryNumber: invNumber,
+            itemName: assetName,
+            roomStatus: status,
+            scannedAt: new Date().toLocaleTimeString('uz-UZ'),
+            isOffline: false,
+          },
+          ...prev.slice(0, 4),
+        ]);
       } catch {
-        // Continue scanning even if audit log request fails
+        // Network failure fallback to offline queue
+        const offlineRecord = {
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `offline-${Date.now()}-${offlineQueue.length + 1}`),
+          qrCode: trimmed,
+          roomId: activeRoom,
+          campaignId: selectedCampaignId || undefined,
+          timestamp: Date.now(),
+        };
+        setOfflineQueue((prev) => [...prev, offlineRecord]);
+        setRecentScans((prev) => [
+          {
+            id: `${Date.now()}`,
+            qrCode: trimmed,
+            inventoryNumber: invNumber,
+            itemName: assetName,
+            roomStatus: status,
+            scannedAt: new Date().toLocaleTimeString('uz-UZ'),
+            isOffline: true,
+          },
+          ...prev.slice(0, 4),
+        ]);
+        Message.info('Serverga ulanib bo‘lmadi. Skan offline navbatga saqlandi.');
       }
       setManualCode('');
     } catch (err: any) {
@@ -284,10 +547,10 @@ export const AuditScannerPage: React.FC = () => {
           r.status === 'MATCHED'
             ? '[TOPILDI - MAVJUD]'
             : r.status === 'MISSING'
-            ? '[KAMOMAD / TOPILMADI]'
-            : r.status === 'RELOCATED'
-            ? `[BEGONA XONADAN: ${r.itemInstance?.room?.name || 'Boshqa joy'}]`
-            : `[${r.status}]`;
+              ? '[KAMOMAD / TOPILMADI]'
+              : r.status === 'RELOCATED'
+                ? `[BEGONA XONADAN: ${r.itemInstance?.room?.name || 'Boshqa joy'}]`
+                : `[${r.status}]`;
 
         return {
           inventoryNumber: r.itemInstance?.inventoryNumber || '—',
@@ -342,8 +605,119 @@ export const AuditScannerPage: React.FC = () => {
 
   const totalAuditExpected = expectedAssets.length;
 
+  const renderRecentScansCard = () => (
+    <Card
+      className="uwms-card"
+      style={{ borderRadius: 0, marginTop: 16 }}
+      title={
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <Space>
+            <IconCalendarClock style={{ color: '#165DFF' }} />
+            <span>Oxirgi 5 ta Skanerlangan Ashyo</span>
+          </Space>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Jami o‘qilgan: <b>{scannedCodes.length}</b> ta
+          </Text>
+        </div>
+      }
+    >
+      {recentScans.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--color-text-3)' }}>
+          <IconScan style={{ fontSize: 24, marginBottom: 6, color: '#86909C' }} />
+          <div style={{ fontSize: 13 }}>Hozircha birorta ham ashyo skanerlanmadi</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {recentScans.map((item, idx) => (
+            <div
+              key={item.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '8px 12px',
+                backgroundColor: idx === 0 ? 'var(--color-fill-2)' : 'var(--color-fill-1)',
+                borderLeft: idx === 0 ? '4px solid #165DFF' : '4px solid transparent',
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)' }}>
+                  {item.itemName}
+                </div>
+                <Space size="small" style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 2 }}>
+                  <span>Inv: <b>{item.inventoryNumber}</b></span>
+                  <span>•</span>
+                  <span>{item.scannedAt}</span>
+                </Space>
+              </div>
+              <Space size="small">
+                {item.roomStatus === 'MATCHED' && (
+                  <Tag color="green" icon={<IconCheckCircle />} style={{ borderRadius: 0 }}>
+                    Mavjud
+                  </Tag>
+                )}
+                {item.roomStatus === 'RELOCATED' && (
+                  <Tag color="gold" icon={<IconExclamationCircle />} style={{ borderRadius: 0 }}>
+                    Begona
+                  </Tag>
+                )}
+                {item.roomStatus === 'UNKNOWN' && (
+                  <Tag color="gray" style={{ borderRadius: 0 }}>
+                    Noma’lum
+                  </Tag>
+                )}
+                {item.isOffline ? (
+                  <Tag color="orange" style={{ borderRadius: 0 }}>Offline Navbat</Tag>
+                ) : (
+                  <Tag color="arcoblue" style={{ borderRadius: 0 }}>Sinxron</Tag>
+                )}
+              </Space>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Offline Queue Alert */}
+      {offlineQueue.length > 0 && (
+        <Alert
+          type="warning"
+          icon={<IconWifi />}
+          title={
+            <Space>
+              <span>Oflayn Navbat: <b>{offlineQueue.length}</b> ta skan saqlangan</span>
+              {isOnline ? (
+                <Tag color="green" style={{ borderRadius: 0 }}>Tarmoq mavjud (Sinxronlash mumkin)</Tag>
+              ) : (
+                <Tag color="red" style={{ borderRadius: 0 }}>Tarmoq uzilgan (Oflayn rejim)</Tag>
+              )}
+            </Space>
+          }
+          content={
+            <div style={{ fontSize: 12, marginTop: 4 }}>
+              Internet aloqasi bo‘lmaganda o‘qilgan QR kodlar qurilmada xavfsiz saqlanadi. Tranzaksion sinxronlash orqali barchasi bir vaqtda bazaga yoziladi va kamomad/mavjudlik qayd etiladi.
+            </div>
+          }
+          action={
+            <Button
+              type="primary"
+              status="warning"
+              size="small"
+              icon={<IconSync spin={isSyncing} />}
+              loading={isSyncing}
+              onClick={syncOfflineQueue}
+              style={{ borderRadius: 0 }}
+            >
+              Tranzaksion Sinxronlash
+            </Button>
+          }
+          style={{ borderRadius: 0 }}
+        />
+      )}
+
       {/* Room Selection and Options Header */}
       <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '16px 20px' }}>
         <div
@@ -365,11 +739,36 @@ export const AuditScannerPage: React.FC = () => {
           </div>
 
           <Space size="medium" wrap>
+            <Button
+              size="small"
+              type={isMobileView ? 'primary' : 'outline'}
+              icon={isMobileView ? <IconDesktop /> : <IconMobile />}
+              onClick={() => handleToggleView(!isMobileView)}
+              style={{ borderRadius: 0 }}
+            >
+              {isMobileView ? 'Keng Ko‘rinish (Jadval)' : 'Mobil Rejim'}
+            </Button>
+
             <Space size="small">
               <IconSound style={{ color: soundEnabled ? '#165DFF' : '#86909C' }} />
-              <span style={{ fontSize: 13 }}>Skaner ovozi:</span>
+              <span style={{ fontSize: 13 }}>Ovoz:</span>
               <Switch checked={soundEnabled} onChange={setSoundEnabled} size="small" />
             </Space>
+
+            <span style={{ fontWeight: 600, fontSize: 13 }}>Reja / Kampaniya:</span>
+            <Select
+              placeholder="Kampaniyasiz (yakka audit)"
+              value={selectedCampaignId || undefined}
+              onChange={(val) => setSelectedCampaignId(val || '')}
+              style={{ width: 200, borderRadius: 0 }}
+              allowClear
+            >
+              {campaigns.map((c) => (
+                <Select.Option key={c.id} value={c.id}>
+                  {c.title} ({c.campaignNumber})
+                </Select.Option>
+              ))}
+            </Select>
 
             <span style={{ fontWeight: 600, fontSize: 13 }}>Xonani tanlash:</span>
             <Select
@@ -377,8 +776,9 @@ export const AuditScannerPage: React.FC = () => {
               onChange={(val) => {
                 setSelectedRoomId(val);
                 setScannedCodes([]);
+                setRecentScans([]);
               }}
-              style={{ width: 260, borderRadius: 0 }}
+              style={{ width: 220, borderRadius: 0 }}
             >
               {rooms.map((r) => (
                 <Select.Option key={r.id} value={r.id}>
@@ -401,25 +801,35 @@ export const AuditScannerPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Main Scanner and Discrepancy Table Section */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} md={8}>
+      {/* RENDER VIEW: MOBILE MODE vs DESKTOP MODE */}
+      {isMobileView ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Mobil Skaner Zonasi */}
           <Card
             className="uwms-card"
             style={{ borderRadius: 0 }}
             title={
-              <Space>
-                <IconScan style={{ color: '#165DFF' }} />
-                <span>QR Skanerlash Moduli</span>
-              </Space>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                <Space>
+                  <IconScan style={{ color: '#165DFF' }} />
+                  <span>Katta Skanerlash Maydoni</span>
+                </Space>
+                <Space size="small">
+                  {isOnline ? (
+                    <Tag color="green" icon={<IconWifi />} style={{ borderRadius: 0 }}>Online</Tag>
+                  ) : (
+                    <Tag color="red" icon={<IconWifi />} style={{ borderRadius: 0 }}>Offline</Tag>
+                  )}
+                </Space>
+              </div>
             }
           >
-            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+            <div style={{ textAlign: 'center', padding: '4px 0' }}>
               <div
                 style={{
                   width: '100%',
-                  minHeight: isCameraRunning ? 240 : 160,
-                  border: isCameraRunning ? '2px solid #165DFF' : '2px dashed #C9CDD4',
+                  minHeight: isCameraRunning ? 280 : 180,
+                  border: isCameraRunning ? '3px solid #165DFF' : '2px dashed #C9CDD4',
                   borderRadius: 0,
                   display: 'flex',
                   alignItems: 'center',
@@ -427,7 +837,7 @@ export const AuditScannerPage: React.FC = () => {
                   backgroundColor: isCameraRunning ? '#000' : 'var(--color-fill-1)',
                   position: 'relative',
                   overflow: 'hidden',
-                  marginBottom: 16,
+                  marginBottom: 12,
                 }}
               >
                 <div
@@ -440,40 +850,43 @@ export const AuditScannerPage: React.FC = () => {
                 />
                 {!isCameraRunning && (
                   <div style={{ color: 'var(--color-text-3)', padding: 16 }}>
-                    <IconCamera style={{ fontSize: 36, marginBottom: 8, color: '#86909C' }} />
-                    <div style={{ fontSize: 13 }}>Kamera hozirda o‘chiq</div>
+                    <IconCamera style={{ fontSize: 40, marginBottom: 8, color: '#86909C' }} />
+                    <div style={{ fontSize: 14, fontWeight: 500 }}>Kamera hozircha o‘chiq</div>
                     <div style={{ fontSize: 12, marginTop: 4 }}>
-                      Jonli skanerlash uchun kamerani yoqing yoki qo‘lda kod kiriting
+                      Kamerani yoqib QR kodni ekranga tuting yoki qo‘lda kod kiriting
                     </div>
                   </div>
                 )}
               </div>
 
-              <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 12 }}>
                 {!isCameraRunning ? (
                   <Button
                     type="primary"
+                    size="large"
                     icon={<IconCamera />}
                     onClick={startCamera}
-                    style={{ borderRadius: 0, backgroundColor: '#165DFF', width: '100%' }}
+                    style={{ borderRadius: 0, backgroundColor: '#165DFF', width: '100%', height: 44, fontSize: 15 }}
                   >
                     Kamerani Yoqish
                   </Button>
                 ) : (
                   <Button
                     status="danger"
+                    size="large"
                     icon={<IconStop />}
                     onClick={stopCamera}
-                    style={{ borderRadius: 0, width: '100%' }}
+                    style={{ borderRadius: 0, width: '100%', height: 44, fontSize: 15 }}
                   >
                     Kamerani To‘xtatish
                   </Button>
                 )}
               </div>
 
-              {/* Input for manual scanner / barcode guns */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              {/* Barcode scanner gun / manual input */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                 <Input
+                  size="large"
                   placeholder="QR kod yoki inventar №..."
                   value={manualCode}
                   onChange={setManualCode}
@@ -482,20 +895,21 @@ export const AuditScannerPage: React.FC = () => {
                 />
                 <Button
                   type="primary"
+                  size="large"
                   onClick={() => handleScan(manualCode)}
-                  style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
+                  style={{ borderRadius: 0, backgroundColor: '#165DFF', minWidth: 90 }}
                 >
                   O‘qish
                 </Button>
               </div>
 
-              {/* Quick simulation chips */}
-              <div style={{ textAlign: 'left', marginTop: 8 }}>
-                <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginBottom: 8 }}>
+              {/* Quick simulation buttons */}
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginBottom: 6 }}>
                   Tezkor test simulyatsiyasi:
                 </div>
                 <Space wrap size="mini">
-                  {expectedAssets.map((a) => (
+                  {expectedAssets.slice(0, 5).map((a) => (
                     <Button
                       key={a.id}
                       size="mini"
@@ -517,252 +931,476 @@ export const AuditScannerPage: React.FC = () => {
                         if (foreign) handleScan(foreign.qrCode);
                       }}
                     >
-                      Begona Uskuna (Test)
+                      Begona (Test)
                     </Button>
                   )}
                 </Space>
               </div>
             </div>
           </Card>
-        </Col>
 
-        {/* Audit Results & Discrepancy Table */}
-        <Col xs={24} md={16}>
-          <Card
-            className="uwms-card"
-            style={{ borderRadius: 0 }}
-            title={
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  width: '100%',
-                  flexWrap: 'wrap',
-                  gap: 8,
-                }}
+          {/* Mobil Progress Ko‘rsatkichi */}
+          <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '12px 16px' }}>
+            <StockLevelGauge
+              percent={completionPercent}
+              label={<span>Inventarizatsiya qamrovi:</span>}
+              subLabel={
+                <b>
+                  {matchedAssets.length} / {expectedAssets.length} ta vosita tasdiqlandi ({completionPercent}%)
+                </b>
+              }
+              status={completionPercent === 100 ? 'success' : 'normal'}
+              color={completionPercent === 100 ? '#00B42A' : '#165DFF'}
+              strokeWidth={8}
+              width="100%"
+            />
+          </Card>
+
+          {/* Oxirgi 5 ta skan ro‘yxati */}
+          {renderRecentScansCard()}
+
+          {/* Mobil Harakatlar Tugmalari */}
+          <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '16px' }}>
+            <Space direction="vertical" style={{ width: '100%' }} size="medium">
+              <Button
+                type="primary"
+                status="success"
+                long
+                size="large"
+                icon={<IconFile />}
+                onClick={() => setIsDocModalVisible(true)}
+                disabled={scannedCodes.length === 0}
+                style={{ borderRadius: 0, height: 42 }}
               >
-                <span>
-                  Audit Jarayoni (Mas’ul: <b>{currentRoom?.responsibleUserName || 'MOL'}</b>)
-                </span>
-                <Space size="small">
-                  <Button
-                    type="outline"
-                    size="small"
-                    icon={<IconDownload />}
-                    onClick={handleExportAuditExcel}
-                    style={{ borderRadius: 0 }}
-                  >
-                    Excelga
-                  </Button>
-                  <Popconfirm
-                    title="Auditni yakunlash va Kamomadlarni (MISSING) qayd etish"
-                    content="Haqiqatan ham ushbu xona inventarizatsiyasini yakunlamoqchimisiz? Topilmagan barcha ashyolar bazada kamomad sifatida saqlanadi."
-                    okText="Ha, yakunlash"
-                    cancelText="Bekor qilish"
-                    onOk={handleCompleteAudit}
-                    disabled={!activeAuditId || isCompleted}
-                  >
+                INV-19 Dalolatnomasi
+              </Button>
+
+              <Popconfirm
+                title="Auditni yakunlash va Kamomadlarni (MISSING) qayd etish"
+                content="Haqiqatan ham ushbu xona inventarizatsiyasini yakunlamoqchimisiz? Topilmagan barcha ashyolar bazada kamomad sifatida saqlanadi."
+                okText="Ha, yakunlash"
+                cancelText="Bekor qilish"
+                onOk={handleCompleteAudit}
+                disabled={!activeAuditId || isCompleted}
+              >
+                <Button
+                  type="primary"
+                  status="warning"
+                  long
+                  size="large"
+                  icon={<IconCheckCircle />}
+                  loading={isCompleting}
+                  disabled={!activeAuditId || isCompleted}
+                  style={{ borderRadius: 0, height: 42 }}
+                >
+                  {isCompleted ? 'Audit Yakunlangan' : 'Auditni Yakunlash (DB)'}
+                </Button>
+              </Popconfirm>
+
+              <Button
+                type="outline"
+                long
+                icon={<IconDownload />}
+                onClick={handleExportAuditExcel}
+                style={{ borderRadius: 0 }}
+              >
+                Excelga eksport
+              </Button>
+            </Space>
+          </Card>
+        </div>
+      ) : (
+        /* DESKTOP 2-COLUMN VIEW */
+        <Row gutter={[16, 16]}>
+          <Col xs={24} md={8}>
+            <Card
+              className="uwms-card"
+              style={{ borderRadius: 0 }}
+              title={
+                <Space>
+                  <IconScan style={{ color: '#165DFF' }} />
+                  <span>QR Skanerlash Moduli</span>
+                </Space>
+              }
+            >
+              <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                <div
+                  style={{
+                    width: '100%',
+                    minHeight: isCameraRunning ? 240 : 160,
+                    border: isCameraRunning ? '2px solid #165DFF' : '2px dashed #C9CDD4',
+                    borderRadius: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: isCameraRunning ? '#000' : 'var(--color-fill-1)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    marginBottom: 16,
+                  }}
+                >
+                  <div
+                    id="audit-qr-reader"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      display: isCameraRunning ? 'block' : 'none',
+                    }}
+                  />
+                  {!isCameraRunning && (
+                    <div style={{ color: 'var(--color-text-3)', padding: 16 }}>
+                      <IconCamera style={{ fontSize: 36, marginBottom: 8, color: '#86909C' }} />
+                      <div style={{ fontSize: 13 }}>Kamera hozirda o‘chiq</div>
+                      <div style={{ fontSize: 12, marginTop: 4 }}>
+                        Jonli skanerlash uchun kamerani yoqing yoki qo‘lda kod kiriting
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  {!isCameraRunning ? (
                     <Button
                       type="primary"
-                      status="warning"
-                      size="small"
-                      icon={<IconCheckCircle />}
-                      loading={isCompleting}
-                      disabled={!activeAuditId || isCompleted}
-                      style={{ borderRadius: 0 }}
+                      icon={<IconCamera />}
+                      onClick={startCamera}
+                      style={{ borderRadius: 0, backgroundColor: '#165DFF', width: '100%' }}
                     >
-                      {isCompleted ? 'Audit Yakunlangan' : 'Auditni Yakunlash (DB)'}
+                      Kamerani Yoqish
                     </Button>
-                  </Popconfirm>
+                  ) : (
+                    <Button
+                      status="danger"
+                      icon={<IconStop />}
+                      onClick={stopCamera}
+                      style={{ borderRadius: 0, width: '100%' }}
+                    >
+                      Kamerani To‘xtatish
+                    </Button>
+                  )}
+                </div>
+
+                {/* Input for manual scanner / barcode guns */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>Shtrix-kod skaneri (Laser gun) / Qo‘lda kiritish:</Text>
+                  <Tag color="arcoblue" size="small" style={{ borderRadius: 0 }}>USB Skaner Faol</Tag>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                  <Input
+                    placeholder="QR kod yoki inventar № (Enter bosing)..."
+                    value={manualCode}
+                    onChange={setManualCode}
+                    onPressEnter={() => handleScan(manualCode)}
+                    style={{ borderRadius: 0 }}
+                  />
                   <Button
                     type="primary"
-                    status="success"
-                    size="small"
-                    icon={<IconFile />}
-                    onClick={() => setIsDocModalVisible(true)}
-                    disabled={scannedCodes.length === 0}
-                    style={{ borderRadius: 0 }}
+                    onClick={() => handleScan(manualCode)}
+                    style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
                   >
-                    INV-19 Dalolatnomasi
+                    O‘qish
                   </Button>
-                </Space>
-              </div>
-            }
-          >
-            <div style={{ marginBottom: 16 }}>
-              <StockLevelGauge
-                percent={completionPercent}
-                label={<span>Inventarizatsiya mosligi:</span>}
-                subLabel={
-                  <b>
-                    {matchedAssets.length} / {expectedAssets.length} ta vosita tasdiqlandi ({completionPercent}%)
-                  </b>
-                }
-                status={completionPercent === 100 ? 'success' : 'normal'}
-                color={completionPercent === 100 ? '#00B42A' : '#165DFF'}
-                strokeWidth={8}
-                width="100%"
-              />
-            </div>
+                </div>
 
-            {/* Foreign assets alert */}
-            {unexpectedAssets.length > 0 && (
-              <Alert
-                type="warning"
-                icon={<IconExclamationCircle />}
-                title="Boshqa xonaga tegishli uskunalar aniqlandi!"
-                content={
-                  <div>
-                    Quyidagi vositalar bu xonaga biriktirilmagan bo‘lsa-da, shu xonadan topildi:{' '}
-                    <b>
-                      {unexpectedAssets.map((a) => `${a.itemName} (${a.inventoryNumber})`).join(', ')}
-                    </b>
+                {/* Quick simulation chips */}
+                <div style={{ textAlign: 'left', marginTop: 8 }}>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginBottom: 8 }}>
+                    Tezkor test simulyatsiyasi:
                   </div>
-                }
-                style={{ marginBottom: 16, borderRadius: 0 }}
-              />
-            )}
+                  <Space wrap size="mini">
+                    {expectedAssets.map((a) => (
+                      <Button
+                        key={a.id}
+                        size="mini"
+                        type={scannedCodes.includes(a.qrCode) ? 'primary' : 'outline'}
+                        status={scannedCodes.includes(a.qrCode) ? 'success' : 'default'}
+                        onClick={() => handleScan(a.qrCode)}
+                        style={{ borderRadius: 0 }}
+                      >
+                        {a.inventoryNumber}
+                      </Button>
+                    ))}
+                    {assets.find((a) => a.roomId !== selectedRoomId) && (
+                      <Button
+                        size="mini"
+                        status="warning"
+                        style={{ borderRadius: 0 }}
+                        onClick={() => {
+                          const foreign = assets.find((a) => a.roomId !== selectedRoomId);
+                          if (foreign) handleScan(foreign.qrCode);
+                        }}
+                      >
+                        Begona Uskuna (Test)
+                      </Button>
+                    )}
+                  </Space>
+                </div>
+              </div>
+            </Card>
 
-            {/* Reusable PageTabs Filter */}
-            <PageTabs
-              activeTab={activeTab}
-              onChange={setActiveTab}
-              tabs={[
-                {
-                  key: 'ALL',
-                  title: 'Barcha Uskunalar',
-                  count: expectedAssets.length + unexpectedAssets.length,
-                },
-                {
-                  key: 'MATCHED',
-                  title: 'Topildi (Mavjud)',
-                  count: matchedAssets.length,
-                },
-                {
-                  key: 'MISSING',
-                  title: 'Kamomad / Topilmadi',
-                  count: missingAssets.length,
-                },
-                ...(unexpectedAssets.length > 0
-                  ? [
+            {/* Oxirgi 5 ta skan (Recent 5 Scans) */}
+            {renderRecentScansCard()}
+          </Col>
+
+          {/* Audit Results & Discrepancy Table */}
+          <Col xs={24} md={16}>
+            <Card
+              className="uwms-card"
+              style={{ borderRadius: 0 }}
+              title={
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    width: '100%',
+                    flexWrap: 'wrap',
+                    gap: 8,
+                  }}
+                >
+                  <span>
+                    Audit Jarayoni (Mas’ul: <b>{currentRoom?.responsibleUserName || 'MOL'}</b>)
+                  </span>
+                  <Space size="small">
+                    <Button
+                      type="outline"
+                      size="small"
+                      icon={<IconDownload />}
+                      onClick={handleExportAuditExcel}
+                      style={{ borderRadius: 0 }}
+                    >
+                      Excelga
+                    </Button>
+                    <Popconfirm
+                      title="Auditni yakunlash va Kamomadlarni (MISSING) qayd etish"
+                      content="Haqiqatan ham ushbu xona inventarizatsiyasini yakunlamoqchimisiz? Topilmagan barcha ashyolar bazada kamomad sifatida saqlanadi."
+                      okText="Ha, yakunlash"
+                      cancelText="Bekor qilish"
+                      onOk={handleCompleteAudit}
+                      disabled={!activeAuditId || isCompleted}
+                    >
+                      <Button
+                        type="primary"
+                        status="warning"
+                        size="small"
+                        icon={<IconCheckCircle />}
+                        loading={isCompleting}
+                        disabled={!activeAuditId || isCompleted}
+                        style={{ borderRadius: 0 }}
+                      >
+                        {isCompleted ? 'Audit Yakunlangan' : 'Auditni Yakunlash (DB)'}
+                      </Button>
+                    </Popconfirm>
+                    <Button
+                      type="primary"
+                      status="success"
+                      size="small"
+                      icon={<IconFile />}
+                      onClick={() => setIsDocModalVisible(true)}
+                      disabled={scannedCodes.length === 0}
+                      style={{ borderRadius: 0 }}
+                    >
+                      INV-19 Dalolatnomasi
+                    </Button>
+                  </Space>
+                </div>
+              }
+            >
+              <div style={{ marginBottom: 16 }}>
+                <StockLevelGauge
+                  percent={completionPercent}
+                  label={<span>Inventarizatsiya mosligi:</span>}
+                  subLabel={
+                    <b>
+                      {matchedAssets.length} / {expectedAssets.length} ta vosita tasdiqlandi ({completionPercent}%)
+                    </b>
+                  }
+                  status={completionPercent === 100 ? 'success' : 'normal'}
+                  color={completionPercent === 100 ? '#00B42A' : '#165DFF'}
+                  strokeWidth={8}
+                  width="100%"
+                />
+              </div>
+
+              {/* Foreign assets alert */}
+              {unexpectedAssets.length > 0 && (
+                <Alert
+                  type="warning"
+                  icon={<IconExclamationCircle />}
+                  title="Boshqa xonaga tegishli uskunalar aniqlandi!"
+                  content={
+                    <div>
+                      Quyidagi vositalar bu xonaga biriktirilmagan bo‘lsa-da, shu xonadan topildi:{' '}
+                      <b>
+                        {unexpectedAssets.map((a) => `${a.itemName} (${a.inventoryNumber})`).join(', ')}
+                      </b>
+                    </div>
+                  }
+                  style={{ marginBottom: 16, borderRadius: 0 }}
+                />
+              )}
+
+              {/* Reusable PageTabs Filter */}
+              <PageTabs
+                activeTab={activeTab}
+                onChange={setActiveTab}
+                tabs={[
+                  {
+                    key: 'ALL',
+                    title: 'Barcha Uskunalar',
+                    count: expectedAssets.length + unexpectedAssets.length,
+                  },
+                  {
+                    key: 'MATCHED',
+                    title: 'Topildi (Mavjud)',
+                    count: matchedAssets.length,
+                  },
+                  {
+                    key: 'MISSING',
+                    title: 'Kamomad / Topilmadi',
+                    count: missingAssets.length,
+                  },
+                  ...(unexpectedAssets.length > 0
+                    ? [
                       {
                         key: 'UNEXPECTED',
                         title: 'Begona Xonadan',
                         count: unexpectedAssets.length,
                       },
                     ]
-                  : []),
-              ]}
-            />
+                    : []),
+                ]}
+              />
 
-            <Table
-              rowKey="id"
-              scroll={{ x: 750 }}
-              pagination={{
-                pageSize: 10,
-                sizeCanChange: true,
-                sizeOptions: [10, 20, 50, 100],
-                showTotal: (total, range) => {
-                  if (!total || total === 0) return '0/0';
-                  const to = range ? Math.min(range[1], total) : total;
-                  return `${to}/${total}`;
-                },
-              }}
-              size="small"
-              data={getTableData()}
-              style={{ borderRadius: 0, marginTop: 12 }}
-              noDataElement={
-                <div style={{ padding: 40, textAlign: 'center' }}>
-                  <Empty description="Ushbu toifadagi uskunalar mavjud emas" />
-                </div>
-              }
-              columns={[
-                {
-                  title: 'Audit Natijasi',
-                  width: 170,
-                  render: (_, record: ItemInstance) => {
-                    const isForeign = record.roomId !== activeRoom;
-                    const isScanned = scannedCodes.includes(record.qrCode);
-
-                    if (isForeign && isScanned) {
-                      return (
-                        <Tag
-                          color="gold"
-                          icon={<IconExclamationCircle />}
-                          style={{ borderRadius: 0, fontWeight: 500 }}
-                        >
-                          Begona Xonadan
-                        </Tag>
-                      );
-                    }
-                    if (isScanned) {
-                      return (
-                        <Tag
-                          color="green"
-                          icon={<IconCheckCircle />}
-                          style={{ borderRadius: 0, fontWeight: 500 }}
-                        >
-                          Mavjud (Topildi)
-                        </Tag>
-                      );
-                    }
-                    return (
-                      <Tag
-                        color="red"
-                        icon={<IconCloseCircle />}
-                        style={{ borderRadius: 0, fontWeight: 500 }}
-                      >
-                        Kutilmoqda (Kamomad)
-                      </Tag>
-                    );
+              <Table
+                rowKey="id"
+                scroll={{ x: 750 }}
+                pagination={{
+                  pageSize: 10,
+                  sizeCanChange: true,
+                  sizeOptions: [10, 20, 50, 100],
+                  showTotal: (total, range) => {
+                    if (!total || total === 0) return '0/0';
+                    const to = range ? Math.min(range[1], total) : total;
+                    return `${to}/${total}`;
                   },
-                },
-                {
-                  title: 'Asosiy Vosita',
-                  render: (_, record: ItemInstance) => (
-                    <CategoryThumbnail
-                      icon={<IconScan />}
-                      name={record.itemName}
-                      subtitle={`Inv: ${record.inventoryNumber}${record.itemModel ? ` | ${record.itemModel}` : ''}`}
-                      tag={record.serialNumber ? `SN: ${record.serialNumber}` : undefined}
-                      color="#165DFF"
-                      bg="#E8F3FF"
-                    />
-                  ),
-                },
-                {
-                  title: 'Kutilgan Xona',
-                  dataIndex: 'roomName',
-                  width: 140,
-                  render: (val: string) => val || currentRoom?.name || '—',
-                },
-                {
-                  title: 'Mas’ul Shaxs',
-                  dataIndex: 'responsibleUserName',
-                  width: 160,
-                  render: (val: string) => val || '—',
-                },
-              ]}
-            />
-          </Card>
-        </Col>
-      </Row>
+                }}
+                size="small"
+                data={getTableData()}
+                style={{ borderRadius: 0, marginTop: 12 }}
+                noDataElement={
+                  <div style={{ padding: 40, textAlign: 'center' }}>
+                    <Empty description="Ushbu toifadagi uskunalar mavjud emas" />
+                  </div>
+                }
+                columns={[
+                  {
+                    title: 'Audit Natijasi',
+                    width: 170,
+                    render: (_, record: ItemInstance) => {
+                      const isForeign = record.roomId !== activeRoom;
+                      const isScanned = scannedCodes.includes(record.qrCode);
+
+                      if (isForeign && isScanned) {
+                        return (
+                          <Tag
+                            color="gold"
+                            icon={<IconExclamationCircle />}
+                            style={{ borderRadius: 0, fontWeight: 500 }}
+                          >
+                            Begona Xonadan
+                          </Tag>
+                        );
+                      }
+                      if (isScanned) {
+                        return (
+                          <Tag
+                            color="green"
+                            icon={<IconCheckCircle />}
+                            style={{ borderRadius: 0, fontWeight: 500 }}
+                          >
+                            Mavjud (Topildi)
+                          </Tag>
+                        );
+                      }
+                      return (
+                        <Tag
+                          color="red"
+                          icon={<IconCloseCircle />}
+                          style={{ borderRadius: 0, fontWeight: 500 }}
+                        >
+                          Kutilmoqda (Kamomad)
+                        </Tag>
+                      );
+                    },
+                  },
+                  {
+                    title: 'Asosiy Vosita',
+                    render: (_, record: ItemInstance) => (
+                      <CategoryThumbnail
+                        icon={<IconScan />}
+                        name={record.itemName}
+                        subtitle={`Inv: ${record.inventoryNumber}${record.itemModel ? ` | ${record.itemModel}` : ''}`}
+                        tag={record.serialNumber ? `SN: ${record.serialNumber}` : undefined}
+                        color="#165DFF"
+                        bg="#E8F3FF"
+                      />
+                    ),
+                  },
+                  {
+                    title: 'Kutilgan Xona',
+                    dataIndex: 'roomName',
+                    width: 140,
+                    render: (val: string) => val || currentRoom?.name || '—',
+                  },
+                  {
+                    title: 'Mas’ul Shaxs',
+                    dataIndex: 'responsibleUserName',
+                    width: 160,
+                    render: (val: string) => val || '—',
+                  },
+                ]}
+              />
+            </Card>
+          </Col>
+        </Row>
+      )}
 
       {/* Official State Standard INV-19 Document Modal */}
       <OfficialDocModal
         visible={isDocModalVisible}
         onClose={() => setIsDocModalVisible(false)}
         docType="AUDIT"
+        entityId={auditDetail?.id || currentRoom?.id}
         docNumber={auditDetail?.auditNumber || `INV-19-${currentRoom?.number || '01'}`}
         date={
           auditDetail?.completedAt
             ? new Date(auditDetail.completedAt).toLocaleDateString('uz-UZ')
             : new Date().toLocaleDateString('uz-UZ')
         }
-        sourceLocation={`${currentRoom?.number}-xona: ${currentRoom?.name}`}
-        senderName={auditDetail?.room?.responsibleUser?.fullName || currentRoom?.responsibleUserName || 'Kafedra Mas’uli (MOL)'}
-        receiverName={auditDetail?.createdBy?.fullName ? `${auditDetail.createdBy.fullName} (Bosh Auditor)` : 'Ichki Audit va Inventarizatsiya Komissiyasi'}
+        sourceLocation={currentRoom ? `${currentRoom.number}-xona: ${currentRoom.name}` : ''}
+        senderName={auditDetail?.room?.responsibleUser?.fullName || currentRoom?.responsibleUserName || ''}
+        receiverName={auditDetail?.createdBy?.fullName || user?.fullName || ''}
+        signatures={
+          auditDetail?.completedAt
+            ? [
+                {
+                  role: 'Moddiy Javobgar Shaxs',
+                  name: auditDetail.room?.responsibleUser?.fullName || currentRoom?.responsibleUserName || '',
+                  isSigned: true,
+                  signedAt: new Date(auditDetail.completedAt).toLocaleString('uz-UZ'),
+                  biometricType: 'FaceID (QR-Pairing)',
+                },
+                {
+                  role: 'Bosh Auditor',
+                  name: auditDetail.createdBy?.fullName || user?.fullName || '',
+                  isSigned: true,
+                  signedAt: new Date(auditDetail.completedAt).toLocaleString('uz-UZ'),
+                  biometricType: 'FaceID (QR-Pairing)',
+                },
+              ].filter((s) => s.name)
+            : undefined
+        }
         reason={
           auditDetail
             ? `Davriy auditorlik tekshiruvi va solishtirma qaydnomasi (${auditDetail.auditNumber}). Jami ${auditDetail.records?.length || 0} ta tekshirilgan ashyodan ${auditDetail.records?.filter((r: any) => r.status === 'MATCHED').length || 0} tasi mavjud, ${auditDetail.records?.filter((r: any) => r.status === 'MISSING').length || 0} tasi kamomad (topilmadi), ${auditDetail.records?.filter((r: any) => r.status === 'RELOCATED').length || 0} tasi begona joydan topilgan uskunalar deb qayd etildi.`

@@ -5,35 +5,19 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression = require('compression');
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { validateEnvironmentSecretsOnStartup } from './common/constants';
 
 async function bootstrap() {
-  const jwtSecret = process.env.JWT_SECRET?.trim();
-  if (!jwtSecret) {
-    console.error('FATAL ERROR: JWT_SECRET muhit o‘zgaruvchisi aniqlanmagan! Xavfsizlik tufayli backend to‘xtatildi.');
-    process.exit(1);
-  }
-
-  const isProduction = process.env.NODE_ENV === 'production';
-  const knownInsecureSecrets = [
-    'uwms_jwt_secret_dev_key_2026_super_secure',
-    'your_jwt_secret_key_change_in_production',
-    'secret',
-    'admin123',
-    'change_me',
-    'default_secret',
-  ];
-
-  if (isProduction) {
-    if (knownInsecureSecrets.includes(jwtSecret) || jwtSecret.length < 32) {
-      console.error(
-        'FATAL SECURITY ERROR: Production muhitida standart yoki zaif JWT_SECRET ishlatish qat’iyan taqiqlanadi!\n' +
-        'Iltimos, kamida 64 belgidan iborat tasodifiy kriptografik kalit o‘rnating (masalan: npm run generate:secret).',
-      );
-      process.exit(1);
-    }
-  }
+  // Pre-flight security validation of environment variables and cryptographic secrets
+  validateEnvironmentSecretsOnStartup();
 
   const app = await NestFactory.create(AppModule);
+
+  // Trust proxy for accurate client IP identification and rate limiting behind reverse proxy (Nginx)
+  const expressInstance = app.getHttpAdapter().getInstance();
+  if (expressInstance && typeof expressInstance.set === 'function') {
+    expressInstance.set('trust proxy', true);
+  }
 
   // 1. HTTP Response Compression (Gzip / Deflate for fast JSON payloads)
   app.use(compression());
@@ -60,7 +44,7 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Idempotency-Key', 'idempotency-key', 'X-Requested-With'],
   });
 
   // 4. Global Exception Filter

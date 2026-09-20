@@ -48,7 +48,6 @@ export class UploadsService {
       'image/png',
       'image/webp',
       'image/gif',
-      'image/svg+xml',
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -58,8 +57,22 @@ export class UploadsService {
 
     if (!allowedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException(
-        `Ruxsat etilmagan fayl formati (${file.mimetype}). Faqat rasm (JPG, PNG, WebP, SVG) yoki hujjat (PDF, DOC, DOCX, XLS, XLSX) yuklash mumkin!`,
+        `Ruxsat etilmagan fayl formati (${file.mimetype}). Faqat xavfsiz rasm (JPG, PNG, WebP, GIF) yoki hujjat (PDF, DOC, DOCX, XLS, XLSX) yuklash mumkin!`,
       );
+    }
+
+    // Magic bytes tekshiruvi (Soxta MIME type va bufer xavfsizligi)
+    const buf = file.buffer;
+    const isJpeg = buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+    const isPng = buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+    const isGif = buf.length > 4 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38;
+    const isPdf = buf.length > 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46;
+    const isWebp = buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP';
+    const isZipDoc = buf.length > 4 && buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04;
+    const isOleDoc = buf.length > 8 && buf[0] === 0xd0 && buf[1] === 0xcf && buf[2] === 0x11 && buf[3] === 0xe0;
+
+    if (!isJpeg && !isPng && !isGif && !isPdf && !isWebp && !isZipDoc && !isOleDoc) {
+      throw new BadRequestException('Fayl haqiqiy format tekshiruvidan (magic bytes) o‘tmadi!');
     }
 
     const maxSizeBytes = 15 * 1024 * 1024; // 15MB

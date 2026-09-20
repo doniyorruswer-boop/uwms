@@ -131,6 +131,7 @@ export class DashboardService {
       IN_USE: 0,
       IN_REPAIR: 0,
       WRITTEN_OFF: 0,
+      MISSING: 0,
     };
 
     for (const asset of assets) {

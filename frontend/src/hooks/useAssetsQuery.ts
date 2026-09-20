@@ -4,7 +4,7 @@ import { API_ENDPOINTS } from '../constants';
 import type { ItemInstance } from '../types';
 import { Message } from '@arco-design/web-react';
 
-export function useAssetsQuery(params?: { search?: string; status?: string; roomId?: string; page?: number; limit?: number }) {
+export function useAssetsQuery(params?: { search?: string; status?: string; roomId?: string; fundingSource?: string; page?: number; limit?: number }) {
   const queryClient = useQueryClient();
 
   const assetsQuery = useQuery({
@@ -71,6 +71,35 @@ export function useAssetsQuery(params?: { search?: string; status?: string; room
     },
   });
 
+  const previewImportMutation = useMutation({
+    mutationFn: async (rows: any[]) => {
+      const res = await apiClient.post(API_ENDPOINTS.ASSETS.IMPORT_PREVIEW, { rows });
+      return res.data;
+    },
+    onError: (err: any) => {
+      Message.error(err.response?.data?.message || 'Dastlabki tekshiruvda xatolik yuz berdi!');
+    },
+  });
+
+  const downloadImportTemplate = async () => {
+    try {
+      const res = await apiClient.get(API_ENDPOINTS.ASSETS.IMPORT_TEMPLATE, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'UWMS_Aktivlar_Import_Shablon.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      Message.success('Shablon yuklab olindi!');
+    } catch (err: any) {
+      Message.error('Shablonni yuklab olishda xatolik yuz berdi!');
+    }
+  };
+
   const importExcelMutation = useMutation({
     mutationFn: async (rows: Array<{
       itemName: string;
@@ -81,15 +110,21 @@ export function useAssetsQuery(params?: { search?: string; status?: string; room
       purchasePrice?: number;
       fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT';
       roomNumber?: string;
+      responsibleUsername?: string;
       warrantyMonths?: number;
     }>) => {
-      const res = await apiClient.post(API_ENDPOINTS.ASSETS.IMPORT_EXCEL, { rows });
+      const res = await apiClient.post(API_ENDPOINTS.ASSETS.IMPORT, { rows });
       return res.data;
     },
     onSuccess: (data) => {
-      Message.success(`${data.importedCount} ta asosiy vosita muvaffaqiyatli import qilindi!`);
+      if (data.failedCount > 0) {
+        Message.warning(`${data.importedCount} ta asosiy vosita import qilindi, ${data.failedCount} ta qatorda xatolik aniqlandi.`);
+      } else {
+        Message.success(`${data.importedCount} ta asosiy vosita muvaffaqiyatli import qilindi!`);
+      }
       queryClient.invalidateQueries({ queryKey: ['assets'] });
       queryClient.invalidateQueries({ queryKey: ['stocks'] });
+      queryClient.invalidateQueries({ queryKey: ['inbox'] });
     },
     onError: (err: any) => {
       Message.error(err.response?.data?.message || 'Excel import qilishda xatolik yuz berdi!');
@@ -144,6 +179,9 @@ export function useAssetsQuery(params?: { search?: string; status?: string; room
     writeOffAsset: writeOffMutation.mutateAsync,
     importExcelAssets: importExcelMutation.mutateAsync,
     isImporting: importExcelMutation.isPending,
+    previewImport: previewImportMutation.mutateAsync,
+    isPreviewing: previewImportMutation.isPending,
+    downloadImportTemplate,
     returnAsset: returnAssetMutation.mutateAsync,
     isReturning: returnAssetMutation.isPending,
     massMolHandoff: massMolHandoffMutation.mutateAsync,
@@ -153,6 +191,7 @@ export function useAssetsQuery(params?: { search?: string; status?: string; room
 
 export interface TransferItem {
   id: string;
+  documentNumber?: string;
   assetId: string;
   assetName: string;
   assetModel?: string;
@@ -169,6 +208,29 @@ export interface TransferItem {
   receiverId?: string;
   createdAt: string;
   acceptedAt?: string;
+}
+
+export interface CategoryItem {
+  id: string;
+  name: string;
+  code?: string;
+}
+
+export function useCategoriesQuery() {
+  const query = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const res = await apiClient.get<CategoryItem[]>(API_ENDPOINTS.ASSETS.CATEGORIES);
+      return res.data;
+    },
+  });
+
+  return {
+    categories: query.data || [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    refetch: query.refetch,
+  };
 }
 
 export function useTransfersQuery(params?: { status?: string; receiverId?: string }) {

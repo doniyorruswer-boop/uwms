@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
 import * as bcrypt from 'bcrypt';
@@ -9,8 +10,38 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private configService: ConfigService,
     private systemAuditService: SystemAuditService,
   ) {}
+
+  private async generateTokens(user: { id: string; username: string; role: any }) {
+    const payload = { sub: user.id, username: user.username, role: user.role };
+    const accessSecret = this.configService.get<string>('JWT_SECRET') || 'uwms_super_secret_jwt_key_2026';
+    const accessExpiresIn = (this.configService.get<string>('JWT_EXPIRES_IN') || '15m') as any;
+
+    const refreshSecret =
+      this.configService.get<string>('JWT_REFRESH_SECRET') || accessSecret;
+    const refreshExpiresIn = (this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d') as any;
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(
+        { ...payload, tokenType: 'access' },
+        {
+          secret: accessSecret,
+          expiresIn: accessExpiresIn,
+        },
+      ),
+      this.jwtService.signAsync(
+        { ...payload, tokenType: 'refresh' },
+        {
+          secret: refreshSecret,
+          expiresIn: refreshExpiresIn,
+        },
+      ),
+    ]);
+
+    return { accessToken, refreshToken };
+  }
 
   async validateUser(username: string, pass: string): Promise<any> {
     const user = await this.prisma.user.findUnique({
@@ -21,7 +52,7 @@ export class AuthService {
     if (user && user.isActive) {
       const isMatch = await bcrypt.compare(pass, user.password);
       if (isMatch) {
-        const { password, ...result } = user;
+        const { password, hashedRefreshToken, ...result } = user as any;
         return result;
       }
     }
@@ -34,9 +65,22 @@ export class AuthService {
       throw new UnauthorizedException('Login yoki parol noto‘g‘ri kiritildi!');
     }
 
-    const payload = { sub: user.id, username: user.username, role: user.role };
+    const { accessToken, refreshToken } = await this.generateTokens({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+    });
+
+    // Refresh tokenni bcrypt bilan xeshlash va bazaga saqlash
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { hashedRefreshToken },
+    });
+
     return {
-      access_token: this.jwtService.sign(payload),
+      access_token: accessToken,
+      refresh_token: refreshToken,
       mustChangePassword: user.mustChangePassword,
       user: {
         id: user.id,
@@ -48,6 +92,68 @@ export class AuthService {
         mustChangePassword: user.mustChangePassword,
         departmentName: user.department?.name,
       },
+    };
+  }
+
+  async refreshToken(refreshToken: string) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token kiritilishi shart!');
+    }
+
+    const accessSecret = this.configService.get<string>('JWT_SECRET') || 'uwms_super_secret_jwt_key_2026';
+    const refreshSecret =
+      this.configService.get<string>('JWT_REFRESH_SECRET') || accessSecret;
+
+    let payload: any;
+    try {
+      payload = await this.jwtService.verifyAsync(refreshToken, {
+        secret: refreshSecret,
+      });
+    } catch {
+      throw new UnauthorizedException('Refresh token yaroqsiz yoki muddati tugagan!');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      include: { department: true },
+    });
+
+    if (!user || !user.isActive || !user.hashedRefreshToken) {
+      throw new UnauthorizedException('Foydalanuvchi topilmadi yoki sessiya bekor qilingan!');
+    }
+
+    const isMatch = await bcrypt.compare(refreshToken, user.hashedRefreshToken);
+    if (!isMatch) {
+      throw new UnauthorizedException('Refresh token xavfsizlik tekshiruvidan o‘tmadi!');
+    }
+
+    const tokens = await this.generateTokens({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+    });
+
+    const newHashed = await bcrypt.hash(tokens.refreshToken, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { hashedRefreshToken: newHashed },
+    });
+
+    return {
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+    };
+  }
+
+  async logout(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { hashedRefreshToken: null },
+    });
+
+    return {
+      success: true,
+      message: 'Tizimdan muvaffaqiyatli chiqildi',
     };
   }
 

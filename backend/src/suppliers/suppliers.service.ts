@@ -27,6 +27,12 @@ export class SuppliersService {
   async getAllSuppliers(query?: QuerySuppliersDto) {
     const where: Prisma.SupplierWhereInput = {};
 
+    if (query?.showDeleted) {
+      where.deletedAt = { not: null };
+    } else {
+      where.deletedAt = null;
+    }
+
     if (query?.search && query.search.trim().length > 0) {
       const q = query.search.trim();
       where.OR = [
@@ -43,6 +49,13 @@ export class SuppliersService {
         invoices: {
           orderBy: { createdAt: 'desc' },
           take: 5,
+        },
+        itemInstances: {
+          select: {
+            id: true,
+            fundingSource: true,
+            purchasePrice: true,
+          },
         },
         _count: {
           select: { invoices: true, itemInstances: true, movements: true },
@@ -70,11 +83,41 @@ export class SuppliersService {
       where: { contractNumber: { not: null } },
     });
 
+    const fundingSummary = {
+      BYUDJET: { count: 0, totalAmount: 0 },
+      KONTRAKT_RIVOJLANTIRISH: { count: 0, totalAmount: 0 },
+      GRANT: { count: 0, totalAmount: 0 },
+    };
+
+    try {
+      if (this.prisma.itemInstance?.groupBy) {
+        const fundingStats = await this.prisma.itemInstance.groupBy({
+          by: ['fundingSource'],
+          where: { supplierId: { not: null } },
+          _count: { id: true },
+          _sum: { purchasePrice: true },
+        });
+
+        fundingStats?.forEach((stat: any) => {
+          const src = stat.fundingSource as string;
+          if (fundingSummary[src as keyof typeof fundingSummary]) {
+            fundingSummary[src as keyof typeof fundingSummary] = {
+              count: stat._count?.id || 0,
+              totalAmount: Number(stat._sum?.purchasePrice || 0),
+            };
+          }
+        });
+      }
+    } catch {
+      // Gracefully fall back if groupBy is unavailable
+    }
+
     return {
       totalSuppliers,
       activeContractsCount,
       totalInvoices,
       totalInvoiceAmount,
+      fundingSummary,
     };
   }
 
@@ -113,7 +156,55 @@ export class SuppliersService {
       throw new NotFoundException('Ta’minotchi topilmadi!');
     }
 
-    return supplier;
+    const fundingSummary = {
+      BYUDJET: { count: 0, totalAmount: 0 },
+      KONTRAKT_RIVOJLANTIRISH: { count: 0, totalAmount: 0 },
+      GRANT: { count: 0, totalAmount: 0 },
+    };
+
+    try {
+      if (this.prisma.itemInstance?.groupBy) {
+        const fundingBreakdownRaw = await this.prisma.itemInstance.groupBy({
+          by: ['fundingSource'],
+          where: { supplierId: id },
+          _count: { id: true },
+          _sum: { purchasePrice: true },
+        });
+
+        fundingBreakdownRaw?.forEach((stat: any) => {
+          const src = stat.fundingSource as string;
+          if (fundingSummary[src as keyof typeof fundingSummary]) {
+            fundingSummary[src as keyof typeof fundingSummary] = {
+              count: stat._count?.id || 0,
+              totalAmount: Number(stat._sum?.purchasePrice || 0),
+            };
+          }
+        });
+      } else if (supplier.itemInstances) {
+        // Fallback using loaded itemInstances
+        supplier.itemInstances.forEach((inst: any) => {
+          const src = inst.fundingSource as string;
+          if (fundingSummary[src as keyof typeof fundingSummary]) {
+            fundingSummary[src as keyof typeof fundingSummary].count += 1;
+            fundingSummary[src as keyof typeof fundingSummary].totalAmount += Number(inst.purchasePrice || 0);
+          }
+        });
+      }
+    } catch {
+      // In case of error calculate from supplier.itemInstances
+      supplier.itemInstances?.forEach((inst: any) => {
+        const src = inst.fundingSource as string;
+        if (fundingSummary[src as keyof typeof fundingSummary]) {
+          fundingSummary[src as keyof typeof fundingSummary].count += 1;
+          fundingSummary[src as keyof typeof fundingSummary].totalAmount += Number(inst.purchasePrice || 0);
+        }
+      });
+    }
+
+    return {
+      ...supplier,
+      fundingSummary,
+    };
   }
 
   async createSupplier(dto: CreateSupplierDto, executorId?: string) {
@@ -230,34 +321,26 @@ export class SuppliersService {
   async deleteSupplier(id: string, executorId?: string) {
     const existing = await this.prisma.supplier.findUnique({
       where: { id },
-      include: {
-        _count: {
-          select: { invoices: true, itemInstances: true, movements: true },
-        },
-      },
     });
 
     if (!existing) {
       throw new NotFoundException('O‘chirilayotgan ta’minotchi topilmadi!');
     }
 
-    if (
-      existing._count.itemInstances > 0 ||
-      existing._count.movements > 0 ||
-      existing._count.invoices > 0
-    ) {
-      throw new BadRequestException(
-        `Ushbu ta’minotchiga biriktirilgan ashyolar (${existing._count.itemInstances} ta), ombor harakatlari (${existing._count.movements} ta) yoki hisob-fakturalar (${existing._count.invoices} ta) mavjud. Ma’lumotlar butunligi uchun uni o‘chirish taqiqlanadi!`,
-      );
+    if (existing.deletedAt) {
+      throw new BadRequestException('Ushbu ta’minotchi allaqachon o‘chirilgan!');
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.supplier.delete({ where: { id } });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      return tx.supplier.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
     });
 
     if (executorId) {
       await this.systemAuditService.log({
-        action: 'SUPPLIER_DELETED',
+        action: 'SOFT_DELETE',
         entity: 'Supplier',
         entityId: id,
         userId: executorId,
@@ -269,7 +352,43 @@ export class SuppliersService {
       });
     }
 
-    return { success: true, message: 'Ta’minotchi muvaffaqiyatli o‘chirildi' };
+    return { success: true, message: 'Ta’minotchi muvaffaqiyatli o‘chirildi (Soft delete)' };
+  }
+
+  async restoreSupplier(id: string, executorId?: string) {
+    const existing = await this.prisma.supplier.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Ta’minotchi topilmadi!');
+    }
+
+    if (!existing.deletedAt) {
+      throw new BadRequestException('Ushbu ta’minotchi o‘chirilmagan!');
+    }
+
+    const restored = await this.prisma.$transaction(async (tx) => {
+      return tx.supplier.update({
+        where: { id },
+        data: { deletedAt: null },
+      });
+    });
+
+    if (executorId) {
+      await this.systemAuditService.log({
+        action: 'RESTORE',
+        entity: 'Supplier',
+        entityId: id,
+        userId: executorId,
+        details: {
+          name: existing.name,
+          inn: existing.inn,
+        },
+      });
+    }
+
+    return restored;
   }
 
   async createInvoice(supplierId: string, dto: CreateInvoiceDto, executorId?: string) {

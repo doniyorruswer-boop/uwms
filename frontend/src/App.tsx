@@ -7,6 +7,7 @@ import { AppRoutes } from './routes/AppRoutes';
 import { useAuthStore } from './store/authStore';
 import { useLanguageStore } from './store/languageStore';
 import { getArcoLocale } from './locales/arcoLocales';
+import { ErrorBoundary } from './components/Common/ErrorBoundary';
 import './locales/i18n';
 
 export function App() {
@@ -43,9 +44,11 @@ export function App() {
           },
         }}
       >
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
+        <ErrorBoundary>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </ErrorBoundary>
       </ConfigProvider>
     </QueryClientProvider>
   );

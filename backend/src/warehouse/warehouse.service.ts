@@ -1,23 +1,37 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
+import { SequenceService } from '../common/services/sequence.service';
+import { DocumentStampsService } from '../document-stamps/document-stamps.service';
+import { SystemAuditService } from '../system-audit/system-audit.service';
 import { IngestStockDto, InterWarehouseTransferDto } from './dto/warehouse.dto';
+import { CreateWarehouseDto, UpdateWarehouseDto } from './dto/warehouse-crud.dto';
 
 @Injectable()
 export class WarehouseService {
   constructor(
     private prisma: PrismaService,
     private codeGen: CodeGeneratorService,
+    private systemAuditService: SystemAuditService,
+    @Optional() private sequenceService?: SequenceService,
+    @Optional() private documentStampsService?: DocumentStampsService,
   ) {}
 
-  async getStocks(query?: { search?: string; categoryId?: string; page?: number | string; limit?: number | string }) {
+  async getStocks(query?: { search?: string; categoryId?: string; fundingSource?: string; page?: number | string; limit?: number | string }) {
     const where: any = {};
+    const itemCondition: any = { deletedAt: null };
     if (query?.categoryId && query.categoryId !== 'ALL') {
-      where.item = { categoryId: query.categoryId };
+      itemCondition.categoryId = query.categoryId;
     }
+    where.item = itemCondition;
+
+    if (query?.fundingSource && query.fundingSource !== 'ALL') {
+      where.fundingSource = query.fundingSource as any;
+    }
+
     if (query?.search) {
       where.OR = [
-        { item: { name: { contains: query.search, mode: 'insensitive' } } },
+        { item: { name: { contains: query.search, mode: 'insensitive' }, deletedAt: null } },
         { warehouse: { name: { contains: query.search, mode: 'insensitive' } } },
       ];
     }
@@ -80,7 +94,41 @@ export class WarehouseService {
     return mapped;
   }
 
-  async replenishStock(stockId: string, amount: number, executedById?: string) {
+  async getLowStockItems() {
+    const stocks = await this.prisma.stock.findMany({
+      include: {
+        warehouse: true,
+        item: { include: { category: true } },
+      },
+      orderBy: { quantity: 'asc' },
+    });
+
+    return stocks
+      .filter((s) => s.quantity <= (s.item?.minStockLimit ?? 5))
+      .map((s) => ({
+        id: s.id,
+        stockId: s.id,
+        warehouseId: s.warehouseId,
+        warehouseName: s.warehouse.name,
+        itemId: s.itemId,
+        itemName: s.item.name,
+        model: s.item.model || null,
+        categoryName: s.item.category?.name || 'Boshqa',
+        unit: s.item.unit,
+        quantity: s.quantity,
+        minStockLimit: s.item.minStockLimit,
+        deficit: Math.max(0, s.item.minStockLimit - s.quantity),
+        recommendedOrderQty: Math.max(10, s.item.minStockLimit * 2 - s.quantity),
+        fundingSource: s.fundingSource,
+        status: 'LOW' as const,
+      }));
+  }
+
+  async replenishStock(stockId: string, amount: number, executedById?: string, fundingSource?: string) {
+    if (!amount || amount <= 0) {
+      throw new BadRequestException('Kirim miqdori noldan katta (musbat son) bo‘lishi shart!');
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const stock = await tx.stock.findUnique({
         where: { id: stockId },
@@ -88,26 +136,53 @@ export class WarehouseService {
       });
       if (!stock) throw new NotFoundException('Tovar qoldig‘i topilmadi!');
 
-      const updated = await tx.stock.update({
-        where: { id: stockId },
-        data: {
-          quantity: { increment: amount },
-        },
-      });
+      const targetFunding = (fundingSource || stock.fundingSource) as any;
+      let targetStock: any;
+
+      if (fundingSource && fundingSource !== stock.fundingSource) {
+        targetStock = await tx.stock.upsert({
+          where: {
+            warehouseId_itemId_fundingSource: {
+              warehouseId: stock.warehouseId,
+              itemId: stock.itemId,
+              fundingSource: targetFunding,
+            },
+          },
+          update: {
+            quantity: { increment: amount },
+          },
+          create: {
+            warehouseId: stock.warehouseId,
+            itemId: stock.itemId,
+            quantity: amount,
+            fundingSource: targetFunding,
+          },
+          include: { item: true, warehouse: true },
+        });
+      } else {
+        targetStock = await tx.stock.update({
+          where: { id: stockId },
+          data: {
+            quantity: { increment: amount },
+          },
+          include: { item: true, warehouse: true },
+        });
+      }
 
       // Log movement journal with sequential number
-      const movementCount = await tx.stockMovement.count();
-      const movNum = this.codeGen.generateMovementNumber(movementCount + 1);
+      const movNum = this.sequenceService
+        ? await this.sequenceService.nextMovementNumber(tx)
+        : this.codeGen.generateMovementNumber((await tx.stockMovement.count()) + 1);
 
       const movement = await tx.stockMovement.create({
         data: {
           movementNumber: movNum,
           movementType: 'INCOMING',
           referenceDoc: 'Kirim dalolatnomasi',
-          note: `Ombor zaxirasini to‘ldirish (+${amount} ${stock.item.unit})`,
+          note: `Ombor zaxirasini to‘ldirish (+${amount} ${stock.item.unit}) [${targetFunding}]`,
           executedById: executedById || (await tx.user.findFirst({ where: { role: 'HEAD_WAREHOUSE' } }))!.id,
           toWarehouseId: stock.warehouseId,
-          fundingSource: stock.fundingSource,
+          fundingSource: targetFunding,
         },
       });
 
@@ -116,13 +191,13 @@ export class WarehouseService {
           movementId: movement.id,
           itemId: stock.itemId,
           quantity: amount,
-          note: 'Kirim qilindi',
+          note: `Kirim qilindi (${targetFunding})`,
         },
       });
 
       return {
-        ...updated,
-        status: updated.quantity <= stock.item.minStockLimit ? 'LOW' : 'NORMAL',
+        ...targetStock,
+        status: targetStock.quantity <= stock.item.minStockLimit ? 'LOW' : 'NORMAL',
       };
     });
   }
@@ -132,7 +207,11 @@ export class WarehouseService {
       throw new BadRequestException('Kirim qilish uchun kamida bitta mahsulot ko‘rsatilishi shart!');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    if (dto.items.some((i) => !i.quantity || i.quantity <= 0)) {
+      throw new BadRequestException('Barcha mahsulotlar miqdori noldan katta bo‘lishi shart!');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. Check supplier
       const supplier = await tx.supplier.findUnique({
         where: { id: dto.supplierId },
@@ -151,9 +230,12 @@ export class WarehouseService {
       const warehouse = await tx.warehouse.findUnique({ where: { id: warehouseId } });
 
       // 3. Resolve or create Invoice
-      const invoiceCount = await tx.invoice.count();
-      const invoiceNumber =
-        dto.invoiceNumber?.trim() || this.codeGen.generateInvoiceNumber(invoiceCount + 1);
+      let invoiceNumber = dto.invoiceNumber?.trim();
+      if (!invoiceNumber) {
+        invoiceNumber = this.sequenceService
+          ? await this.sequenceService.nextInvoiceNumber(tx)
+          : this.codeGen.generateInvoiceNumber((await tx.invoice.count()) + 1);
+      }
 
       let invoice = await tx.invoice.findUnique({ where: { invoiceNumber } });
       if (!invoice) {
@@ -252,8 +334,12 @@ export class WarehouseService {
             createdInstances.push(instance);
           }
 
+          const firstInv = createdInstances[createdInstances.length - entry.quantity]?.inventoryNumber || '—';
+          const lastInv = createdInstances[createdInstances.length - 1]?.inventoryNumber || firstInv;
+          const displayInv = entry.quantity > 1 ? `${firstInv} ... ${lastInv}` : firstInv;
+
           docItems.push({
-            inventoryNumber: this.codeGen.generateInventoryNumber(assetSeq - entry.quantity + 1),
+            inventoryNumber: displayInv,
             name: item.name,
             model: item.model || 'Standart',
             serialNumber: entry.serialNumbers?.[0] || '—',
@@ -262,34 +348,26 @@ export class WarehouseService {
             price: entry.purchasePrice || 0,
           });
         } else {
-          // Consumable stock replenishment
-          const existingStock = await tx.stock.findUnique({
+          // Consumable stock replenishment (ATOMIC UPSERT)
+          const funding = (dto.fundingSource || 'BYUDJET') as any;
+          await tx.stock.upsert({
             where: {
-              warehouseId_itemId: {
+              warehouseId_itemId_fundingSource: {
                 warehouseId: warehouse!.id,
                 itemId: item.id,
+                fundingSource: funding,
               },
             },
+            update: {
+              quantity: { increment: entry.quantity },
+            },
+            create: {
+              warehouseId: warehouse!.id,
+              itemId: item.id,
+              quantity: entry.quantity,
+              fundingSource: funding,
+            },
           });
-
-          if (existingStock) {
-            await tx.stock.update({
-              where: { id: existingStock.id },
-              data: {
-                quantity: existingStock.quantity + entry.quantity,
-                fundingSource: dto.fundingSource || existingStock.fundingSource,
-              },
-            });
-          } else {
-            await tx.stock.create({
-              data: {
-                warehouseId: warehouse!.id,
-                itemId: item.id,
-                quantity: entry.quantity,
-                fundingSource: dto.fundingSource || 'BYUDJET',
-              },
-            });
-          }
 
           docItems.push({
             inventoryNumber: `OMBOR-${item.sku || 'SARF'}`,
@@ -310,7 +388,10 @@ export class WarehouseService {
       }
 
       // 5. Create StockMovement (INCOMING)
-      const movNumber = this.codeGen.generateMovementNumber(movementCount + 1);
+      const movNumber = this.sequenceService
+        ? await this.sequenceService.nextMovementNumber(tx)
+        : this.codeGen.generateMovementNumber((await tx.stockMovement.count()) + 1);
+
       const movement = await tx.stockMovement.create({
         data: {
           movementNumber: movNumber,
@@ -329,7 +410,9 @@ export class WarehouseService {
       });
 
       // 6. Generate official OS-1 Receipt Act data
-      const docNumber = this.codeGen.generateDocNumber('OS1', movementCount + 1);
+      const docNumber = this.sequenceService
+        ? await this.sequenceService.nextDocNumber('OS1', tx)
+        : this.codeGen.generateDocNumber('OS1', (await tx.stockMovement.count()));
 
       return {
         success: true,
@@ -351,12 +434,46 @@ export class WarehouseService {
         },
       };
     });
+
+    if (this.documentStampsService && result?.officialDoc?.docNumber) {
+      try {
+        const executor = dto.executedById
+          ? await this.prisma.user.findUnique({ where: { id: dto.executedById } })
+          : null;
+
+        const stamp = await this.documentStampsService.stampDocument({
+          docType: 'OS_1',
+          docNumber: result.officialDoc.docNumber,
+          title: `Kirim va Topshirish-Qabul Qilish Dalolatnomasi (OS-1) — Faktura № ${result.invoiceNumber}`,
+          signerName: executor?.fullName || 'Bosh Omborchi',
+          signerRole: executor?.position || 'Bosh ombor mudiri',
+          metadata: {
+            invoiceNumber: result.invoiceNumber,
+            movementNumber: result.movementNumber,
+            fundingSource: dto.fundingSource || 'BYUDJET',
+            itemsCount: dto.items.length,
+          },
+        });
+        if (stamp) {
+          (result.officialDoc as any).stampId = stamp.id;
+          (result.officialDoc as any).verificationUrl = stamp.verificationUrl;
+          (result as any).stampId = stamp.id;
+        }
+      } catch (stampErr) {
+        // Safe fallback
+      }
+    }
+
+    return result;
   }
 
-  async getMovements(query?: { search?: string; type?: string; page?: number | string; limit?: number | string }) {
+  async getMovements(query?: { search?: string; type?: string; fundingSource?: string; page?: number | string; limit?: number | string }) {
     const where: any = {};
     if (query?.type && query.type !== 'ALL') {
       where.movementType = query.type as any;
+    }
+    if (query?.fundingSource && query.fundingSource !== 'ALL') {
+      where.fundingSource = query.fundingSource as any;
     }
     if (query?.search) {
       where.OR = [
@@ -407,6 +524,35 @@ export class WarehouseService {
           0,
         ];
 
+    const docNumbers = movements
+      .map((m) => m.referenceDoc)
+      .filter((doc): doc is string => Boolean(doc && doc.trim().length > 0));
+    const movNumbers = movements.map((m) => m.movementNumber);
+
+    const stamps = await this.prisma.documentStamp.findMany({
+      where: {
+        OR: [
+          { docNumber: { in: docNumbers } },
+          { docNumber: { in: movNumbers } },
+        ],
+        isValid: true,
+      },
+      select: {
+        id: true,
+        docNumber: true,
+        docType: true,
+        signerName: true,
+        signerRole: true,
+        isValid: true,
+        createdAt: true,
+      },
+    });
+
+    const stampMap = new Map<string, (typeof stamps)[0]>();
+    for (const s of stamps) {
+      stampMap.set(s.docNumber, s);
+    }
+
     const mapped = movements.map((m) => {
       const firstItem = m.items[0];
       const itemSummary = firstItem
@@ -421,17 +567,30 @@ export class WarehouseService {
         m.toWarehouse?.name ||
         (m.toRoom ? `${m.toRoom.number}-xona (${m.toRoom.name})` : 'Taqsimot');
 
+      const stamp = (m.referenceDoc ? stampMap.get(m.referenceDoc) : null) || stampMap.get(m.movementNumber);
+
       return {
         id: m.id,
         movementNumber: m.movementNumber,
         movementType: m.movementType,
         fundingSource: m.fundingSource,
-        referenceDoc: m.referenceDoc || 'Ichki hujjat',
+        referenceDoc: m.referenceDoc || null,
         executedByName: m.executedBy?.fullName || 'Bosh omborchi',
         sourceLocation,
         targetLocation,
         createdAt: m.createdAt.toISOString().replace('T', ' ').substring(0, 16),
         itemSummary,
+        stamp: stamp
+          ? {
+              id: stamp.id,
+              docNumber: stamp.docNumber,
+              docType: stamp.docType,
+              isValid: stamp.isValid,
+              signerName: stamp.signerName,
+              signerRole: stamp.signerRole,
+            }
+          : null,
+        hasWormStamp: Boolean(stamp && stamp.isValid),
         items: m.items.map((it) => ({
           name: it.item.name,
           quantity: it.quantity,
@@ -507,9 +666,10 @@ export class WarehouseService {
       // 3. Increment / upsert target stock
       await tx.stock.upsert({
         where: {
-          warehouseId_itemId: {
+          warehouseId_itemId_fundingSource: {
             warehouseId: dto.toWarehouseId,
             itemId: dto.itemId,
+            fundingSource: sourceStock.fundingSource as any,
           },
         },
         update: {
@@ -558,5 +718,472 @@ export class WarehouseService {
         toWarehouse: targetWh.name,
       };
     });
+  }
+
+  /**
+   * Domain-Driven: Safely and atomically deducts stock when a request is fulfilled.
+   * Enforces row-level locking (FOR UPDATE), checks quantity, updates atomically,
+   * creates OUTGOING StockMovement and movement items, and returns low-stock alerts.
+   */
+  async deductStockForRequest(
+    request: {
+      id: string;
+      requestNumber: string;
+      purpose: string;
+      requesterId: string;
+      fundingSource?: string | null;
+      items: Array<{
+        id: string;
+        itemId: string;
+        requestedQty: number;
+        approvedQty?: number | null;
+        item: { name: string; unit: string; minStockLimit: number };
+      }>;
+    },
+    executorId: string,
+    tx?: any,
+  ): Promise<{
+    movement: any;
+    lowStockAlerts: Array<{ name: string; remainingQty: number; minLimit: number; unit: string }>;
+  }> {
+    const client = tx || this.prisma;
+    const warehouse =
+      (await client.warehouse.findFirst({ where: { isMain: true } })) ||
+      (await client.warehouse.findFirst());
+
+    if (!warehouse) {
+      throw new NotFoundException('Tizimda asosiy ombor topilmadi!');
+    }
+
+    // 1. Qator darajasida bloklash (SELECT ... FOR UPDATE) va barcha mahsulotlar qoldig‘ini tekshirish
+    const lockedStockEntries: Array<{
+      stock: { id: string; quantity: number };
+      reqItem: (typeof request.items)[0];
+    }> = [];
+
+    for (const reqItem of request.items) {
+      const lockedStocks = await client.$queryRaw<
+        Array<{ id: string; quantity: number }>
+      >`
+        SELECT id, quantity
+        FROM stocks
+        WHERE "warehouseId" = ${warehouse.id} AND "itemId" = ${reqItem.itemId}
+        FOR UPDATE
+      `;
+
+      const stock = lockedStocks[0];
+
+      if (!stock || stock.quantity < reqItem.requestedQty) {
+        const currentQty = stock?.quantity ?? 0;
+        throw new BadRequestException(
+          `Omborda "${reqItem.item.name}" mahsulotidan yetarli qoldiq mavjud emas! Mavjud qoldiq: ${currentQty} ${reqItem.item.unit}, Talab qilingan: ${reqItem.requestedQty} ${reqItem.item.unit}. Operatsiya to‘xtatildi.`,
+        );
+      }
+
+      lockedStockEntries.push({ stock, reqItem });
+    }
+
+    // 2. Chiqim harakati (StockMovement) jurnalini yaratish
+    const movNum = this.sequenceService
+      ? await this.sequenceService.nextMovementNumber(client)
+      : this.codeGen.generateMovementNumber((await client.stockMovement.count()) + 1);
+
+    const movement = await client.stockMovement.create({
+      data: {
+        movementNumber: movNum,
+        movementType: 'OUTGOING',
+        referenceDoc: request.requestNumber,
+        note: `Talabnoma bo‘yicha tarqatildi: ${request.purpose}`,
+        executedById: executorId,
+        fromWarehouseId: warehouse.id,
+      },
+    });
+
+    const lowStockAlerts: Array<{ name: string; remainingQty: number; minLimit: number; unit: string }> = [];
+
+    // 3. Qoldiqlarni atomik kamaytirish
+    for (const { stock, reqItem } of lockedStockEntries) {
+      const updateCount = await client.$executeRaw`
+        UPDATE stocks
+        SET quantity = quantity - ${reqItem.requestedQty}, "updatedAt" = NOW()
+        WHERE id = ${stock.id} AND quantity >= ${reqItem.requestedQty}
+      `;
+
+      if (updateCount === 0) {
+        throw new BadRequestException(
+          `Omborda "${reqItem.item.name}" mahsulotidan yetarli qoldiq mavjud emas! Parallel tranzaksiya tufayli qoldiq yetmadi.`,
+        );
+      }
+
+      await client.stockMovementItem.create({
+        data: {
+          movementId: movement.id,
+          itemId: reqItem.itemId,
+          quantity: reqItem.requestedQty,
+          note: `Berilgan miqdor: ${reqItem.requestedQty}`,
+        },
+      });
+
+      const remainingQty = stock.quantity - reqItem.requestedQty;
+      if (remainingQty <= reqItem.item.minStockLimit) {
+        lowStockAlerts.push({
+          name: reqItem.item.name,
+          remainingQty,
+          minLimit: reqItem.item.minStockLimit,
+          unit: reqItem.item.unit,
+        });
+      }
+    }
+
+    return { movement, lowStockAlerts };
+  }
+
+  /**
+   * Domain-Driven: Safely and atomically ingests procurement items into warehouse stock.
+   * Atomically upserts stock records and creates INCOMING StockMovement and movement items.
+   */
+  async receiveStockForRequest(
+    request: {
+      id: string;
+      requestNumber: string;
+      purpose: string;
+      requesterId: string;
+      fundingSource?: string | null;
+      items: Array<{
+        id: string;
+        itemId: string;
+        requestedQty: number;
+        approvedQty?: number | null;
+        item?: { name: string; unit: string };
+      }>;
+    },
+    executorId: string,
+    tx?: any,
+  ): Promise<any> {
+    if (!request.items || request.items.length === 0) {
+      return null;
+    }
+
+    const client = tx || this.prisma;
+    const warehouse =
+      (await client.warehouse.findFirst({ where: { isMain: true } })) ||
+      (await client.warehouse.findFirst());
+
+    if (!warehouse) {
+      throw new NotFoundException('Tizimda asosiy ombor topilmadi!');
+    }
+
+    const fundingSource = (request.fundingSource || 'BYUDJET') as any;
+
+    for (const reqItem of request.items) {
+      const qty = reqItem.approvedQty || reqItem.requestedQty;
+      await client.stock.upsert({
+        where: {
+          warehouseId_itemId_fundingSource: {
+            warehouseId: warehouse.id,
+            itemId: reqItem.itemId,
+            fundingSource,
+          },
+        },
+        update: {
+          quantity: { increment: qty },
+        },
+        create: {
+          warehouseId: warehouse.id,
+          itemId: reqItem.itemId,
+          quantity: qty,
+          fundingSource,
+        },
+      });
+    }
+
+    const incomingMovNum = this.sequenceService
+      ? await this.sequenceService.nextMovementNumber(client)
+      : this.codeGen.generateMovementNumber((await client.stockMovement.count()) + 1);
+
+    const movement = await client.stockMovement.create({
+      data: {
+        movementNumber: incomingMovNum,
+        movementType: 'INCOMING',
+        referenceDoc: request.requestNumber,
+        note: `Xarid bo‘yicha ombor qabuli (OS-1): ${request.purpose}`,
+        executedById: executorId,
+        toWarehouseId: warehouse.id,
+        fundingSource,
+        items: {
+          create: request.items.map((ri) => ({
+            itemId: ri.itemId,
+            quantity: ri.approvedQty || ri.requestedQty,
+            note: `Omborga qabul qilindi: ${ri.approvedQty || ri.requestedQty}`,
+          })),
+        },
+      },
+    });
+
+    return movement;
+  }
+
+  // ==================== WAREHOUSE CRUD ====================
+
+  async getAllWarehouses(showDeleted?: boolean) {
+    const where: any = showDeleted ? { deletedAt: { not: null } } : { deletedAt: null };
+    return this.prisma.warehouse.findMany({
+      where,
+      include: {
+        building: {
+          select: { id: true, name: true, code: true, floorsCount: true },
+        },
+        manager: {
+          select: { id: true, fullName: true, username: true, phone: true, role: true },
+        },
+        _count: {
+          select: { stocks: true },
+        },
+      },
+      orderBy: [{ isMain: 'desc' }, { name: 'asc' }],
+    });
+  }
+
+  async createWarehouse(dto: CreateWarehouseDto, executorId: string) {
+    const nameTrimmed = dto.name.trim();
+
+    // 1. Check unique name
+    const nameConflict = await this.prisma.warehouse.findFirst({
+      where: {
+        name: { equals: nameTrimmed, mode: 'insensitive' },
+        deletedAt: null,
+      },
+    });
+    if (nameConflict) {
+      throw new ConflictException(`'${nameTrimmed}' nomli omborxona allaqachon mavjud`);
+    }
+
+    // 2. Check unique code if provided
+    if (dto.code && dto.code.trim().length > 0) {
+      const codeTrimmed = dto.code.trim().toUpperCase();
+      const codeConflict = await this.prisma.warehouse.findUnique({
+        where: { code: codeTrimmed },
+      });
+      if (codeConflict) {
+        throw new ConflictException(`'${codeTrimmed}' kodli omborxona allaqachon mavjud`);
+      }
+    }
+
+    // 3. Check building if provided
+    if (dto.buildingId) {
+      const building = await this.prisma.building.findUnique({
+        where: { id: dto.buildingId },
+      });
+      if (!building) {
+        throw new NotFoundException('Biriktirilayotgan bino topilmadi');
+      }
+    }
+
+    // 4. Check manager if provided
+    if (dto.managerId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: dto.managerId },
+      });
+      if (!user) {
+        throw new NotFoundException('Ombor mudiri (foydalanuvchi) topilmadi');
+      }
+    }
+
+    const warehouse = await this.prisma.$transaction(async (tx) => {
+      // If marked as main, unset any other main warehouses
+      if (dto.isMain) {
+        await tx.warehouse.updateMany({
+          where: { isMain: true },
+          data: { isMain: false },
+        });
+      }
+
+      return tx.warehouse.create({
+        data: {
+          name: nameTrimmed,
+          code: dto.code ? dto.code.trim().toUpperCase() : null,
+          buildingId: dto.buildingId || null,
+          location: dto.location?.trim() || null,
+          managerId: dto.managerId || null,
+          isMain: dto.isMain ?? false,
+        },
+        include: {
+          building: true,
+          manager: {
+            select: { id: true, fullName: true, username: true, phone: true },
+          },
+        },
+      });
+    });
+
+    await this.systemAuditService.log({
+      action: 'WAREHOUSE_CREATED',
+      entity: 'Warehouse',
+      entityId: warehouse.id,
+      userId: executorId,
+      details: {
+        name: warehouse.name,
+        code: warehouse.code,
+        building: warehouse.building?.name,
+        location: warehouse.location,
+        isMain: warehouse.isMain,
+      },
+    });
+
+    return warehouse;
+  }
+
+  async updateWarehouse(id: string, dto: UpdateWarehouseDto, executorId: string) {
+    const existing = await this.prisma.warehouse.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Omborxona topilmadi');
+    }
+
+    if (dto.name && dto.name.trim() !== existing.name) {
+      const nameConflict = await this.prisma.warehouse.findFirst({
+        where: {
+          id: { not: id },
+          name: { equals: dto.name.trim(), mode: 'insensitive' },
+          deletedAt: null,
+        },
+      });
+      if (nameConflict) {
+        throw new ConflictException(`'${dto.name.trim()}' nomli boshqa ombor mavjud`);
+      }
+    }
+
+    if (dto.code && dto.code.trim().toUpperCase() !== existing.code) {
+      const codeConflict = await this.prisma.warehouse.findFirst({
+        where: {
+          id: { not: id },
+          code: dto.code.trim().toUpperCase(),
+        },
+      });
+      if (codeConflict) {
+        throw new ConflictException(`'${dto.code.trim().toUpperCase()}' kodli boshqa ombor mavjud`);
+      }
+    }
+
+    if (dto.buildingId) {
+      const b = await this.prisma.building.findUnique({ where: { id: dto.buildingId } });
+      if (!b) throw new NotFoundException('Tanlangan bino topilmadi');
+    }
+
+    if (dto.managerId) {
+      const u = await this.prisma.user.findUnique({ where: { id: dto.managerId } });
+      if (!u) throw new NotFoundException('Tanlangan ombor mudiri topilmadi');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (dto.isMain) {
+        await tx.warehouse.updateMany({
+          where: { id: { not: id }, isMain: true },
+          data: { isMain: false },
+        });
+      }
+
+      return tx.warehouse.update({
+        where: { id },
+        data: {
+          name: dto.name !== undefined ? dto.name.trim() : undefined,
+          code: dto.code !== undefined ? (dto.code ? dto.code.trim().toUpperCase() : null) : undefined,
+          buildingId: dto.buildingId !== undefined ? dto.buildingId : undefined,
+          location: dto.location !== undefined ? (dto.location ? dto.location.trim() : null) : undefined,
+          managerId: dto.managerId !== undefined ? dto.managerId : undefined,
+          isMain: dto.isMain !== undefined ? dto.isMain : undefined,
+        },
+        include: {
+          building: true,
+          manager: {
+            select: { id: true, fullName: true, username: true, phone: true },
+          },
+        },
+      });
+    });
+
+    await this.systemAuditService.log({
+      action: 'WAREHOUSE_UPDATED',
+      entity: 'Warehouse',
+      entityId: id,
+      userId: executorId,
+      details: {
+        changes: dto,
+        targetName: updated.name,
+      },
+    });
+
+    return updated;
+  }
+
+  async deleteWarehouse(id: string, executorId: string) {
+    const warehouse = await this.prisma.warehouse.findUnique({
+      where: { id },
+      include: {
+        stocks: { where: { quantity: { gt: 0 } } },
+      },
+    });
+
+    if (!warehouse) {
+      throw new NotFoundException('Omborxona topilmadi');
+    }
+
+    if (warehouse.stocks.length > 0) {
+      throw new BadRequestException(
+        `Omborda ${warehouse.stocks.length} xil tovar qoldig‘i mavjud! Tovarlar qoldig‘i bo‘lgan omborni o‘chirib bo‘lmaydi. Avval tovarlarni boshqa omborga ko‘chiring`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.warehouse.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
+    });
+
+    await this.systemAuditService.log({
+      action: 'SOFT_DELETE',
+      entity: 'Warehouse',
+      entityId: id,
+      userId: executorId,
+      details: {
+        deletedName: warehouse.name,
+        code: warehouse.code,
+      },
+    });
+
+    return {
+      success: true,
+      message: `'${warehouse.name}' omborxonasi muvaffaqiyatli o‘chirildi (Soft delete)`,
+    };
+  }
+
+  async restoreWarehouse(id: string, executorId: string) {
+    const warehouse = await this.prisma.warehouse.findUnique({ where: { id } });
+    if (!warehouse) {
+      throw new NotFoundException('Omborxona topilmadi');
+    }
+    if (!warehouse.deletedAt) {
+      throw new BadRequestException('Ushbu ombor o‘chirilmagan!');
+    }
+
+    const restored = await this.prisma.$transaction(async (tx) => {
+      return tx.warehouse.update({
+        where: { id },
+        data: { deletedAt: null },
+      });
+    });
+
+    await this.systemAuditService.log({
+      action: 'RESTORE',
+      entity: 'Warehouse',
+      entityId: id,
+      userId: executorId,
+      details: {
+        name: warehouse.name,
+        code: warehouse.code,
+      },
+    });
+
+    return restored;
   }
 }

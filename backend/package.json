@@ -9,11 +9,13 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/src/main",
+    "start:prod": "node dist/main",
     "test": "jest",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "ts-node prisma/seed.ts",
+    "prisma:seed": "ts-node prisma/seed.system.ts",
+    "prisma:seed:system": "ts-node prisma/seed.system.ts",
+    "prisma:seed:demo": "ts-node prisma/seed.demo.ts",
     "generate:secret": "node ../scripts/generate-jwt-secret.js",
     "package:clean": "node ../scripts/package-clean.js"
   },
@@ -24,6 +26,7 @@
     "@nestjs/jwt": "^10.2.0",
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.4.15",
+    "@nestjs/schedule": "^4.1.2",
     "@nestjs/swagger": "^8.1.0",
     "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^6.3.1",
@@ -35,7 +38,8 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",

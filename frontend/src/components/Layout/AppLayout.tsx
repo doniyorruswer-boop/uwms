@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Layout, Menu, Button, Tag, Avatar, Tooltip, Space, Popconfirm, Input, Dropdown } from '@arco-design/web-react';
+import React, { useState, useEffect } from 'react';
+import { Layout, Menu, Button, Tag, Avatar, Tooltip, Space, Popconfirm, Input, Dropdown, Badge } from '@arco-design/web-react';
 import {
   IconDashboard,
   IconDesktop,
@@ -17,6 +17,8 @@ import {
   IconTool,
   IconDelete,
   IconSafe,
+  IconBook,
+  IconTags,
   IconCloud,
   IconStorage,
   IconCloudDownload,
@@ -25,15 +27,20 @@ import {
   IconSearch,
   IconPlus,
   IconExclamationCircleFill,
+  IconCalendar,
+  IconCompass,
+  IconClockCircle,
 } from '@arco-design/web-react/icon';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import { useInboxQuery } from '../../hooks/useInboxQuery';
 import type { RoleType } from '../../types';
 import { AppLogo } from '../Common/AppLogo';
 import { APP_CONFIG, ROLE_CONFIG, getPageTitleByPath, DESIGN_TOKENS, NAVIGATION_ITEMS } from '../../constants';
 import { NotificationPopover } from '../Notifications/NotificationPopover';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ForcePasswordChangeModal } from '../Auth/ForcePasswordChangeModal';
+import { GlobalSearchModal } from '../Search/GlobalSearchModal';
 import { useTranslation } from 'react-i18next';
 
 const MenuItem = Menu.Item;
@@ -50,6 +57,21 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const { user, isDarkMode, toggleDarkMode, logout } = useAuthStore();
   const { t } = useTranslation();
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [searchModalVisible, setSearchModalVisible] = useState(false);
+  const { data: inbox } = useInboxQuery({ refetchInterval: 60000 });
+  const pendingTasksCount = inbox?.summary?.totalPendingCount || 0;
+
+  // Global Ctrl+K / Cmd+K keyboard shortcut listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setSearchModalVisible((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const currentTab = location.pathname.replace('/', '') || 'dashboard';
 
@@ -66,6 +88,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     switch (clean) {
       case 'dashboard':
         return t('menu.dashboard');
+      case 'inbox':
+        return t('menu.inbox', 'Vazifalarim');
       case 'assets':
         return t('menu.assets');
       case 'warehouse':
@@ -80,6 +104,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         return t('menu.repairs');
       case 'write-offs':
         return t('menu.writeOffs');
+      case 'depreciation':
+        return t('menu.depreciation', 'Amortizatsiya');
+      case 'reports/chief-accountant':
+        return t('menu.chiefAccountantLedger', 'Bosh Hisobchi Daftari');
+      case 'reports/funding':
+        return t('menu.fundingReports', 'Manbalar Hisoboti');
       case 'organization':
         return t('menu.organization');
       case 'quotas':
@@ -90,6 +120,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         return t('menu.integrations');
       case 'audit':
         return t('menu.scanner');
+      case 'audit-campaigns':
+        return t('menu.auditCampaigns');
       case 'backups':
         return t('menu.backups');
       case 'users':
@@ -152,6 +184,17 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               {t('menu.dashboard')}
             </MenuItem>
           )}
+          <MenuItem key="inbox">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <IconClockCircle />
+                {t('menu.inbox', 'Vazifalarim')}
+              </span>
+              {pendingTasksCount > 0 && (
+                <Badge count={pendingTasksCount} maxCount={99} />
+              )}
+            </div>
+          </MenuItem>
           {hasRoleAccess('assets') && (
             <MenuItem key="assets">
               <IconDesktop />
@@ -194,6 +237,24 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               {t('menu.writeOffs')}
             </MenuItem>
           )}
+          {hasRoleAccess('depreciation') && (
+            <MenuItem key="depreciation">
+              <IconCompass />
+              {t('menu.depreciation', 'Amortizatsiya')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('chiefAccountantLedger') && (
+            <MenuItem key="reports/chief-accountant">
+              <IconBook />
+              {t('menu.chiefAccountantLedger', 'Bosh Hisobchi Daftari')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('fundingReports') && (
+            <MenuItem key="reports/funding">
+              <IconTags />
+              {t('menu.fundingReports', 'Manbalar Hisoboti')}
+            </MenuItem>
+          )}
           {hasRoleAccess('organization') && (
             <MenuItem key="organization">
               <IconBranch />
@@ -222,6 +283,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             <MenuItem key="audit">
               <IconScan />
               {t('menu.scanner')}
+            </MenuItem>
+          )}
+          {hasRoleAccess('auditCampaigns') && (
+            <MenuItem key="audit-campaigns">
+              <IconCalendar />
+              {t('menu.auditCampaigns')}
             </MenuItem>
           )}
           {hasRoleAccess('users') && (
@@ -269,25 +336,22 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
           {/* Universal Quick Search & Quick Action Menu (Snipe-IT Pattern) */}
           <Space size="medium" style={{ flex: 1, maxWidth: 520, margin: '0 24px' }}>
-            <Input.Search
-              placeholder="Inventar № yoki QR kod... (Enter)"
-              allowClear
-              searchButton={false}
-              prefix={<IconSearch style={{ color: 'var(--color-text-3)' }} />}
-              onSearch={(value) => {
-                const trimmed = value?.trim();
-                if (trimmed) {
-                  navigate(`/assets?search=${encodeURIComponent(trimmed)}`);
+            <div
+              onClick={() => setSearchModalVisible(true)}
+              style={{ width: '100%', cursor: 'pointer' }}
+            >
+              <Input
+                placeholder="Qidirish... (Inventar №, xona, foydalanuvchi)"
+                prefix={<IconSearch style={{ color: 'var(--color-text-3)' }} />}
+                suffix={
+                  <Tag size="small" style={{ backgroundColor: 'var(--color-fill-3)', cursor: 'pointer' }}>
+                    Ctrl + K
+                  </Tag>
                 }
-              }}
-              onPressEnter={(e: any) => {
-                const val = e.target.value?.trim();
-                if (val) {
-                  navigate(`/assets?search=${encodeURIComponent(val)}`);
-                }
-              }}
-              style={{ width: '100%', borderRadius: 0 }}
-            />
+                readOnly
+                style={{ width: '100%', cursor: 'pointer', borderRadius: 0 }}
+              />
+            </div>
 
             {(user?.role === 'SUPER_ADMIN' || user?.role === 'HEAD_WAREHOUSE' || user?.role === 'MOL' || user?.role === 'EMPLOYEE') && (
               <Dropdown
@@ -411,6 +475,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
       {/* Majburiy Parol O‘zgartirish Modali (Xavfsizlik talabi) */}
       <ForcePasswordChangeModal visible={!!user?.mustChangePassword} />
+
+      {/* Global Command Palette Search Modal (Ctrl + K) */}
+      <GlobalSearchModal
+        visible={searchModalVisible}
+        onClose={() => setSearchModalVisible(false)}
+      />
     </Layout>
   );
 };
