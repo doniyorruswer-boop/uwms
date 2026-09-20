@@ -136,6 +136,14 @@ export const UserPermissionsPage: React.FC = () => {
   const [cloneModalVisible, setCloneModalVisible] = useState(false);
   const [selectedSourceUserId, setSelectedSourceUserId] = useState<string>('');
 
+  // Derived data from permissionsData (safe fallbacks when loading/error)
+  const user = permissionsData?.user;
+  const catalog = useMemo(() => permissionsData?.catalog || [], [permissionsData]);
+  const defaultRolePermissions = useMemo(
+    () => permissionsData?.defaultRolePermissions || [],
+    [permissionsData],
+  );
+
   // Initialize selected permissions from query data
   useEffect(() => {
     if (permissionsData) {
@@ -145,65 +153,44 @@ export const UserPermissionsPage: React.FC = () => {
     }
   }, [permissionsData]);
 
-  // Keyboard shortcut Ctrl+S or Cmd+S to save
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        handleSave();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedCodes, hasChanges, updateMutation.isPending]);
+  // Calculate all available codes
+  const allAvailableCodes = useMemo(() => {
+    return catalog.flatMap((mod) => mod.permissions.map((p) => p.code));
+  }, [catalog]);
 
-  // RBAC protection: Only SUPER_ADMIN can configure permissions
-  if (currentUser?.role !== RoleType.SUPER_ADMIN) {
-    return <ForbiddenView requiredRoles={[RoleType.SUPER_ADMIN]} />;
-  }
+  // Filter modules based on search query
+  const filteredCatalog = useMemo(() => {
+    if (!searchQuery.trim()) return catalog;
+    const q = searchQuery.toLowerCase().trim();
 
-  // 1. LOADING STATE
-  if (isLoading) {
-    return (
-      <Card style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Space direction="vertical" align="center" size="large">
-          <Spin size={40} />
-          <Text style={{ fontSize: 16, color: 'var(--color-text-2)' }}>
-            Foydalanuvchi huquqlari va ruxsatlar katalogi yuklanmoqda...
-          </Text>
-        </Space>
-      </Card>
-    );
-  }
+    return catalog
+      .map((mod) => {
+        const moduleMatches =
+          mod.name.toLowerCase().includes(q) ||
+          mod.description.toLowerCase().includes(q);
 
-  // 2. ERROR STATE
-  if (isError || !permissionsData) {
-    return (
-      <Card style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Result
-          status="error"
-          title="Ma’lumotlarni yuklab bo‘lmadi"
-          subTitle={(error as any)?.message || 'Server bilan bog‘lanishda xatolik yuz berdi.'}
-          extra={[
-            <Button key="back" onClick={() => navigate('/users')}>
-              Xodimlar ro‘yxatiga qaytish
-            </Button>,
-            <Button key="retry" type="primary" icon={<IconRefresh />} onClick={() => refetch()}>
-              Qayta urinish
-            </Button>,
-          ]}
-        />
-      </Card>
-    );
-  }
+        const matchingPerms = mod.permissions.filter(
+          (p) =>
+            p.name.toLowerCase().includes(q) ||
+            p.description.toLowerCase().includes(q) ||
+            p.code.toLowerCase().includes(q),
+        );
 
-  const { user, catalog, defaultRolePermissions } = permissionsData;
+        if (moduleMatches) {
+          return mod;
+        }
 
-  // Calculate stats
-  const allAvailableCodes = catalog.flatMap((mod) => mod.permissions.map((p) => p.code));
-  const totalCount = allAvailableCodes.length;
-  const selectedCount = selectedCodes.size;
-  const percentage = totalCount > 0 ? Math.round((selectedCount / totalCount) * 100) : 0;
+        if (matchingPerms.length > 0) {
+          return {
+            ...mod,
+            permissions: matchingPerms,
+          };
+        }
+
+        return null;
+      })
+      .filter(Boolean) as PermissionModule[];
+  }, [catalog, searchQuery]);
 
   // Handler: Toggle single permission
   const handleToggleCode = (code: string, mod: PermissionModule) => {
@@ -213,13 +200,11 @@ export const UserPermissionsPage: React.FC = () => {
 
       if (isCurrentlySelected) {
         next.delete(code);
-        // Agar o'chirilayotgan ruxsat 'page:*' bo'lsa, ushbu modulning barcha ichki amallarini ham avtomatik o'chirish
         if (code === mod.pageCode) {
           mod.permissions.forEach((p) => next.delete(p.code));
         }
       } else {
         next.add(code);
-        // Agar ichki amal tanlansa, ushbu modulning 'page:*' ruxsatini ham avtomatik yoqish
         if (mod.pageCode && !next.has(mod.pageCode)) {
           next.add(mod.pageCode);
         }
@@ -268,20 +253,15 @@ export const UserPermissionsPage: React.FC = () => {
 
   // Handler: Apply specific Role Template Preset
   const handleApplyPreset = (presetRole: RoleType) => {
-    const preset = permissionsData.defaultRolePermissions;
-    // In our backend, catalog & presets are sent, or we apply the role defaults
     Modal.confirm({
       title: 'Rol shablonini qo‘llash',
       content: `'${roleLabels[presetRole]}' roli uchun tavsiya etilgan barcha huquqlar belgilansinmi? Hozirgi tanlovlar yangilanadi.`,
       okText: 'Qo‘llash',
       cancelText: 'Bekor qilish',
       onOk: () => {
-        // Find presets for this role
-        if (presetRole === user.role) {
+        if (user && presetRole === user.role) {
           setSelectedCodes(new Set(defaultRolePermissions));
         } else {
-          // If different role selected, query or filter default items
-          // We can fetch or match standard role codes
           setSelectedCodes(new Set(defaultRolePermissions));
         }
         setHasChanges(true);
@@ -295,9 +275,10 @@ export const UserPermissionsPage: React.FC = () => {
     try {
       const source = otherUsersData?.items.find((u) => u.id === selectedSourceUserId);
       if (source) {
-        const perms = (source as any).permissions && (source as any).permissions.length > 0
-          ? (source as any).permissions
-          : defaultRolePermissions;
+        const perms =
+          (source as any).permissions && (source as any).permissions.length > 0
+            ? (source as any).permissions
+            : defaultRolePermissions;
         setSelectedCodes(new Set(perms));
         setHasChanges(true);
       }
@@ -317,39 +298,62 @@ export const UserPermissionsPage: React.FC = () => {
     });
   };
 
-  // Filter modules based on search query
-  const filteredCatalog = useMemo(() => {
-    if (!searchQuery.trim()) return catalog;
-    const q = searchQuery.toLowerCase().trim();
+  // Keyboard shortcut Ctrl+S or Cmd+S to save
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedCodes, hasChanges, updateMutation.isPending]);
 
-    return catalog
-      .map((mod) => {
-        const moduleMatches =
-          mod.name.toLowerCase().includes(q) ||
-          mod.description.toLowerCase().includes(q);
+  // RBAC protection: Only SUPER_ADMIN can configure permissions
+  if (currentUser?.role !== RoleType.SUPER_ADMIN) {
+    return <ForbiddenView requiredRoles={[RoleType.SUPER_ADMIN]} />;
+  }
 
-        const matchingPerms = mod.permissions.filter(
-          (p) =>
-            p.name.toLowerCase().includes(q) ||
-            p.description.toLowerCase().includes(q) ||
-            p.code.toLowerCase().includes(q),
-        );
+  // 1. LOADING STATE
+  if (isLoading) {
+    return (
+      <Card style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Space direction="vertical" align="center" size="large">
+          <Spin size={40} />
+          <Text style={{ fontSize: 16, color: 'var(--color-text-2)' }}>
+            Foydalanuvchi huquqlari va ruxsatlar katalogi yuklanmoqda...
+          </Text>
+        </Space>
+      </Card>
+    );
+  }
 
-        if (moduleMatches) {
-          return mod;
-        }
+  // 2. ERROR STATE
+  if (isError || !permissionsData || !user) {
+    return (
+      <Card style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Result
+          status="error"
+          title="Ma’lumotlarni yuklab bo‘lmadi"
+          subTitle={(error as any)?.message || 'Server bilan bog‘lanishda xatolik yuz berdi.'}
+          extra={[
+            <Button key="back" onClick={() => navigate('/users')}>
+              Xodimlar ro‘yxatiga qaytish
+            </Button>,
+            <Button key="retry" type="primary" icon={<IconRefresh />} onClick={() => refetch()}>
+              Qayta urinish
+            </Button>,
+          ]}
+        />
+      </Card>
+    );
+  }
 
-        if (matchingPerms.length > 0) {
-          return {
-            ...mod,
-            permissions: matchingPerms,
-          };
-        }
-
-        return null;
-      })
-      .filter(Boolean) as PermissionModule[];
-  }, [catalog, searchQuery]);
+  // Calculate stats
+  const totalCount = allAvailableCodes.length;
+  const selectedCount = selectedCodes.size;
+  const percentage = totalCount > 0 ? Math.round((selectedCount / totalCount) * 100) : 0;
 
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto', paddingBottom: 40 }}>
