@@ -26,18 +26,19 @@ RUN npm run build
 # 2. RUNNER STAGE (Nginx Alpine)
 FROM nginx:alpine AS runner
 
-# Nginx konfiguratsiyasini template sifatida o'rnatish
-# nginx:alpine /etc/nginx/templates/ papkasidagi *.template fayllarni
-# avtomatik envsubst bilan qayta ishlaydi va /etc/nginx/conf.d/ ga joylashtiradi
-COPY nginx.conf /etc/nginx/templates/default.conf.template
+# gettext o'rnatish (envsubst uchun)
+RUN apk add --no-cache gettext
 
-# Default BACKEND_URL (Docker Compose uchun)
+# Nginx konfiguratsiyasini template sifatida saqlash
+COPY nginx.conf /etc/nginx/conf.d/default.conf.template
+
+# Default BACKEND_URL (Docker Compose uchun; Railway da env orqali beriladi)
 ENV BACKEND_URL=http://backend:4000
 
-# Yig‘ilgan static fayllarni nusxalash
+# Yig'ilgan static fayllarni nusxalash
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80
 
-# Nginx ni ishga tushirish
-CMD ["nginx", "-g", "daemon off;"]
+# Faqat ${BACKEND_URL} ni almashtirish (nginx o'z $uri, $host o'zgaruvchilarini buzmaslik uchun)
+CMD ["/bin/sh", "-c", "envsubst '${BACKEND_URL}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
