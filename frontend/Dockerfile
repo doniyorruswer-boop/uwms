@@ -32,9 +32,9 @@ RUN apk add --no-cache gettext
 # Nginx konfiguratsiyasini template sifatida saqlash
 COPY nginx.conf /etc/nginx/conf.d/default.conf.template
 
-# BACKEND_URL: Railway da http://respectful-unity.railway.internal:4000
+# BACKEND_URL: Railway public URL (internal railway.internal ishlamayotganda ishonchli alternativ)
 # Docker Compose da docker-compose.yml environment orqali http://backend:4000 beriladi
-ENV BACKEND_URL=http://respectful-unity.railway.internal:4000
+ENV BACKEND_URL=https://respectful-unity-production-b7fc.up.railway.app
 
 # Yig'ilgan static fayllarni nusxalash
 COPY --from=builder /app/dist /usr/share/nginx/html
