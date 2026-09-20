@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { QuerySystemAuditDto } from './system-audit.dto';
+import { RequestContext } from '../common/context/request-context';
 
 @Injectable()
 export class SystemAuditService {
@@ -23,6 +24,9 @@ export class SystemAuditService {
           ? JSON.stringify(params.details)
           : params.details || null;
 
+      const ipAddress = params.ipAddress || RequestContext.getClientIp() || null;
+      const userAgent = params.userAgent || RequestContext.getUserAgent() || null;
+
       return await this.prisma.systemAuditLog.create({
         data: {
           action: params.action,
@@ -30,8 +34,8 @@ export class SystemAuditService {
           entityId: params.entityId || null,
           details: detailsStr,
           userId: params.userId || null,
-          ipAddress: params.ipAddress || null,
-          userAgent: params.userAgent || null,
+          ipAddress,
+          userAgent,
         },
       });
     } catch (error) {

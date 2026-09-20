@@ -302,15 +302,33 @@ export const UsersPage: React.FC = () => {
               </Popconfirm>
             ) : (
               <>
-                <Tooltip content="Javobgarlik holati va audit tekshiruvi (Clearance Audit)">
-                  <Button
-                    size="small"
-                    type="secondary"
-                    icon={<IconSafe />}
-                    style={{ borderRadius: 0, color: 'var(--color-primary-6)' }}
-                    onClick={() => setHandoverUser(record)}
-                  />
-                </Tooltip>
+                {(() => {
+                  const hasObligations =
+                    (record._count?.responsibleInstances || 0) > 0 ||
+                    (record._count?.responsibleRooms || 0) > 0;
+
+                  return (
+                    <Tooltip
+                      content={
+                        hasObligations
+                          ? "Moddiy javobgarlikni topshirish va zimmasidan chiqarish (MOL Offboarding)"
+                          : "Xodim zimmasida topshirilishi lozim bo‘lgan ashyolar mavjud emas (Javobgarlikdan ozod)"
+                      }
+                    >
+                      <Button
+                        size="small"
+                        type="secondary"
+                        disabled={!hasObligations}
+                        icon={<IconSafe />}
+                        style={{
+                          borderRadius: 0,
+                          color: hasObligations ? 'var(--color-primary-6)' : undefined,
+                        }}
+                        onClick={() => setHandoverUser(record)}
+                      />
+                    </Tooltip>
+                  );
+                })()}
 
                 <Tooltip content="Elektron Aylanma Varaqa (Clearance Certificate)">
                   <Button

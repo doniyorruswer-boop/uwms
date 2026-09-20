@@ -31,6 +31,7 @@ import { SearchModule } from './search/search.module';
 import { HealthModule } from './health/health.module';
 import { IdempotencyModule } from './idempotency/idempotency.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { RequestContextMiddleware } from './common/context/request-context.middleware';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -83,6 +84,6 @@ import { APP_GUARD } from '@nestjs/core';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestIdMiddleware).forRoutes('*');
+    consumer.apply(RequestContextMiddleware, RequestIdMiddleware).forRoutes('*');
   }
 }

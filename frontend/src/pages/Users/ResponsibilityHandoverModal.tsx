@@ -575,6 +575,13 @@ export const ResponsibilityHandoverModal: React.FC<ResponsibilityHandoverModalPr
                   content="Ushbu xodim zimmasida aktivlar yoki majburiyatlar mavjud emas. Foydalanuvchini bemalol deaktivatsiya qilish yoki topshirish aktini rasmiylashtirish mumkin."
                   showIcon
                 />
+              ) : (clearance?.activeAssets || 0) === 0 && (clearance?.responsibleRooms || 0) === 0 ? (
+                <Alert
+                  type="info"
+                  title="Zimmasida aktivlar mavjud emas (Kutilayotgan topshirish arizasi mavjud)"
+                  content={`Ushbu xodim zimmasida aktiv yoki xonalar yo‘q, ammo tizimda ${clearance?.pendingHandovers || 0} ta topshirish jarayoni yakunlanish bosqichida yoki ochiq kamomad mavjud. Hujjatlar to‘liq imzolangach, avtomatik ravishda to‘liq ozod etiladi.`}
+                  showIcon
+                />
               ) : (
                 <Alert
                   type="warning"
@@ -654,7 +661,18 @@ export const ResponsibilityHandoverModal: React.FC<ResponsibilityHandoverModalPr
                 <Button onClick={onClose}>Bekor qilish</Button>
                 <Button
                   type="primary"
+                  disabled={
+                    (clearance?.activeAssets || 0) === 0 &&
+                    (clearance?.responsibleRooms || 0) === 0
+                  }
                   onClick={() => {
+                    if (
+                      (clearance?.activeAssets || 0) === 0 &&
+                      (clearance?.responsibleRooms || 0) === 0
+                    ) {
+                      Message.warning('Xodim zimmasida topshiriladigan aktiv yoki xona mavjud emas!');
+                      return;
+                    }
                     if (handoverType === 'ROOM_TRANSFER' && !selectedRoomId) {
                       Message.warning('Iltimos, topshirilayotgan xonani tanlang!');
                       return;

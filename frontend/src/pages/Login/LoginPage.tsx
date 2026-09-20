@@ -38,7 +38,9 @@ export const LoginPage: React.FC = () => {
       const { access_token, refresh_token, user } = res.data;
       login(access_token, user, refresh_token);
       Message.success(`Xush kelibsiz, ${user.fullName}!`);
-      navigate('/dashboard', { replace: true });
+      const searchParams = new URLSearchParams(window.location.search);
+      const redirectUrl = searchParams.get('redirect') || '/dashboard';
+      navigate(redirectUrl, { replace: true });
     } catch (err: any) {
       if (err.response?.data?.message) {
         Message.error(err.response.data.message);

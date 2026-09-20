@@ -16,6 +16,7 @@ import {
   Typography,
   Empty,
   Badge,
+  Spin,
 } from '@arco-design/web-react';
 import {
   IconScan,
@@ -76,6 +77,9 @@ export const AuditScannerPage: React.FC = () => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [activeTab, setActiveTab] = useState('ALL');
   const [isCameraRunning, setIsCameraRunning] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [availableCameras, setAvailableCameras] = useState<Array<{ id: string; label: string }>>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
   const [isDocModalVisible, setIsDocModalVisible] = useState(false);
   const [activeAuditId, setActiveAuditId] = useState<string | null>(null);
   const [isCompleted, setIsCompleted] = useState(false);
@@ -270,11 +274,30 @@ export const AuditScannerPage: React.FC = () => {
       : 0;
   }, [auditDetail, expectedAssets, matchedAssets]);
 
+  // Camera detection & initialization
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      Html5Qrcode.getCameras()
+        .then((devices) => {
+          if (devices && devices.length > 0) {
+            setAvailableCameras(devices);
+            const backCam = devices.find((d) => /back|rear|environment/i.test(d.label));
+            if (isMobileView && backCam) {
+              setSelectedCameraId(backCam.id);
+            } else {
+              setSelectedCameraId(devices[0].id);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isMobileView]);
+
   // Stop camera on unmount
   useEffect(() => {
     return () => {
       if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(() => { });
+        scannerRef.current.stop().catch(() => {});
       }
     };
   }, []);
@@ -285,26 +308,21 @@ export const AuditScannerPage: React.FC = () => {
         await scannerRef.current.stop();
       }
 
-      // Check mediaDevices support (handles desktop without camera or non-HTTPS safely)
       if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        Message.warning('Brauzeringizda video kamera oqimi qo‘llab-quvvatlanmaydi (yoki HTTPS xavfsiz ulanish talab etiladi). Shtrix-kod skaneri (scanner gun) yoki qo‘lda kiritishdan foydalaning.');
+        Message.warning('Brauzeringizda video kamera oqimi qo‘llab-quvvatlanmaydi (HTTPS xavfsiz ulanish talab etiladi).');
         return;
       }
 
-      let devices: any[] = [];
-      try {
-        devices = await Html5Qrcode.getCameras();
-      } catch (camErr) {
-        console.warn('Cameras getCameras check:', camErr);
-      }
+      setCameraLoading(true);
+      setIsCameraRunning(true);
 
-      if (!devices || devices.length === 0) {
-        Message.warning('Kompyuterda video kamera qurilmasi aniqlanmadi. Shtrix-kod skaneri (scanner gun) yoki qo‘lda kiritish maydonidan foydalaning.');
-        return;
-      }
+      // Brief delay to allow React to render the reader container in the DOM with real dimensions
+      await new Promise((resolve) => setTimeout(resolve, 150));
 
       const readerElem = document.getElementById('audit-qr-reader');
       if (!readerElem) {
+        setIsCameraRunning(false);
+        setCameraLoading(false);
         Message.warning('Skanerlash oynasi topilmadi.');
         return;
       }
@@ -312,26 +330,31 @@ export const AuditScannerPage: React.FC = () => {
       const html5QrCode = new Html5Qrcode('audit-qr-reader');
       scannerRef.current = html5QrCode;
 
-      // Prefer back camera if available, otherwise first device
-      const selectedCameraId = devices.length > 1 ? devices[devices.length - 1].id : devices[0].id;
+      // Camera config: if selectedCameraId is set, use it; otherwise environment on mobile / user on desktop
+      const cameraConfig: any = selectedCameraId
+        ? selectedCameraId
+        : isMobileView
+        ? { facingMode: 'environment' }
+        : availableCameras[0]?.id || { facingMode: 'user' };
 
       await html5QrCode.start(
-        selectedCameraId,
+        cameraConfig,
         {
-          fps: 10,
+          fps: 12,
           qrbox: { width: 220, height: 220 },
         },
         (decodedText) => {
           handleScan(decodedText);
         },
-        () => { }
+        () => {}
       );
-      setIsCameraRunning(true);
       Message.success('Kamera muvaffaqiyatli ishga tushirildi');
     } catch (err: any) {
       console.warn('Camera start error:', err);
       setIsCameraRunning(false);
       Message.warning('Kamerani ochib bo‘lmadi (qurilma band yoki ruxsat yo‘q). Shtrix-kod skaneri yoki qo‘lda kiritishdan foydalaning.');
+    } finally {
+      setCameraLoading(false);
     }
   };
 
@@ -828,13 +851,13 @@ export const AuditScannerPage: React.FC = () => {
               <div
                 style={{
                   width: '100%',
-                  minHeight: isCameraRunning ? 280 : 180,
+                  minHeight: 260,
                   border: isCameraRunning ? '3px solid #165DFF' : '2px dashed #C9CDD4',
                   borderRadius: 0,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: isCameraRunning ? '#000' : 'var(--color-fill-1)',
+                  backgroundColor: '#000',
                   position: 'relative',
                   overflow: 'hidden',
                   marginBottom: 12,
@@ -844,17 +867,47 @@ export const AuditScannerPage: React.FC = () => {
                   id="audit-qr-reader"
                   style={{
                     width: '100%',
-                    height: '100%',
-                    display: isCameraRunning ? 'block' : 'none',
+                    minHeight: 260,
                   }}
                 />
                 {!isCameraRunning && (
-                  <div style={{ color: 'var(--color-text-3)', padding: 16 }}>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      backgroundColor: 'var(--color-fill-1)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--color-text-3)',
+                      padding: 16,
+                      zIndex: 2,
+                    }}
+                  >
                     <IconCamera style={{ fontSize: 40, marginBottom: 8, color: '#86909C' }} />
                     <div style={{ fontSize: 14, fontWeight: 500 }}>Kamera hozircha o‘chiq</div>
                     <div style={{ fontSize: 12, marginTop: 4 }}>
                       Kamerani yoqib QR kodni ekranga tuting yoki qo‘lda kod kiriting
                     </div>
+                  </div>
+                )}
+                {cameraLoading && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      backgroundColor: 'rgba(0,0,0,0.6)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      zIndex: 3,
+                    }}
+                  >
+                    <Spin dot />
+                    <div style={{ marginTop: 8, fontSize: 12 }}>Kamera ishga tushirilmoqda...</div>
                   </div>
                 )}
               </div>
@@ -864,6 +917,7 @@ export const AuditScannerPage: React.FC = () => {
                   <Button
                     type="primary"
                     size="large"
+                    loading={cameraLoading}
                     icon={<IconCamera />}
                     onClick={startCamera}
                     style={{ borderRadius: 0, backgroundColor: '#165DFF', width: '100%', height: 44, fontSize: 15 }}
@@ -882,6 +936,31 @@ export const AuditScannerPage: React.FC = () => {
                   </Button>
                 )}
               </div>
+
+              {availableCameras.length > 1 && (
+                <div style={{ marginBottom: 12 }}>
+                  <Select
+                    size="small"
+                    value={selectedCameraId}
+                    onChange={(val) => {
+                      setSelectedCameraId(val);
+                      if (isCameraRunning) {
+                        stopCamera().then(() => {
+                          setTimeout(() => startCamera(), 300);
+                        });
+                      }
+                    }}
+                    style={{ width: '100%' }}
+                    prefix="Kamera:"
+                  >
+                    {availableCameras.map((cam, idx) => (
+                      <Select.Option key={cam.id} value={cam.id}>
+                        {cam.label || `Kamera ${idx + 1}`}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </div>
+              )}
 
               {/* Barcode scanner gun / manual input */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -1027,13 +1106,13 @@ export const AuditScannerPage: React.FC = () => {
                 <div
                   style={{
                     width: '100%',
-                    minHeight: isCameraRunning ? 240 : 160,
+                    minHeight: 240,
                     border: isCameraRunning ? '2px solid #165DFF' : '2px dashed #C9CDD4',
                     borderRadius: 0,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: isCameraRunning ? '#000' : 'var(--color-fill-1)',
+                    backgroundColor: '#000',
                     position: 'relative',
                     overflow: 'hidden',
                     marginBottom: 16,
@@ -1043,17 +1122,47 @@ export const AuditScannerPage: React.FC = () => {
                     id="audit-qr-reader"
                     style={{
                       width: '100%',
-                      height: '100%',
-                      display: isCameraRunning ? 'block' : 'none',
+                      minHeight: 240,
                     }}
                   />
                   {!isCameraRunning && (
-                    <div style={{ color: 'var(--color-text-3)', padding: 16 }}>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        backgroundColor: 'var(--color-fill-1)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--color-text-3)',
+                        padding: 16,
+                        zIndex: 2,
+                      }}
+                    >
                       <IconCamera style={{ fontSize: 36, marginBottom: 8, color: '#86909C' }} />
                       <div style={{ fontSize: 13 }}>Kamera hozirda o‘chiq</div>
                       <div style={{ fontSize: 12, marginTop: 4 }}>
                         Jonli skanerlash uchun kamerani yoqing yoki qo‘lda kod kiriting
                       </div>
+                    </div>
+                  )}
+                  {cameraLoading && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        backgroundColor: 'rgba(0,0,0,0.6)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff',
+                        zIndex: 3,
+                      }}
+                    >
+                      <Spin dot />
+                      <div style={{ marginTop: 8, fontSize: 12 }}>Kamera ishga tushirilmoqda...</div>
                     </div>
                   )}
                 </div>
@@ -1062,6 +1171,7 @@ export const AuditScannerPage: React.FC = () => {
                   {!isCameraRunning ? (
                     <Button
                       type="primary"
+                      loading={cameraLoading}
                       icon={<IconCamera />}
                       onClick={startCamera}
                       style={{ borderRadius: 0, backgroundColor: '#165DFF', width: '100%' }}
@@ -1079,6 +1189,31 @@ export const AuditScannerPage: React.FC = () => {
                     </Button>
                   )}
                 </div>
+
+                {availableCameras.length > 1 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <Select
+                      size="small"
+                      value={selectedCameraId}
+                      onChange={(val) => {
+                        setSelectedCameraId(val);
+                        if (isCameraRunning) {
+                          stopCamera().then(() => {
+                            setTimeout(() => startCamera(), 300);
+                          });
+                        }
+                      }}
+                      style={{ width: '100%' }}
+                      prefix="Kamera:"
+                    >
+                      {availableCameras.map((cam, idx) => (
+                        <Select.Option key={cam.id} value={cam.id}>
+                          {cam.label || `Kamera ${idx + 1}`}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
 
                 {/* Input for manual scanner / barcode guns */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>

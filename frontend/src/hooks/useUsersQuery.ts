@@ -171,10 +171,18 @@ export function useToggleUserStatusMutation() {
 export function useResetUserPasswordMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, newPassword }: { id: string; newPassword: string }) => {
+    mutationFn: async ({
+      id,
+      newPassword,
+      mustChangePassword,
+    }: {
+      id: string;
+      newPassword: string;
+      mustChangePassword?: boolean;
+    }) => {
       const res = await apiClient.post<{ success: boolean; message: string }>(
         API_ENDPOINTS.USERS.RESET_PASSWORD(id),
-        { newPassword },
+        { newPassword, mustChangePassword },
       );
       return res.data;
     },

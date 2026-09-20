@@ -120,7 +120,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     path: '/system-audit',
     label: 'Tizim Auditi',
     pageTitle: 'Tizim Xavfsizlik va Amallar Audit Jurnali',
-    allowedRoles: ['SUPER_ADMIN', 'AUDITOR'],
+    allowedRoles: ['SUPER_ADMIN'],
   },
   {
     key: 'integrations',

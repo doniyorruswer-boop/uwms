@@ -22,16 +22,19 @@ import {
   IconMobile,
   IconThunderbolt,
   IconLock,
+  IconUser,
 } from '@arco-design/web-react/icon';
 import { apiClient } from '../../api/client';
 import { API_ENDPOINTS } from '../../constants/api.constants';
 import { MobileSigningDetailsResult } from '../../types';
+import { useAuthStore } from '../../store/authStore';
 
 const { Title, Text, Paragraph } = Typography;
 
 export const MobileSigningPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
+  const { isAuthenticated, user: currentUser, login } = useAuthStore();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [session, setSession] = useState<MobileSigningDetailsResult | null>(null);
@@ -44,6 +47,44 @@ export const MobileSigningPage: React.FC = () => {
   const [scanModalVisible, setScanModalVisible] = useState<boolean>(false);
   const [signingInProgress, setSigningInProgress] = useState<boolean>(false);
   const [signedResult, setSignedResult] = useState<any | null>(null);
+
+  const [loginForm] = Form.useForm();
+  const [loginLoading, setLoginLoading] = useState<boolean>(false);
+
+  const handleMobileLogin = async () => {
+    try {
+      const values = await loginForm.validate();
+      setLoginLoading(true);
+      const res = await apiClient.post(API_ENDPOINTS.AUTH.LOGIN, {
+        username: values.username,
+        password: values.password,
+      });
+      const { access_token, refresh_token, user } = res.data;
+      login(access_token, user, refresh_token);
+      Message.success(`Xush kelibsiz, ${user.fullName}!`);
+      setSignerName(user.fullName);
+      setSignerRole(user.position || user.role);
+    } catch (err: any) {
+      if (err?.response?.data?.message) {
+        Message.error(err.response.data.message);
+      } else {
+        Message.error('Login yoki parol noto‘g‘ri kiritildi!');
+      }
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      if (!signerName) {
+        setSignerName(currentUser.fullName);
+      }
+      if (!signerRole) {
+        setSignerRole(currentUser.position || currentUser.role);
+      }
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     if (!token) return;
@@ -204,11 +245,15 @@ export const MobileSigningPage: React.FC = () => {
     <div
       style={{
         minHeight: '100vh',
+        width: '100%',
         backgroundColor: '#F7F8FA',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '20px 12px',
+        padding: '20px 12px 60px 12px',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        boxSizing: 'border-box',
       }}
     >
       <div style={{ width: '100%', maxWidth: 540 }}>
@@ -250,8 +295,83 @@ export const MobileSigningPage: React.FC = () => {
           </Text>
         </div>
 
-        {/* Loading State */}
-        {loading ? (
+        {/* Auth Gate: require login before seeing document */}
+        {!isAuthenticated ? (
+          <Card
+            style={{
+              borderRadius: 8,
+              borderTop: '5px solid #165DFF',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+            }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  margin: '0 auto 10px auto',
+                  backgroundColor: '#E8F3FF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <IconLock style={{ fontSize: 26, color: '#165DFF' }} />
+              </div>
+              <Title heading={5} style={{ margin: '0 0 6px 0' }}>
+                Tizimga Kirish Talab Qilinadi
+              </Title>
+              <Text type="secondary" style={{ fontSize: 13, display: 'block' }}>
+                Hujjatni mobil qurilma orqali imzolash uchun avval shaxsiy hisobingiz bilan tizimga kiring.
+              </Text>
+            </div>
+
+            <Form form={loginForm} layout="vertical" onSubmit={handleMobileLogin}>
+              <Form.Item
+                label="Foydalanuvchi nomi (Login)"
+                field="username"
+                rules={[{ required: true, message: 'Login kiritilishi shart!' }]}
+              >
+                <Input
+                  prefix={<IconUser />}
+                  placeholder="Masalan: omborchi"
+                  size="large"
+                />
+              </Form.Item>
+
+              <Form.Item
+                label="Parol"
+                field="password"
+                rules={[{ required: true, message: 'Parol kiritilishi shart!' }]}
+              >
+                <Input.Password
+                  prefix={<IconLock />}
+                  placeholder="Parolingizni kiriting"
+                  size="large"
+                />
+              </Form.Item>
+
+              <Button
+                type="primary"
+                long
+                size="large"
+                loading={loginLoading}
+                onClick={handleMobileLogin}
+                style={{
+                  height: 48,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  backgroundColor: '#165DFF',
+                  borderRadius: 6,
+                  marginTop: 8,
+                }}
+              >
+                Tizimga Kirish va Imzolash
+              </Button>
+            </Form>
+          </Card>
+        ) : loading ? (
           <Card style={{ textAlign: 'center', padding: '50px 0', borderRadius: 8 }}>
             <Spin dot />
             <div style={{ marginTop: 12 }}>
@@ -364,6 +484,14 @@ export const MobileSigningPage: React.FC = () => {
               boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
             }}
           >
+            {session.expectedSignerName && currentUser?.fullName && session.expectedSignerName !== currentUser.fullName && (
+              <Alert
+                type="warning"
+                style={{ marginBottom: 12 }}
+                content={`Diqqat: Ushbu dalolatnoma '${session.expectedSignerName}' uchun biriktirilgan. Siz hozir '${currentUser.fullName}' sifatida tizimdasiz.`}
+              />
+            )}
+
             {/* Document Attributes */}
             <div style={{ borderBottom: '1px solid var(--color-border-2)', paddingBottom: 12, marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

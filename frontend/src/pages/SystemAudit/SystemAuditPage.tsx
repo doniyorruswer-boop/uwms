@@ -85,7 +85,7 @@ const ACTION_MAP: Record<string, ActionMeta> = {
 
 export const SystemAuditPage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
-  const canView = user?.role === 'SUPER_ADMIN' || user?.role === 'AUDITOR';
+  const canView = user?.role === 'SUPER_ADMIN';
 
   const [search, setSearch] = useState<string>('');
   const [actionTab, setActionTab] = useState<string>('ALL');
@@ -159,8 +159,8 @@ export const SystemAuditPage: React.FC = () => {
     return (
       <ForbiddenView
         title="403 — Kirish Cheklangan"
-        subTitle="Tizim auditi va xavfsizlik jurnallarini ko‘rish faqat Tizim administratori (SUPER_ADMIN) va Auditor (AUDITOR) uchun ruxsat etilgan."
-        requiredRoles={['SUPER_ADMIN', 'AUDITOR']}
+        subTitle="Tizim auditi va xavfsizlik jurnallarini ko‘rish faqat Tizim Bosh Administratori (SUPER_ADMIN) uchun ruxsat etilgan."
+        requiredRoles={['SUPER_ADMIN']}
       />
     );
   }
@@ -182,7 +182,7 @@ export const SystemAuditPage: React.FC = () => {
       'Ob’yekt (Modul)': l.entity,
       'Ob’yekt ID': l.entityId || '-',
       'Tafsilotlar': l.details || '-',
-      'IP Manzil': l.ipAddress || '127.0.0.1',
+      'IP Manzil': l.ipAddress || '—',
     }));
     exportToExcel(exportData, 'Tizim_Xavfsizlik_Audit_Jurnali');
   };
@@ -290,7 +290,7 @@ export const SystemAuditPage: React.FC = () => {
       width: 110,
       render: (ip: string) => (
         <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--color-text-3)', whiteSpace: 'nowrap' }}>
-          {ip || '127.0.0.1'}
+          {ip || '—'}
         </span>
       ),
     },
@@ -622,7 +622,7 @@ export const SystemAuditPage: React.FC = () => {
                       label: 'IP Manzil',
                       value: (
                         <span style={{ fontFamily: 'monospace' }}>
-                          {selectedLog.ipAddress || '127.0.0.1'}
+                          {selectedLog.ipAddress || '—'}
                         </span>
                       ),
                     },

@@ -351,7 +351,7 @@ export class UsersService {
       where: { id },
       data: {
         password: hashedPassword,
-        mustChangePassword: true,
+        mustChangePassword: dto.mustChangePassword ?? false,
       },
     });
 
