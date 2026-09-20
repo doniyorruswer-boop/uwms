@@ -21,6 +21,15 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     } catch (err: any) {
       this.logger.warn(`Could not verify check_stock_quantity_non_negative constraint: ${err?.message || err}`);
     }
+
+    try {
+      await this.$executeRawUnsafe(`
+        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "permissions" TEXT[] DEFAULT ARRAY[]::TEXT[];
+      `);
+      this.logger.log('Verified database schema: "User"."permissions" column exists.');
+    } catch (err: any) {
+      this.logger.warn(`Could not verify "User"."permissions" column: ${err?.message || err}`);
+    }
   }
 
   async onModuleDestroy() {
