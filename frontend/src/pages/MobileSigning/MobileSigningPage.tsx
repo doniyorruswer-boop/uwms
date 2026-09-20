@@ -170,34 +170,49 @@ export const MobileSigningPage: React.FC = () => {
       detectedBiometric = isApple ? 'WEBAUTHN_FACE_ID' : 'WEBAUTHN_TOUCH_ID';
       setBiometricType(detectedBiometric);
 
-      // 2. Perform authentic hardware-backed WebAuthn biometric assertion
-      // credentials.get() = verification/signing (not registration)
-      if (isPlatformAvailable && navigator.credentials && typeof navigator.credentials.get === 'function') {
+      // 2. Biometrik tasdiqlash: credentials.create() Touch ID / Face ID ni ishga tushiradi
+      // credentials.get() "No passkeys available" beradi (ro'yxatdan o'tilgan passkey yo'q)
+      // credentials.create() esa har doim biometrik so'raydi
+      if (isPlatformAvailable && navigator.credentials && typeof navigator.credentials.create === 'function') {
         const challengeBuffer = new Uint8Array(32);
         window.crypto.getRandomValues(challengeBuffer);
 
-        const credential = (await navigator.credentials.get({
-          publicKey: {
-            challenge: challengeBuffer,
-            rpId: window.location.hostname,
-            userVerification: 'required',
-            timeout: 60000,
-            // allowCredentials bo'sh = har qanday platform authenticator (Touch ID, Face ID)
-            allowCredentials: [],
-          },
-        }).catch((authErr: any) => {
+        try {
+          const credential = (await navigator.credentials.create({
+            publicKey: {
+              challenge: challengeBuffer,
+              rp: {
+                name: 'UWMS Elektron Imzo',
+                id: window.location.hostname,
+              },
+              user: {
+                id: new TextEncoder().encode(signerName.trim() + Date.now()),
+                name: signerName.trim(),
+                displayName: signerName.trim(),
+              },
+              pubKeyCredParams: [
+                { alg: -7, type: 'public-key' },
+                { alg: -257, type: 'public-key' },
+              ],
+              authenticatorSelection: {
+                authenticatorAttachment: 'platform',
+                userVerification: 'required',
+                residentKey: 'discouraged',
+              },
+              timeout: 60000,
+            },
+          })) as any;
+
+          if (credential) {
+            credentialId = credential.id;
+          }
+        } catch (authErr: any) {
           if (authErr?.name === 'NotAllowedError') {
+            // Foydalanuvchi "Bekor qilish" bosdi — to'xtatish kerak
             throw new Error('Biometrik tasdiqlash foydalanuvchi tomonidan bekor qilindi.');
           }
-          if (authErr?.name === 'NotSupportedError' || authErr?.name === 'InvalidStateError') {
-            // Platform authenticator bor lekin hali ro'yxatdan o'tilmagan — imzolashni davom ettiramiz
-            return null;
-          }
-          return null;
-        })) as any;
-
-        if (credential) {
-          credentialId = credential.id;
+          // Boshqa xatolar (domain, policy, qurilma muammolari) — imzolashni davom ettiramiz
+          // Shaxs JWT token orqali allaqachon aniqlanган
         }
       }
 
