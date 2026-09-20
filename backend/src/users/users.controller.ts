@@ -17,6 +17,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto, ToggleStatusDto } from './dto/update-user.dto';
 import { QueryUsersDto } from './dto/query-users.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdatePermissionsDto } from './dto/update-permissions.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -28,6 +29,31 @@ import { RoleType } from '@prisma/client';
 @Controller('api/users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Get('permissions/catalog')
+  @Roles(RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Tizimdagi ruxsatlar katalogi va standart rol shablonlarini olish' })
+  async getPermissionsCatalog() {
+    return this.usersService.getPermissionsCatalog();
+  }
+
+  @Get(':id/permissions')
+  @Roles(RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Foydalanuvchining shaxsiy huquqlari va ruxsatlarini olish' })
+  async getUserPermissions(@Param('id') id: string) {
+    return this.usersService.getUserPermissions(id);
+  }
+
+  @Put(':id/permissions')
+  @Roles(RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Foydalanuvchi huquqlari va ruxsatlarini yangilash' })
+  async updateUserPermissions(
+    @Param('id') id: string,
+    @Body() dto: UpdatePermissionsDto,
+    @Request() req: any,
+  ) {
+    return this.usersService.updateUserPermissions(id, dto, req.user.id);
+  }
 
   @Get()
   @Roles(

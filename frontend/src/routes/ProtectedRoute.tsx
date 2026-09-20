@@ -32,7 +32,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           minHeight: '100vh',
         }}
       >
-        <Spin dot size={32} tip="Yuklanmoqda..." />
+        <Spin dot size={36} />
       </div>
     );
   }

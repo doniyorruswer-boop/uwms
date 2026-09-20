@@ -99,6 +99,7 @@ model User {
   phone              String?
   position           String?     // Lavozim (Dekan, Kafedra mudiri, Laborant, Omborchi)
   role               RoleType    @default(EMPLOYEE)
+  permissions        String[]    @default([])
   isActive           Boolean     @default(true)
   departmentId String?
   department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)

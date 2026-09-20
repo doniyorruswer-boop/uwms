@@ -13,6 +13,11 @@ import { QueryUsersDto } from './dto/query-users.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RoleType, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import {
+  PERMISSION_MODULES,
+  DEFAULT_ROLE_PERMISSIONS,
+} from '../auth/constants/permissions.constants';
+import { UpdatePermissionsDto } from './dto/update-permissions.dto';
 
 @Injectable()
 export class UsersService {
@@ -524,4 +529,120 @@ export class UsersService {
         : 'Zimmasida moddiy majburiyatlar yoki kutilayotgan topshirishlar mavjud',
     };
   }
+
+  /**
+   * Tizimdagi barcha ruxsatlar katalogi va standart rol shablonlarini olish
+   */
+  async getPermissionsCatalog() {
+    return {
+      modules: PERMISSION_MODULES,
+      defaultPresets: DEFAULT_ROLE_PERMISSIONS,
+    };
+  }
+
+  /**
+   * Bitta foydalanuvchining shaxsiy huquqlari va samarali huquqlarini olish
+   */
+  async getUserPermissions(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId, deletedAt: null },
+      select: {
+        id: true,
+        fullName: true,
+        username: true,
+        role: true,
+        permissions: true,
+        position: true,
+        department: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Foydalanuvchi (ID: ${userId}) topilmadi!`);
+    }
+
+    const defaultRolePerms = DEFAULT_ROLE_PERMISSIONS[user.role] || [];
+    // Agar foydalanuvchining shaxsiy permissions massivi bo'sh bo'lsa, u rolining standart huquqlaridan foydalanadi
+    const isCustom = user.permissions && user.permissions.length > 0;
+    const effectivePermissions = isCustom ? user.permissions : defaultRolePerms;
+
+    return {
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        username: user.username,
+        role: user.role,
+        position: user.position,
+        departmentName: user.department?.name,
+      },
+      permissions: user.permissions || [],
+      effectivePermissions,
+      defaultRolePermissions: defaultRolePerms,
+      isCustom,
+      catalog: PERMISSION_MODULES,
+    };
+  }
+
+  /**
+   * Foydalanuvchi huquqlarini yangilash (Tranzaksiya + Audit jurnali)
+   */
+  async updateUserPermissions(
+    userId: string,
+    dto: UpdatePermissionsDto,
+    adminId: string,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId, deletedAt: null },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Foydalanuvchi (ID: ${userId}) topilmadi!`);
+    }
+
+    // Xavfsizlik: SUPER_ADMIN o'zidan SUPER_ADMIN yoki asosiy boshqaruv huquqlarini xatolik bilan olib tashlamasligi uchun ogohlantirish
+    const previousPermissionsCount = user.permissions.length;
+
+    const updatedUser = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: {
+          permissions: dto.permissions,
+        },
+        select: {
+          id: true,
+          fullName: true,
+          username: true,
+          role: true,
+          permissions: true,
+          position: true,
+          updatedAt: true,
+        },
+      });
+
+      await this.systemAuditService.log({
+        userId: adminId,
+        action: 'USER_PERMISSIONS_UPDATED',
+        entity: 'User',
+        entityId: userId,
+        details: `Foydalanuvchi '${user.fullName}' (@${user.username}) ning tizim huquqlari yangilandi. Oldingi ruxsatlar soni: ${previousPermissionsCount}, Yangi ruxsatlar soni: ${dto.permissions.length}`,
+        ipAddress: 'internal',
+        userAgent: 'UWMS Core PBAC Module',
+      });
+
+      return updated;
+    });
+
+    this.logger.log(
+      `Foydalanuvchi (${userId}) huquqlari yangilandi: ${dto.permissions.length} ta ruxsat berildi. Admin: ${adminId}`,
+    );
+
+    return {
+      success: true,
+      message: 'Foydalanuvchi ruxsatlari muvaffaqiyatli saqlandi',
+      user: updatedUser,
+    };
+  }
 }
+

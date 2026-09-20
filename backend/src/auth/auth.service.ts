@@ -88,6 +88,7 @@ export class AuthService {
         username: user.username,
         email: user.email,
         role: user.role,
+        permissions: user.permissions || [],
         position: user.position,
         mustChangePassword: user.mustChangePassword,
         departmentName: user.department?.name,

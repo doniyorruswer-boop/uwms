@@ -31,16 +31,48 @@ async function bootstrap() {
   );
 
   // 3. Strict CORS Policy
-  const clientOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
-  const allowedOrigins = [clientOrigin, 'http://localhost:5173', 'http://127.0.0.1:5173'];
+  const clientOriginEnv = process.env.CLIENT_URL || '';
+  const configuredOrigins = clientOriginEnv
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   app.enableCors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS xavfsizlik cheklovi: "${origin}" domenidan kirish taqiqlangan`));
+      // 1. Agar origin bo'lmasa (server-to-server yoki same-origin Nginx proksi)
+      if (!origin) {
+        return callback(null, true);
       }
+
+      // 2. Localhost ishlab chiqish muhitlari
+      if (
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:') ||
+        origin.startsWith('https://localhost:')
+      ) {
+        return callback(null, true);
+      }
+
+      // 3. Konfiguratsiyada ko'rsatilgan domenlar
+      if (configuredOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // 4. Railway domenlari (*.up.railway.app, *.railway.app)
+      try {
+        const url = new URL(origin);
+        if (
+          url.hostname.endsWith('.railway.app') ||
+          url.hostname.endsWith('.up.railway.app') ||
+          url.hostname === 'localhost'
+        ) {
+          return callback(null, true);
+        }
+      } catch {
+        // Invalid URL format
+      }
+
+      callback(new Error(`CORS xavfsizlik cheklovi: "${origin}" domenidan kirish taqiqlangan`));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

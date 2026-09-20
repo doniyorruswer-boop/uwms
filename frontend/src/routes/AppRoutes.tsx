@@ -23,6 +23,7 @@ const MobileSigningPage = lazyLoad(() => import('../pages/MobileSigning/MobileSi
 const DashboardPage = lazyLoad(() => import('../pages/Dashboard/DashboardPage'), 'DashboardPage');
 const InboxPage = lazyLoad(() => import('../pages/Inbox/InboxPage'), 'InboxPage');
 const UsersPage = lazyLoad(() => import('../pages/Users/UsersPage'), 'UsersPage');
+const UserPermissionsPage = lazyLoad(() => import('../pages/Users/UserPermissionsPage'), 'UserPermissionsPage');
 const AssetsPage = lazyLoad(() => import('../pages/Assets/AssetsPage'), 'AssetsPage');
 const WarehousePage = lazyLoad(() => import('../pages/Warehouse/WarehousePage'), 'WarehousePage');
 const SuppliersPage = lazyLoad(() => import('../pages/Suppliers/SuppliersPage'), 'SuppliersPage');
@@ -43,7 +44,7 @@ const AuditCampaignsPage = lazyLoad(() => import('../pages/Audit/AuditCampaignsP
 
 const PageLoadingFallback: React.FC = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-    <Spin size={32} tip="Sahifa yuklanmoqda..." />
+    <Spin size={36} />
   </div>
 );
 
@@ -72,6 +73,7 @@ export const AppRoutes: React.FC = () => {
                     <Route path="dashboard" element={<ProtectedRoute allowedRoles={getRoles('dashboard')}><DashboardPage /></ProtectedRoute>} />
                     <Route path="inbox" element={<ProtectedRoute allowedRoles={getRoles('inbox')}><InboxPage /></ProtectedRoute>} />
                     <Route path="users" element={<ProtectedRoute allowedRoles={getRoles('users')}><UsersPage /></ProtectedRoute>} />
+                    <Route path="users/:id/permissions" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><UserPermissionsPage /></ProtectedRoute>} />
                     <Route path="assets" element={<ProtectedRoute allowedRoles={getRoles('assets')}><AssetsPage /></ProtectedRoute>} />
                     <Route path="warehouse" element={<ProtectedRoute allowedRoles={getRoles('warehouse')}><WarehousePage /></ProtectedRoute>} />
                     <Route path="suppliers" element={<ProtectedRoute allowedRoles={getRoles('suppliers')}><SuppliersPage /></ProtectedRoute>} />

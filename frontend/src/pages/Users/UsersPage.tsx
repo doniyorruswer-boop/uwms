@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Card,
   Button,
@@ -73,6 +74,7 @@ const roleLabels: Record<RoleType, string> = {
 };
 
 export const UsersPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user: currentUser } = useAuthStore();
   const { departments } = useOrganizationQuery();
 
@@ -319,7 +321,7 @@ export const UsersPage: React.FC = () => {
                         size="small"
                         type="secondary"
                         disabled={!hasObligations}
-                        icon={<IconSafe />}
+                        icon={<IconSwap />}
                         style={{
                           borderRadius: 0,
                           color: hasObligations ? 'var(--color-primary-6)' : undefined,
@@ -329,6 +331,18 @@ export const UsersPage: React.FC = () => {
                     </Tooltip>
                   );
                 })()}
+
+                {currentUser?.role === RoleType.SUPER_ADMIN && (
+                  <Tooltip content="Foydalanuvchi huquqlari va ruxsatlarini sozlash (Permissions)">
+                    <Button
+                      size="small"
+                      type="secondary"
+                      icon={<IconSafe />}
+                      style={{ borderRadius: 0, color: 'var(--color-primary-6)' }}
+                      onClick={() => navigate(`/users/${record.id}/permissions`)}
+                    />
+                  </Tooltip>
+                )}
 
                 <Tooltip content="Elektron Aylanma Varaqa (Clearance Certificate)">
                   <Button

@@ -12,6 +12,7 @@ export interface UserItem {
   phone?: string | null;
   position?: string | null;
   role: RoleType;
+  permissions?: string[];
   isActive: boolean;
   departmentId?: string | null;
   department?: {

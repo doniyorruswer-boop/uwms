@@ -106,9 +106,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       set({ isLoading: true });
       // Silent refresh: yangi in-memory access tokenni olish
-      const refreshRes = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-        refreshToken,
-      });
+      const refreshRes = await axios.post(
+        `${API_BASE_URL}/auth/refresh`,
+        { refreshToken },
+        { timeout: 8000 },
+      );
 
       const newAccessToken = refreshRes.data.access_token;
       const newRefreshToken = refreshRes.data.refresh_token;
@@ -134,6 +136,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem('uwms_user');
       localStorage.removeItem('uwms_token');
       set({ token: null, refreshToken: null, user: null, isAuthenticated: false, isLoading: false });
+    } finally {
+      set({ isLoading: false });
     }
   },
 }));

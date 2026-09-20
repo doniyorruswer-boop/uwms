@@ -38,6 +38,7 @@ export interface User {
   username: string;
   email?: string;
   role: RoleType;
+  permissions?: string[];
   phone?: string;
   position?: string;
   departmentId?: string;
@@ -614,5 +615,38 @@ export interface ClearanceCertificate {
   contentHtml: string;
 }
 
+export interface PermissionItem {
+  code: string;
+  name: string;
+  description: string;
+  isPage?: boolean;
+}
 
+export interface PermissionModule {
+  id: string;
+  name: string;
+  description: string;
+  pageCode: string;
+  permissions: PermissionItem[];
+}
 
+export interface UserPermissionsData {
+  user: {
+    id: string;
+    fullName: string;
+    username: string;
+    role: RoleType;
+    position?: string | null;
+    departmentName?: string | null;
+  };
+  permissions: string[];
+  effectivePermissions: string[];
+  defaultRolePermissions: string[];
+  isCustom: boolean;
+  catalog: PermissionModule[];
+}
+
+export interface PermissionsCatalogResponse {
+  modules: PermissionModule[];
+  defaultPresets: Record<RoleType, string[]>;
+}
