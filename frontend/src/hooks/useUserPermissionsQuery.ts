@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { Message } from '@arco-design/web-react';
+import { API_ENDPOINTS } from '../constants';
 import type {
   UserPermissionsData,
   PermissionsCatalogResponse,
@@ -11,7 +12,7 @@ export const useUserPermissionsQuery = (userId?: string) => {
     queryKey: ['user-permissions', userId],
     queryFn: async () => {
       const response = await apiClient.get<UserPermissionsData>(
-        `/api/users/${userId}/permissions`,
+        API_ENDPOINTS.USERS.PERMISSIONS(userId!),
       );
       return response.data;
     },
@@ -25,7 +26,7 @@ export const usePermissionsCatalogQuery = () => {
     queryKey: ['permissions-catalog'],
     queryFn: async () => {
       const response = await apiClient.get<PermissionsCatalogResponse>(
-        '/api/users/permissions/catalog',
+        API_ENDPOINTS.USERS.PERMISSIONS_CATALOG,
       );
       return response.data;
     },
@@ -39,7 +40,7 @@ export const useUpdateUserPermissionsMutation = (userId: string) => {
   return useMutation({
     mutationFn: async (permissions: string[]) => {
       const response = await apiClient.put(
-        `/api/users/${userId}/permissions`,
+        API_ENDPOINTS.USERS.PERMISSIONS(userId),
         { permissions },
       );
       return response.data;

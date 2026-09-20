@@ -28,6 +28,8 @@ export const API_ENDPOINTS = {
     RESET_PASSWORD: (id: string) => `/users/${id}/reset-password`,
     ASSETS: (id: string) => `/users/${id}/assets`,
     CLEARANCE_STATUS: (id: string) => `/users/${id}/clearance-status`,
+    PERMISSIONS_CATALOG: '/users/permissions/catalog',
+    PERMISSIONS: (id: string) => `/users/${id}/permissions`,
   },
 
   // Tashkiliy tuzilma (Binolar, Fakultetlar, Kafedralar, Xonalar)
