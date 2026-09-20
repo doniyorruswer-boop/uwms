@@ -171,35 +171,27 @@ export const MobileSigningPage: React.FC = () => {
       setBiometricType(detectedBiometric);
 
       // 2. Perform authentic hardware-backed WebAuthn biometric assertion
-      if (isPlatformAvailable && navigator.credentials && typeof navigator.credentials.create === 'function') {
+      // credentials.get() = verification/signing (not registration)
+      if (isPlatformAvailable && navigator.credentials && typeof navigator.credentials.get === 'function') {
         const challengeBuffer = new Uint8Array(32);
         window.crypto.getRandomValues(challengeBuffer);
 
-        const credential = (await navigator.credentials.create({
+        const credential = (await navigator.credentials.get({
           publicKey: {
             challenge: challengeBuffer,
-            rp: {
-              name: 'UWMS Universitet Elektron Tizimi',
-              id: window.location.hostname,
-            },
-            user: {
-              id: new TextEncoder().encode(signerName.trim()),
-              name: signerName.trim(),
-              displayName: signerName.trim(),
-            },
-            pubKeyCredParams: [
-              { alg: -7, type: 'public-key' },
-              { alg: -257, type: 'public-key' },
-            ],
-            authenticatorSelection: {
-              authenticatorAttachment: 'platform',
-              userVerification: 'required',
-            },
+            rpId: window.location.hostname,
+            userVerification: 'required',
             timeout: 60000,
+            // allowCredentials bo'sh = har qanday platform authenticator (Touch ID, Face ID)
+            allowCredentials: [],
           },
         }).catch((authErr: any) => {
           if (authErr?.name === 'NotAllowedError') {
             throw new Error('Biometrik tasdiqlash foydalanuvchi tomonidan bekor qilindi.');
+          }
+          if (authErr?.name === 'NotSupportedError' || authErr?.name === 'InvalidStateError') {
+            // Platform authenticator bor lekin hali ro'yxatdan o'tilmagan — imzolashni davom ettiramiz
+            return null;
           }
           return null;
         })) as any;
@@ -208,6 +200,7 @@ export const MobileSigningPage: React.FC = () => {
           credentialId = credential.id;
         }
       }
+
 
       // 3. Obtain authentic GPS coordinates for compliance audit
       const location = await getCoordinates();
