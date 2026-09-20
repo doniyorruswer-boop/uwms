@@ -68,6 +68,9 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      # Docker Compose ichida nginx backend servisini bu URL orqali topadi
+      BACKEND_URL: http://backend:4000
     ports:
       - "${FRONTEND_PORT:-80}:80"
     networks:
