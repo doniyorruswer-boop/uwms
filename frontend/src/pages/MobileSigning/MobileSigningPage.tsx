@@ -45,7 +45,30 @@ export const MobileSigningPage: React.FC = () => {
   const [biometricType, setBiometricType] = useState<string>('WEBAUTHN_BIOMETRICS');
 
   const [signingInProgress, setSigningInProgress] = useState<boolean>(false);
-  const [signedResult, setSignedResult] = useState<any | null>(null);
+  const [signedResult, setSignedResult] = useState<any>(null);
+
+  const [isGeoHelpModalOpen, setIsGeoHelpModalOpen] = useState<boolean>(false);
+  const [geoPermissionState, setGeoPermissionState] = useState<'prompt' | 'granted' | 'denied' | 'unknown'>('unknown');
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'permissions' in navigator) {
+      try {
+        navigator.permissions
+          .query({ name: 'geolocation' as PermissionName })
+          .then((status) => {
+            setGeoPermissionState(status.state);
+            status.onchange = () => {
+              setGeoPermissionState(status.state);
+            };
+          })
+          .catch(() => {
+            setGeoPermissionState('unknown');
+          });
+      } catch {
+        setGeoPermissionState('unknown');
+      }
+    }
+  }, []);
 
   const [loginForm] = Form.useForm();
   const [loginLoading, setLoginLoading] = useState<boolean>(false);
@@ -116,6 +139,7 @@ export const MobileSigningPage: React.FC = () => {
       if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
+            setGeoPermissionState('granted');
             resolve({
               latitude: pos.coords.latitude,
               longitude: pos.coords.longitude,
@@ -125,16 +149,18 @@ export const MobileSigningPage: React.FC = () => {
           (err) => {
             if (err.code === 1) {
               // PERMISSION_DENIED
+              setGeoPermissionState('denied');
+              setIsGeoHelpModalOpen(true);
               reject(
                 new Error(
-                  "Geolokatsiyaga ruxsat berilmadi (Don't allow tanlandi). Xavfsizlik va yuridik audit talabi bo‘yicha hujjatni imzolash uchun GPS geolokatsiyaga ruxsat berishingiz shart!",
+                  "Brauzerda geolokatsiya bloklangan (Don't allow tanlangan). Iltimos, manzil satridagi qulf (🔒) belgisini bosib, Joylashuvga ruxsat bering va telefon GPS-ini yoqing.",
                 ),
               );
             } else if (err.code === 2) {
               // POSITION_UNAVAILABLE
               reject(
                 new Error(
-                  'Qurilmada GPS signali topilmadi yoki geolokatsiya o‘chirilgan. Telefoningizda Joylashuv (Location) xizmatini yoqing.',
+                  'Qurilmada joylashuv signali topilmadi. Telefoningizda GPS / Joylashuv (Location) xizmatini yoqing.',
                 ),
               );
             } else if (err.code === 3) {
@@ -152,7 +178,7 @@ export const MobileSigningPage: React.FC = () => {
               );
             }
           },
-          { timeout: 10000, maximumAge: 0, enableHighAccuracy: true },
+          { timeout: 10000, maximumAge: 300000, enableHighAccuracy: false },
         );
       } else {
         reject(new Error('Ushbu qurilma yoki brauzerda geolokatsiya xizmati mavjud emas!'));
@@ -721,6 +747,31 @@ export const MobileSigningPage: React.FC = () => {
               </Form>
             )}
 
+            {/* Geolocation Warning if denied */}
+            {geoPermissionState === 'denied' && (
+              <Alert
+                type="error"
+                showIcon
+                style={{ marginBottom: 12, borderRadius: 6 }}
+                title="Geolokatsiya brauzerda bloklangan!"
+                content={
+                  <div>
+                    <div style={{ fontSize: 13, marginBottom: 6 }}>
+                      Hujjatni tasdiqlash uchun brauzerda GPS joylashuvga ruxsat berish shart.
+                    </div>
+                    <Button
+                      size="mini"
+                      type="outline"
+                      status="danger"
+                      onClick={() => setIsGeoHelpModalOpen(true)}
+                    >
+                      Yoqish yo‘riqnomasini ko‘rish ➔
+                    </Button>
+                  </div>
+                }
+              />
+            )}
+
             {/* Big Biometric Button */}
             <div style={{ marginTop: 8 }}>
                 <Button
@@ -770,6 +821,49 @@ export const MobileSigningPage: React.FC = () => {
           </Card>
         ) : null}
       </div>
+
+      <Modal
+        title={
+          <Space>
+            <IconLock style={{ color: '#F53F3F' }} />
+            <span>Geolokatsiyani Yoqish Yo‘riqnomasi</span>
+          </Space>
+        }
+        visible={isGeoHelpModalOpen}
+        onOk={() => setIsGeoHelpModalOpen(false)}
+        onCancel={() => setIsGeoHelpModalOpen(false)}
+        okText="Tushundim"
+        cancelButtonProps={{ style: { display: 'none' } }}
+      >
+        <div style={{ lineHeight: 1.8, fontSize: 13 }}>
+          <Paragraph>
+            Davlat moliyaviy audit va yuridik xavfsizlik talablariga ko‘ra, elektron imzo qo‘yilayotganda 
+            xodimning jismoniy joylashuvi qayd etilishi shart.
+          </Paragraph>
+          <div style={{ background: 'var(--color-fill-2)', padding: 12, borderRadius: 6, marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--color-text-1)' }}>
+              📱 Android / Chrome-da ruxsat berish tartibi:
+            </div>
+            <ol style={{ paddingLeft: 18, margin: 0 }}>
+              <li>
+                Brauzerning yuqori manzil satridagi <strong>qulf (🔒)</strong> yoki sozlamalar belgisini bosing.
+              </li>
+              <li>
+                <strong>"Ruxsatlar" (Permissions)</strong> yoki <strong>"Sayt sozlamalari" (Site settings)</strong> bo‘limini oching.
+              </li>
+              <li>
+                <strong>"Joylashuv" (Location)</strong> ni topib, <strong>"Ruxsat berish" (Allow)</strong> holatiga o‘tkazing.
+              </li>
+              <li>
+                Telefoningizning yuqori pardasini tushirib, <strong>"Joylashuv / GPS"</strong> tugmasini yoqing.
+              </li>
+              <li>
+                Sahifani yangilang (Swipe down yoki Refresh) va qaytadan tasdiqlash tugmasini bosing.
+              </li>
+            </ol>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
