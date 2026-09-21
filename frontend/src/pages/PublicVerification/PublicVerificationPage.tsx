@@ -31,6 +31,7 @@ import { apiClient } from '../../api/client';
 import { API_ENDPOINTS } from '../../constants/api.constants';
 import { APP_CONFIG } from '../../constants';
 import { PublicVerifyResult } from '../../types';
+import { formatRoleName } from '../../constants/roles.constants';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -133,53 +134,100 @@ export const PublicVerificationPage: React.FC = () => {
     <div
       style={{
         minHeight: '100vh',
+        width: '100%',
         backgroundColor: '#F2F3F5',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '32px 16px',
+        padding: '16px 12px 60px 12px',
+        boxSizing: 'border-box',
+        overflowX: 'hidden',
       }}
     >
       {/* Container */}
-      <div style={{ width: '100%', maxWidth: 840 }}>
-        {/* Navigation / Top Back & Quick Actions */}
+      <div style={{ width: '100%', maxWidth: 840, boxSizing: 'border-box' }}>
+        {/* Navigation / Top Sticky Bar with Exit Button */}
         <div
           className="no-print"
           style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 100,
+            backgroundColor: '#F2F3F5',
+            padding: '10px 0',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: 16,
-            flexWrap: 'wrap',
-            gap: 12,
+            width: '100%',
+            gap: 8,
+            boxSizing: 'border-box',
           }}
         >
           <Button
-            type="text"
+            type="primary"
+            status="default"
             icon={<IconArrowLeft />}
-            onClick={() => navigate('/')}
-            style={{ borderRadius: 0 }}
+            onClick={() => {
+              if (window.history.length > 1 && document.referrer) {
+                navigate(-1);
+              } else {
+                navigate('/');
+              }
+            }}
+            style={{
+              borderRadius: 6,
+              fontWeight: 600,
+              backgroundColor: '#FFFFFF',
+              color: '#1D2129',
+              border: '1px solid var(--color-border-3)',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+              height: 38,
+              padding: '0 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
           >
-            Tizimga Qaytish
+            Chiqish
           </Button>
 
-          <Space>
-            {data && (
-              <Button
-                type="outline"
-                size="small"
-                icon={<IconDownload />}
-                loading={downloadingPdf}
-                onClick={handleDownloadPdf}
-                style={{ borderRadius: 0 }}
-              >
-                PDF Yuklab Olish
-              </Button>
-            )}
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {APP_CONFIG.defaultOrganizationName} — Elektron Hujjat Reyestri
-            </Text>
-          </Space>
+          {data && (
+            <Button
+              type="outline"
+              icon={<IconDownload />}
+              loading={downloadingPdf}
+              onClick={handleDownloadPdf}
+              style={{
+                borderRadius: 6,
+                borderColor: '#165DFF',
+                color: '#165DFF',
+                backgroundColor: '#FFFFFF',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                height: 38,
+                padding: '0 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 500,
+                flexShrink: 0,
+              }}
+            >
+              PDF Yuklab Olish
+            </Button>
+          )}
+        </div>
+
+        <div
+          className="no-print"
+          style={{
+            fontSize: 11,
+            color: 'var(--color-text-3)',
+            marginBottom: 14,
+            textAlign: 'left',
+          }}
+        >
+          {APP_CONFIG.defaultOrganizationName} — Elektron Hujjat Reyestri
         </div>
 
         {loading ? (
@@ -284,21 +332,21 @@ export const PublicVerificationPage: React.FC = () => {
               >
                 {APP_CONFIG.defaultOrganizationName}
               </Text>
-              <Title heading={3} style={{ margin: '6px 0 4px 0' }}>
+              <Title heading={3} style={{ margin: '6px 0 4px 0', fontSize: 18, lineHeight: 1.4, wordBreak: 'break-word' }}>
                 Ichki Elektron Hujjat Verifikatsiyasi (QR-Pairing)
               </Title>
-              <Text type="secondary" style={{ fontSize: 13 }}>
+              <Text type="secondary" style={{ fontSize: 13, display: 'block' }}>
                 Universitet markaziy axborot tizimi orqali ro‘yxatga olingan hujjat holati
               </Text>
 
               {/* Status Badge */}
-              <div style={{ marginTop: 16 }}>
+              <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center' }}>
                 {isRevoked ? (
                   <Tag
                     color="red"
                     size="large"
                     icon={<IconCloseCircle />}
-                    style={{ fontSize: 14, padding: '6px 16px', fontWeight: 'bold' }}
+                    style={{ fontSize: 13, padding: '6px 12px', fontWeight: 'bold', whiteSpace: 'normal', height: 'auto', textAlign: 'center', lineHeight: 1.4, maxWidth: '100%' }}
                   >
                     BEKOR QILINGAN (REVOKED — YAROQSIZ)
                   </Tag>
@@ -307,7 +355,7 @@ export const PublicVerificationPage: React.FC = () => {
                     color="green"
                     size="large"
                     icon={<IconCheckCircle />}
-                    style={{ fontSize: 14, padding: '6px 16px', fontWeight: 'bold' }}
+                    style={{ fontSize: 13, padding: '6px 12px', fontWeight: 'bold', whiteSpace: 'normal', height: 'auto', textAlign: 'center', lineHeight: 1.4, maxWidth: '100%' }}
                   >
                     ✓ HUJJAT HAQIQIY VA TO‘LIQ TASDIQLANGAN (VERIFIED — 100%)
                   </Tag>
@@ -316,7 +364,7 @@ export const PublicVerificationPage: React.FC = () => {
                     color="orange"
                     size="large"
                     icon={<IconClockCircle />}
-                    style={{ fontSize: 14, padding: '6px 16px', fontWeight: 'bold' }}
+                    style={{ fontSize: 13, padding: '6px 12px', fontWeight: 'bold', whiteSpace: 'normal', height: 'auto', textAlign: 'center', lineHeight: 1.4, maxWidth: '100%' }}
                   >
                     ⏳ TASDIQLASH JARAYONIDA ({data.signingProgress?.completedCount || 0}/
                     {data.signingProgress?.totalRequired || 1} TA IMZO QO‘YILDI)
@@ -460,182 +508,207 @@ export const PublicVerificationPage: React.FC = () => {
                   style={{ width: '100%', marginBottom: 16 }}
                 />
 
-                <Table
-                  size="small"
-                  border={{ wrapper: true, cell: true }}
-                  pagination={false}
-                  columns={[
-                    {
-                      title: '№',
-                      width: 50,
-                      render: (_: any, __: any, idx: number) => idx + 1,
-                    },
-                    {
-                      title: 'Mas’ul Shaxs / Lavozimi',
-                      render: (_: any, signer: any) => (
-                        <div>
-                          <div style={{ fontWeight: 600, color: '#1D2129' }}>
-                            {signer.name || '—'}
+                <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginTop: 12 }}>
+                  <Table
+                    size="small"
+                    border={{ wrapper: true, cell: true }}
+                    pagination={false}
+                    scroll={{ x: 600 }}
+                    columns={[
+                      {
+                        title: '№',
+                        width: 50,
+                        render: (_: any, __: any, idx: number) => idx + 1,
+                      },
+                      {
+                        title: 'Mas’ul Shaxs / Lavozimi',
+                        render: (_: any, signer: any) => (
+                          <div>
+                            <div style={{ fontWeight: 600, color: '#1D2129' }}>
+                              {signer.name || '—'}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#86909C' }}>
+                              {formatRoleName(signer.role)}
+                            </div>
                           </div>
-                          <div style={{ fontSize: 11, color: '#86909C' }}>
-                            {signer.role}
-                          </div>
-                        </div>
-                      ),
-                    },
-                    {
-                      title: 'Imzo Holati',
-                      width: 190,
-                      render: (_: any, signer: any) =>
-                        signer.isSigned ? (
-                          <Tag
-                            color="green"
-                            icon={<IconCheckCircle />}
-                            style={{ fontWeight: 600 }}
-                          >
-                            ✓ TASDIQLANDI
-                          </Tag>
-                        ) : (
-                          <Tag
-                            color="orange"
-                            icon={<IconClockCircle />}
-                            style={{ fontWeight: 600 }}
-                          >
-                            ⏳ KUTILMOQDA
-                          </Tag>
                         ),
-                    },
-                    {
-                      title: 'Tasdiqlash Vaqti',
-                      width: 170,
-                      render: (_: any, signer: any) =>
-                        signer.signedAt ? (
-                          <span style={{ fontSize: 12 }}>
-                            {new Date(signer.signedAt).toLocaleString('uz-UZ')}
+                      },
+                      {
+                        title: 'Imzo Holati',
+                        width: 170,
+                        render: (_: any, signer: any) =>
+                          signer.isSigned ? (
+                            <Tag
+                              color="green"
+                              icon={<IconCheckCircle />}
+                              style={{ fontWeight: 600 }}
+                            >
+                              ✓ TASDIQLANDI
+                            </Tag>
+                          ) : (
+                            <Tag
+                              color="orange"
+                              icon={<IconClockCircle />}
+                              style={{ fontWeight: 600 }}
+                            >
+                              ⏳ KUTILMOQDA
+                            </Tag>
+                          ),
+                      },
+                      {
+                        title: 'Tasdiqlash Vaqti',
+                        width: 160,
+                        render: (_: any, signer: any) =>
+                          signer.signedAt ? (
+                            <span style={{ fontSize: 12 }}>
+                              {new Date(signer.signedAt).toLocaleString('uz-UZ')}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#86909C', fontSize: 12 }}>—</span>
+                          ),
+                      },
+                      {
+                        title: 'Usul',
+                        width: 150,
+                        render: (_: any, signer: any) => (
+                          <span style={{ fontSize: 12, color: '#165DFF' }}>
+                            <IconMobile style={{ marginRight: 4 }} />
+                            {signer.method || 'Dinamik QR-Pairing'}
                           </span>
-                        ) : (
-                          <span style={{ color: '#86909C', fontSize: 12 }}>—</span>
                         ),
-                    },
-                    {
-                      title: 'Usul',
-                      width: 160,
-                      render: (_: any, signer: any) => (
-                        <span style={{ fontSize: 12, color: '#165DFF' }}>
-                          <IconMobile style={{ marginRight: 4 }} />
-                          {signer.method || 'Dinamik QR-Pairing'}
-                        </span>
-                      ),
-                    },
-                  ]}
-                  data={data.signingProgress.signers}
-                  rowKey={(record: any) => `${record.role}-${record.name}`}
-                />
+                      },
+                    ]}
+                    data={data.signingProgress.signers}
+                    rowKey={(record: any) => `${record.role}-${record.name}`}
+                  />
+                </div>
               </div>
             )}
 
             {/* Document Attributes */}
-            <div style={{ padding: '24px 0 12px 0' }}>
+            <div style={{ padding: '20px 0 12px 0' }}>
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '220px 1fr',
-                  rowGap: 14,
-                  fontSize: 14,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  fontSize: 13,
                 }}
               >
-                <Text bold>Hujjat Nomi:</Text>
-                <Text bold style={{ color: '#165DFF' }}>
-                  {data.title}
-                </Text>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 10, borderBottom: '1px solid var(--color-border-1)' }}>
+                  <Text bold style={{ color: 'var(--color-text-2)', fontSize: 12 }}>Hujjat Nomi:</Text>
+                  <Text bold style={{ color: '#165DFF', fontSize: 14, wordBreak: 'break-word' }}>
+                    {data.title}
+                  </Text>
+                </div>
 
-                <Text bold>Hujjat Holati:</Text>
-                <div>
-                  {isRevoked ? (
-                    <Tag color="red" icon={<IconCloseCircle />}>
-                      BEKOR QILINGAN (REVOKED — YAROQSIZ)
-                    </Tag>
-                  ) : isFullySigned ? (
-                    <Tag color="green" icon={<IconCheckCircle />}>
-                      HAQIQIY VA TASDIQLANGAN (VERIFIED)
-                    </Tag>
-                  ) : (
-                    <Tag color="orange" icon={<IconClockCircle />}>
-                      TASDIQLASH JARAYONIDA
-                    </Tag>
-                  )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 10, borderBottom: '1px solid var(--color-border-1)' }}>
+                  <Text bold style={{ color: 'var(--color-text-2)', fontSize: 12 }}>Hujjat Holati:</Text>
+                  <div>
+                    {isRevoked ? (
+                      <Tag color="red" icon={<IconCloseCircle />}>
+                        BEKOR QILINGAN (REVOKED — YAROQSIZ)
+                      </Tag>
+                    ) : isFullySigned ? (
+                      <Tag color="green" icon={<IconCheckCircle />}>
+                        HAQIQIY VA TASDIQLANGAN (VERIFIED)
+                      </Tag>
+                    ) : (
+                      <Tag color="orange" icon={<IconClockCircle />}>
+                        TASDIQLASH JARAYONIDA
+                      </Tag>
+                    )}
+                  </div>
                 </div>
 
                 {isRevoked && (
                   <>
-                    <Text bold style={{ color: '#F53F3F' }}>
-                      Bekor Qilingan Sana:
-                    </Text>
-                    <span style={{ color: '#F53F3F', fontWeight: 600 }}>
-                      {data.revokedAt
-                        ? new Date(data.revokedAt).toLocaleString('uz-UZ')
-                        : '—'}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 10, borderBottom: '1px solid var(--color-border-1)' }}>
+                      <Text bold style={{ color: '#F53F3F', fontSize: 12 }}>Bekor Qilingan Sana:</Text>
+                      <span style={{ color: '#F53F3F', fontWeight: 600 }}>
+                        {data.revokedAt
+                          ? new Date(data.revokedAt).toLocaleString('uz-UZ')
+                          : '—'}
+                      </span>
+                    </div>
 
-                    <Text bold style={{ color: '#F53F3F' }}>
-                      Bekor Qilish Asosi / Sababi:
-                    </Text>
-                    <div
-                      style={{
-                        padding: '6px 12px',
-                        backgroundColor: '#FFF2F0',
-                        border: '1px solid #FFCCC7',
-                        color: '#CF1322',
-                        fontWeight: 600,
-                        borderRadius: 2,
-                      }}
-                    >
-                      {data.revokedReason ||
-                        'Universitet rasmiy farmoyishiga asosan bekor qilingan'}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 10, borderBottom: '1px solid var(--color-border-1)' }}>
+                      <Text bold style={{ color: '#F53F3F', fontSize: 12 }}>Bekor Qilish Asosi / Sababi:</Text>
+                      <div
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: '#FFF2F0',
+                          border: '1px solid #FFCCC7',
+                          color: '#CF1322',
+                          fontWeight: 600,
+                          borderRadius: 4,
+                          fontSize: 12,
+                        }}
+                      >
+                        {data.revokedReason ||
+                          'Universitet rasmiy farmoyishiga asosan bekor qilingan'}
+                      </div>
                     </div>
                   </>
                 )}
 
-                <Text bold>Hujjat Raqami:</Text>
-                <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>
-                  {data.docNumber}
-                </span>
-
-                <Text bold>Hujjat Turi:</Text>
-                <Tag>{data.docType}</Tag>
-
-                <Text bold>Tizimga Kiritilgan Sana:</Text>
-                <span>{new Date(data.issuedAt).toLocaleString('uz-UZ')}</span>
-
-                <Text bold>Tasdiqlash Texnologiyasi:</Text>
-                <span>
-                  {data.verificationMethod ||
-                    'Dinamik QR-Pairing (Mobil Biometrik Tasdiq)'}
-                </span>
-
-                <Text bold>Bosh Mas’ul / Tashabbuskor:</Text>
-                <span>
-                  {data.signerName} ({data.signerRole})
-                </span>
-
-                <Text bold>Kriptografik HMAC Nazorat Kodi:</Text>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span
-                    style={{
-                      fontFamily: 'monospace',
-                      fontSize: 11,
-                      backgroundColor: 'var(--color-fill-2)',
-                      padding: '4px 8px',
-                      wordBreak: 'break-all',
-                    }}
-                  >
-                    {data.verificationHash}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 10, borderBottom: '1px solid var(--color-border-1)' }}>
+                  <Text bold style={{ color: 'var(--color-text-2)', fontSize: 12 }}>Hujjat Raqami:</Text>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 14 }}>
+                    {data.docNumber}
                   </span>
-                  <Button
-                    size="mini"
-                    icon={<IconCopy />}
-                    onClick={handleCopyHash}
-                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 10, borderBottom: '1px solid var(--color-border-1)' }}>
+                  <Text bold style={{ color: 'var(--color-text-2)', fontSize: 12 }}>Hujjat Turi:</Text>
+                  <div><Tag>{data.docType}</Tag></div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 10, borderBottom: '1px solid var(--color-border-1)' }}>
+                  <Text bold style={{ color: 'var(--color-text-2)', fontSize: 12 }}>Tizimga Kiritilgan Sana:</Text>
+                  <span>{new Date(data.issuedAt).toLocaleString('uz-UZ')}</span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 10, borderBottom: '1px solid var(--color-border-1)' }}>
+                  <Text bold style={{ color: 'var(--color-text-2)', fontSize: 12 }}>Tasdiqlash Texnologiyasi:</Text>
+                  <span>
+                    {data.verificationMethod ||
+                      'Dinamik Mobil QR-Pairing (Mobil Biometrik Tasdiq)'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 10, borderBottom: '1px solid var(--color-border-1)' }}>
+                  <Text bold style={{ color: 'var(--color-text-2)', fontSize: 12 }}>Bosh Mas’ul / Tashabbuskor:</Text>
+                  <span style={{ fontWeight: 600 }}>
+                    {data.signerName} ({formatRoleName(data.signerRole)})
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 10 }}>
+                  <Text bold style={{ color: 'var(--color-text-2)', fontSize: 12 }}>Kriptografik HMAC Nazorat Kodi:</Text>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        backgroundColor: 'var(--color-fill-2)',
+                        padding: '6px 10px',
+                        borderRadius: 4,
+                        wordBreak: 'break-all',
+                        maxWidth: '100%',
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {data.verificationHash}
+                    </span>
+                    <Button
+                      size="small"
+                      icon={<IconCopy />}
+                      onClick={handleCopyHash}
+                    >
+                      Nusxalash
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -648,37 +721,40 @@ export const PublicVerificationPage: React.FC = () => {
                   >
                     Hujjatdagi Tasdiqlangan Ashyolar Ro‘yxati:
                   </Text>
-                  <Table
-                    size="small"
-                    border={{ wrapper: true, cell: true }}
-                    pagination={false}
-                    columns={[
-                      {
-                        title: '№',
-                        width: 50,
-                        render: (_: any, __: any, index: number) => index + 1,
-                      },
-                      {
-                        title: 'Ashyo / Mahsulot Nomi',
-                        dataIndex: 'name',
-                      },
-                      {
-                        title: 'Miqdor / Inventar №',
-                        render: (_: any, item: any) =>
-                          item.qty
-                            ? `${item.qty} ${item.unit || 'dona'}`
-                            : item.inv || '—',
-                      },
-                      {
-                        title: 'Xona / Joylashuv',
-                        render: (_: any, item: any) => item.room || 'Ombor',
-                      },
-                    ]}
-                    data={data.metadata.items}
-                    rowKey={(record: any, index?: number) =>
-                      record.id || record.inv || `${record.name || 'item'}-${index ?? 0}`
-                    }
-                  />
+                  <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginTop: 8 }}>
+                    <Table
+                      size="small"
+                      border={{ wrapper: true, cell: true }}
+                      pagination={false}
+                      scroll={{ x: 500 }}
+                      columns={[
+                        {
+                          title: '№',
+                          width: 50,
+                          render: (_: any, __: any, index: number) => index + 1,
+                        },
+                        {
+                          title: 'Ashyo / Mahsulot Nomi',
+                          dataIndex: 'name',
+                        },
+                        {
+                          title: 'Miqdor / Inventar №',
+                          render: (_: any, item: any) =>
+                            item.qty
+                              ? `${item.qty} ${item.unit || 'dona'}`
+                              : item.inv || '—',
+                        },
+                        {
+                          title: 'Xona / Joylashuv',
+                          render: (_: any, item: any) => item.room || 'Ombor',
+                        },
+                      ]}
+                      data={data.metadata.items}
+                      rowKey={(record: any, index?: number) =>
+                        record.id || record.inv || `${record.name || 'item'}-${index ?? 0}`
+                      }
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -690,6 +766,7 @@ export const PublicVerificationPage: React.FC = () => {
                 padding: 16,
                 border: '1px solid var(--color-border-2)',
                 marginTop: 12,
+                borderRadius: 4,
               }}
             >
               <div
@@ -714,25 +791,40 @@ export const PublicVerificationPage: React.FC = () => {
                 paddingTop: 16,
                 borderTop: '1px solid var(--color-border-2)',
                 display: 'flex',
-                justifyContent: 'center',
-                gap: 12,
-                flexWrap: 'wrap',
+                flexDirection: 'column',
+                gap: 10,
+                width: '100%',
               }}
             >
               <Button
                 type="primary"
                 size="large"
+                long
                 icon={<IconDownload />}
                 loading={downloadingPdf}
                 onClick={handleDownloadPdf}
-                style={{ borderRadius: 0, fontWeight: 600 }}
+                style={{
+                  borderRadius: 6,
+                  fontWeight: 600,
+                  height: 48,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               >
                 Rasmiy Hujjat Nusxasini Yuklab Olish (PDF)
               </Button>
               <Button
                 size="large"
+                long
                 icon={<IconPrinter />}
-                style={{ borderRadius: 0 }}
+                style={{
+                  borderRadius: 6,
+                  height: 44,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
                 onClick={() => window.print()}
               >
                 Sahifani Chop Etish (Print)

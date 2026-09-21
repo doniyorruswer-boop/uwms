@@ -25,6 +25,7 @@ import {
   IconUser,
   IconRefresh,
   IconLocation,
+  IconArrowLeft,
 } from '@arco-design/web-react/icon';
 import { apiClient } from '../../api/client';
 import { API_ENDPOINTS } from '../../constants/api.constants';
@@ -363,6 +364,49 @@ export const MobileSigningPage: React.FC = () => {
       }}
     >
       <div style={{ width: '100%', maxWidth: 540 }}>
+        {/* Navigation / Exit Button */}
+        <div
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 100,
+            backgroundColor: '#F7F8FA',
+            padding: '8px 0 10px 0',
+            display: 'flex',
+            justifyContent: 'flex-start',
+            marginBottom: 10,
+            width: '100%',
+          }}
+        >
+          <Button
+            type="primary"
+            status="default"
+            icon={<IconArrowLeft />}
+            onClick={() => {
+              if (window.history.length > 1 && document.referrer) {
+                navigate(-1);
+              } else {
+                navigate('/');
+              }
+            }}
+            style={{
+              borderRadius: 6,
+              fontWeight: 600,
+              backgroundColor: '#FFFFFF',
+              color: '#1D2129',
+              border: '1px solid var(--color-border-3)',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+              height: 38,
+              padding: '0 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            Chiqish
+          </Button>
+        </div>
+
         {/* Mobile Header */}
         <div style={{ textAlign: 'center', marginBottom: 16 }}>
           <div

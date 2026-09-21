@@ -31,6 +31,8 @@ html,
 body {
   height: 100%;
   width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
   margin: 0;
   padding: 0;
 }
@@ -291,6 +293,21 @@ body {
 
 [arco-theme='dark'] .uwms-header {
   background-color: rgba(35, 35, 36, 0.85);
+}
+
+@media (max-width: 768px) {
+  .uwms-header {
+    padding: 0 10px !important;
+  }
+  .uwms-header-search {
+    display: none !important;
+  }
+  .uwms-header-user-info {
+    display: none !important;
+  }
+  .uwms-header-actions {
+    gap: 6px !important;
+  }
 }
 
 /* Table Pagination Modern Spacing & 0-border-radius */

@@ -51,7 +51,9 @@ interface AppLayoutProps {
 }
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < 992 : false,
+  );
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isDarkMode, toggleDarkMode, logout } = useAuthStore();
@@ -60,6 +62,17 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const { data: inbox } = useInboxQuery({ refetchInterval: 60000 });
   const pendingTasksCount = inbox?.summary?.totalPendingCount || 0;
+
+  // Auto-collapse sidebar on resize for tablets & mobile
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 992) {
+        setCollapsed(true);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Global Ctrl+K / Cmd+K keyboard shortcut listener
   useEffect(() => {
@@ -335,7 +348,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           </Space>
 
           {/* Universal Quick Search & Quick Action Menu (Snipe-IT Pattern) */}
-          <Space size="medium" style={{ flex: 1, maxWidth: 520, margin: '0 24px' }}>
+          <Space size="medium" className="uwms-header-search" style={{ flex: 1, maxWidth: 520, margin: '0 24px' }}>
             <div
               onClick={() => setSearchModalVisible(true)}
               style={{ width: '100%', cursor: 'pointer' }}
@@ -396,7 +409,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             )}
           </Space>
 
-          <Space size="medium" style={{ flexShrink: 0 }}>
+          <Space size="medium" className="uwms-header-actions" style={{ flexShrink: 0 }}>
             {/* Language Switcher */}
             <LanguageSwitcher />
 
@@ -420,7 +433,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               <Avatar size={34} style={{ backgroundColor: '#165DFF', borderRadius: 0 }}>
                 <IconUser />
               </Avatar>
-              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+              <div className="uwms-header-user-info" style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
                 <span style={{ fontSize: '13px', fontWeight: 600 }}>{user?.fullName || 'Foydalanuvchi'}</span>
                 <span style={{ fontSize: '11px', color: 'var(--color-text-3)' }}>
                   {user?.departmentName || 'Markaziy Bo‘lim'}
