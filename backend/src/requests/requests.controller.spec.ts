@@ -214,6 +214,19 @@ describe('RequestsController (RBAC & Integration Tests)', () => {
       });
     });
 
+    describe('Direct unverified bypass rejection', () => {
+      it('should throw ForbiddenException when note contains tezkor tasdiqlandi', async () => {
+        const user = { id: 'u-vr', role: RoleType.VICE_RECTOR_FINANCE };
+        await expect(
+          controller.updateStatus(
+            requestId,
+            { status: RequestStatus.APPROVED_BY_PRORECTOR, note: 'Moliya-iqtisod prorektori tomonidan Inbox orqali tezkor tasdiqlandi' },
+            user,
+          ),
+        ).rejects.toThrow(ForbiddenException);
+      });
+    });
+
     describe('Invalid status transition', () => {
       it('should throw ForbiddenException when transitioning to an unsupported status', async () => {
         const user = { id: 'u-mol', role: RoleType.MOL };

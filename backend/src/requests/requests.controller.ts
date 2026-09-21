@@ -48,6 +48,13 @@ export class RequestsController {
     @Body() dto: UpdateRequestStatusDto,
     @CurrentUser() user: any,
   ) {
+    // Xavfsizlik: Tezkor tasdiqlash (QR-imzosiz) qat’iyan taqiqlanadi!
+    if (dto.note?.includes('tezkor tasdiqlandi')) {
+      throw new ForbiddenException(
+        'Tezkor tasdiqlash qat’iyan taqiqlangan! Barcha talabnomalar faqat QR-kod orqali mobil biometrik imzo (TouchID/FaceID) bilan tasdiqlanishi shart. Iltimos, brauzerni to‘liq yangilang (Ctrl + F5).',
+      );
+    }
+
     // RBAC: Barcha status o‘zgarishlari uchun qat’iy lavozim tekshiruvi.
     // Hech kim, jumladan SUPER_ADMIN ham tegishli mansabdor shaxs (Rektor, Prorektor, Bosh hisobchi, Omborchi va h.k.) nomidan tasdiqlay olmaydi!
     switch (dto.status) {
