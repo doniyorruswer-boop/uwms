@@ -178,6 +178,7 @@ export interface RequestRecord {
   requesterName: string;
   requesterRole?: string;
   requesterPosition?: string;   // Foydalanuvchi lavozimi (masalan: "Kafedra mudiri", "Prorektor", "Laborant")
+  departmentId?: string;
   departmentName?: string;
   approvalNote?: string;
   fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT' | string;

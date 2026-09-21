@@ -321,7 +321,7 @@ export class RequestsService {
   async advanceWorkflowStage(
     id: string,
     targetStatus: RequestStatus,
-    user: { id: string; fullName?: string; role: RoleType },
+    user: { id: string; fullName?: string; role: RoleType; departmentId?: string },
     payload?: {
       note?: string;
       fundingSource?: string;
@@ -353,13 +353,20 @@ export class RequestsService {
         throw new ForbiddenException('Binoga qabul qilishni faqat Bino komendanti imzolashi mumkin!');
       }
     } else if (targetStatus === RequestStatus.FULFILLED) {
+      if (user.role === RoleType.COMMENDANT) {
+        throw new ForbiddenException(
+          'Bino komendanti topshiruvchi hisoblanadi. Yakuniy qabul qilish dalolatnomasini komendant qabul qiluvchi o‘rniga imzolay olmaydi!',
+        );
+      }
       const req = await this.prisma.request.findUnique({ where: { id } });
       const isAuthorized =
         user.id === req?.requesterId ||
-        user.role === RoleType.MOL ||
-        user.role === RoleType.COMMENDANT;
+        (user.role === RoleType.MOL && (!user.departmentId || user.departmentId === req?.departmentId)) ||
+        user.role === RoleType.SUPER_ADMIN;
       if (!isAuthorized) {
-        throw new ForbiddenException('Yakuniy qabul va topshirish dalolatnomasini faqat talabnoma kiritgan mas’ul yoki bino komendanti imzolashi mumkin!');
+        throw new ForbiddenException(
+          'Yakuniy qabul va topshirish dalolatnomasini faqat talabnoma kiritgan xodim yoki kafedra mas’uli (MOL) imzolashi mumkin!',
+        );
       }
     }
 
@@ -371,6 +378,7 @@ export class RequestsService {
       allocatedAmount: payload?.allocatedAmount,
       commendantId: payload?.commendantId,
       targetRoomId: payload?.targetRoomId,
+      currentUser: user,
     });
   }
 
@@ -452,12 +460,19 @@ export class RequestsService {
       if (status === RequestStatus.FULFILLED) {
         const executor = dto?.currentUser;
         if (executor) {
+          if (executor.role === RoleType.COMMENDANT) {
+            throw new ForbiddenException(
+              'Bino komendanti topshiruvchi hisoblanadi. Talabnomani faqat uni kiritgan talabgor xodim yoki kafedra mas’uli (MOL) qabul qilib yakunlashi mumkin!',
+            );
+          }
           const isAllowed =
             executor.id === request.requesterId ||
-            executor.role === RoleType.MOL ||
-            executor.role === RoleType.COMMENDANT;
+            (executor.role === RoleType.MOL && (!executor.departmentId || executor.departmentId === request.departmentId)) ||
+            executor.role === RoleType.SUPER_ADMIN;
           if (!isAllowed) {
-            throw new ForbiddenException('Talabnomani faqat talabnoma kiritgan mas’ul, Kafedra mudiri yoki Komendant yakunlashi mumkin!');
+            throw new ForbiddenException(
+              'Talabnomani faqat uni kiritgan talabgor xodim (yoki kafedra MOLi) qabul qilib yakunlashi mumkin!',
+            );
           }
         }
       }

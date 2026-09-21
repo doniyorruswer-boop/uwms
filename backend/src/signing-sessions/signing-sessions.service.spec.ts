@@ -193,6 +193,8 @@ describe('SigningSessionsService', () => {
           signerRole: 'Kafedra mudiri',
           biometricType: 'TOUCH_ID',
           deviceInfo: 'iPhone 14 Safari',
+          credentialId: 'cred_mock_id_999',
+          location: { latitude: 41.3111, longitude: 69.2797, accuracy: 15 },
         },
         '192.168.1.100',
       );
@@ -212,6 +214,26 @@ describe('SigningSessionsService', () => {
       );
     });
 
+    it('should throw BadRequestException if credentialId is missing', async () => {
+      await expect(
+        service.confirmBiometricSign('mock_token_123', {
+          signerName: 'Valijon Aliyev',
+          signerRole: 'Kafedra mudiri',
+          location: { latitude: 41.3111, longitude: 69.2797, accuracy: 15 },
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if location is missing', async () => {
+      await expect(
+        service.confirmBiometricSign('mock_token_123', {
+          signerName: 'Valijon Aliyev',
+          signerRole: 'Kafedra mudiri',
+          credentialId: 'cred_mock_id_999',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it('should throw BadRequestException if session is already signed', async () => {
       mockPrisma.signingSession.findUnique.mockResolvedValue({
         ...mockSession,
@@ -222,6 +244,8 @@ describe('SigningSessionsService', () => {
         service.confirmBiometricSign('mock_token_123', {
           signerName: 'Valijon Aliyev',
           signerRole: 'Kafedra mudiri',
+          credentialId: 'cred_mock_id_999',
+          location: { latitude: 41.3111, longitude: 69.2797, accuracy: 15 },
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -237,6 +261,8 @@ describe('SigningSessionsService', () => {
         service.confirmBiometricSign('mock_token_123', {
           signerName: 'Valijon Aliyev',
           signerRole: 'Kafedra mudiri',
+          credentialId: 'cred_mock_id_999',
+          location: { latitude: 41.3111, longitude: 69.2797, accuracy: 15 },
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -253,6 +279,8 @@ describe('SigningSessionsService', () => {
         service.confirmBiometricSign('mock_token_123', {
           signerName: 'Soxta Foydalanuvchi',
           signerRole: 'Kafedra mudiri',
+          credentialId: 'cred_mock_id_999',
+          location: { latitude: 41.3111, longitude: 69.2797, accuracy: 15 },
         }),
       ).rejects.toThrow(BadRequestException);
     });

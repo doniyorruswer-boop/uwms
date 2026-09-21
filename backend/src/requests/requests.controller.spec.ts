@@ -164,6 +164,15 @@ describe('RequestsController (RBAC & Integration Tests)', () => {
         expect(requestsService.updateStatus).not.toHaveBeenCalled();
       });
 
+      it('should reject COMMENDANT from completing fulfillment with ForbiddenException', async () => {
+        const user = { id: 'u-cmd', role: RoleType.COMMENDANT };
+        await expect(
+          controller.updateStatus(requestId, { status: RequestStatus.FULFILLED }, user),
+        ).rejects.toThrow(ForbiddenException);
+
+        expect(requestsService.updateStatus).not.toHaveBeenCalled();
+      });
+
       it('should allow authorized stakeholder (MOL) to complete fulfillment', async () => {
         const user = { id: 'u-mol', role: RoleType.MOL };
         mockRequestsService.updateStatus.mockResolvedValue({ id: requestId, status: RequestStatus.FULFILLED });
@@ -194,14 +203,14 @@ describe('RequestsController (RBAC & Integration Tests)', () => {
       });
     });
 
-    describe('SUPER_ADMIN administrative bypass', () => {
-      it('should allow SUPER_ADMIN to advance to any status without role check', async () => {
+    describe('SUPER_ADMIN administrative restriction', () => {
+      it('should prevent SUPER_ADMIN from signing role-specific stages', async () => {
         const user = { id: 'u-admin', role: RoleType.SUPER_ADMIN };
-        mockRequestsService.updateStatus.mockResolvedValue({ id: requestId, status: RequestStatus.APPROVED_BY_PRORECTOR });
+        await expect(
+          controller.updateStatus(requestId, { status: RequestStatus.APPROVED_BY_PRORECTOR }, user),
+        ).rejects.toThrow(ForbiddenException);
 
-        const res = await controller.updateStatus(requestId, { status: RequestStatus.APPROVED_BY_PRORECTOR }, user);
-        expect(res.status).toBe(RequestStatus.APPROVED_BY_PRORECTOR);
-        expect(requestsService.updateStatus).toHaveBeenCalledTimes(1);
+        expect(requestsService.updateStatus).not.toHaveBeenCalled();
       });
     });
 

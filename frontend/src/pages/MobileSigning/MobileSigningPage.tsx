@@ -110,9 +110,9 @@ export const MobileSigningPage: React.FC = () => {
     fetchSession();
   }, [token]);
 
-  // Helper to obtain GPS coordinates if allowed by user
-  const getCoordinates = (): Promise<{ latitude: number; longitude: number; accuracy: number } | null> => {
-    return new Promise((resolve) => {
+  // Helper to obtain GPS coordinates - strictly required for legal audit and security
+  const getCoordinates = (): Promise<{ latitude: number; longitude: number; accuracy: number }> => {
+    return new Promise((resolve, reject) => {
       if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
@@ -122,14 +122,40 @@ export const MobileSigningPage: React.FC = () => {
               accuracy: pos.coords.accuracy,
             });
           },
-          () => {
-            // Geolocation ruxsat berilmasa ham imzolash to'xtatilmaydi
-            resolve(null);
+          (err) => {
+            if (err.code === 1) {
+              // PERMISSION_DENIED
+              reject(
+                new Error(
+                  "Geolokatsiyaga ruxsat berilmadi (Don't allow tanlandi). Xavfsizlik va yuridik audit talabi bo‘yicha hujjatni imzolash uchun GPS geolokatsiyaga ruxsat berishingiz shart!",
+                ),
+              );
+            } else if (err.code === 2) {
+              // POSITION_UNAVAILABLE
+              reject(
+                new Error(
+                  'Qurilmada GPS signali topilmadi yoki geolokatsiya o‘chirilgan. Telefoningizda Joylashuv (Location) xizmatini yoqing.',
+                ),
+              );
+            } else if (err.code === 3) {
+              // TIMEOUT
+              reject(
+                new Error(
+                  'Geolokatsiyani aniqlash vaqti tugadi (Timeout). Iltimos, qayta urinib ko‘ring.',
+                ),
+              );
+            } else {
+              reject(
+                new Error(
+                  'Geolokatsiyani aniqlab bo‘lmadi. Hujjatni imzolash uchun GPS ruxsati zarur.',
+                ),
+              );
+            }
           },
-          { timeout: 3000, maximumAge: 60000, enableHighAccuracy: false },
+          { timeout: 10000, maximumAge: 0, enableHighAccuracy: true },
         );
       } else {
-        resolve(null);
+        reject(new Error('Ushbu qurilma yoki brauzerda geolokatsiya xizmati mavjud emas!'));
       }
     });
   };
@@ -147,10 +173,32 @@ export const MobileSigningPage: React.FC = () => {
       try { navigator.vibrate([40, 80, 40]); } catch { /* ignore */ }
     }
 
+    // 1. Geolokatsiyani qat’iy tekshirish va olish (MAJBURIY!)
+    let location: { latitude: number; longitude: number; accuracy: number };
+    try {
+      location = await getCoordinates();
+      if (!location || typeof location.latitude !== 'number' || typeof location.longitude !== 'number') {
+        throw new Error('Geolokatsiya koordinatalari olinmadi.');
+      }
+    } catch (locErr: any) {
+      Message.error(
+        locErr.message || 'Geolokatsiyaga ruxsat berilmadi! Hujjatni imzolash uchun GPS geolokatsiyaga ruxsat berish shart.',
+      );
+      setSigningInProgress(false);
+      return; // STOP: Geolokatsiyasiz imzo qo'yib bo'lmaydi
+    }
+
+    // 2. Biometrik (TouchID / FaceID) tekshiruvi (MAJBURIY!)
     const isApple = /iPad|iPhone|iPod|Macintosh/.test(navigator?.userAgent || '');
     const isAndroid = /Android/.test(navigator?.userAgent || '');
     let detectedBiometric = isApple ? 'WEBAUTHN_FACE_ID' : isAndroid ? 'ANDROID_TOUCH_ID' : 'WEBAUTHN_TOUCH_ID';
     setBiometricType(detectedBiometric);
+
+    if (!window.PublicKeyCredential || !navigator.credentials?.create) {
+      Message.error('Ushbu qurilmada yoki brauzerda biometrik imzo (TouchID/FaceID) texnologiyasi mavjud emas!');
+      setSigningInProgress(false);
+      return;
+    }
 
     let credentialId: string | undefined = undefined;
 
@@ -161,59 +209,65 @@ export const MobileSigningPage: React.FC = () => {
         window.location.hostname === '127.0.0.1' ||
         /^(\d{1,3}\.){3}\d{1,3}$/.test(window.location.hostname);
 
-      if (window.PublicKeyCredential && navigator.credentials?.create) {
-        const challengeBuffer = new Uint8Array(32);
-        window.crypto.getRandomValues(challengeBuffer);
+      const challengeBuffer = new Uint8Array(32);
+      window.crypto.getRandomValues(challengeBuffer);
 
-        const rp: any = { name: 'UWMS Elektron Imzo' };
-        // W3C WebAuthn: RP ID IP manzil yoki localhost bo'lmasligi kerak
-        if (!isIpOrLocal) {
-          rp.id = window.location.hostname;
-        }
-
-        try {
-          const credential = (await navigator.credentials.create({
-            publicKey: {
-              challenge: challengeBuffer,
-              rp,
-              user: {
-                id: new TextEncoder().encode(signerName.trim() + '_' + Date.now()),
-                name: signerName.trim(),
-                displayName: signerName.trim(),
-              },
-              pubKeyCredParams: [
-                { alg: -7, type: 'public-key' },
-                { alg: -257, type: 'public-key' },
-                { alg: -8, type: 'public-key' },
-              ],
-              authenticatorSelection: {
-                authenticatorAttachment: 'platform',
-                userVerification: 'preferred', // 'preferred' Androidda bekor bo'lish xatolarini oldini oladi
-                residentKey: 'preferred',
-              },
-              timeout: 60000,
-            },
-          })) as any;
-
-          if (credential) {
-            credentialId = credential.id;
-            detectedBiometric = isApple ? 'WEBAUTHN_FACE_ID' : isAndroid ? 'ANDROID_TOUCH_ID' : 'WEBAUTHN_TOUCH_ID';
-          }
-        } catch (authErr: any) {
-          console.warn('WebAuthn platform check note:', authErr);
-          // Androidda Google Password Manager passkeyni IP yoki localhost sababli saqlashda xato bersa ham,
-          // foydalanuvchi barmoq izi skaneridan o'tgani qayd etilib, imzo uzluksiz davom etadi
-          detectedBiometric = isAndroid ? 'ANDROID_TOUCH_ID' : 'BIOMETRIC_TOUCH_ID';
-        }
+      const rp: any = { name: 'UWMS Elektron Imzo' };
+      // W3C WebAuthn: RP ID IP manzil yoki localhost bo'lmasligi kerak
+      if (!isIpOrLocal) {
+        rp.id = window.location.hostname;
       }
 
-      // 3. Geolokatsiyani olish
-      const location = await getCoordinates();
+      const credential = (await navigator.credentials.create({
+        publicKey: {
+          challenge: challengeBuffer,
+          rp,
+          user: {
+            id: new TextEncoder().encode(signerName.trim() + '_' + Date.now()),
+            name: signerName.trim(),
+            displayName: signerName.trim(),
+          },
+          pubKeyCredParams: [
+            { alg: -7, type: 'public-key' },
+            { alg: -257, type: 'public-key' },
+            { alg: -8, type: 'public-key' },
+          ],
+          authenticatorSelection: {
+            authenticatorAttachment: 'platform',
+            userVerification: 'required', // MAJBURIY: Biometrik (TouchID/FaceID) tekshiruvi shart
+            residentKey: 'preferred',
+          },
+          timeout: 60000,
+        },
+      })) as any;
 
-      // 4. Serverga imzolash natijasini yuborish
-      const userAgent =
-        typeof navigator !== 'undefined' ? navigator.userAgent : 'Mobile Device';
+      if (!credential || !credential.id) {
+        Message.error('Biometrik tasdiqlash bajarilmadi. Hujjat imzolanmadi!');
+        setSigningInProgress(false);
+        return;
+      }
 
+      credentialId = credential.id;
+      detectedBiometric = isApple ? 'WEBAUTHN_FACE_ID' : isAndroid ? 'ANDROID_TOUCH_ID' : 'WEBAUTHN_TOUCH_ID';
+    } catch (authErr: any) {
+      console.warn('WebAuthn platform check error:', authErr);
+      const errName = authErr?.name || '';
+      if (errName === 'NotAllowedError') {
+        Message.error('Biometrik tasdiqlash bekor qilindi yoki barmoq izi/yuz skan qilinmadi. Hujjat imzolanmadi!');
+      } else if (errName === 'AbortError') {
+        Message.warning('Biometrik tasdiqlash jarayoni to‘xtatildi. Qayta urinib ko‘ring.');
+      } else {
+        Message.error(`Biometrik tasdiqlash amalga oshmadi: ${authErr?.message || 'Qurilma biometrikasidan o‘tilmadi'}`);
+      }
+      setSigningInProgress(false);
+      return; // STOP: Biometrika o'tmasa, hech qachon hujjat imzolanmaydi!
+    }
+
+    // 3. Serverga imzolash natijasini yuborish (faqat har ikkala tekshiruv 100% muvaffaqiyatli bo'lsa)
+    const userAgent =
+      typeof navigator !== 'undefined' ? navigator.userAgent : 'Mobile Device';
+
+    try {
       const res = await apiClient.post(
         API_ENDPOINTS.SIGNING_SESSIONS.PUBLIC_CONFIRM(token!),
         {
@@ -222,7 +276,7 @@ export const MobileSigningPage: React.FC = () => {
           biometricType: detectedBiometric,
           deviceInfo: userAgent,
           credentialId,
-          location: location || undefined,
+          location,
         },
       );
 

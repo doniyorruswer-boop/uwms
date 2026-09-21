@@ -290,6 +290,23 @@ export class SigningSessionsService {
       throw new BadRequestException('60 soniyalik imzolash muddati tugagan! Kompyuterda QR-kodni yangilang.');
     }
 
+    // 1. Biometrik (Passkey / WebAuthn) va GPS geolokatsiya mavjudligini tekshirish
+    if (!dto.credentialId || !dto.credentialId.trim()) {
+      throw new BadRequestException(
+        'Biometrik (TouchID/FaceID) tasdiq ma’lumotlari topilmadi! Hujjat imzolanmadi.',
+      );
+    }
+
+    if (
+      !dto.location ||
+      typeof dto.location.latitude !== 'number' ||
+      typeof dto.location.longitude !== 'number'
+    ) {
+      throw new BadRequestException(
+        'GPS geolokatsiya koordinatalari topilmadi! Hujjatni imzolash uchun brauzerda geolokatsiyaga ruxsat berish shart.',
+      );
+    }
+
     // Determine final signer name and role with authentic binding check
     let finalSignerName = (dto.signerName || '').trim();
     let finalSignerRole = (dto.signerRole || '').trim();

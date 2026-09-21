@@ -77,15 +77,19 @@ export class RequestsController {
         }
         break;
       case RequestStatus.FULFILLED:
+        if (user.role === RoleType.COMMENDANT) {
+          throw new ForbiddenException(
+            'Bino komendanti topshiruvchi hisoblanadi. Yakuniy qabul qilish dalolatnomasini komendant qabul qiluvchi o‘rniga imzolay olmaydi!',
+          );
+        }
         if (
-          user.role !== RoleType.HEAD_WAREHOUSE &&
           user.role !== RoleType.MOL &&
-          user.role !== RoleType.COMMENDANT &&
-          user.role !== RoleType.EMPLOYEE
+          user.role !== RoleType.EMPLOYEE &&
+          user.role !== RoleType.SUPER_ADMIN &&
+          user.role !== RoleType.HEAD_WAREHOUSE
         ) {
           throw new ForbiddenException(
-            'Talabnomani faqat Bosh Omborchi, Komendant yoki mas\'ul xodim (MOL, Bo\'lim Boshlig\'i, Prorektor, Xodim) yakunlashi mumkin!',
-
+            'Talabnomani faqat talabgor xodim (yoki kafedra MOLi) qabul qilib yakunlashi mumkin!',
           );
         }
         break;
@@ -162,12 +166,17 @@ export class RequestsController {
   }
 
   @Post(':id/fulfill-room')
-  @ApiOperation({ summary: 'Kafedra mudiri tomonidan xonaga qabul qilish (7-bosqich Yakuniy)' })
+  @ApiOperation({ summary: 'Kafedra mudiri / Talabgor tomonidan xonaga qabul qilish (7-bosqich Yakuniy)' })
   async fulfillRoom(
     @Param('id') id: string,
     @Body() dto: FulfillWorkflowDto,
     @CurrentUser() user: any,
   ) {
+    if (user.role === RoleType.COMMENDANT) {
+      throw new ForbiddenException(
+        'Bino komendanti topshiruvchi hisoblanadi. Yakuniy qabul qilish dalolatnomasini komendant qabul qiluvchi o‘rniga imzolay olmaydi!',
+      );
+    }
     return this.requestsService.advanceWorkflowStage(id, RequestStatus.FULFILLED, user, {
       note: dto.note,
       targetRoomId: dto.targetRoomId,

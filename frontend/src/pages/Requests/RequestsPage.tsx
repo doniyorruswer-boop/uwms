@@ -823,11 +823,15 @@ export const RequestsPage: React.FC = () => {
                 record.status === 'RECEIVED_AT_WAREHOUSE' &&
                 user?.role === 'COMMENDANT';
 
+              const isRequester = user?.id === record.requesterId;
+              const isDeptMol =
+                user?.role === 'MOL' &&
+                (!user?.departmentId || user?.departmentId === record.departmentId);
+
               const canMudirFulfill =
                 record.status === 'HANDED_TO_COMMENDANT' &&
-                (user?.id === record.requesterId ||
-                 user?.role === 'MOL' ||
-                 user?.role === 'COMMENDANT');
+                user?.role !== 'COMMENDANT' &&
+                (isRequester || isDeptMol);
 
               const canReject =
                 (((record.status === 'SUBMITTED' ||
