@@ -344,14 +344,16 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             zIndex: 9,
           }}
         >
-          <Space size="large" style={{ flexShrink: 0 }}>
-            <Button
-              type="text"
-              icon={collapsed ? <IconMenuUnfold /> : <IconMenuFold />}
-              onClick={() => setCollapsed(!collapsed)}
-              style={{ fontSize: '18px' }}
-            />
-            <div style={{ fontWeight: 600, fontSize: '16px' }}>
+          <Space size={isMobile ? 'small' : 'large'} style={{ flexShrink: 0 }}>
+            {!isMobile && (
+              <Button
+                type="text"
+                icon={collapsed ? <IconMenuUnfold /> : <IconMenuFold />}
+                onClick={() => setCollapsed(!collapsed)}
+                style={{ fontSize: '18px' }}
+              />
+            )}
+            <div style={{ fontWeight: 600, fontSize: isMobile ? '15px' : '16px' }}>
               {getTranslatedTitle(location.pathname)}
             </div>
           </Space>
@@ -418,24 +420,28 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             )}
           </Space>
 
-          <Space size="medium" className="uwms-header-actions" style={{ flexShrink: 0 }}>
-            {/* Language Switcher */}
-            <LanguageSwitcher />
+          <Space size={isMobile ? 'small' : 'medium'} className="uwms-header-actions" style={{ flexShrink: 0 }}>
+            {/* Language Switcher (Desktop only - mobile uses Profile drawer) */}
+            {!isMobile && <LanguageSwitcher />}
 
-            {/* Dark mode switch */}
-            <Tooltip content={isDarkMode ? t('header.lightMode') : t('header.darkMode')}>
-              <Button
-                shape="circle"
-                type="secondary"
-                icon={isDarkMode ? <IconSun /> : <IconMoon />}
-                onClick={toggleDarkMode}
-              />
-            </Tooltip>
+            {/* Dark mode switch (Desktop only - mobile uses Profile drawer) */}
+            {!isMobile && (
+              <Tooltip content={isDarkMode ? t('header.lightMode') : t('header.darkMode')}>
+                <Button
+                  shape="circle"
+                  type="secondary"
+                  icon={isDarkMode ? <IconSun /> : <IconMoon />}
+                  onClick={toggleDarkMode}
+                />
+              </Tooltip>
+            )}
 
             {/* Notification Center Popover */}
             <NotificationPopover />
 
-            <div style={{ width: 1, height: 20, backgroundColor: 'var(--color-border-2)', margin: '0 4px' }} />
+            {!isMobile && (
+              <div style={{ width: 1, height: 20, backgroundColor: 'var(--color-border-2)', margin: '0 4px' }} />
+            )}
 
             {/* User profile */}
             <div
