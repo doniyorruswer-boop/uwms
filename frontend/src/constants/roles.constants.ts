@@ -88,3 +88,33 @@ export const hasRoutePermission = (role: RoleType | undefined, path: string): bo
   // Exact match or prefix match
   return config.allowedRoutes.some((route) => path === route || path.startsWith(`${route}/`));
 };
+
+/**
+ * Rollarni o'zbek tilidagi tushunarli rasmiy nomga aylantirish (masalan: CHIEF_ACCOUNTANT -> Bosh hisobchi)
+ */
+export const formatRoleName = (role?: string): string => {
+  if (!role) return '';
+  const trimmed = role.trim();
+  if (ROLE_CONFIG[trimmed as RoleType]) {
+    return ROLE_CONFIG[trimmed as RoleType].label;
+  }
+  const customMap: Record<string, string> = {
+    CHIEF_ACCOUNTANT: 'Bosh hisobchi',
+    RECTOR: 'Universitet rektori',
+    VICE_RECTOR_FINANCE: 'Moliya prorektori',
+    HEAD_WAREHOUSE: 'Bosh omborchi',
+    COMMENDANT: 'Bino komendanti',
+    MOL: 'Moddiy javobgar shaxs',
+    AUDITOR: 'Ichki auditor',
+    EMPLOYEE: 'Xodim',
+    SUPER_ADMIN: 'Bosh administrator',
+    DEPARTMENT_HEAD: 'Kafedra mudiri',
+    ACCOUNTANT: 'Hisobchi',
+    WAREHOUSEMAN: 'Omborchi',
+  };
+  if (customMap[trimmed]) {
+    return customMap[trimmed];
+  }
+  return trimmed.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+};
+

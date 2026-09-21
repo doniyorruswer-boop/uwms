@@ -25,12 +25,12 @@ import {
   IconUser,
   IconRefresh,
   IconLocation,
-  IconCopy,
 } from '@arco-design/web-react/icon';
 import { apiClient } from '../../api/client';
 import { API_ENDPOINTS } from '../../constants/api.constants';
 import { MobileSigningDetailsResult } from '../../types';
 import { useAuthStore } from '../../store/authStore';
+import { formatRoleName } from '../../constants/roles.constants';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -90,7 +90,7 @@ export const MobileSigningPage: React.FC = () => {
       login(access_token, user, refresh_token);
       Message.success(`Xush kelibsiz, ${user.fullName}!`);
       setSignerName(user.fullName);
-      setSignerRole(user.position || user.role);
+      setSignerRole(formatRoleName(user.position || user.role));
     } catch (err: any) {
       if (err?.response?.data?.message) {
         Message.error(err.response.data.message);
@@ -108,7 +108,7 @@ export const MobileSigningPage: React.FC = () => {
         setSignerName(currentUser.fullName);
       }
       if (!signerRole) {
-        setSignerRole(currentUser.position || currentUser.role);
+        setSignerRole(formatRoleName(currentUser.position || currentUser.role));
       }
     }
   }, [currentUser]);
@@ -126,7 +126,7 @@ export const MobileSigningPage: React.FC = () => {
           setSignerName(res.data.expectedSignerName);
         }
         if (res.data?.expectedSignerRole) {
-          setSignerRole(res.data.expectedSignerRole);
+          setSignerRole(formatRoleName(res.data.expectedSignerRole));
         }
       } catch (err: any) {
         setError(err?.response?.data?.message || 'Ushbu imzolash sessiyasi topilmadi yoki bekor qilingan.');
@@ -204,15 +204,6 @@ export const MobileSigningPage: React.FC = () => {
       });
     }
   }, []);
-
-  const handleCopyLink = () => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(window.location.href);
-      Message.success('Havola nusxalandi! Chrome-da yangi Inkognito tab ochib kirsangiz, telefonning default so‘rov oynasi chiqadi.');
-    } else {
-      Message.info('Havolani brauzer manzil satridan nusxalang.');
-    }
-  };
 
   const handleBiometricConfirm = async () => {
     if (!signerName.trim() || !signerRole.trim()) {
@@ -533,7 +524,7 @@ export const MobileSigningPage: React.FC = () => {
                       <b>Hujjat raqami:</b> {signedResult?.docNumber || session?.docNumber}
                     </div>
                     <div>
-                      <b>Mas’ul shaxs:</b> {signedResult?.signerName || signerName} ({signedResult?.signerRole || signerRole})
+                      <b>Mas’ul shaxs:</b> {signedResult?.signerName || signerName} ({formatRoleName(signedResult?.signerRole || signerRole)})
                     </div>
                     <div>
                       <b>Tasdiqlangan vaqt:</b>{' '}
@@ -751,8 +742,8 @@ export const MobileSigningPage: React.FC = () => {
                 <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-1)' }}>
                   {session.expectedSignerName}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-2)', marginTop: 2 }}>
-                  {session.expectedSignerRole || 'Mas’ul Shaxs'}
+                <div style={{ fontSize: 13, color: 'var(--color-text-2)', marginTop: 2 }}>
+                  {formatRoleName(session.expectedSignerRole) || 'Mas’ul Shaxs'}
                 </div>
               </div>
             ) : (
@@ -815,102 +806,134 @@ export const MobileSigningPage: React.FC = () => {
                   </Text>
                 </div>
                 <div style={{ fontSize: 12, color: '#4E5969', lineHeight: 1.5, marginBottom: 12 }}>
-                  Avval brauzerda <b>"Don't allow"</b> (Ruxsat bermaslik) tanlanganligi sababli telefon default oynani chiqarmayapti. Quyidagi 2 ta oson yo‘ldan birini tanlang:
+                  Xavfsizlik va yuridik audit talabi bo‘yicha hujjatni imzolash uchun brauzerda GPS joylashuvga ruxsat berishingiz shart.
                 </div>
 
                 <div
                   style={{
                     backgroundColor: '#FFFFFF',
-                    padding: '8px 10px',
+                    padding: '10px 12px',
                     borderRadius: 6,
                     border: '1px solid #FFECE8',
-                    marginBottom: 8,
+                    marginBottom: 12,
                     fontSize: 12,
+                    lineHeight: 1.6,
                   }}
                 >
-                  <div style={{ fontWeight: 600, color: '#1D2129', marginBottom: 2 }}>
-                    1-usul: Qulfcha orqali ruxsat berish
+                  <div style={{ fontWeight: 600, color: '#1D2129', marginBottom: 4 }}>
+                    📍 Ruxsat berish tartibi:
                   </div>
                   <div>1. Brauzer tepasidagi <b>🔒 Qulfcha</b> belgisini bosing.</div>
                   <div>2. <b>Joylashuv (Location)</b> ni <b>Ruxsat berish (Allow)</b> ga o‘tkazing.</div>
+                  <div>3. Telefoningizda <b>GPS (Joylashuv)</b> yoqilganligini tekshiring.</div>
                 </div>
 
-                <div
+                <Button
+                  type="primary"
+                  status="danger"
+                  long
+                  size="large"
+                  loading={locationLoading}
+                  onClick={() => requestLocation(false)}
                   style={{
-                    backgroundColor: '#FFFFFF',
-                    padding: '8px 10px',
+                    height: 46,
                     borderRadius: 6,
-                    border: '1px solid #E8F3FF',
-                    marginBottom: 12,
-                    fontSize: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
                 >
-                  <div style={{ fontWeight: 600, color: '#165DFF', marginBottom: 2 }}>
-                    2-usul (Eng tezkor): Yangi Inkognito oynada ochish
-                  </div>
-                  <div>
-                    Havolani nusxalab, Chrome-da <b>"Новая вкладка инкогнито"</b> ochib kirsangiz, telefoningiz xuddi xaritaga (Map) kirgandek <b>o‘zining default so‘rov oynasini</b> chiqaradi!
-                  </div>
-                </div>
-
-                <Space style={{ width: '100%' }} direction="vertical" size="small">
-                  <Button
-                    type="primary"
-                    status="danger"
-                    long
-                    icon={<IconRefresh />}
-                    loading={locationLoading}
-                    onClick={() => requestLocation(false)}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      width: '100%',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      textAlign: 'center',
+                    }}
                   >
-                    Joylashuvni Qayta Tekshirish
-                  </Button>
-                  <Button
-                    type="outline"
-                    long
-                    icon={<IconCopy />}
-                    onClick={handleCopyLink}
-                  >
-                    Havolani Nusxalash (Inkognito uchun)
-                  </Button>
-                </Space>
+                    {!locationLoading && <IconRefresh style={{ fontSize: 16 }} />}
+                    <span>{locationLoading ? 'Joylashuv tekshirilmoqda...' : 'Joylashuvni Qayta Tekshirish'}</span>
+                  </div>
+                </Button>
               </Card>
             ) : (
               <div style={{ marginBottom: 16 }}>
                 <Button
                   type="outline"
                   long
-                  icon={<IconLocation />}
+                  size="large"
                   loading={locationLoading}
                   onClick={() => requestLocation(false)}
-                  style={{ borderColor: '#165DFF', color: '#165DFF' }}
+                  style={{
+                    borderColor: '#165DFF',
+                    color: '#165DFF',
+                    height: 46,
+                    borderRadius: 6,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
                 >
-                  {locationLoading ? 'Joylashuv aniqlanmoqda...' : '📍 Joylashuvni aniqlash (GPS ruxsati berish)'}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      width: '100%',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {!locationLoading && <IconLocation style={{ fontSize: 16 }} />}
+                    <span>{locationLoading ? 'Joylashuv aniqlanmoqda...' : 'Joylashuvni aniqlash (GPS ruxsati berish)'}</span>
+                  </div>
                 </Button>
               </div>
             )}
 
             {/* Big Biometric Button */}
             <div style={{ marginTop: 8 }}>
-                <Button
-                  type="primary"
-                  status="success"
-                  size="large"
-                  long
-                  loading={signingInProgress}
-                  icon={<IconThunderbolt />}
+              <Button
+                type="primary"
+                status="success"
+                size="large"
+                long
+                loading={signingInProgress}
+                style={{
+                  height: 52,
+                  backgroundColor: '#00B42A',
+                  borderRadius: 8,
+                  boxShadow: '0 4px 14px rgba(0,180,42,0.28)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 10px',
+                }}
+                onClick={handleBiometricConfirm}
+              >
+                <div
                   style={{
-                    height: 52,
-                    fontSize: 16,
-                    fontWeight: 'bold',
-                    backgroundColor: '#00B42A',
-                    borderRadius: 6,
-                    boxShadow: '0 4px 12px rgba(0,180,42,0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    width: '100%',
+                    fontSize: 15,
+                    fontWeight: 700,
+                    textAlign: 'center',
                   }}
-                  onClick={handleBiometricConfirm}
                 >
-                  {signingInProgress ? 'Biometrika Tasdiqlanmoqda...' : 'TouchID / FaceID Bilan Tasdiqlash'}
-                </Button>
-              </div>
+                  {!signingInProgress && <IconThunderbolt style={{ fontSize: 18 }} />}
+                  <span>{signingInProgress ? 'Biometrika Tasdiqlanmoqda...' : 'TouchID / FaceID Bilan Tasdiqlash'}</span>
+                </div>
+              </Button>
+            </div>
 
               {signingInProgress && (
                 <div

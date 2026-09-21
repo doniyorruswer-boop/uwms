@@ -29,6 +29,7 @@ import {
   SigningSessionInitResult,
   SigningSessionStatusResult,
 } from '../../types';
+import { formatRoleName } from '../../constants/roles.constants';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -236,7 +237,7 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
 
               <Text bold>Imzolagan Mas’ul:</Text>
               <Text>
-                {status?.signerName} ({status?.signerRole || 'Mas’ul'})
+                {status?.signerName} ({formatRoleName(status?.signerRole) || 'Mas’ul'})
               </Text>
 
               <Text bold>Tasdiqlangan Vaqt:</Text>
