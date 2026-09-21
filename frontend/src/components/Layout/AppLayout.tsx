@@ -43,6 +43,9 @@ import { ForcePasswordChangeModal } from '../Auth/ForcePasswordChangeModal';
 import { GlobalSearchModal } from '../Search/GlobalSearchModal';
 import { useTranslation } from 'react-i18next';
 
+import { MobileBottomNav } from './MobileBottomNav';
+import { MobileProfileDrawer } from './MobileProfileDrawer';
+
 const MenuItem = Menu.Item;
 const { Header, Sider, Content } = Layout;
 
@@ -51,6 +54,10 @@ interface AppLayoutProps {
 }
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    return typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+  });
+  const [profileDrawerVisible, setProfileDrawerVisible] = useState(false);
   const [collapsed, setCollapsed] = useState(
     typeof window !== 'undefined' ? window.innerWidth < 992 : false,
   );
@@ -66,6 +73,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   // Auto-collapse sidebar on resize for tablets & mobile
   useEffect(() => {
     const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
       if (window.innerWidth < 992) {
         setCollapsed(true);
       }
@@ -156,7 +165,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         width={250}
         style={{
           height: '100vh',
-          display: 'flex',
+          display: isMobile ? 'none' : 'flex',
           flexDirection: 'column',
           boxShadow: '2px 0 8px 0 rgba(29,33,41,0.05)',
           zIndex: 10,
@@ -429,17 +438,24 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             <div style={{ width: 1, height: 20, backgroundColor: 'var(--color-border-2)', margin: '0 4px' }} />
 
             {/* User profile */}
-            <Space size="small">
-              <Avatar size={34} style={{ backgroundColor: '#165DFF', borderRadius: 0 }}>
-                <IconUser />
-              </Avatar>
-              <div className="uwms-header-user-info" style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-                <span style={{ fontSize: '13px', fontWeight: 600 }}>{user?.fullName || 'Foydalanuvchi'}</span>
-                <span style={{ fontSize: '11px', color: 'var(--color-text-3)' }}>
-                  {user?.departmentName || 'Markaziy Bo‘lim'}
-                </span>
-              </div>
-            </Space>
+            <div
+              onClick={() => {
+                if (isMobile) setProfileDrawerVisible(true);
+              }}
+              style={{ cursor: isMobile ? 'pointer' : 'default', display: 'flex', alignItems: 'center' }}
+            >
+              <Space size="small">
+                <Avatar size={34} style={{ backgroundColor: '#165DFF', borderRadius: 0 }}>
+                  <IconUser />
+                </Avatar>
+                <div className="uwms-header-user-info" style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600 }}>{user?.fullName || 'Foydalanuvchi'}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--color-text-3)' }}>
+                    {user?.departmentName || 'Markaziy Bo‘lim'}
+                  </span>
+                </div>
+              </Space>
+            </div>
 
             {/* Logout button */}
             <Tooltip
@@ -474,7 +490,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         <Content
           style={{
             flex: 1,
-            padding: '24px',
+            padding: isMobile ? '12px 10px 80px 10px' : '24px',
             backgroundColor: 'var(--bg-color)',
             overflowY: 'auto',
             overflowX: 'hidden',
@@ -484,6 +500,15 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         >
           {children}
         </Content>
+
+        {/* MOBILE BOTTOM NAVIGATION & PROFILE DRAWER */}
+        {isMobile && (
+          <MobileBottomNav onOpenProfile={() => setProfileDrawerVisible(true)} />
+        )}
+        <MobileProfileDrawer
+          visible={profileDrawerVisible}
+          onClose={() => setProfileDrawerVisible(false)}
+        />
       </Layout>
 
       {/* Majburiy Parol O‘zgartirish Modali (Xavfsizlik talabi) */}

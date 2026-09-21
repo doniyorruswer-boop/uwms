@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   Grid,
@@ -51,6 +51,17 @@ export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { analytics, isLoading, isError, refetch } = useDashboardAnalyticsQuery();
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    return typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Current period for quotas (YYYY-MM)
   const currentPeriod = useMemo(() => {
@@ -109,35 +120,37 @@ export const DashboardPage: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* EXECUTIVE HEADER TOOLBAR */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, padding: '4px 0' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--color-text-1)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '4px 0' }}>
+        <h1 style={{ fontSize: isMobile ? 18 : 20, fontWeight: 700, margin: 0, color: 'var(--color-text-1)' }}>
           Xush kelibsiz, {user?.fullName}!
         </h1>
 
-        <Space size="medium" wrap>
-          <Button
-            type="outline"
-            icon={<IconScan />}
-            onClick={() => navigate('/audit')}
-            style={{ borderRadius: 0 }}
-          >
-            QR Auditni Boshlash
-          </Button>
+        <Space size="small" wrap style={{ width: isMobile ? '100%' : 'auto' }}>
           <Button
             type="primary"
-            icon={<IconPlus />}
-            onClick={() => navigate('/assets?action=create')}
-            style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
+            icon={<IconScan />}
+            onClick={() => navigate('/audit')}
+            style={{ borderRadius: isMobile ? 6 : 0, flex: isMobile ? 1 : 'none', minHeight: 38 }}
           >
-            Yangi Vosita Kiritish
+            QR Skaner
           </Button>
           <Button
-            icon={<IconDownload />}
-            onClick={handleExportExecutiveExcel}
-            style={{ borderRadius: 0 }}
+            type="outline"
+            icon={<IconPlus />}
+            onClick={() => navigate('/requests?action=create')}
+            style={{ borderRadius: isMobile ? 6 : 0, flex: isMobile ? 1 : 'none', minHeight: 38 }}
           >
-            Tahliliy Hisobot (Excel)
+            Yangi Zayavka
           </Button>
+          {!isMobile && (
+            <Button
+              icon={<IconDownload />}
+              onClick={handleExportExecutiveExcel}
+              style={{ borderRadius: 0 }}
+            >
+              Tahliliy Hisobot (Excel)
+            </Button>
+          )}
           <Button
             icon={<IconSync />}
             loading={isLoading || isQuotasLoading}
@@ -145,10 +158,59 @@ export const DashboardPage: React.FC = () => {
               refetch();
               refetchQuotas();
             }}
-            style={{ borderRadius: 0 }}
+            style={{ borderRadius: isMobile ? 6 : 0, minHeight: 38 }}
           />
         </Space>
       </div>
+
+      {/* MOBILE ACTION HIGHLIGHT BANNER */}
+      {isMobile && (summary?.pendingRequestsCount || 0) > 0 && (
+        <Card
+          style={{
+            borderRadius: 8,
+            backgroundColor: '#FFF7E8',
+            border: '1px solid #FFC069',
+            boxShadow: '0 2px 8px rgba(250,140,22,0.1)',
+          }}
+          bodyStyle={{ padding: '12px 14px' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: '50%',
+                  backgroundColor: '#FFE7BA',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#D46B08',
+                  flexShrink: 0,
+                }}
+              >
+                <IconFile style={{ fontSize: 20 }} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14, color: '#D46B08' }}>
+                  {summary?.pendingRequestsCount} ta kutilayotgan ariza
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
+                  Tasdiqlashingiz yoki imzoingiz kutilmoqda
+                </div>
+              </div>
+            </div>
+            <Button
+              type="primary"
+              size="small"
+              style={{ borderRadius: 6, backgroundColor: '#FA8C16' }}
+              onClick={() => navigate('/inbox')}
+            >
+              Ko‘rish
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* ERROR STATE: ROBUST ERROR HANDLING */}
       {isError && !analytics && (

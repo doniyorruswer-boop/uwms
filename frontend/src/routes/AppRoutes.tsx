@@ -42,6 +42,8 @@ const OrganizationPage = lazyLoad(() => import('../pages/Organization/Organizati
 const AuditScannerPage = lazyLoad(() => import('../pages/Audit/AuditScannerPage'), 'AuditScannerPage');
 const AuditCampaignsPage = lazyLoad(() => import('../pages/Audit/AuditCampaignsPage'), 'AuditCampaignsPage');
 
+import { DesktopOnlyGuard } from '../components/Common/DesktopOnlyGuard';
+
 const PageLoadingFallback: React.FC = () => <PageLoader size={20} />;
 
 const getRoles = (keyOrPath: string) => {
@@ -77,14 +79,14 @@ export const AppRoutes: React.FC = () => {
                     <Route path="requests" element={<ProtectedRoute allowedRoles={getRoles('requests')}><RequestsPage /></ProtectedRoute>} />
                     <Route path="repairs" element={<ProtectedRoute allowedRoles={getRoles('repairs')}><RepairsPage /></ProtectedRoute>} />
                     <Route path="write-offs" element={<ProtectedRoute allowedRoles={getRoles('write-offs')}><WriteOffPage /></ProtectedRoute>} />
-                    <Route path="depreciation" element={<ProtectedRoute allowedRoles={getRoles('depreciation')}><DepreciationPage /></ProtectedRoute>} />
-                    <Route path="reports/chief-accountant" element={<ProtectedRoute allowedRoles={getRoles('chiefAccountantLedger')}><ChiefAccountantLedgerPage /></ProtectedRoute>} />
-                    <Route path="reports/funding" element={<ProtectedRoute allowedRoles={getRoles('fundingReports')}><FundingReportsPage /></ProtectedRoute>} />
-                    <Route path="quotas" element={<ProtectedRoute allowedRoles={getRoles('quotas')}><QuotasPage /></ProtectedRoute>} />
-                    <Route path="system-audit" element={<ProtectedRoute allowedRoles={getRoles('systemAudit')}><SystemAuditPage /></ProtectedRoute>} />
-                    <Route path="integrations" element={<ProtectedRoute allowedRoles={getRoles('integrations')}><IntegrationsPage /></ProtectedRoute>} />
-                    <Route path="backups" element={<ProtectedRoute allowedRoles={getRoles('backups')}><BackupsPage /></ProtectedRoute>} />
-                    <Route path="organization" element={<ProtectedRoute allowedRoles={getRoles('organization')}><OrganizationPage /></ProtectedRoute>} />
+                    <Route path="depreciation" element={<ProtectedRoute allowedRoles={getRoles('depreciation')}><DesktopOnlyGuard pageTitle="Amortizatsiya Hisobi"><DepreciationPage /></DesktopOnlyGuard></ProtectedRoute>} />
+                    <Route path="reports/chief-accountant" element={<ProtectedRoute allowedRoles={getRoles('chiefAccountantLedger')}><DesktopOnlyGuard pageTitle="Bosh Hisobchi Daftari"><ChiefAccountantLedgerPage /></DesktopOnlyGuard></ProtectedRoute>} />
+                    <Route path="reports/funding" element={<ProtectedRoute allowedRoles={getRoles('fundingReports')}><DesktopOnlyGuard pageTitle="Moliyaviy Manbalar Hisoboti"><FundingReportsPage /></DesktopOnlyGuard></ProtectedRoute>} />
+                    <Route path="quotas" element={<ProtectedRoute allowedRoles={getRoles('quotas')}><DesktopOnlyGuard pageTitle="Kafedralar Kvotasi"><QuotasPage /></DesktopOnlyGuard></ProtectedRoute>} />
+                    <Route path="system-audit" element={<ProtectedRoute allowedRoles={getRoles('systemAudit')}><DesktopOnlyGuard pageTitle="Tizim Auditi va Jurnallari"><SystemAuditPage /></DesktopOnlyGuard></ProtectedRoute>} />
+                    <Route path="integrations" element={<ProtectedRoute allowedRoles={getRoles('integrations')}><DesktopOnlyGuard pageTitle="Tashqi Tizimlar Integratsiyasi"><IntegrationsPage /></DesktopOnlyGuard></ProtectedRoute>} />
+                    <Route path="backups" element={<ProtectedRoute allowedRoles={getRoles('backups')}><DesktopOnlyGuard pageTitle="Zaxira Nusxalari (Backups)"><BackupsPage /></DesktopOnlyGuard></ProtectedRoute>} />
+                    <Route path="organization" element={<ProtectedRoute allowedRoles={getRoles('organization')}><DesktopOnlyGuard pageTitle="Tashkiliy Tuzilma va Xonalar"><OrganizationPage /></DesktopOnlyGuard></ProtectedRoute>} />
                     <Route path="audit" element={<ProtectedRoute allowedRoles={getRoles('audit')}><AuditScannerPage /></ProtectedRoute>} />
                     <Route path="audit-campaigns" element={<ProtectedRoute allowedRoles={getRoles('auditCampaigns')}><AuditCampaignsPage /></ProtectedRoute>} />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />

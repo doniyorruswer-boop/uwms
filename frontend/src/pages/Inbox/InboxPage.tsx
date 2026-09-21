@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Tabs,
@@ -66,6 +66,17 @@ export const InboxPage: React.FC = () => {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<string>('all');
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    return typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Action Center In-Place Modals State
   const [selectedOverQuota, setSelectedOverQuota] = useState<OverQuotaRequestItem | null>(null);
@@ -320,28 +331,28 @@ export const InboxPage: React.FC = () => {
       <Card
         key={`handover-${item.id}`}
         className="uwms-card"
-        style={{ borderRadius: 0, marginBottom: 12, borderLeft: '4px solid #165DFF' }}
+        style={{ borderRadius: isMobile ? 8 : 0, marginBottom: 12, borderLeft: '4px solid #165DFF' }}
         hoverable
-        bodyStyle={{ padding: '16px 20px' }}
+        bodyStyle={{ padding: isMobile ? '12px 14px' : '16px 20px' }}
       >
         <div
           style={{
             display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
             justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            flexWrap: 'wrap',
-            gap: 16,
+            alignItems: isMobile ? 'stretch' : 'flex-start',
+            gap: 12,
           }}
         >
-          <div style={{ flex: 1, minWidth: 280 }}>
-            <Space size="small" style={{ marginBottom: 6 }}>
-              <Tag color="arcoblue" icon={<IconFile />} style={{ borderRadius: 0, fontWeight: 600 }}>
+          <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
+            <Space size="small" style={{ marginBottom: 6 }} wrap>
+              <Tag color="arcoblue" icon={<IconFile />} style={{ borderRadius: 4, fontWeight: 600 }}>
                 OS-1 Dalolatnomasi
               </Tag>
-              <Tag color="blue" style={{ borderRadius: 0, fontWeight: 600 }}>
+              <Tag color="blue" style={{ borderRadius: 4, fontWeight: 600 }}>
                 {item.handoverNumber}
               </Tag>
-              <Tag color="orange" style={{ borderRadius: 0 }}>
+              <Tag color="orange" style={{ borderRadius: 4 }}>
                 Tasdiqlash Kutilmoqda
               </Tag>
               {isTarget && <Tag color="green">Siz Qabul Qiluvchisiz</Tag>}
@@ -349,7 +360,7 @@ export const InboxPage: React.FC = () => {
               {isAccountant && <Tag color="purple">Moddiy Hisobchi</Tag>}
             </Space>
 
-            <Title heading={6} style={{ margin: '4px 0' }}>
+            <Title heading={6} style={{ margin: '4px 0', fontSize: isMobile ? 15 : 16 }}>
               Moddiy Javobgarlik Topshiruvi ({item._count?.items || 0} ta aktiv)
             </Title>
 
@@ -376,12 +387,12 @@ export const InboxPage: React.FC = () => {
             </Space>
           </div>
 
-          <Space wrap size="small">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, width: isMobile ? '100%' : 'auto', marginTop: isMobile ? 8 : 0 }}>
             <Button
               type="primary"
               status="success"
               icon={<IconCheckCircle />}
-              style={{ borderRadius: 0 }}
+              style={{ flex: isMobile ? '1 1 100%' : 'none', minHeight: 38, borderRadius: 6 }}
               onClick={() => {
                 setSelectedHandoverId(item.id);
                 setIsHandoverModalVisible(true);
@@ -389,7 +400,7 @@ export const InboxPage: React.FC = () => {
             >
               Ko‘rib Chiqish va Qabul Qilish (OS-1)
             </Button>
-          </Space>
+          </div>
         </div>
       </Card>
     );
@@ -401,35 +412,35 @@ export const InboxPage: React.FC = () => {
       <Card
         key={`transfer-${item.id}`}
         className="uwms-card"
-        style={{ borderRadius: 0, marginBottom: 12 }}
+        style={{ borderRadius: isMobile ? 8 : 0, marginBottom: 12 }}
         hoverable
-        bodyStyle={{ padding: '16px 20px' }}
+        bodyStyle={{ padding: isMobile ? '12px 14px' : '16px 20px' }}
       >
         <div
           style={{
             display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
             justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            flexWrap: 'wrap',
-            gap: 16,
+            alignItems: isMobile ? 'stretch' : 'flex-start',
+            gap: 12,
           }}
         >
-          <div style={{ flex: 1, minWidth: 280 }}>
-            <Space size="small" style={{ marginBottom: 6 }}>
-              <Tag color="arcoblue" icon={<IconSwap />} style={{ borderRadius: 0, fontWeight: 600 }}>
+          <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
+            <Space size="small" style={{ marginBottom: 6 }} wrap>
+              <Tag color="arcoblue" icon={<IconSwap />} style={{ borderRadius: 4, fontWeight: 600 }}>
                 Ashyo Ko‘chirish
               </Tag>
-              <Tag color="orange" style={{ borderRadius: 0 }}>
+              <Tag color="orange" style={{ borderRadius: 4 }}>
                 Qabul kutilmoqda
               </Tag>
               {item.isReturn && (
-                <Tag color="gold" style={{ borderRadius: 0 }}>
+                <Tag color="gold" style={{ borderRadius: 4 }}>
                   Omborga qaytarish
                 </Tag>
               )}
             </Space>
 
-            <Title heading={6} style={{ margin: '4px 0' }}>
+            <Title heading={6} style={{ margin: '4px 0', fontSize: isMobile ? 15 : 16 }}>
               {item.asset?.item?.name || 'Asosiy vosita'} ({item.asset?.inventoryNumber})
             </Title>
 
@@ -455,13 +466,13 @@ export const InboxPage: React.FC = () => {
             </Space>
           </div>
 
-          <Space wrap size="small">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, width: isMobile ? '100%' : 'auto', marginTop: isMobile ? 8 : 0 }}>
             {canAcceptTransfer(item) && (
               <Button
                 type="primary"
                 status="success"
                 icon={<IconMobile />}
-                style={{ borderRadius: 0 }}
+                style={{ flex: isMobile ? '1 1 140px' : 'none', minHeight: 38, borderRadius: 6 }}
                 onClick={() => handleOpenTransferQrSign(item)}
               >
                 QR bilan Qabul Qilish
@@ -472,7 +483,7 @@ export const InboxPage: React.FC = () => {
               <Button
                 status="danger"
                 icon={<IconCloseCircle />}
-                style={{ borderRadius: 0 }}
+                style={{ flex: isMobile ? '1 1 120px' : 'none', minHeight: 38, borderRadius: 6 }}
                 onClick={() => setRejectingTransfer(item)}
               >
                 Rad etish
@@ -480,7 +491,7 @@ export const InboxPage: React.FC = () => {
             )}
 
             {!canAcceptTransfer(item) && (
-              <Tag color="orange" style={{ borderRadius: 0, padding: '4px 8px' }}>
+              <Tag color="orange" style={{ borderRadius: 4, padding: '4px 8px' }}>
                 Kutilmoqda: {item.isReturn ? 'Bosh ombor mudiri' : item.receiver?.fullName || 'Qabul qiluvchi MOL'}
               </Tag>
             )}
@@ -488,12 +499,12 @@ export const InboxPage: React.FC = () => {
             <Button
               type="secondary"
               icon={<IconRight />}
-              style={{ borderRadius: 0 }}
+              style={{ flex: isMobile ? '1 1 100%' : 'none', minHeight: 36, borderRadius: 6 }}
               onClick={() => navigate('/assets')}
             >
               Reestrda ko‘rish
             </Button>
-          </Space>
+          </div>
         </div>
       </Card>
     );
@@ -505,40 +516,40 @@ export const InboxPage: React.FC = () => {
       <Card
         key={`req-${item.id}`}
         className="uwms-card"
-        style={{ borderRadius: 0, marginBottom: 12 }}
+        style={{ borderRadius: isMobile ? 8 : 0, marginBottom: 12 }}
         hoverable
-        bodyStyle={{ padding: '16px 20px' }}
+        bodyStyle={{ padding: isMobile ? '12px 14px' : '16px 20px' }}
       >
         <div
           style={{
             display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
             justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            flexWrap: 'wrap',
-            gap: 16,
+            alignItems: isMobile ? 'stretch' : 'flex-start',
+            gap: 12,
           }}
         >
-          <div style={{ flex: 1, minWidth: 280 }}>
-            <Space size="small" style={{ marginBottom: 6 }}>
-              <Tag color="green" icon={<IconFile />} style={{ borderRadius: 0, fontWeight: 600 }}>
+          <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
+            <Space size="small" style={{ marginBottom: 6 }} wrap>
+              <Tag color="green" icon={<IconFile />} style={{ borderRadius: 4, fontWeight: 600 }}>
                 Talabnoma
               </Tag>
-              <Tag color="blue" style={{ borderRadius: 0 }}>
+              <Tag color="blue" style={{ borderRadius: 4 }}>
                 {item.requestNumber}
               </Tag>
               {item.isOverQuota && (
-                <Tag color="red" style={{ borderRadius: 0 }}>
+                <Tag color="red" style={{ borderRadius: 4 }}>
                   Kvotadan oshgan
                 </Tag>
               )}
               {item.specialApprovalNeeded && (
-                <Tag color="gold" style={{ borderRadius: 0 }}>
+                <Tag color="gold" style={{ borderRadius: 4 }}>
                   Maxsus ruxsat talab
                 </Tag>
               )}
             </Space>
 
-            <Title heading={6} style={{ margin: '4px 0' }}>
+            <Title heading={6} style={{ margin: '4px 0', fontSize: isMobile ? 15 : 16 }}>
               Maqsad: {item.purpose}
             </Title>
 
@@ -562,13 +573,13 @@ export const InboxPage: React.FC = () => {
             </Space>
           </div>
 
-          <Space wrap size="small">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, width: isMobile ? '100%' : 'auto', marginTop: isMobile ? 8 : 0 }}>
             {canApproveRequest(item) && (
               <Button
                 type="primary"
                 status="success"
                 icon={<IconMobile />}
-                style={{ borderRadius: 0 }}
+                style={{ flex: isMobile ? '1 1 140px' : 'none', minHeight: 38, borderRadius: 6 }}
                 onClick={() => handleOpenRequestQrSign(item)}
               >
                 QR bilan Tasdiqlash
@@ -580,7 +591,7 @@ export const InboxPage: React.FC = () => {
                 type="primary"
                 status="warning"
                 icon={<IconCheckCircle />}
-                style={{ borderRadius: 0 }}
+                style={{ flex: isMobile ? '1 1 140px' : 'none', minHeight: 38, borderRadius: 6 }}
                 onClick={() => setSelectedOverQuota(item)}
               >
                 Rektorat Vizasi
@@ -591,7 +602,7 @@ export const InboxPage: React.FC = () => {
               <Button
                 status="danger"
                 icon={<IconCloseCircle />}
-                style={{ borderRadius: 0 }}
+                style={{ flex: isMobile ? '1 1 110px' : 'none', minHeight: 38, borderRadius: 6 }}
                 onClick={() => setRejectingRequest(item)}
               >
                 Rad etish
@@ -599,7 +610,7 @@ export const InboxPage: React.FC = () => {
             )}
 
             {!canApproveRequest(item) && (!item.isOverQuota || !canGiveRectorVisa) && (
-              <Tag color="arcoblue" style={{ borderRadius: 0, padding: '4px 8px' }}>
+              <Tag color="arcoblue" style={{ borderRadius: 4, padding: '4px 8px' }}>
                 Kutilmoqda:{' '}
                 {item.status === 'APPROVED_BY_PRORECTOR'
                   ? 'Universitet Rektori'
@@ -612,19 +623,18 @@ export const InboxPage: React.FC = () => {
                   : item.status === 'HANDED_TO_COMMENDANT'
                   ? 'Mas\'ul Xodim / MOL'
                   : 'Moliya-iqtisod Prorektori'}
-
               </Tag>
             )}
 
             <Button
               type="secondary"
               icon={<IconRight />}
-              style={{ borderRadius: 0 }}
+              style={{ flex: isMobile ? '1 1 100%' : 'none', minHeight: 36, borderRadius: 6 }}
               onClick={() => navigate('/requests')}
             >
               Batafsil ko‘rish
             </Button>
-          </Space>
+          </div>
         </div>
       </Card>
     );
@@ -636,33 +646,33 @@ export const InboxPage: React.FC = () => {
       <Card
         key={`vote-${item.id}`}
         className="uwms-card"
-        style={{ borderRadius: 0, marginBottom: 12 }}
+        style={{ borderRadius: isMobile ? 8 : 0, marginBottom: 12 }}
         hoverable
-        bodyStyle={{ padding: '16px 20px' }}
+        bodyStyle={{ padding: isMobile ? '12px 14px' : '16px 20px' }}
       >
         <div
           style={{
             display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
             justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            flexWrap: 'wrap',
-            gap: 16,
+            alignItems: isMobile ? 'stretch' : 'flex-start',
+            gap: 12,
           }}
         >
-          <div style={{ flex: 1, minWidth: 280 }}>
-            <Space size="small" style={{ marginBottom: 6 }}>
-              <Tag color="red" icon={<IconDelete />} style={{ borderRadius: 0, fontWeight: 600 }}>
+          <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
+            <Space size="small" style={{ marginBottom: 6 }} wrap>
+              <Tag color="red" icon={<IconDelete />} style={{ borderRadius: 4, fontWeight: 600 }}>
                 OS-4 Spisanie Ovozi
               </Tag>
-              <Tag color="magenta" style={{ borderRadius: 0 }}>
+              <Tag color="magenta" style={{ borderRadius: 4 }}>
                 {item.writeOffRequest.actNumber}
               </Tag>
-              <Tag color="blue" style={{ borderRadius: 0 }}>
+              <Tag color="blue" style={{ borderRadius: 4 }}>
                 Rolingiz: {item.roleName}
               </Tag>
             </Space>
 
-            <Title heading={6} style={{ margin: '4px 0' }}>
+            <Title heading={6} style={{ margin: '4px 0', fontSize: isMobile ? 15 : 16 }}>
               Ashyo: {item.writeOffRequest.asset?.item?.name || 'Asosiy vosita'} (
               {item.writeOffRequest.asset?.inventoryNumber})
             </Title>
@@ -688,14 +698,14 @@ export const InboxPage: React.FC = () => {
             </Space>
           </div>
 
-          <Space wrap size="small">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, width: isMobile ? '100%' : 'auto', marginTop: isMobile ? 8 : 0 }}>
             {(item.userId === user?.id || item.user?.id === user?.id) ? (
               <>
                 <Button
                   type="primary"
                   status="success"
                   icon={<IconMobile />}
-                  style={{ borderRadius: 0 }}
+                  style={{ flex: isMobile ? '1 1 140px' : 'none', minHeight: 38, borderRadius: 6 }}
                   onClick={() => handleOpenVoteQrSign(item)}
                 >
                   QR bilan Ma’qullash
@@ -704,14 +714,14 @@ export const InboxPage: React.FC = () => {
                 <Button
                   status="danger"
                   icon={<IconCloseCircle />}
-                  style={{ borderRadius: 0 }}
+                  style={{ flex: isMobile ? '1 1 110px' : 'none', minHeight: 38, borderRadius: 6 }}
                   onClick={() => setRejectingVote(item)}
                 >
                   Rad etish
                 </Button>
               </>
             ) : (
-              <Tag color="red" style={{ borderRadius: 0, padding: '4px 8px' }}>
+              <Tag color="red" style={{ borderRadius: 4, padding: '4px 8px' }}>
                 Ovoz kutilmoqda: {item.user?.fullName || item.roleName}
               </Tag>
             )}
@@ -719,12 +729,12 @@ export const InboxPage: React.FC = () => {
             <Button
               type="secondary"
               icon={<IconRight />}
-              style={{ borderRadius: 0 }}
+              style={{ flex: isMobile ? '1 1 100%' : 'none', minHeight: 36, borderRadius: 6 }}
               onClick={() => navigate('/write-offs')}
             >
               OS-4 aktiga o‘tish
             </Button>
-          </Space>
+          </div>
         </div>
       </Card>
     );
@@ -748,44 +758,44 @@ export const InboxPage: React.FC = () => {
       <Card
         key={`audit-${item.id}`}
         className="uwms-card"
-        style={{ borderRadius: 0, marginBottom: 12 }}
+        style={{ borderRadius: isMobile ? 8 : 0, marginBottom: 12 }}
         hoverable
-        bodyStyle={{ padding: '16px 20px' }}
+        bodyStyle={{ padding: isMobile ? '12px 14px' : '16px 20px' }}
       >
         <div
           style={{
             display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
             justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            flexWrap: 'wrap',
-            gap: 16,
+            alignItems: isMobile ? 'stretch' : 'flex-start',
+            gap: 12,
           }}
         >
-          <div style={{ flex: 1, minWidth: 280 }}>
+          <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
             <Space size="small" style={{ marginBottom: 6 }} wrap>
-              <Tag color="purple" icon={<IconScan />} style={{ borderRadius: 0, fontWeight: 600 }}>
+              <Tag color="purple" icon={<IconScan />} style={{ borderRadius: 4, fontWeight: 600 }}>
                 {isCampaign ? 'Rejali Kampaniya' : 'Xona Auditi'}
               </Tag>
-              <Tag color="blue" style={{ borderRadius: 0 }}>
+              <Tag color="blue" style={{ borderRadius: 4 }}>
                 {item.number}
               </Tag>
               {isPlannedCampaign ? (
-                <Tag color="gold" style={{ borderRadius: 0, fontWeight: 600 }}>
+                <Tag color="gold" style={{ borderRadius: 4, fontWeight: 600 }}>
                   Farmoyish kutilmoqda
                 </Tag>
               ) : (
-                <Tag color="green" style={{ borderRadius: 0 }}>
+                <Tag color="green" style={{ borderRadius: 4 }}>
                   Davom etmoqda
                 </Tag>
               )}
               {item.orderNumber && (
-                <Tag color="cyan" style={{ borderRadius: 0 }}>
+                <Tag color="cyan" style={{ borderRadius: 4 }}>
                   Buyruq: {item.orderNumber}
                 </Tag>
               )}
             </Space>
 
-            <Title heading={6} style={{ margin: '4px 0' }}>
+            <Title heading={6} style={{ margin: '4px 0', fontSize: isMobile ? 15 : 16 }}>
               {item.title}
             </Title>
 
@@ -815,9 +825,9 @@ export const InboxPage: React.FC = () => {
             </Space>
           </div>
 
-          <Space wrap size="small">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, width: isMobile ? '100%' : 'auto', marginTop: isMobile ? 8 : 0 }}>
             {!isAuditorOfThis && !isCampaign && (
-              <Tag color="purple" style={{ borderRadius: 0, padding: '4px 8px' }}>
+              <Tag color="purple" style={{ borderRadius: 4, padding: '4px 8px' }}>
                 Mas’ul Auditor: {item.auditorName || 'Tayinlangan Auditor'}
               </Tag>
             )}
@@ -828,8 +838,10 @@ export const InboxPage: React.FC = () => {
                 icon={<IconQrcode />}
                 style={{
                   backgroundColor: '#165DFF',
-                  borderRadius: 0,
+                  borderRadius: 6,
                   fontWeight: 600,
+                  flex: isMobile ? '1 1 100%' : 'none',
+                  minHeight: 38,
                 }}
                 loading={startCampaignMutation.isPending && signingCampaignItem?.id === item.id}
                 onClick={() => {
@@ -842,9 +854,10 @@ export const InboxPage: React.FC = () => {
             )}
 
             <Button
-              type={isAuditorOfThis ? 'primary' : 'secondary'}
+              type={isAuditorOfThis && !isCampaign ? 'primary' : 'secondary'}
+              status={isAuditorOfThis && !isCampaign ? 'success' : 'default'}
               icon={<IconRight />}
-              style={{ borderRadius: 0, ...(isAuditorOfThis ? { backgroundColor: '#722ED1' } : {}) }}
+              style={{ flex: isMobile ? '1 1 100%' : 'none', minHeight: 36, borderRadius: 6 }}
               onClick={() => navigate(isCampaign ? '/audit-campaigns' : '/audit')}
             >
               {isCampaign
@@ -853,7 +866,7 @@ export const InboxPage: React.FC = () => {
                 ? 'Skanerlashni davom ettirish'
                 : 'Audit reestrida ko‘rish'}
             </Button>
-          </Space>
+          </div>
         </div>
       </Card>
     );
@@ -867,33 +880,33 @@ export const InboxPage: React.FC = () => {
       <Card
         key={`stock-${item.id}`}
         className="uwms-card"
-        style={{ borderRadius: 0, marginBottom: 12 }}
+        style={{ borderRadius: isMobile ? 8 : 0, marginBottom: 12 }}
         hoverable
-        bodyStyle={{ padding: '16px 20px' }}
+        bodyStyle={{ padding: isMobile ? '12px 14px' : '16px 20px' }}
       >
         <div
           style={{
             display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
             justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            flexWrap: 'wrap',
-            gap: 16,
+            alignItems: isMobile ? 'stretch' : 'flex-start',
+            gap: 12,
           }}
         >
-          <div style={{ flex: 1, minWidth: 280 }}>
-            <Space size="small" style={{ marginBottom: 6 }}>
-              <Tag color="orange" icon={<IconArchive />} style={{ borderRadius: 0, fontWeight: 600 }}>
+          <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
+            <Space size="small" style={{ marginBottom: 6 }} wrap>
+              <Tag color="orange" icon={<IconArchive />} style={{ borderRadius: 4, fontWeight: 600 }}>
                 Ombor Qoldig‘i Kam
               </Tag>
-              <Tag color="red" style={{ borderRadius: 0, fontWeight: 600 }}>
+              <Tag color="red" style={{ borderRadius: 4, fontWeight: 600 }}>
                 Qoldiq: {item.currentQuantity} {item.unit}
               </Tag>
-              <Tag color="gray" style={{ borderRadius: 0 }}>
+              <Tag color="gray" style={{ borderRadius: 4 }}>
                 Limit: {item.minLimit} {item.unit}
               </Tag>
             </Space>
 
-            <Title heading={6} style={{ margin: '4px 0' }}>
+            <Title heading={6} style={{ margin: '4px 0', fontSize: isMobile ? 15 : 16 }}>
               {item.itemName} ({item.categoryName || 'Sarf materiali'})
             </Title>
 
@@ -905,9 +918,9 @@ export const InboxPage: React.FC = () => {
             </Paragraph>
           </div>
 
-          <Space wrap size="small">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, width: isMobile ? '100%' : 'auto', marginTop: isMobile ? 8 : 0 }}>
             {!isWarehouseRole && (
-              <Tag color="orange" style={{ borderRadius: 0, padding: '4px 8px' }}>
+              <Tag color="orange" style={{ borderRadius: 4, padding: '4px 8px' }}>
                 Mas’ul: Bosh ombor mudiri
               </Tag>
             )}
@@ -916,7 +929,7 @@ export const InboxPage: React.FC = () => {
               <Button
                 type="outline"
                 icon={<IconFile />}
-                style={{ borderRadius: 0 }}
+                style={{ flex: isMobile ? '1 1 140px' : 'none', minHeight: 38, borderRadius: 6 }}
                 onClick={() =>
                   navigate('/requests?create=true', {
                     state: {
@@ -943,12 +956,12 @@ export const InboxPage: React.FC = () => {
               type={isWarehouseRole ? 'primary' : 'secondary'}
               status={isWarehouseRole ? 'warning' : 'default'}
               icon={<IconRight />}
-              style={{ borderRadius: 0 }}
+              style={{ flex: isMobile ? '1 1 120px' : 'none', minHeight: 38, borderRadius: 6 }}
               onClick={() => navigate('/warehouse?tab=low-stock')}
             >
               Omborda ko‘rish
             </Button>
-          </Space>
+          </div>
         </div>
       </Card>
     );
@@ -960,34 +973,34 @@ export const InboxPage: React.FC = () => {
       <Card
         key={`overquota-${item.id}`}
         className="uwms-card"
-        style={{ borderRadius: 0, marginBottom: 12 }}
+        style={{ borderRadius: isMobile ? 8 : 0, marginBottom: 12 }}
         hoverable
-        bodyStyle={{ padding: '16px 20px' }}
+        bodyStyle={{ padding: isMobile ? '12px 14px' : '16px 20px' }}
       >
         <div
           style={{
             display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
             justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            flexWrap: 'wrap',
-            gap: 16,
+            alignItems: isMobile ? 'stretch' : 'flex-start',
+            gap: 12,
           }}
         >
-          <div style={{ flex: 1, minWidth: 280 }}>
-            <Space size="small" style={{ marginBottom: 6 }}>
+          <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
+            <Space size="small" style={{ marginBottom: 6 }} wrap>
               <Tag
                 color="gold"
                 icon={<IconExclamationCircle />}
-                style={{ borderRadius: 0, fontWeight: 600 }}
+                style={{ borderRadius: 4, fontWeight: 600 }}
               >
                 Kvotadan Ortgan Talabnoma
               </Tag>
-              <Tag color="red" style={{ borderRadius: 0, fontWeight: 600 }}>
+              <Tag color="red" style={{ borderRadius: 4, fontWeight: 600 }}>
                 Rektorat Maxsus Vizasi Kutilmoqda
               </Tag>
             </Space>
 
-            <Title heading={6} style={{ margin: '4px 0' }}>
+            <Title heading={6} style={{ margin: '4px 0', fontSize: isMobile ? 15 : 16 }}>
               {item.requestNumber} — {item.purpose}
             </Title>
 
@@ -1006,7 +1019,7 @@ export const InboxPage: React.FC = () => {
             </div>
           </div>
 
-          <Space wrap size="small">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, width: isMobile ? '100%' : 'auto', marginTop: isMobile ? 8 : 0 }}>
             <Tooltip
               content={
                 !canGiveRectorVisa
@@ -1018,7 +1031,7 @@ export const InboxPage: React.FC = () => {
                 type="primary"
                 status="warning"
                 icon={<IconCheckCircle />}
-                style={{ borderRadius: 0 }}
+                style={{ flex: isMobile ? '1 1 140px' : 'none', minHeight: 38, borderRadius: 6 }}
                 disabled={!canGiveRectorVisa}
                 onClick={() => setSelectedOverQuota(item)}
               >
@@ -1030,7 +1043,7 @@ export const InboxPage: React.FC = () => {
               <Button
                 status="danger"
                 icon={<IconCloseCircle />}
-                style={{ borderRadius: 0 }}
+                style={{ flex: isMobile ? '1 1 110px' : 'none', minHeight: 38, borderRadius: 6 }}
                 onClick={() => setRejectingRequest(item)}
               >
                 Rad etish
@@ -1040,12 +1053,12 @@ export const InboxPage: React.FC = () => {
             <Button
               type="secondary"
               icon={<IconRight />}
-              style={{ borderRadius: 0 }}
+              style={{ flex: isMobile ? '1 1 100%' : 'none', minHeight: 36, borderRadius: 6 }}
               onClick={() => navigate('/requests')}
             >
               Talabnomani ko‘rib chiqish
             </Button>
-          </Space>
+          </div>
         </div>
       </Card>
     );
@@ -1054,7 +1067,7 @@ export const InboxPage: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header Bar */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '16px 20px' }}>
+      <Card className="uwms-card" style={{ borderRadius: isMobile ? 8 : 0 }} bodyStyle={{ padding: isMobile ? '12px 14px' : '16px 20px' }}>
         <div
           style={{
             display: 'flex',
@@ -1176,8 +1189,8 @@ export const InboxPage: React.FC = () => {
 
       {/* Main Tabs Container when tasks exist */}
       {!isLoading && !isError && totalCount > 0 && (
-        <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '16px 20px' }}>
-          <Tabs activeTab={activeTab} onChange={setActiveTab} type="line">
+        <Card className="uwms-card" style={{ borderRadius: isMobile ? 8 : 0 }} bodyStyle={{ padding: isMobile ? '12px 10px' : '16px 20px' }}>
+          <Tabs activeTab={activeTab} onChange={setActiveTab} type="line" style={{ width: '100%', overflowX: 'auto' }}>
             {/* ALL TAB */}
             <TabPane
               key="all"
