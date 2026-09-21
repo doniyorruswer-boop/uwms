@@ -304,7 +304,7 @@ export const DashboardPage: React.FC = () => {
           >
             {isLoading ? (
               <div style={{ textAlign: 'center', padding: '30px 0' }}>
-                <Spin tip="Operativ vazifalar tahlil qilinmoqda..." />
+                <Spin dot size={20} tip="Operativ vazifalar tahlil qilinmoqda..." />
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -608,7 +608,7 @@ export const DashboardPage: React.FC = () => {
           >
             {isLoading ? (
               <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                <Spin tip="Moliyaviy tahlil hisoblanmoqda..." />
+                <Spin dot size={20} tip="Moliyaviy tahlil hisoblanmoqda..." />
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -692,7 +692,7 @@ export const DashboardPage: React.FC = () => {
           >
             {isLoading ? (
               <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                <Spin tip="Manbalar yuklanmoqda..." />
+                <Spin dot size={20} tip="Manbalar yuklanmoqda..." />
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -761,7 +761,7 @@ export const DashboardPage: React.FC = () => {
       >
         {isQuotasLoading ? (
           <div style={{ textAlign: 'center', padding: '30px 0' }}>
-            <Spin tip="Kafedralar oylik kvotalari monitoringi yuklanmoqda..." />
+            <Spin dot size={20} tip="Kafedralar oylik kvotalari monitoringi yuklanmoqda..." />
           </div>
         ) : quotas.length === 0 ? (
           <div style={{ padding: '24px 0', textAlign: 'center' }}>

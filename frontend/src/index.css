@@ -356,25 +356,25 @@ td.arco-table-cell-fixed-right {
 }
 
 /* 3. Row Hover State: fixed column cell MUST take hover background color across the entire row! */
-.arco-table-tr:hover > td.arco-table-col-fixed-right,
-.arco-table-tr:hover > td.arco-table-cell-fixed-right,
-.arco-table-tr-hover > td.arco-table-col-fixed-right,
-.arco-table-tr-hover > td.arco-table-cell-fixed-right,
-.arco-table-row:hover > td.arco-table-col-fixed-right,
-.arco-table-row:hover > td.arco-table-cell-fixed-right,
-.arco-table-tr-checked > td.arco-table-col-fixed-right,
-.arco-table-tr-checked > td.arco-table-cell-fixed-right {
+.arco-table-tr:hover>td.arco-table-col-fixed-right,
+.arco-table-tr:hover>td.arco-table-cell-fixed-right,
+.arco-table-tr-hover>td.arco-table-col-fixed-right,
+.arco-table-tr-hover>td.arco-table-cell-fixed-right,
+.arco-table-row:hover>td.arco-table-col-fixed-right,
+.arco-table-row:hover>td.arco-table-cell-fixed-right,
+.arco-table-tr-checked>td.arco-table-col-fixed-right,
+.arco-table-tr-checked>td.arco-table-cell-fixed-right {
   background-color: var(--color-fill-2) !important;
 }
 
-[arco-theme='dark'] .arco-table-tr:hover > td.arco-table-col-fixed-right,
-[arco-theme='dark'] .arco-table-tr:hover > td.arco-table-cell-fixed-right,
-[arco-theme='dark'] .arco-table-tr-hover > td.arco-table-col-fixed-right,
-[arco-theme='dark'] .arco-table-tr-hover > td.arco-table-cell-fixed-right,
-[arco-theme='dark'] .arco-table-row:hover > td.arco-table-col-fixed-right,
-[arco-theme='dark'] .arco-table-row:hover > td.arco-table-cell-fixed-right,
-[arco-theme='dark'] .arco-table-tr-checked > td.arco-table-col-fixed-right,
-[arco-theme='dark'] .arco-table-tr-checked > td.arco-table-cell-fixed-right {
+[arco-theme='dark'] .arco-table-tr:hover>td.arco-table-col-fixed-right,
+[arco-theme='dark'] .arco-table-tr:hover>td.arco-table-cell-fixed-right,
+[arco-theme='dark'] .arco-table-tr-hover>td.arco-table-col-fixed-right,
+[arco-theme='dark'] .arco-table-tr-hover>td.arco-table-cell-fixed-right,
+[arco-theme='dark'] .arco-table-row:hover>td.arco-table-col-fixed-right,
+[arco-theme='dark'] .arco-table-row:hover>td.arco-table-cell-fixed-right,
+[arco-theme='dark'] .arco-table-tr-checked>td.arco-table-col-fixed-right,
+[arco-theme='dark'] .arco-table-tr-checked>td.arco-table-cell-fixed-right {
   background-color: var(--color-fill-3) !important;
 }
 
@@ -391,6 +391,7 @@ td.arco-table-cell-fixed-right {
 
 /* 4. Responsive Mobile Table Optimization (Screen width <= 768px) */
 @media (max-width: 768px) {
+
   /* On mobile phones, unpin sticky fixed columns so they do NOT take over 70% of the screen */
   .arco-table-cell-fixed-right,
   .arco-table-header-cell-fixed-right,
@@ -473,4 +474,4 @@ td.arco-table-cell-fixed-right {
 .login-container-no-radius .arco-tag,
 .login-container-no-radius .arco-alert {
   border-radius: 0 !important;
-}
+}

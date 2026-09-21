@@ -1,6 +1,34 @@
 import axios from 'axios';
 
-export const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:4000/api';
+export const getApiBaseUrl = (): string => {
+  const envUrl = (import.meta as any).env?.VITE_API_URL;
+  // Agar aniq belgilangan bo'lsa va localhost bo'lmasa (masalan: '/api' yoki tashqi API URL)
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl;
+  }
+
+  if (typeof window !== 'undefined' && window.location.hostname) {
+    const hostname = window.location.hostname;
+    // 1. Agar lokal Wi-Fi tarmoq IP manzili bo'lsa (masalan: 192.168.1.10)
+    const isLanIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) && hostname !== '127.0.0.1';
+    if (isLanIp) {
+      return `${window.location.protocol}//${hostname}:4000/api`;
+    }
+
+    // 2. Agar localhost bo'lsa (mahalliy ishlab chiqish)
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return envUrl || 'http://localhost:4000/api';
+    }
+
+    // 3. Agar real internet domeni (Railway, production, edu.uz) bo'lsa:
+    // Har doim Nginx orqali proksi qilinuvchi nisbiy '/api' ishlatiladi
+    return '/api';
+  }
+
+  return envUrl || '/api';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 // In-Memory Access Token (XSS xavfini to‘liq bartaraf etish uchun)
 let inMemoryAccessToken: string | null = null;

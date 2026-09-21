@@ -1,9 +1,9 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { Spin } from '@arco-design/web-react';
 import { useAuthStore } from '../store/authStore';
 import { NAVIGATION_ITEMS } from '../constants/navigation.constants';
 import { ForbiddenView } from '../components/Common/ForbiddenView';
+import { PageLoader } from '../components/Common/PageLoader';
 import type { RoleType } from '../types';
 
 export interface ProtectedRouteProps {
@@ -23,18 +23,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const location = useLocation();
 
   if (isLoading) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '100vh',
-        }}
-      >
-        <Spin dot size={36} />
-      </div>
-    );
+    return <PageLoader fullScreen size={20} />;
   }
 
   if (!isAuthenticated || !token) {

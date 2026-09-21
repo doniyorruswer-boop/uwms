@@ -319,7 +319,7 @@ export const FundingReportsPage: React.FC = () => {
       {/* Loading state */}
       {isSummaryLoading && (
         <Card bordered={false} style={{ textAlign: 'center', padding: '60px 0' }}>
-          <Spin size={32} tip="Moliyalashtirish hisoboti hisoblanmoqda..." />
+          <Spin dot size={20} tip="Moliyalashtirish hisoboti hisoblanmoqda..." />
         </Card>
       )}
 

@@ -320,7 +320,7 @@ export const UserPermissionsPage: React.FC = () => {
     return (
       <Card style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Space direction="vertical" align="center" size="large">
-          <Spin size={40} />
+          <Spin dot size={20} />
           <Text style={{ fontSize: 16, color: 'var(--color-text-2)' }}>
             Foydalanuvchi huquqlari va ruxsatlar katalogi yuklanmoqda...
           </Text>

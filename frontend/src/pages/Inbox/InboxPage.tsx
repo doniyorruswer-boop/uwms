@@ -30,6 +30,7 @@ import {
   IconCalendar,
   IconSafe,
   IconQrcode,
+  IconMobile,
 } from '@arco-design/web-react/icon';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -75,6 +76,14 @@ export const InboxPage: React.FC = () => {
   const [isCampaignQrModalVisible, setIsCampaignQrModalVisible] = useState(false);
   const [selectedHandoverId, setSelectedHandoverId] = useState<string | null>(null);
   const [isHandoverModalVisible, setIsHandoverModalVisible] = useState(false);
+
+  // QR-Pairing Mobile Signing States
+  const [signingTransferItem, setSigningTransferItem] = useState<PendingTransferItem | null>(null);
+  const [isTransferQrModalVisible, setIsTransferQrModalVisible] = useState(false);
+  const [signingRequestItem, setSigningRequestItem] = useState<PendingRequestItem | null>(null);
+  const [isRequestQrModalVisible, setIsRequestQrModalVisible] = useState(false);
+  const [signingVoteItem, setSigningVoteItem] = useState<PendingWriteOffVoteItem | null>(null);
+  const [isVoteQrModalVisible, setIsVoteQrModalVisible] = useState(false);
 
   // Mutations
   const { respondTransfer } = useTransfersQuery();
@@ -144,17 +153,31 @@ export const InboxPage: React.FC = () => {
     return item.receiver?.id === user?.id;
   };
 
-  // In-Place Action Handlers
-  const handleAcceptTransfer = async (item: PendingTransferItem) => {
+  // 1. Transfer QR Sign Handlers
+  const handleOpenTransferQrSign = (item: PendingTransferItem) => {
+    setSigningTransferItem(item);
+    setIsTransferQrModalVisible(true);
+  };
+
+  const handleTransferQrSignSuccess = async (result: any) => {
+    if (!signingTransferItem) return;
+    const item = signingTransferItem;
+    setIsTransferQrModalVisible(false);
+    setSigningTransferItem(null);
+
     try {
-      await respondTransfer({ id: item.id, status: 'ACCEPTED' });
-      Message.success('Ashyo qabul qilindi va hisobingizga kiritildi!');
+      await respondTransfer({
+        id: item.id,
+        status: 'ACCEPTED',
+        note: `Mobil QR-imzo orqali qabul qilindi (Sessiya: ${result.sessionId || 'MOBI_SIGN'}, Imzo: ${result.signatureHash?.slice(0, 8) || 'VERIFIED'})`,
+      });
+      Message.success('Ashyo mobil QR-imzo orqali muvaffaqiyatli qabul qilindi va hisobingizga biriktirildi!');
       queryClient.invalidateQueries({ queryKey: ['inbox'] });
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
       queryClient.invalidateQueries({ queryKey: ['assets'] });
       refetch();
-    } catch {
-      // Error handled by mutation
+    } catch (err: any) {
+      Message.error(err?.response?.data?.message || 'Ashyoni qabul qilishda xatolik yuz berdi!');
     }
   };
 
@@ -172,7 +195,18 @@ export const InboxPage: React.FC = () => {
     }
   };
 
-  const handleApproveRequest = async (item: PendingRequestItem) => {
+  // 2. Request Approval QR Sign Handlers
+  const handleOpenRequestQrSign = (item: PendingRequestItem) => {
+    setSigningRequestItem(item);
+    setIsRequestQrModalVisible(true);
+  };
+
+  const handleRequestQrSignSuccess = async (result: any) => {
+    if (!signingRequestItem) return;
+    const item = signingRequestItem;
+    setIsRequestQrModalVisible(false);
+    setSigningRequestItem(null);
+
     let nextStatus: RequestStatus = 'APPROVED_BY_PRORECTOR';
     if (user?.role === RoleType.RECTOR) {
       nextStatus = 'APPROVED_BY_RECTOR';
@@ -187,14 +221,14 @@ export const InboxPage: React.FC = () => {
       await updateRequestStatus({
         id: item.id,
         status: nextStatus,
-        note: `${user.role === RoleType.RECTOR ? 'Rektor' : 'Moliya-iqtisod prorektori'} tomonidan Inbox orqali tezkor tasdiqlandi`,
+        note: `${user?.role === RoleType.RECTOR ? 'Rektor' : 'Moliya-iqtisod prorektori'} tomonidan mobil QR-imzo orqali tasdiqlandi (Sessiya: ${result.sessionId || 'MOBI_SIGN'})`,
       });
-      Message.success('Talabnoma navbatdagi bosqichga tasdiqlandi!');
+      Message.success('Talabnoma mobil QR-imzo orqali navbatdagi bosqichga tasdiqlandi!');
       queryClient.invalidateQueries({ queryKey: ['inbox'] });
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       refetch();
-    } catch {
-      // Error handled by mutation
+    } catch (err: any) {
+      Message.error(err?.response?.data?.message || 'Talabnomani tasdiqlashda xatolik yuz berdi!');
     }
   };
 
@@ -217,6 +251,35 @@ export const InboxPage: React.FC = () => {
       refetch();
     } catch {
       // Error handled by mutation
+    }
+  };
+
+  // 3. Write-Off Vote QR Sign Handlers
+  const handleOpenVoteQrSign = (item: PendingWriteOffVoteItem) => {
+    setSigningVoteItem(item);
+    setIsVoteQrModalVisible(true);
+  };
+
+  const handleVoteQrSignSuccess = async (result: any) => {
+    if (!signingVoteItem) return;
+    const item = signingVoteItem;
+    setIsVoteQrModalVisible(false);
+    setSigningVoteItem(null);
+
+    try {
+      await voteWriteOff({
+        id: item.writeOffId,
+        vote: 'APPROVED',
+        comment: `Mobil QR-imzo bilan rozilik ovozi berildi (Sessiya: ${result.sessionId || 'MOBI_SIGN'})`,
+        signerName: user?.fullName || undefined,
+        signerRole: user?.role || undefined,
+      });
+      Message.success('Spisanie bo‘yicha rozilik ovozingiz mobil QR-imzo orqali qabul qilindi!');
+      queryClient.invalidateQueries({ queryKey: ['inbox'] });
+      queryClient.invalidateQueries({ queryKey: ['writeOffs'] });
+      refetch();
+    } catch (err: any) {
+      Message.error(err?.response?.data?.message || 'Ovoz berishda xatolik yuz berdi!');
     }
   };
 
@@ -394,21 +457,15 @@ export const InboxPage: React.FC = () => {
 
           <Space wrap size="small">
             {canAcceptTransfer(item) && (
-              <Popconfirm
-                title="Ushbu ashyoni o‘z javobgarligingizga (MOL hisobingizga) qabul qilishni tasdiqlaysizmi?"
-                onOk={() => handleAcceptTransfer(item)}
-                okText="Ha, qabul qilaman"
-                cancelText="Yo‘q"
+              <Button
+                type="primary"
+                status="success"
+                icon={<IconMobile />}
+                style={{ borderRadius: 0 }}
+                onClick={() => handleOpenTransferQrSign(item)}
               >
-                <Button
-                  type="primary"
-                  status="success"
-                  icon={<IconCheckCircle />}
-                  style={{ borderRadius: 0 }}
-                >
-                  Qabul qilish
-                </Button>
-              </Popconfirm>
+                QR bilan Qabul Qilish
+              </Button>
             )}
 
             {canAcceptTransfer(item) && (
@@ -507,21 +564,15 @@ export const InboxPage: React.FC = () => {
 
           <Space wrap size="small">
             {canApproveRequest(item) && (
-              <Popconfirm
-                title="Talabnomani navbatdagi bosqichga tasdiqlashni ma’qullaysizmi?"
-                onOk={() => handleApproveRequest(item)}
-                okText="Ha, tasdiqlayman"
-                cancelText="Yo‘q"
+              <Button
+                type="primary"
+                status="success"
+                icon={<IconMobile />}
+                style={{ borderRadius: 0 }}
+                onClick={() => handleOpenRequestQrSign(item)}
               >
-                <Button
-                  type="primary"
-                  status="success"
-                  icon={<IconCheckCircle />}
-                  style={{ borderRadius: 0 }}
-                >
-                  Tezkor Tasdiqlash
-                </Button>
-              </Popconfirm>
+                QR bilan Tasdiqlash
+              </Button>
             )}
 
             {item.isOverQuota && canGiveRectorVisa && (
@@ -640,21 +691,15 @@ export const InboxPage: React.FC = () => {
           <Space wrap size="small">
             {(item.userId === user?.id || item.user?.id === user?.id) ? (
               <>
-                <Popconfirm
-                  title="Ushbu texnikani hisobdan chiqarishga (OS-4) rozilik ovozi berasizmi?"
-                  onOk={() => handleVoteWriteOff(item, 'APPROVED')}
-                  okText="Ha, ma’qullayman"
-                  cancelText="Yo‘q"
+                <Button
+                  type="primary"
+                  status="success"
+                  icon={<IconMobile />}
+                  style={{ borderRadius: 0 }}
+                  onClick={() => handleOpenVoteQrSign(item)}
                 >
-                  <Button
-                    type="primary"
-                    status="success"
-                    icon={<IconCheckCircle />}
-                    style={{ borderRadius: 0 }}
-                  >
-                    Ovoz berish (Ma’qullash)
-                  </Button>
-                </Popconfirm>
+                  QR bilan Ma’qullash
+                </Button>
 
                 <Button
                   status="danger"
@@ -1106,7 +1151,7 @@ export const InboxPage: React.FC = () => {
       {/* Loading state */}
       {isLoading && (
         <Card className="uwms-card" style={{ borderRadius: 0, textAlign: 'center', padding: '60px 0' }}>
-          <Spin size={32} tip="Vazifalar ro‘yxati tekshirilmoqda..." />
+          <Spin dot size={20} tip="Vazifalar ro‘yxati tekshirilmoqda..." />
         </Card>
       )}
 
@@ -1329,6 +1374,95 @@ export const InboxPage: React.FC = () => {
               campaignNumber: signingCampaignItem.number,
               title: signingCampaignItem.title,
               orderNumber: signingCampaignItem.orderNumber,
+            },
+          }}
+        />
+      )}
+
+      {/* 1. TRANSFER ACCEPTANCE QR PAIRING MODAL */}
+      {signingTransferItem && (
+        <QRPairingModal
+          visible={isTransferQrModalVisible}
+          onClose={() => {
+            setIsTransferQrModalVisible(false);
+            setSigningTransferItem(null);
+          }}
+          onSuccess={handleTransferQrSignSuccess}
+          payload={{
+            docNumber: signingTransferItem.asset?.inventoryNumber || '—',
+            docType: signingTransferItem.isReturn ? 'OS-2_RETURN' : 'OS-2_TRANSFER',
+            title: signingTransferItem.isReturn
+              ? `Omborga Qaytarishni Qabul Qilish (${signingTransferItem.asset?.inventoryNumber || '—'})`
+              : `Ashyoni Qabul Qilish (OS-2) — ${signingTransferItem.asset?.inventoryNumber || '—'}`,
+            departmentName: signingTransferItem.toRoom
+              ? `${signingTransferItem.toRoom.number}-xona (${signingTransferItem.toRoom.name})`
+              : signingTransferItem.toWarehouse?.name || 'Bosh omborxona',
+            itemSummary: `${signingTransferItem.asset?.item?.name || 'Ashyo'} (Inventar №: ${signingTransferItem.asset?.inventoryNumber || '—'}). Yuboruvchi: ${signingTransferItem.sender?.fullName || '—'}`,
+            targetSignerRole: signingTransferItem.isReturn ? RoleType.HEAD_WAREHOUSE : (user?.role || RoleType.MOL),
+            targetSignerName: user?.fullName || 'Qabul qiluvchi',
+            targetUserId: user?.id,
+            metadata: {
+              transferId: signingTransferItem.id,
+              assetId: signingTransferItem.asset?.id || signingTransferItem.assetId,
+              action: 'ACCEPT_TRANSFER',
+            },
+          }}
+        />
+      )}
+
+      {/* 2. REQUEST APPROVAL QR PAIRING MODAL */}
+      {signingRequestItem && (
+        <QRPairingModal
+          visible={isRequestQrModalVisible}
+          onClose={() => {
+            setIsRequestQrModalVisible(false);
+            setSigningRequestItem(null);
+          }}
+          onSuccess={handleRequestQrSignSuccess}
+          payload={{
+            docNumber: signingRequestItem.requestNumber,
+            docType: 'ZAYAVKA_APPROVAL',
+            title:
+              user?.role === RoleType.RECTOR
+                ? `Rektorat Yakuniy Tasdig‘i: Talabnoma ${signingRequestItem.requestNumber}`
+                : `Moliya Prorektori Vizasi: Talabnoma ${signingRequestItem.requestNumber}`,
+            departmentName: signingRequestItem.department?.name || 'Kafedra',
+            itemSummary:
+              signingRequestItem.items
+                ?.map((i) => `${i.item?.name || 'Mahsulot'} (${i.requestedQty} ${i.item?.unit || 'dona'})`)
+                .join(', ') || signingRequestItem.purpose,
+            targetSignerRole: user?.role || 'VICE_RECTOR_FINANCE',
+            targetSignerName: user?.fullName || 'Mas’ul Rahbar',
+            targetUserId: user?.id,
+            metadata: {
+              requestId: signingRequestItem.id,
+              action: 'APPROVE_REQUEST',
+            },
+          }}
+        />
+      )}
+
+      {/* 3. WRITE-OFF VOTE QR PAIRING MODAL */}
+      {signingVoteItem && (
+        <QRPairingModal
+          visible={isVoteQrModalVisible}
+          onClose={() => {
+            setIsVoteQrModalVisible(false);
+            setSigningVoteItem(null);
+          }}
+          onSuccess={handleVoteQrSignSuccess}
+          payload={{
+            docNumber: signingVoteItem.writeOffRequest.actNumber,
+            docType: 'OS-4_VOTE',
+            title: `Spisanie (OS-4) Komissiya Rozilik Ovozi: ${signingVoteItem.writeOffRequest.actNumber}`,
+            departmentName: 'Universitet Spisanie Komissiyasi',
+            itemSummary: `${signingVoteItem.writeOffRequest.asset?.item?.name || 'Asosiy vosita'} (${signingVoteItem.writeOffRequest.asset?.inventoryNumber || '—'}). Sabab: ${signingVoteItem.writeOffRequest.reason}`,
+            targetSignerRole: signingVoteItem.roleName || user?.role || 'COMMISSION_MEMBER',
+            targetSignerName: user?.fullName || 'Komissiya a’zosi',
+            targetUserId: user?.id,
+            metadata: {
+              writeOffId: signingVoteItem.writeOffId,
+              vote: 'APPROVED',
             },
           }}
         />

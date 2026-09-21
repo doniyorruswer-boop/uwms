@@ -1,9 +1,9 @@
 import React, { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Spin } from '@arco-design/web-react';
 import { ProtectedRoute, RoleRoute } from './ProtectedRoute';
 export { RoleRoute };
 import { AppLayout } from '../components/Layout/AppLayout';
+import { PageLoader } from '../components/Common/PageLoader';
 import { NAVIGATION_ITEMS } from '../constants';
 
 const lazyLoad = <T extends Record<string, any>, K extends keyof T>(
@@ -42,11 +42,7 @@ const OrganizationPage = lazyLoad(() => import('../pages/Organization/Organizati
 const AuditScannerPage = lazyLoad(() => import('../pages/Audit/AuditScannerPage'), 'AuditScannerPage');
 const AuditCampaignsPage = lazyLoad(() => import('../pages/Audit/AuditCampaignsPage'), 'AuditCampaignsPage');
 
-const PageLoadingFallback: React.FC = () => (
-  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-    <Spin size={36} />
-  </div>
-);
+const PageLoadingFallback: React.FC = () => <PageLoader size={20} />;
 
 const getRoles = (keyOrPath: string) => {
   return NAVIGATION_ITEMS.find((item) => item.key === keyOrPath || item.path === `/${keyOrPath}`)?.allowedRoles;

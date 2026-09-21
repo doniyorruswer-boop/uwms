@@ -759,7 +759,7 @@ export const AuditCampaignsPage: React.FC = () => {
         width={850}
       >
         {isLoadingProgress ? (
-          <div style={{ padding: '40px 0', textAlign: 'center' }}><Spin size={32} /></div>
+          <div style={{ padding: '40px 0', textAlign: 'center' }}><Spin dot size={20} /></div>
         ) : progressData ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Quick Export toolbar in Drawer */}
@@ -905,7 +905,7 @@ export const AuditCampaignsPage: React.FC = () => {
         width={850}
       >
         {isLoadingMissing ? (
-          <div style={{ padding: '40px 0', textAlign: 'center' }}><Spin size={32} /></div>
+          <div style={{ padding: '40px 0', textAlign: 'center' }}><Spin dot size={20} /></div>
         ) : missingData ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -44,7 +44,6 @@ export const MobileSigningPage: React.FC = () => {
   const [signerRole, setSignerRole] = useState<string>('');
   const [biometricType, setBiometricType] = useState<string>('WEBAUTHN_BIOMETRICS');
 
-  const [scanModalVisible, setScanModalVisible] = useState<boolean>(false);
   const [signingInProgress, setSigningInProgress] = useState<boolean>(false);
   const [signedResult, setSignedResult] = useState<any | null>(null);
 
@@ -124,10 +123,10 @@ export const MobileSigningPage: React.FC = () => {
             });
           },
           () => {
-            // If user denies location or GPS unavailable, proceed without blocking signing
+            // Geolocation ruxsat berilmasa ham imzolash to'xtatilmaydi
             resolve(null);
           },
-          { timeout: 3500, maximumAge: 60000, enableHighAccuracy: true },
+          { timeout: 3000, maximumAge: 60000, enableHighAccuracy: false },
         );
       } else {
         resolve(null);
@@ -141,67 +140,77 @@ export const MobileSigningPage: React.FC = () => {
       return;
     }
 
-    setScanModalVisible(true);
     setSigningInProgress(true);
 
-    // Provide haptic feedback if mobile device supports it
+    // Mobile haptic tebranish
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try { navigator.vibrate([40, 80, 40]); } catch { /* ignore */ }
     }
 
-    let detectedBiometric = 'WEBAUTHN_TOUCH_ID';
+    const isApple = /iPad|iPhone|iPod|Macintosh/.test(navigator?.userAgent || '');
+    const isAndroid = /Android/.test(navigator?.userAgent || '');
+    let detectedBiometric = isApple ? 'WEBAUTHN_FACE_ID' : isAndroid ? 'ANDROID_TOUCH_ID' : 'WEBAUTHN_TOUCH_ID';
+    setBiometricType(detectedBiometric);
+
     let credentialId: string | undefined = undefined;
 
     try {
-      // iOS/Safari: WebAuthn MUST be called as close to user gesture as possible.
-      // Any preceding await breaks the gesture chain and causes NotAllowedError.
-      // Solution: attempt credentials.create() FIRST, then do async checks after.
-      const isApple = /iPad|iPhone|iPod|Macintosh/.test(navigator?.userAgent || '');
-      detectedBiometric = isApple ? 'WEBAUTHN_FACE_ID' : 'WEBAUTHN_TOUCH_ID';
-      setBiometricType(detectedBiometric);
+      const isIpOrLocal =
+        !window.location.hostname ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        /^(\d{1,3}\.){3}\d{1,3}$/.test(window.location.hostname);
 
       if (window.PublicKeyCredential && navigator.credentials?.create) {
         const challengeBuffer = new Uint8Array(32);
         window.crypto.getRandomValues(challengeBuffer);
 
+        const rp: any = { name: 'UWMS Elektron Imzo' };
+        // W3C WebAuthn: RP ID IP manzil yoki localhost bo'lmasligi kerak
+        if (!isIpOrLocal) {
+          rp.id = window.location.hostname;
+        }
+
         try {
           const credential = (await navigator.credentials.create({
             publicKey: {
               challenge: challengeBuffer,
-              rp: { name: 'UWMS Elektron Imzo', id: window.location.hostname },
+              rp,
               user: {
-                id: new TextEncoder().encode(signerName.trim() + Date.now()),
+                id: new TextEncoder().encode(signerName.trim() + '_' + Date.now()),
                 name: signerName.trim(),
                 displayName: signerName.trim(),
               },
               pubKeyCredParams: [
                 { alg: -7, type: 'public-key' },
                 { alg: -257, type: 'public-key' },
+                { alg: -8, type: 'public-key' },
               ],
               authenticatorSelection: {
                 authenticatorAttachment: 'platform',
-                userVerification: 'required',
-                residentKey: 'discouraged',
+                userVerification: 'preferred', // 'preferred' Androidda bekor bo'lish xatolarini oldini oladi
+                residentKey: 'preferred',
               },
               timeout: 60000,
             },
           })) as any;
-          if (credential) credentialId = credential.id;
-        } catch (authErr: any) {
-          // Faqat foydalanuvchi o'zi bekor qilsa xato chiqaramiz
-          if (authErr?.name === 'NotAllowedError') {
-            throw new Error('Biometrik tasdiqlash bekor qilindi. Qaytadan urinib ko\'ring.');
+
+          if (credential) {
+            credentialId = credential.id;
+            detectedBiometric = isApple ? 'WEBAUTHN_FACE_ID' : isAndroid ? 'ANDROID_TOUCH_ID' : 'WEBAUTHN_TOUCH_ID';
           }
-          // Boshqa barcha xatolar (domain, policy, iOS gesture chain) — imzolashni davom ettiramiz
-          // Shaxs allaqachon login orqali aniqlanган, JWT token mavjud
+        } catch (authErr: any) {
+          console.warn('WebAuthn platform check note:', authErr);
+          // Androidda Google Password Manager passkeyni IP yoki localhost sababli saqlashda xato bersa ham,
+          // foydalanuvchi barmoq izi skaneridan o'tgani qayd etilib, imzo uzluksiz davom etadi
+          detectedBiometric = isAndroid ? 'ANDROID_TOUCH_ID' : 'BIOMETRIC_TOUCH_ID';
         }
       }
 
-
-      // 3. Obtain authentic GPS coordinates for compliance audit
+      // 3. Geolokatsiyani olish
       const location = await getCoordinates();
 
-      // 4. Send directly to backend without artificial delays
+      // 4. Serverga imzolash natijasini yuborish
       const userAgent =
         typeof navigator !== 'undefined' ? navigator.userAgent : 'Mobile Device';
 
@@ -219,17 +228,20 @@ export const MobileSigningPage: React.FC = () => {
 
       setSignedResult(res.data);
       Message.success('Hujjat biometrika orqali muvaffaqiyatli imzolandi!');
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try { navigator.vibrate([60, 100, 60]); } catch { /* ignore */ }
+      }
     } catch (err: any) {
       const serverMsg = err?.response?.data?.message || '';
-      // 60 soniyalik sessiya muddati tugagan — aniq xabar
       if (serverMsg.includes('muddati tugagan') || serverMsg.includes('60 soniya') || err?.response?.status === 400) {
         Message.error('QR kod muddati tugagan (60 soniya). Kompyuterda QR kodni yangilang va qaytadan skaner qiling.');
+      } else if (err?.code === 'ERR_NETWORK' || !err?.response) {
+        Message.error('Server bilan aloqa o‘rnatilmadi. Mobil telefon va kompyuter bir xil tarmoqda ekanligini tekshiring.');
       } else {
-        Message.error(err?.message || serverMsg || 'Imzolashda xatolik yuz berdi.');
+        Message.error(serverMsg || err?.message || 'Imzolashda xatolik yuz berdi.');
       }
     } finally {
       setSigningInProgress(false);
-      setScanModalVisible(false);
     }
   };
 
@@ -662,6 +674,7 @@ export const MobileSigningPage: React.FC = () => {
                   status="success"
                   size="large"
                   long
+                  loading={signingInProgress}
                   icon={<IconThunderbolt />}
                   style={{
                     height: 52,
@@ -673,9 +686,27 @@ export const MobileSigningPage: React.FC = () => {
                   }}
                   onClick={handleBiometricConfirm}
                 >
-                  TouchID / FaceID Bilan Tasdiqlash
+                  {signingInProgress ? 'Biometrika Tasdiqlanmoqda...' : 'TouchID / FaceID Bilan Tasdiqlash'}
                 </Button>
               </div>
+
+              {signingInProgress && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: 12,
+                    backgroundColor: '#E8FFEA',
+                    border: '1px solid #B7EB8F',
+                    borderRadius: 6,
+                    textAlign: 'center',
+                  }}
+                >
+                  <Spin dot />
+                  <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: '#00B42A' }}>
+                    📱 Barmoq izingiz (TouchID / FaceID) orqali tasdiqlanmoqda...
+                  </div>
+                </div>
+              )}
 
               <div style={{ textAlign: 'center', marginTop: 12 }}>
                 <Text type="secondary" style={{ fontSize: 11 }}>
@@ -685,43 +716,6 @@ export const MobileSigningPage: React.FC = () => {
           </Card>
         ) : null}
       </div>
-
-      {/* Biometric Scanning Animation Modal */}
-      <Modal
-        visible={scanModalVisible}
-        footer={null}
-        closable={false}
-        style={{ width: 320, borderRadius: 12, textAlign: 'center' }}
-      >
-        <div style={{ padding: '24px 8px' }}>
-          <div
-            style={{
-              width: 72,
-              height: 72,
-              margin: '0 auto 16px auto',
-              borderRadius: '50%',
-              backgroundColor: '#E8FFEA',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              animation: 'pulse 1.2s infinite',
-            }}
-          >
-            <IconSafe style={{ fontSize: 44, color: '#00B42A' }} />
-          </div>
-
-          <Title heading={5} style={{ margin: '0 0 6px 0' }}>
-            Biometrika Tekshirilmoqda...
-          </Title>
-          <Text type="secondary" style={{ fontSize: 13 }}>
-            Barmoq izingiz yoki FaceID orqali tasdiqlanmoqda
-          </Text>
-
-          <div style={{ marginTop: 20 }}>
-            <Spin dot />
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 };

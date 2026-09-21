@@ -570,7 +570,7 @@ export const DepreciationPage: React.FC = () => {
 
           {statementLoading ? (
             <div style={{ padding: 40, textAlign: 'center' }}>
-              <Spin tip="Qaydnoma tayyorlanmoqda..." />
+              <Spin dot size={20} tip="Qaydnoma tayyorlanmoqda..." />
             </div>
           ) : statementData ? (
             <Card className="uwms-card" style={{ borderRadius: 0, padding: 16 }} id="printable-statement">
@@ -721,7 +721,7 @@ export const DepreciationPage: React.FC = () => {
 
         {previewLoading ? (
           <div style={{ padding: 40, textAlign: 'center' }}>
-            <Spin tip="Amortizatsiya hisob-kitoblari prognoz qilinmoqda..." />
+            <Spin dot size={20} tip="Amortizatsiya hisob-kitoblari prognoz qilinmoqda..." />
           </div>
         ) : previewData ? (
           <div>
@@ -882,7 +882,7 @@ export const DepreciationPage: React.FC = () => {
       >
         {assetHistoryLoading ? (
           <div style={{ padding: 40, textAlign: 'center' }}>
-            <Spin tip="Aktiv tarixi yuklanmoqda..." />
+            <Spin dot size={20} tip="Aktiv tarixi yuklanmoqda..." />
           </div>
         ) : assetHistory ? (
           <div>
@@ -974,7 +974,7 @@ export const DepreciationPage: React.FC = () => {
       >
         {runDetailsLoading ? (
           <div style={{ padding: 40, textAlign: 'center' }}>
-            <Spin tip="Partiya tafsilotlari yuklanmoqda..." />
+            <Spin dot size={20} tip="Partiya tafsilotlari yuklanmoqda..." />
           </div>
         ) : runDetails ? (
           <div>

@@ -104,7 +104,7 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
     >
       {isLoading ? (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
-          <Spin size={32} tip="Ta’minotchi ma’lumotlari yuklanmoqda..." />
+          <Spin dot size={20} tip="Ta’minotchi ma’lumotlari yuklanmoqda..." />
         </div>
       ) : !supplier ? (
         <Empty description="Ta’minotchi topilmadi" />

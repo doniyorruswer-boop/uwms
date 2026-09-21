@@ -497,7 +497,7 @@ export const IntegrationsPage: React.FC = () => {
             {renderStatusAlert()}
 
             {isStatusLoading ? (
-              <Spin style={{ display: 'block', margin: '40px auto' }} />
+              <Spin dot size={20} style={{ display: 'block', margin: '40px auto' }} />
             ) : (
               <Descriptions
                 column={2}

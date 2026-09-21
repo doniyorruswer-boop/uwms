@@ -56,7 +56,7 @@ export function StandardTable<T = any>({
     <Card className="uwms-card" style={{ borderRadius: 0, ...cardStyle }} bodyStyle={{ padding: 0 }}>
       <Table<T>
         rowKey={rowKey}
-        loading={loading}
+        loading={typeof loading === 'boolean' ? (loading ? { dot: true, size: 20 } : false) : loading}
         columns={columns}
         data={data}
         scroll={{ x: scrollX }}

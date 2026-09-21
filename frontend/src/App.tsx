@@ -25,6 +25,10 @@ export function App() {
       <ConfigProvider
         locale={currentArcoLocale}
         componentConfig={{
+          Spin: {
+            dot: true,
+            size: 20,
+          },
           Card: {
             style: { borderRadius: 0 },
           },

@@ -335,7 +335,13 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
             >
               {session?.qrUrl && (
                 <QRCodeSVG
-                  value={session.qrUrl}
+                  value={
+                    typeof window !== 'undefined' &&
+                    window.location.hostname !== 'localhost' &&
+                    window.location.hostname !== '127.0.0.1'
+                      ? session.qrUrl.replace(/^https?:\/\/localhost(:\d+)?/, window.location.origin)
+                      : session.qrUrl
+                  }
                   size={210}
                   level="H"
                   includeMargin={false}
