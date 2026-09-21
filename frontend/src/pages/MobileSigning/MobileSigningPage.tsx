@@ -23,6 +23,9 @@ import {
   IconThunderbolt,
   IconLock,
   IconUser,
+  IconRefresh,
+  IconLocation,
+  IconCopy,
 } from '@arco-design/web-react/icon';
 import { apiClient } from '../../api/client';
 import { API_ENDPOINTS } from '../../constants/api.constants';
@@ -49,6 +52,8 @@ export const MobileSigningPage: React.FC = () => {
 
   const [isGeoHelpModalOpen, setIsGeoHelpModalOpen] = useState<boolean>(false);
   const [geoPermissionState, setGeoPermissionState] = useState<'prompt' | 'granted' | 'denied' | 'unknown'>('unknown');
+  const [cachedLocation, setCachedLocation] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
+  const [locationLoading, setLocationLoading] = useState<boolean>(false);
 
   useEffect(() => {
     if (typeof navigator !== 'undefined' && 'permissions' in navigator) {
@@ -134,56 +139,79 @@ export const MobileSigningPage: React.FC = () => {
   }, [token]);
 
   // Helper to obtain GPS coordinates - strictly required for legal audit and security
-  const getCoordinates = (): Promise<{ latitude: number; longitude: number; accuracy: number }> => {
+  const requestLocation = (silent = false): Promise<{ latitude: number; longitude: number; accuracy: number }> => {
     return new Promise((resolve, reject) => {
-      if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            setGeoPermissionState('granted');
-            resolve({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-              accuracy: pos.coords.accuracy,
-            });
-          },
-          (err) => {
-            if (err.code === 1) {
-              // PERMISSION_DENIED
-              setGeoPermissionState('denied');
-              setIsGeoHelpModalOpen(true);
-              reject(
-                new Error(
-                  "Brauzerda geolokatsiya bloklangan (Don't allow tanlangan). Iltimos, manzil satridagi qulf (🔒) belgisini bosib, Joylashuvga ruxsat bering va telefon GPS-ini yoqing.",
-                ),
-              );
-            } else if (err.code === 2) {
-              // POSITION_UNAVAILABLE
-              reject(
-                new Error(
-                  'Qurilmada joylashuv signali topilmadi. Telefoningizda GPS / Joylashuv (Location) xizmatini yoqing.',
-                ),
-              );
-            } else if (err.code === 3) {
-              // TIMEOUT
-              reject(
-                new Error(
-                  'Geolokatsiyani aniqlash vaqti tugadi (Timeout). Iltimos, qayta urinib ko‘ring.',
-                ),
-              );
-            } else {
-              reject(
-                new Error(
-                  'Geolokatsiyani aniqlab bo‘lmadi. Hujjatni imzolash uchun GPS ruxsati zarur.',
-                ),
-              );
-            }
-          },
-          { timeout: 10000, maximumAge: 300000, enableHighAccuracy: false },
-        );
-      } else {
-        reject(new Error('Ushbu qurilma yoki brauzerda geolokatsiya xizmati mavjud emas!'));
+      if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+        const msg = 'Ushbu qurilma yoki brauzerda geolokatsiya xizmati mavjud emas!';
+        if (!silent) Message.error(msg);
+        reject(new Error(msg));
+        return;
       }
+
+      setLocationLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setLocationLoading(false);
+          const loc = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+          };
+          setCachedLocation(loc);
+          setGeoPermissionState('granted');
+          if (!silent) {
+            Message.success('Geolokatsiya (GPS) muvaffaqiyatli aniqlandi!');
+          }
+          resolve(loc);
+        },
+        (err) => {
+          setLocationLoading(false);
+          if (err.code === 1) {
+            // PERMISSION_DENIED
+            setGeoPermissionState('denied');
+            const msg = "Brauzerda geolokatsiyaga ruxsat berilmadi (Don't allow tanlangan).";
+            if (!silent) {
+              setIsGeoHelpModalOpen(true);
+              Message.error(msg);
+            }
+            reject(new Error(msg));
+          } else if (err.code === 2) {
+            // POSITION_UNAVAILABLE
+            const msg = 'Qurilmada joylashuv signali topilmadi. Telefoningizda GPS / Joylashuv xizmatini yoqing.';
+            if (!silent) Message.warning(msg);
+            reject(new Error(msg));
+          } else if (err.code === 3) {
+            // TIMEOUT
+            const msg = 'Geolokatsiyani aniqlash vaqti tugadi (Timeout). Qayta urinib ko‘ring.';
+            if (!silent) Message.warning(msg);
+            reject(new Error(msg));
+          } else {
+            const msg = 'Geolokatsiyani aniqlab bo‘lmadi. Hujjatni imzolash uchun GPS ruxsati zarur.';
+            if (!silent) Message.error(msg);
+            reject(new Error(msg));
+          }
+        },
+        { timeout: 10000, maximumAge: 300000, enableHighAccuracy: false },
+      );
     });
+  };
+
+  // Sahifa yuklangandayoq xuddi Google Maps / Yandex Maps kabi brauzerning default ruxsat dialogini chiqarish
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+      requestLocation(true).catch(() => {
+        // Fon xatosi
+      });
+    }
+  }, []);
+
+  const handleCopyLink = () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(window.location.href);
+      Message.success('Havola nusxalandi! Chrome-da yangi Inkognito tab ochib kirsangiz, telefonning default so‘rov oynasi chiqadi.');
+    } else {
+      Message.info('Havolani brauzer manzil satridan nusxalang.');
+    }
   };
 
   const handleBiometricConfirm = async () => {
@@ -200,18 +228,18 @@ export const MobileSigningPage: React.FC = () => {
     }
 
     // 1. Geolokatsiyani qat’iy tekshirish va olish (MAJBURIY!)
-    let location: { latitude: number; longitude: number; accuracy: number };
-    try {
-      location = await getCoordinates();
-      if (!location || typeof location.latitude !== 'number' || typeof location.longitude !== 'number') {
-        throw new Error('Geolokatsiya koordinatalari olinmadi.');
+    let location = cachedLocation;
+    if (!location) {
+      try {
+        location = await requestLocation(false);
+        if (!location || typeof location.latitude !== 'number' || typeof location.longitude !== 'number') {
+          throw new Error('Geolokatsiya koordinatalari olinmadi.');
+        }
+      } catch (locErr: any) {
+        setIsGeoHelpModalOpen(true);
+        setSigningInProgress(false);
+        return; // STOP: Geolokatsiyasiz imzo qo'yib bo'lmaydi
       }
-    } catch (locErr: any) {
-      Message.error(
-        locErr.message || 'Geolokatsiyaga ruxsat berilmadi! Hujjatni imzolash uchun GPS geolokatsiyaga ruxsat berish shart.',
-      );
-      setSigningInProgress(false);
-      return; // STOP: Geolokatsiyasiz imzo qo'yib bo'lmaydi
     }
 
     // 2. Biometrik (TouchID / FaceID) tekshiruvi (MAJBURIY!)
@@ -747,29 +775,118 @@ export const MobileSigningPage: React.FC = () => {
               </Form>
             )}
 
-            {/* Geolocation Warning if denied */}
-            {geoPermissionState === 'denied' && (
-              <Alert
-                type="error"
-                showIcon
-                style={{ marginBottom: 12, borderRadius: 6 }}
-                title="Geolokatsiya brauzerda bloklangan!"
-                content={
-                  <div>
-                    <div style={{ fontSize: 13, marginBottom: 6 }}>
-                      Hujjatni tasdiqlash uchun brauzerda GPS joylashuvga ruxsat berish shart.
-                    </div>
-                    <Button
-                      size="mini"
-                      type="outline"
-                      status="danger"
-                      onClick={() => setIsGeoHelpModalOpen(true)}
-                    >
-                      Yoqish yo‘riqnomasini ko‘rish ➔
-                    </Button>
+            {/* Geolocation Status and Controls */}
+            {cachedLocation ? (
+              <div
+                style={{
+                  backgroundColor: '#E8FFEA',
+                  border: '1px solid #B7EB8F',
+                  borderRadius: 6,
+                  padding: '8px 12px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <Space size={6}>
+                  <IconCheckCircle style={{ color: '#00B42A', fontSize: 16 }} />
+                  <span style={{ fontSize: 12, color: '#00B42A', fontWeight: 600 }}>
+                    GPS Joylashuv tasdiqlandi (Auditga tayyor)
+                  </span>
+                </Space>
+                <Tag size="small" color="green">
+                  GPS OK
+                </Tag>
+              </div>
+            ) : geoPermissionState === 'denied' ? (
+              <Card
+                style={{
+                  marginBottom: 16,
+                  borderRadius: 8,
+                  border: '1px solid #FFCCC7',
+                  backgroundColor: '#FFF2F0',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <IconLocation style={{ color: '#F53F3F', fontSize: 20 }} />
+                  <Text bold style={{ color: '#CF1322', fontSize: 14 }}>
+                    Joylashuv (GPS) brauzerda bloklangan
+                  </Text>
+                </div>
+                <div style={{ fontSize: 12, color: '#4E5969', lineHeight: 1.5, marginBottom: 12 }}>
+                  Avval brauzerda <b>"Don't allow"</b> (Ruxsat bermaslik) tanlanganligi sababli telefon default oynani chiqarmayapti. Quyidagi 2 ta oson yo‘ldan birini tanlang:
+                </div>
+
+                <div
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #FFECE8',
+                    marginBottom: 8,
+                    fontSize: 12,
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: '#1D2129', marginBottom: 2 }}>
+                    1-usul: Qulfcha orqali ruxsat berish
                   </div>
-                }
-              />
+                  <div>1. Brauzer tepasidagi <b>🔒 Qulfcha</b> belgisini bosing.</div>
+                  <div>2. <b>Joylashuv (Location)</b> ni <b>Ruxsat berish (Allow)</b> ga o‘tkazing.</div>
+                </div>
+
+                <div
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #E8F3FF',
+                    marginBottom: 12,
+                    fontSize: 12,
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: '#165DFF', marginBottom: 2 }}>
+                    2-usul (Eng tezkor): Yangi Inkognito oynada ochish
+                  </div>
+                  <div>
+                    Havolani nusxalab, Chrome-da <b>"Новая вкладка инкогнито"</b> ochib kirsangiz, telefoningiz xuddi xaritaga (Map) kirgandek <b>o‘zining default so‘rov oynasini</b> chiqaradi!
+                  </div>
+                </div>
+
+                <Space style={{ width: '100%' }} direction="vertical" size="small">
+                  <Button
+                    type="primary"
+                    status="danger"
+                    long
+                    icon={<IconRefresh />}
+                    loading={locationLoading}
+                    onClick={() => requestLocation(false)}
+                  >
+                    Joylashuvni Qayta Tekshirish
+                  </Button>
+                  <Button
+                    type="outline"
+                    long
+                    icon={<IconCopy />}
+                    onClick={handleCopyLink}
+                  >
+                    Havolani Nusxalash (Inkognito uchun)
+                  </Button>
+                </Space>
+              </Card>
+            ) : (
+              <div style={{ marginBottom: 16 }}>
+                <Button
+                  type="outline"
+                  long
+                  icon={<IconLocation />}
+                  loading={locationLoading}
+                  onClick={() => requestLocation(false)}
+                  style={{ borderColor: '#165DFF', color: '#165DFF' }}
+                >
+                  {locationLoading ? 'Joylashuv aniqlanmoqda...' : '📍 Joylashuvni aniqlash (GPS ruxsati berish)'}
+                </Button>
+              </div>
             )}
 
             {/* Big Biometric Button */}
