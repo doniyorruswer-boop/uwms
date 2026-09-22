@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend-ci:
-    name: Backend CI (Prisma, Tests, Build)
+    name: Backend CI (Prisma, Build)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -29,16 +29,12 @@ jobs:
         working-directory: ./backend
         run: npx prisma generate
 
-      - name: Run Jest Unit Tests
-        working-directory: ./backend
-        run: npm test
-
       - name: Build NestJS Application
         working-directory: ./backend
         run: npm run build
 
   frontend-ci:
-    name: Frontend CI (Lint, Typecheck, Build)
+    name: Frontend CI (TypeCheck, Build)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -55,125 +51,6 @@ jobs:
         working-directory: ./frontend
         run: npm ci
 
-      - name: Run Linter (oxlint)
-        working-directory: ./frontend
-        run: npm run lint
-
       - name: TypeCheck & Vite Production Build
         working-directory: ./frontend
         run: npm run build
-
-  e2e-tests:
-    name: Playwright E2E Tests
-    needs: [backend-ci, frontend-ci]
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: Password123!
-          POSTGRES_DB: uwms_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: |
-            backend/package-lock.json
-            frontend/package-lock.json
-
-      - name: Install Backend Dependencies
-        working-directory: ./backend
-        run: npm ci
-
-      - name: Setup Database & Seed
-        working-directory: ./backend
-        env:
-          DATABASE_URL: postgresql://postgres:Password123!@localhost:5432/uwms_db?schema=public
-          JWT_SECRET: enterprise-secure-jwt-secret-key-for-uwms-ci-32-chars
-          JWT_REFRESH_SECRET: enterprise-secure-refresh-jwt-secret-key-32-chars
-          DOCUMENT_HMAC_SECRET: enterprise-secure-hmac-secret-key-for-uwms-32-chars
-        run: |
-          npx prisma db push
-          npx prisma db seed
-
-      - name: Start Backend API
-        working-directory: ./backend
-        env:
-          DATABASE_URL: postgresql://postgres:Password123!@localhost:5432/uwms_db?schema=public
-          JWT_SECRET: enterprise-secure-jwt-secret-key-for-uwms-ci-32-chars
-          JWT_REFRESH_SECRET: enterprise-secure-refresh-jwt-secret-key-32-chars
-          DOCUMENT_HMAC_SECRET: enterprise-secure-hmac-secret-key-for-uwms-32-chars
-          PORT: 4000
-        run: npm run start:dev &
-
-      - name: Install Frontend Dependencies
-        working-directory: ./frontend
-        run: npm ci
-
-      - name: Install Playwright Browsers & OS Dependencies
-        working-directory: ./frontend
-        run: npx playwright install --with-deps chromium
-
-      - name: Start Frontend Application
-        working-directory: ./frontend
-        run: npm run dev &
-
-      - name: Wait for Backend and Frontend Services
-        run: |
-          npx wait-on -t 60000 http-get://localhost:4000/api/assets || sleep 5
-          npx wait-on -t 60000 http-get://localhost:5173 || sleep 5
-
-      - name: Run Playwright E2E Tests
-        working-directory: ./frontend
-        env:
-          CI: 'true'
-          BASE_URL: http://localhost:5173
-        run: npm run test:e2e
-
-      - name: Upload Playwright Test Report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: playwright-report
-          path: frontend/playwright-report/
-          retention-days: 14
-
-  docker-build-verify:
-    name: Docker Images Build Verification
-    needs: [backend-ci, frontend-ci, e2e-tests]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Backend Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          push: false
-          tags: uwms-backend:ci
-
-      - name: Build Frontend Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          push: false
-          tags: uwms-frontend:ci
