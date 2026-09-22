@@ -187,11 +187,15 @@ export const RequestsPage: React.FC = () => {
     };
 
     socket.on('REQUEST_CREATED', handleRequestCreated);
+    socket.on('request:created', handleRequestCreated);
     socket.on('REQUEST_UPDATED', handleRequestUpdated);
+    socket.on('request:updated', handleRequestUpdated);
 
     return () => {
       socket.off('REQUEST_CREATED', handleRequestCreated);
+      socket.off('request:created', handleRequestCreated);
       socket.off('REQUEST_UPDATED', handleRequestUpdated);
+      socket.off('request:updated', handleRequestUpdated);
     };
   }, [socket, user, queryClient]);
 
@@ -679,7 +683,10 @@ export const RequestsPage: React.FC = () => {
       Message.success(`Talabnoma #${requestToReject.requestNumber} muvaffaqiyatli rad etildi`);
       setIsRejectModalVisible(false);
       setRequestToReject(null);
-      refetch();
+      // Keshni tozalab, darhol qayta yuklash (staleTime dan qat'iy nazar)
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['inbox'] });
+      await refetch();
     } catch (err: any) {
       Message.error(err?.response?.data?.message || 'Talabnomani rad etishda xatolik yuz berdi');
     } finally {

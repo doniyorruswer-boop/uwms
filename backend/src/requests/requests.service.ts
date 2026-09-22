@@ -332,9 +332,15 @@ export class RequestsService {
       };
 
       this.eventsGateway.emitToRole('VICE_RECTOR_FINANCE', 'REQUEST_CREATED', eventPayload);
+      this.eventsGateway.emitToRole('VICE_RECTOR_FINANCE', 'request:created', eventPayload);
       this.eventsGateway.emitToRole('RECTOR', 'REQUEST_CREATED', eventPayload);
+      this.eventsGateway.emitToRole('RECTOR', 'request:created', eventPayload);
       this.eventsGateway.emitToRole('HEAD_WAREHOUSE', 'REQUEST_CREATED', eventPayload);
+      this.eventsGateway.emitToRole('HEAD_WAREHOUSE', 'request:created', eventPayload);
+      this.eventsGateway.broadcast('REQUEST_CREATED', eventPayload);
+      this.eventsGateway.broadcast('request:created', eventPayload);
       this.eventsGateway.broadcast('REQUEST_UPDATED', eventPayload);
+      this.eventsGateway.broadcast('request:updated', eventPayload);
     }
 
     return created;
