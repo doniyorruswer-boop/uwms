@@ -62,6 +62,7 @@ import { ExcelImportModal } from '../../components/Warehouse/ExcelImportModal';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { TableActions } from '../../components/Common/TableActions';
 import { StandardTable } from '../../components/Common/StandardTable';
+import { StatusTag } from '../../components/Common/StatusTag';
 import { ForbiddenView } from '../../components/Common/ForbiddenView';
 import { ReturnAssetModal } from '../../components/Assets/ReturnAssetModal';
 import { MassMolTransferModal } from '../../components/Assets/MassMolTransferModal';
@@ -104,6 +105,14 @@ export const AssetsPage: React.FC = () => {
   const [quickCategory, setQuickCategory] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [fundingSourceFilter, setFundingSourceFilter] = useState<string>('ALL');
+  const [showMyAssetsOnly, setShowMyAssetsOnly] = useState<boolean>(user?.role === 'MOL');
+  const [wizardAssets, setWizardAssets] = useState<ItemInstance[]>([]);
+
+  useEffect(() => {
+    if (user?.role === 'MOL') {
+      setShowMyAssetsOnly(true);
+    }
+  }, [user?.role]);
 
   const {
     assets,
@@ -119,6 +128,7 @@ export const AssetsPage: React.FC = () => {
     search: searchText || undefined,
     status: statusFilter === 'ALL' ? undefined : statusFilter,
     fundingSource: fundingSourceFilter === 'ALL' ? undefined : fundingSourceFilter,
+    responsibleUserId: showMyAssetsOnly ? user?.id : undefined,
   });
 
   const { transfers, isLoading: isTransfersLoading, respondTransfer } = useTransfersQuery();
@@ -154,7 +164,6 @@ export const AssetsPage: React.FC = () => {
   const [isRepairModalVisible, setIsRepairModalVisible] = useState(false);
   const [isWriteOffModalVisible, setIsWriteOffModalVisible] = useState(false);
   const [isAssetHandoverWizardVisible, setIsAssetHandoverWizardVisible] = useState(false);
-  const [showMyAssetsOnly, setShowMyAssetsOnly] = useState<boolean>(user?.role === 'MOL');
   const [actionAsset, setActionAsset] = useState<ItemInstance | null>(null);
 
   const [reprintReason, setReprintReason] = useState('Eski stiker shikastlangan yoki xiralashgan');
@@ -219,6 +228,7 @@ export const AssetsPage: React.FC = () => {
     const matchesFunding = fundingSourceFilter === 'ALL' || a.fundingSource === fundingSourceFilter;
     const matchesCat =
       quickCategory === 'ALL' ||
+      a.categoryName === quickCategory ||
       (quickCategory === 'IT' && a.categoryName?.includes('IT')) ||
       (quickCategory === 'MEBEL' && a.categoryName?.includes('Mebel')) ||
       (quickCategory === 'NEW' && a.status === 'NEW');
@@ -229,6 +239,23 @@ export const AssetsPage: React.FC = () => {
   });
 
   const selectedAssetsList = assets.filter((a) => selectedRowKeys.includes(a.id));
+
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
+  const handleOpenMyHandoverWizard = () => {
+    // Foydalanuvchining o'z nomidagi (bo'ynidagi) faol aktivlari
+    const myAssets = assets.filter(
+      (a) => a.responsibleUserId === user?.id && a.status !== 'WRITTEN_OFF'
+    );
+
+    if (myAssets.length === 0) {
+      Message.info('Sizning nomingizda topshirish mumkin bo‘lgan faol asosiy vositalar mavjud emas.');
+      return;
+    }
+
+    setWizardAssets(myAssets);
+    setIsAssetHandoverWizardVisible(true);
+  };
 
   const handleOpenDetail = (asset: ItemInstance) => {
     setSelectedAsset(asset);
@@ -460,15 +487,10 @@ export const AssetsPage: React.FC = () => {
               ),
             },
             {
-              title: 'Holat',
+              title: 'Holati',
               dataIndex: 'status',
-              width: 140,
-              render: (status: string) => {
-                if (status === 'PENDING') return <Badge status="warning" text="Kafedra qabuli kutilmoqda" />;
-                if (status === 'ACCEPTED') return <Badge status="success" text="Qabul qilindi va biriktirildi" />;
-                if (status === 'REJECTED') return <Badge status="error" text="Rad etildi" />;
-                return <Tag>{status}</Tag>;
-              },
+              width: 150,
+              render: (status: string) => <StatusTag domain="general" status={status} mode="badge" />,
             },
             {
               title: 'Yuborilgan Sana',
@@ -562,22 +584,20 @@ export const AssetsPage: React.FC = () => {
                   onChange={setSearchText}
                   allowClear
                 />
-                <Radio.Group
-                  type="button"
+                <Select
+                  placeholder="Barcha turlar"
                   value={quickCategory}
                   onChange={setQuickCategory}
+                  style={{ width: 220 }}
+                  loading={isCategoriesLoading}
                 >
-                  <Radio value="ALL">Barcha turlar</Radio>
-                  <Radio value="IT">
-                    <IconDesktop style={{ marginRight: 4 }} /> IT & Kompyuter
-                  </Radio>
-                  <Radio value="MEBEL">
-                    <IconStorage style={{ marginRight: 4 }} /> Mebel
-                  </Radio>
-                  <Radio value="NEW">
-                    <IconCheckCircle style={{ marginRight: 4 }} /> Zaxirada
-                  </Radio>
-                </Radio.Group>
+                  <Select.Option value="ALL">Barcha turlar (Barchasi)</Select.Option>
+                  {backendCategories.map((cat) => (
+                    <Select.Option key={cat.id} value={cat.name}>
+                      {cat.name}
+                    </Select.Option>
+                  ))}
+                </Select>
                 <Select
                   value={statusFilter}
                   onChange={setStatusFilter}
@@ -608,20 +628,10 @@ export const AssetsPage: React.FC = () => {
                       type="primary"
                       status="success"
                       icon={<IconSwap />}
-                      onClick={() => {
-                        if (selectedRowKeys.length === 0) {
-                          const myAssets = assets.filter(
-                            (a) => a.responsibleUserId === user?.id && a.status !== 'WRITTEN_OFF'
-                          );
-                          if (myAssets.length > 0) {
-                            setSelectedRowKeys(myAssets.map((a) => a.id));
-                          }
-                        }
-                        setIsAssetHandoverWizardVisible(true);
-                      }}
-                      style={{ borderRadius: 0 }}
+                      onClick={handleOpenMyHandoverWizard}
+                      style={{ borderRadius: 0, fontWeight: 600 }}
                     >
-                      Aktivlarni Topshirish {selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : ''}
+                      Aktivlarni topshirish
                     </Button>
                     <Button
                       type="outline"
@@ -697,14 +707,6 @@ export const AssetsPage: React.FC = () => {
                 <Space size="small">
                   <Button
                     type="primary"
-                    status="success"
-                    icon={<IconSwap />}
-                    onClick={() => setIsAssetHandoverWizardVisible(true)}
-                  >
-                    Aktivlarni Topshirish ({selectedRowKeys.length})
-                  </Button>
-                  <Button
-                    type="primary"
                     icon={<IconSwap />}
                     onClick={() => {
                       batchTransferForm.resetFields();
@@ -750,6 +752,15 @@ export const AssetsPage: React.FC = () => {
               type: 'checkbox',
               selectedRowKeys,
               onChange: (keys) => setSelectedRowKeys(keys),
+              checkboxProps: (record) => {
+                const isWrittenOff = record.status === 'WRITTEN_OFF';
+                // SuperAdmin barcha aktivlarni tanlay oladi (QR stiker, Excel eksport, xonaga ko'chirish uchun).
+                // Oddiy xodim esa faqat o'ziga biriktirilgan aktivlarni tanlaydi.
+                const isNotMine = !isSuperAdmin && record.responsibleUserId !== user?.id;
+                return {
+                  disabled: isWrittenOff || isNotMine,
+                };
+              },
             }}
             onRowClick={(record) => handleOpenDetail(record)}
             columns={[
@@ -831,13 +842,7 @@ export const AssetsPage: React.FC = () => {
                 dataIndex: 'status',
                 width: 130,
                 render: (status: AssetStatus) => (
-                  <div style={{ whiteSpace: 'nowrap' }}>
-                    {status === 'IN_USE' && <Badge status="success" text="Foydalanishda" />}
-                    {status === 'NEW' && <Badge status="processing" text="Yangi (Omborda)" />}
-                    {status === 'IN_REPAIR' && <Badge status="warning" text="Ta’mirda" />}
-                    {status === 'WRITTEN_OFF' && <Badge status="error" text="Spisanie" />}
-                    {!['IN_USE', 'NEW', 'IN_REPAIR', 'WRITTEN_OFF'].includes(status) && <Tag>{status}</Tag>}
-                  </div>
+                  <StatusTag domain="asset" status={status} mode="badge" />
                 ),
               },
               {
@@ -883,18 +888,37 @@ export const AssetsPage: React.FC = () => {
                     </Button>
                     {canManageAssets && record.status !== 'WRITTEN_OFF' && (
                       <>
-                        <Tooltip content="Javobgarlikni topshirish (OS-1)">
+                        <Tooltip
+                          content={
+                            record.responsibleUserId === user?.id
+                              ? 'Javobgarlikni topshirish (OS-1)'
+                              : 'Faqat o‘zingizga biriktirilgan vositani topshira olasiz'
+                          }
+                        >
                           <Button
                             size="small"
                             type="secondary"
-                            icon={<IconSwap style={{ color: '#00B42A' }} />}
+                            icon={
+                              <IconSwap
+                                style={{
+                                  color: record.responsibleUserId === user?.id ? '#00B42A' : '#C9CDD4',
+                                }}
+                              />
+                            }
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedRowKeys([record.id]);
+                              if (record.responsibleUserId !== user?.id) {
+                                Message.error('Ushbu aktiv sizga biriktirilmagan! Faqat o‘zingizga tegishli vositalarni topshira olasiz.');
+                                return;
+                              }
+                              setWizardAssets([record]);
                               setIsAssetHandoverWizardVisible(true);
                             }}
-                            style={{ borderRadius: 0 }}
-                          />
+                            disabled={record.responsibleUserId !== user?.id}
+                            style={{ borderRadius: 0, fontWeight: 500 }}
+                          >
+                            Topshirish
+                          </Button>
                         </Tooltip>
                         <Tooltip content="Xonaga ko‘chirish">
                           <Button
@@ -948,9 +972,7 @@ export const AssetsPage: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontWeight: 700, fontSize: 16 }}>{selectedAsset?.inventoryNumber}</span>
             {selectedAsset && (
-              <Tag color={selectedAsset.status === 'IN_USE' ? 'green' : 'arcoblue'}>
-                {selectedAsset.status === 'IN_USE' ? 'Foydalanishda' : 'Omborda'}
-              </Tag>
+              <StatusTag domain="asset" status={selectedAsset.status} />
             )}
           </div>
         }
@@ -1536,10 +1558,14 @@ export const AssetsPage: React.FC = () => {
       {/* ASSET HANDOVER WIZARD MODAL (MOL WORKSPACE) */}
       <AssetHandoverWizardModal
         visible={isAssetHandoverWizardVisible}
-        onClose={() => setIsAssetHandoverWizardVisible(false)}
-        selectedAssets={selectedAssetsList}
+        onClose={() => {
+          setIsAssetHandoverWizardVisible(false);
+          setWizardAssets([]);
+        }}
+        selectedAssets={wizardAssets}
         onSuccess={() => {
           setSelectedRowKeys([]);
+          setWizardAssets([]);
           refetchAssets();
         }}
       />

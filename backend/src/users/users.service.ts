@@ -4,9 +4,11 @@ import {
   ConflictException,
   BadRequestException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
+import { EventsGateway } from '../events/events.gateway';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { QueryUsersDto } from './dto/query-users.dto';
@@ -26,6 +28,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly systemAuditService: SystemAuditService,
+    @Optional() private readonly eventsGateway?: EventsGateway,
   ) {}
 
   async findAll(query: QueryUsersDto) {
@@ -293,6 +296,12 @@ export class UsersService {
       },
     });
 
+    if (this.eventsGateway && ((dto.role && dto.role !== existing.role) || (dto.isActive === false && existing.isActive !== false))) {
+      this.eventsGateway.emitToUser(id, 'security:force_logout', {
+        reason: 'Sizning tizimdagi rolingiz yoki hisobingiz administrator tomonidan o‘zgartirildi / bloklandi.',
+      });
+    }
+
     const { password, ...sanitized } = updatedUser;
     return sanitized;
   }
@@ -339,6 +348,12 @@ export class UsersService {
         newStatus: isActive ? 'ACTIVE' : 'INACTIVE',
       },
     });
+
+    if (this.eventsGateway && !isActive) {
+      this.eventsGateway.emitToUser(id, 'security:force_logout', {
+        reason: 'Hisobingiz administrator tomonidan nofaol holatga o‘tkazildi.',
+      });
+    }
 
     const { password, ...sanitized } = updated;
     return sanitized;
@@ -637,6 +652,12 @@ export class UsersService {
     this.logger.log(
       `Foydalanuvchi (${userId}) huquqlari yangilandi: ${dto.permissions.length} ta ruxsat berildi. Admin: ${adminId}`,
     );
+
+    if (this.eventsGateway) {
+      this.eventsGateway.emitToUser(userId, 'security:force_logout', {
+        reason: 'Sizning tizim huquqlaringiz (PBAC) yangilandi. Xavfsizlik yuzasidan iltimos, tizimga qayta kiring.',
+      });
+    }
 
     return {
       success: true,

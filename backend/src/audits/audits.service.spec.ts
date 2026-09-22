@@ -3,6 +3,7 @@ import { AuditsService } from './audits.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
 import { DocumentStampsService } from '../document-stamps/document-stamps.service';
+import { EventsGateway } from '../events/events.gateway';
 import { AuditStatus, AuditRecordStatus } from '@prisma/client';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 
@@ -11,6 +12,7 @@ describe('AuditsService (Unit Tests)', () => {
   let prisma: any;
   let systemAudit: any;
   let documentStamps: any;
+  let eventsGateway: any;
 
   beforeEach(async () => {
     prisma = {
@@ -24,6 +26,7 @@ describe('AuditsService (Unit Tests)', () => {
         findUnique: jest.fn(),
         findMany: jest.fn(),
         update: jest.fn(),
+        count: jest.fn().mockResolvedValue(10),
       },
       inventoryAudit: {
         findFirst: jest.fn(),
@@ -35,6 +38,7 @@ describe('AuditsService (Unit Tests)', () => {
       inventoryAuditRecord: {
         findFirst: jest.fn(),
         create: jest.fn(),
+        count: jest.fn().mockResolvedValue(5),
       },
       $transaction: jest.fn((arg) => (typeof arg === 'function' ? arg(prisma) : Promise.all(arg))),
     };
@@ -51,12 +55,20 @@ describe('AuditsService (Unit Tests)', () => {
       }),
     };
 
+    eventsGateway = {
+      emitToRoom: jest.fn(),
+      emitToUser: jest.fn(),
+      emitToRole: jest.fn(),
+      broadcast: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuditsService,
         { provide: PrismaService, useValue: prisma },
         { provide: SystemAuditService, useValue: systemAudit },
         { provide: DocumentStampsService, useValue: documentStamps },
+        { provide: EventsGateway, useValue: eventsGateway },
       ],
     }).compile();
 
@@ -198,6 +210,55 @@ describe('AuditsService (Unit Tests)', () => {
 
       expect(res.found).toBe(true);
       expect(prisma.inventoryAuditRecord.create).not.toHaveBeenCalled();
+    });
+
+    it('boshqa xonada yaqinda skanerlangan vosita qayta skan qilinganda Collision Guard ogohlantirishi qaytarishi va audit:collision_detected emit qilishi kerak', async () => {
+      prisma.itemInstance.findUnique.mockResolvedValue({
+        id: 'asset-coll',
+        qrCode: 'UWMS-QR-COLL',
+        roomId: 'room-101',
+        inventoryNumber: 'INV-2026-COLL',
+        item: { name: 'Interaktiv Doska' },
+        room: { number: '101' },
+      });
+
+      prisma.inventoryAudit.findFirst.mockResolvedValue({
+        id: 'audit-2',
+        roomId: 'room-204',
+        campaignId: 'camp-1',
+        status: AuditStatus.IN_PROGRESS,
+      });
+
+      // Avval 2 daqiqa oldin Xona 101 da skan qilingan
+      prisma.inventoryAuditRecord.findFirst
+        .mockResolvedValueOnce({
+          id: 'prev-rec',
+          scannedAt: new Date(Date.now() - 2 * 60 * 1000),
+          foundRoomId: 'room-101',
+          audit: { room: { number: '101', name: 'Fizika laboratoriyasi' } },
+        })
+        .mockResolvedValueOnce(null); // bu xonada hali skan qilinmagan
+
+      prisma.inventoryAuditRecord.create.mockResolvedValue({ id: 'rec-new' });
+
+      const res = await service.scanCode('room-204', 'UWMS-QR-COLL', 'camp-1');
+
+      expect(res.found).toBe(true);
+      expect((res as any).collision).toBeDefined();
+      expect((res as any).collision.detected).toBe(true);
+      expect((res as any).collision.previousRoomNumber).toBe('101');
+      expect((res as any).collision.message).toContain('Xona 101 da skanerlangan');
+
+      expect(eventsGateway.emitToRoom).toHaveBeenCalledWith(
+        'campaign:camp-1',
+        'audit:asset_scanned',
+        expect.any(Object),
+      );
+      expect(eventsGateway.emitToRoom).toHaveBeenCalledWith(
+        'campaign:camp-1',
+        'audit:collision_detected',
+        expect.any(Object),
+      );
     });
   });
 

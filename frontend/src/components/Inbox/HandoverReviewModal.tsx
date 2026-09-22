@@ -12,6 +12,7 @@ import {
   Grid,
   Message,
   Tooltip,
+  Steps,
 } from '@arco-design/web-react';
 import {
   IconCheckCircle,
@@ -22,11 +23,18 @@ import {
   IconLock,
   IconUser,
   IconFile,
+  IconSend,
+  IconSafe,
 } from '@arco-design/web-react/icon';
 import { useAuthStore } from '../../store/authStore';
 import { apiClient } from '../../api/client';
 import { API_ENDPOINTS } from '../../constants';
-import { useHandoverDetailQuery, useSignHandoverMutation } from '../../hooks/useHandoverQuery';
+import {
+  useHandoverDetailQuery,
+  useSignHandoverMutation,
+  useSubmitHandoverMutation,
+  useCancelHandoverMutation,
+} from '../../hooks/useHandoverQuery';
 import { QRPairingModal } from '../Common/QRPairingModal';
 import { RejectReasonModal } from '../Common/RejectReasonModal';
 import { ROLE_CONFIG } from '../../constants/roles.constants';
@@ -55,11 +63,13 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
 
   const [docData, setDocData] = useState<any>(null);
   const [isLoadingDoc, setIsLoadingDoc] = useState(false);
-  const [activeSigningRole, setActiveSigningRole] = useState<'TARGET' | 'COMMANDANT' | 'ACCOUNTANT' | 'DEPARTING' | null>(null);
+  const [activeSigningRole, setActiveSigningRole] = useState<'TARGET' | 'COMMANDANT' | 'ACCOUNTANT' | 'DEPARTING' | 'SUPER_ADMIN' | null>(null);
   const [isQrModalVisible, setIsQrModalVisible] = useState(false);
   const [isRejectModalVisible, setIsRejectModalVisible] = useState(false);
 
   const signHandoverMutation = useSignHandoverMutation();
+  const submitMutation = useSubmitHandoverMutation();
+  const cancelMutation = useCancelHandoverMutation();
 
   // Load OS-1 HTML and signatories
   const loadDoc = async () => {
@@ -98,6 +108,74 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
     currentUser?.role === 'CHIEF_ACCOUNTANT';
   const isDeparting = currentUser?.id === handover?.departingUserId;
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+  const isExecutive =
+    currentUser?.role === 'VICE_RECTOR_FINANCE' ||
+    currentUser?.role === 'RECTOR' ||
+    currentUser?.role === 'CHIEF_ACCOUNTANT' ||
+    currentUser?.role === 'SUPER_ADMIN';
+
+  const isPendingApproval = handover?.status === 'PENDING_APPROVAL';
+  const isDraft = handover?.status === 'DRAFT';
+  const isCompleted = handover?.status === 'COMPLETED';
+  const isRejected = handover?.status === 'REJECTED';
+  const isCancelled = handover?.status === 'CANCELLED';
+
+  const handleSubmitDraft = async () => {
+    if (!handoverId) return;
+    try {
+      await submitMutation.mutateAsync(handoverId);
+      refetch();
+      if (onSuccess) onSuccess();
+    } catch (e) {
+      // error handled by mutation
+    }
+  };
+
+  const handleCancelHandover = async () => {
+    if (!handoverId) return;
+    try {
+      await cancelMutation.mutateAsync({ id: handoverId, reason: 'Foydalanuvchi tomonidan bekor qilindi' });
+      refetch();
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (e) {
+      // error handled by mutation
+    }
+  };
+
+  // State Machine Step indexing:
+  // Step 0: Topshiruvchi (DRAFT / SUBMITTED)
+  // Step 1: Yangi MOL (RECEIVER_REVIEW)
+  // Step 2: Bino Komendanti (COMMANDANT_REVIEW)
+  // Step 3: Moddiy Hisobchi (ACCOUNTANT_REVIEW)
+  // Step 4: Rahbariyat Tasdig'i (PENDING_APPROVAL)
+  // Step 5: Muvaffaqiyatli Yakunlandi (COMPLETED)
+  let stepCurrent = 0;
+  let stepStatus: 'wait' | 'process' | 'finish' | 'error' = 'process';
+
+  if (isCompleted) {
+    stepCurrent = 5;
+    stepStatus = 'finish';
+  } else if (isRejected || isCancelled) {
+    stepStatus = 'error';
+    if (isCancelled) stepCurrent = 0;
+    else if (!targetSig?.signed) stepCurrent = 1;
+    else if (!commandantSig?.signed) stepCurrent = 2;
+    else if (!accountantSig?.signed) stepCurrent = 3;
+    else stepCurrent = 4;
+  } else if (isPendingApproval) {
+    stepCurrent = 4;
+  } else if (handover?.status === 'ACCOUNTANT_REVIEW') {
+    stepCurrent = 3;
+  } else if (handover?.status === 'COMMANDANT_REVIEW') {
+    stepCurrent = 2;
+  } else if (handover?.status === 'RECEIVER_REVIEW' || handover?.status === 'SUBMITTED' || handover?.status === 'PENDING_SIGNATURES') {
+    if (targetSig?.signed && !commandantSig?.signed) stepCurrent = 2;
+    else if (targetSig?.signed && commandantSig?.signed && !accountantSig?.signed) stepCurrent = 3;
+    else stepCurrent = 1;
+  } else if (isDraft) {
+    stepCurrent = 0;
+  }
 
   // Can the current user sign now?
   let myRoleToSign: 'TARGET' | 'COMMANDANT' | 'ACCOUNTANT' | 'DEPARTING' | null = null;
@@ -109,6 +187,8 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
     myRoleToSign = 'ACCOUNTANT';
   } else if (isDeparting && !departingSig?.signed) {
     myRoleToSign = 'DEPARTING';
+  } else if (isPendingApproval && isExecutive) {
+    myRoleToSign = 'ACCOUNTANT';
   } else if (isSuperAdmin) {
     // SuperAdmin can sign any pending role
     if (!targetSig?.signed && handover?.targetUserId) myRoleToSign = 'TARGET';
@@ -117,7 +197,7 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
     else if (!departingSig?.signed) myRoleToSign = 'DEPARTING';
   }
 
-  const handleOpenQrSign = (role: 'TARGET' | 'COMMANDANT' | 'ACCOUNTANT' | 'DEPARTING') => {
+  const handleOpenQrSign = (role: 'TARGET' | 'COMMANDANT' | 'ACCOUNTANT' | 'DEPARTING' | 'SUPER_ADMIN') => {
     setActiveSigningRole(role);
     setIsQrModalVisible(true);
   };
@@ -163,10 +243,10 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
       dataIndex: 'itemInstance.inventoryNumber',
       key: 'inv',
       width: 140,
-      render: (_: any, r: any) => <Tag color="blue">{r.itemInstance?.inventoryNumber}</Tag>,
+      render: (_: any, r: any) => <b style={{ color: '#165DFF' }}>{r.itemInstance?.inventoryNumber}</b>,
     },
     {
-      title: 'Aktiv Nomi',
+      title: 'Aktiv Nomi va Modeli',
       key: 'name',
       render: (_: any, r: any) => (
         <div>
@@ -180,10 +260,33 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
       ),
     },
     {
+      title: 'Seriya №',
+      key: 'serial',
+      width: 130,
+      render: (_: any, r: any) => (
+        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>
+          {r.itemInstance?.serialNumber || '—'}
+        </span>
+      ),
+    },
+    {
+      title: 'Texnik Holati / Qayd',
+      key: 'condition',
+      width: 160,
+      render: (_: any, r: any) => {
+        const cond = r.conditionNote || r.itemInstance?.status;
+        let color = 'green';
+        if (cond?.includes('Nosoz') || cond === 'IN_REPAIR') color = 'orange';
+        if (cond?.includes('Spisanie') || cond === 'WRITTEN_OFF') color = 'red';
+        if (cond?.includes('Kamomad') || cond === 'MISSING') color = 'magenta';
+        return <Tag color={color} size="small">{cond || 'Soz'}</Tag>;
+      },
+    },
+    {
       title: 'Harakat Turi',
       dataIndex: 'actionType',
       key: 'action',
-      width: 160,
+      width: 150,
       render: (act: string) => {
         if (act === 'TRANSFER_TO_MOL') return <Tag color="blue">Yangi MOLga</Tag>;
         if (act === 'RETURN_TO_WAREHOUSE') return <Tag color="green">Omborga</Tag>;
@@ -196,8 +299,8 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
     {
       title: 'Xonasi',
       key: 'room',
-      width: 140,
-      render: (_: any, r: any) => r.itemInstance?.room?.number || 'Omborda',
+      width: 120,
+      render: (_: any, r: any) => r.itemInstance?.room?.number ? `${r.itemInstance.room.number}-xona` : 'Omborda',
     },
   ];
 
@@ -215,31 +318,76 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
         style={{ width: 880 }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Button onClick={onClose}>Yopish</Button>
             <Space>
-              <Button
-                status="danger"
-                icon={<IconCloseCircle />}
-                onClick={() => setIsRejectModalVisible(true)}
-              >
-                Rad Etish
-              </Button>
-              {myRoleToSign ? (
+              <Button onClick={onClose}>Yopish</Button>
+              {isDraft && (isDeparting || isSuperAdmin) && (
+                <Button status="danger" onClick={handleCancelHandover} loading={cancelMutation.isPending}>
+                  Qoralamani Bekor Qilish
+                </Button>
+              )}
+            </Space>
+            <Space>
+              {!isCompleted && !isRejected && !isCancelled && !isDraft && (isDeparting || isSuperAdmin) && (
+                <Button
+                  status="danger"
+                  icon={<IconCloseCircle />}
+                  onClick={() => setIsRejectModalVisible(true)}
+                >
+                  Rad Etish
+                </Button>
+              )}
+
+              {isDraft && (isDeparting || isSuperAdmin) && (
+                <Button
+                  type="primary"
+                  status="success"
+                  icon={<IconSend />}
+                  loading={submitMutation.isPending}
+                  onClick={handleSubmitDraft}
+                >
+                  Topshirishga Yuborish
+                </Button>
+              )}
+
+              {isPendingApproval && isExecutive && (
+                <Button
+                  type="primary"
+                  status="warning"
+                  icon={<IconCheckCircle />}
+                  onClick={() => handleOpenQrSign('SUPER_ADMIN')}
+                >
+                  Rahbariyat Nomidan Tasdiqlash
+                </Button>
+              )}
+
+              {myRoleToSign && !isPendingApproval ? (
                 <Button
                   type="primary"
                   status="success"
                   icon={<IconMobile />}
                   onClick={() => handleOpenQrSign(myRoleToSign!)}
                 >
-                  QR bilan Qabul Qilish / Imzolash
+                  {myRoleToSign === 'TARGET'
+                    ? 'Barchasini qabul qilaman (QR-Imzo)'
+                    : myRoleToSign === 'COMMANDANT'
+                    ? 'Xona butunligi va kalitlarni tasdiqlash (QR-Imzo)'
+                    : myRoleToSign === 'ACCOUNTANT'
+                    ? 'Balansni tasdiqlash (QR-Imzo)'
+                    : 'QR bilan Imzolash'}
                 </Button>
-              ) : (
-                <Tooltip content="Siz ushbu arizada imzo qo‘yuvchi mas’ul emassiz yoki imzoingiz allaqachon qo‘yilgan.">
+              ) : !isDraft && !isPendingApproval ? (
+                <Tooltip
+                  content={
+                    isCompleted
+                      ? "Dalolatnoma barcha mas’ullar tomonidan to‘liq imzolangan"
+                      : "Siz ushbu arizada imzo qo‘yuvchi mas’ul emassiz yoki imzoingiz allaqachon qo‘yilgan."
+                  }
+                >
                   <Button type="primary" disabled icon={<IconCheckCircle />}>
-                    Imzo Kutilmaydi
+                    {isCompleted ? 'To‘liq Imzolangan' : 'Imzo Kutilmaydi'}
                   </Button>
                 </Tooltip>
-              )}
+              ) : null}
             </Space>
           </div>
         }
@@ -250,18 +398,77 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Context Alert */}
-            <Alert
-              type="info"
-              showIcon
-              content={
-                <span>
-                  Topshiruvchi: <strong>{handover?.departingUser?.fullName}</strong> ({handover?.departingUser?.position || 'MOL'}). 
-                  Qabul qiluvchi: <strong>{handover?.targetUser?.fullName || handover?.targetWarehouse?.name || 'Omborxona'}</strong>. 
-                  Ashyolar barcha 4 tomonlama mas’ullar tasdiqlagandan so‘ng rasman yangi balansga o‘tadi.
-                </span>
-              }
-            />
+            {/* 1. Official State Machine Stepper */}
+            <Card className="uwms-card" style={{ padding: '12px 16px', background: 'var(--color-fill-1)' }}>
+              <Steps current={stepCurrent} status={stepStatus} size="small">
+                <Steps.Step title="1. Topshiruvchi" description={isDraft ? 'Qoralama' : 'Yuborildi'} />
+                <Steps.Step title="2. Yangi MOL" description={targetSig?.signed ? 'Qabul qilindi' : 'Ko‘rib chiqish'} />
+                <Steps.Step title="3. Komendant" description={commandantSig?.signed ? 'Tasdiqlandi' : 'Xona nazorati'} />
+                <Steps.Step title="4. Buxgalteriya" description={accountantSig?.signed ? 'Muhrlandi' : 'Balans ko‘rigi'} />
+                <Steps.Step
+                  title="5. Rahbariyat"
+                  description={isCompleted ? 'Tasdiqlandi' : isPendingApproval ? 'Tasdiq kutilmoqda' : 'Yakuniy viza'}
+                />
+                <Steps.Step title="6. Natija (OS-1)" description={isCompleted ? 'Rasmiylashtirildi' : 'Kutilmoqda'} />
+              </Steps>
+            </Card>
+
+            {/* Context Alert based on State */}
+            {isDraft ? (
+              <Alert
+                type="info"
+                showIcon
+                content="Ushbu ariza qoralama (DRAFT) holatida. Barcha aktivlar ro‘yxatini tekshiring va rasmiy topshirish jarayonini boshlash uchun 'Topshirishga Yuborish' tugmasini bosing."
+              />
+            ) : isPendingApproval ? (
+              <Alert
+                type="warning"
+                showIcon
+                content={
+                  <span>
+                    <strong>Rahbariyat Tasdig‘i Kutilmoqda (PENDING_APPROVAL):</strong> Barcha operatsion tomonlar
+                    (Qabul qiluvchi, Komendant, Buxgalter) dalolatnomani imzoladilar. Prorektor yoki Bosh hisobchi
+                    tasdiqlaganidan so‘ng mulklar rasman yangi mas’ul balansiga o‘tkaziladi.
+                  </span>
+                }
+              />
+            ) : isCompleted ? (
+              <Alert
+                type="success"
+                showIcon
+                content={
+                  <span>
+                    <strong>Muvaffaqiyatli Yakunlangan (COMPLETED):</strong> Ushbu moddiy topshirish dalolatnomasi
+                    barcha tomonlar tomonidan to‘liq imzolangan, davlat standarti OS-1 elektron dalolatnomasi
+                    muhrlangan va ashyolar yangi mas’ul balansiga o‘tkazilgan.
+                  </span>
+                }
+              />
+            ) : isRejected ? (
+              <Alert
+                type="error"
+                showIcon
+                content="Topshirish arizasi rad etilgan va jarayon to‘xtatilgan. Aktivlar topshiruvchi xodim hisobida saqlanib qoldi."
+              />
+            ) : isCancelled ? (
+              <Alert
+                type="info"
+                showIcon
+                content="Ushbu topshirish arizasi arizachi yoki ma’mur tomonidan bekor qilingan."
+              />
+            ) : (
+              <Alert
+                type="info"
+                showIcon
+                content={
+                  <span>
+                    Topshiruvchi: <strong>{handover?.departingUser?.fullName}</strong> ({handover?.departingUser?.position || 'MOL'}). 
+                    Qabul qiluvchi: <strong>{handover?.targetUser?.fullName || handover?.targetWarehouse?.name || 'Omborxona'}</strong>. 
+                    Ashyolar barcha mas’ullar tasdiqlagandan so‘ng rasman yangi balansga o‘tadi.
+                  </span>
+                }
+              />
+            )}
 
             {/* Signatories 4-Way Status Cards */}
             <Card className="uwms-card" title="Ishtirokchilar Imzosi Holati (4 Tomonlama Vizalash)">
@@ -383,6 +590,79 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
                 </Col>
               </Row>
             </Card>
+
+            {/* Role-Specific Direct Action Banner */}
+            {isTarget && !targetSig?.signed && (
+              <Card className="uwms-card" style={{ background: '#E8FFEA', border: '1px solid #7BE188' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                  <div>
+                    <Typography.Text style={{ fontWeight: 600, color: '#00B42A', fontSize: 14 }}>
+                      <IconCheckCircle style={{ marginRight: 6 }} /> Qabul Qiluvchi Mas’ul (Yangi MOL) Ko‘rigi:
+                    </Typography.Text>
+                    <Typography.Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--color-text-2)' }}>
+                      Quyidagi {handover?.items?.length || 0} ta asosiy vosita va inventarlarning jismoniy holati hamda seriya raqamlarini to‘liq tekshirib chiqing.
+                    </Typography.Paragraph>
+                  </div>
+                  <Button
+                    type="primary"
+                    status="success"
+                    icon={<IconMobile />}
+                    size="large"
+                    onClick={() => handleOpenQrSign('TARGET')}
+                  >
+                    Barchasini qabul qilaman (QR-Imzo)
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {isCommandant && !commandantSig?.signed && (
+              <Card className="uwms-card" style={{ background: '#FFF7E8', border: '1px solid #FFC72E' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                  <div>
+                    <Typography.Text style={{ fontWeight: 600, color: '#D46B08', fontSize: 14 }}>
+                      <IconSafe style={{ marginRight: 6 }} /> Bino Komendantining Nazorat Tekshiruvi:
+                    </Typography.Text>
+                    <Typography.Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--color-text-2)' }}>
+                      Xonaning jismoniy butunligi, eshik va derazalar sozligi hamda xona kalitlari yangi mas’ulga topshirilgani tekshirildi.
+                    </Typography.Paragraph>
+                  </div>
+                  <Button
+                    type="primary"
+                    status="warning"
+                    icon={<IconMobile />}
+                    size="large"
+                    onClick={() => handleOpenQrSign('COMMANDANT')}
+                  >
+                    Xona Butunligi va Kalitlarni Tasdiqlash (QR-Imzo)
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {isAccountant && !accountantSig?.signed && (
+              <Card className="uwms-card" style={{ background: '#F9F0FF', border: '1px solid #D3ADF7' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                  <div>
+                    <Typography.Text style={{ fontWeight: 600, color: '#722ED1', fontSize: 14 }}>
+                      <IconFile style={{ marginRight: 6 }} /> Moddiy Hisobchi Tekshiruvi (Buxgalteriya):
+                    </Typography.Text>
+                    <Typography.Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--color-text-2)' }}>
+                      Ashyolarning buxgalteriya balansi va subschetdagi qoldiqlari tekshirildi, o‘tkazishga tayyor.
+                    </Typography.Paragraph>
+                  </div>
+                  <Button
+                    type="primary"
+                    style={{ backgroundColor: '#722ED1', borderColor: '#722ED1' }}
+                    icon={<IconMobile />}
+                    size="large"
+                    onClick={() => handleOpenQrSign('ACCOUNTANT')}
+                  >
+                    Balansni Tasdiqlash (QR-Imzo)
+                  </Button>
+                </div>
+              </Card>
+            )}
 
             {/* Items Table */}
             <Card

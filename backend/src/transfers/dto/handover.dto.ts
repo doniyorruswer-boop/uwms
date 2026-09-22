@@ -8,6 +8,7 @@ import {
   ValidateNested,
   IsInt,
   Min,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import {
@@ -98,6 +99,11 @@ export class CreateResponsibilityHandoverDto {
   @IsOptional()
   note?: string;
 
+  @ApiPropertyOptional({ description: 'Qoralama (DRAFT) holatida saqlash' })
+  @IsBoolean()
+  @IsOptional()
+  isDraft?: boolean;
+
   @ApiProperty({
     type: [HandoverItemActionInputDto],
     description: 'Topshirilayotgan ashyolar va ularning individual taqdiri',
@@ -125,6 +131,13 @@ export class RejectHandoverDto {
   @IsString()
   @IsNotEmpty({ message: 'Rad etish sababi ko‘rsatilishi shart' })
   reason: string;
+}
+
+export class CancelHandoverDto {
+  @ApiPropertyOptional({ description: 'Bekor qilish sababi' })
+  @IsString()
+  @IsOptional()
+  reason?: string;
 }
 
 export class QueryHandoversDto {

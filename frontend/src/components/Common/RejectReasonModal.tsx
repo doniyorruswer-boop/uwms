@@ -86,7 +86,14 @@ export const RejectReasonModal: React.FC<RejectReasonModalProps> = ({
           field="reason"
           rules={[
             { required: true, message: 'Rad etish sababini kiritish majburiy!' },
-            { min: 5, message: 'Sabab kamida 5 ta belgidan iborat bo‘lishi kerak!' },
+            {
+              validator: (value, callback) => {
+                if (!value || typeof value !== 'string' || value.trim().length < 5) {
+                  return callback('Sabab kamida 5 ta belgidan iborat bo‘lishi kerak!');
+                }
+                callback();
+              },
+            },
           ]}
         >
           <Input.TextArea

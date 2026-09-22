@@ -30,6 +30,7 @@ import {
   SigningSessionStatusResult,
 } from '../../types';
 import { formatRoleName } from '../../constants/roles.constants';
+import { useSocket } from '../../hooks/useSocket';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -37,33 +38,42 @@ export interface QRPairingModalProps {
   visible: boolean;
   onClose: () => void;
   onSuccess?: (result: SigningSessionStatusResult) => void;
+  onOpenOfficialDoc?: (result: SigningSessionStatusResult) => void;
   payload: InitSigningSessionPayload;
+  autoCloseOnSuccess?: boolean;
 }
 
 export const QRPairingModal: React.FC<QRPairingModalProps> = ({
   visible,
   onClose,
   onSuccess,
+  onOpenOfficialDoc,
   payload,
+  autoCloseOnSuccess = true,
 }) => {
+  const { socket, joinRoom, leaveRoom } = useSocket();
   const [initLoading, setInitLoading] = useState<boolean>(false);
   const [session, setSession] = useState<SigningSessionInitResult | null>(null);
   const [status, setStatus] = useState<SigningSessionStatusResult | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number>(60);
   const [error, setError] = useState<string | null>(null);
+  const [connectedDevice, setConnectedDevice] = useState<string | null>(null);
 
-  const pollIntervalRef = useRef<any>(null);
   const timerIntervalRef = useRef<any>(null);
+  const autoCloseTimeoutRef = useRef<any>(null);
+  const currentRoomsRef = useRef<string[]>([]);
 
   const cleanupTimers = () => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
+    if (autoCloseTimeoutRef.current) {
+      clearTimeout(autoCloseTimeoutRef.current);
+      autoCloseTimeoutRef.current = null;
+    }
+    currentRoomsRef.current.forEach((room) => leaveRoom(room));
+    currentRoomsRef.current = [];
   };
 
   const startSession = async () => {
@@ -71,6 +81,7 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
     setInitLoading(true);
     setError(null);
     setStatus(null);
+    setConnectedDevice(null);
     setSecondsLeft(60);
 
     try {
@@ -79,7 +90,7 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
       setSession(sessionData);
       setSecondsLeft(sessionData.remainingSeconds || 60);
 
-      // Local countdown timer
+      // Local 60s countdown timer
       timerIntervalRef.current = setInterval(() => {
         setSecondsLeft((prev) => {
           if (prev <= 1) {
@@ -89,35 +100,93 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
           return prev - 1;
         });
       }, 1000);
-
-      // Status polling every 1000ms
-      pollIntervalRef.current = setInterval(async () => {
-        try {
-          const statusRes = await apiClient.get(
-            API_ENDPOINTS.SIGNING_SESSIONS.STATUS(sessionData.sessionId),
-          );
-          const currentStatus: SigningSessionStatusResult = statusRes.data;
-          setStatus(currentStatus);
-
-          if (currentStatus.status === 'SIGNED') {
-            cleanupTimers();
-            Message.success('Hujjat mobil biometrika orqali muvaffaqiyatli imzolandi!');
-            if (onSuccess) {
-              onSuccess(currentStatus);
-            }
-          } else if (currentStatus.status === 'EXPIRED' || currentStatus.status === 'CANCELLED') {
-            cleanupTimers();
-          }
-        } catch {
-          // ignore transient poll error
-        }
-      }, 1200);
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Sessiyani boshlashda xatolik yuz berdi.');
     } finally {
       setInitLoading(false);
     }
   };
+
+  // Dedicated Socket Room & Listener Subscription lifecycle
+  useEffect(() => {
+    if (!socket || !session?.sessionId) return;
+
+    const sessionRoom = `session:${session.sessionId}`;
+    const tokenRoom = session.sessionToken ? `session:${session.sessionToken}` : null;
+
+    joinRoom(sessionRoom);
+    currentRoomsRef.current.push(sessionRoom);
+    if (tokenRoom) {
+      joinRoom(tokenRoom);
+      currentRoomsRef.current.push(tokenRoom);
+    }
+
+    // 1. Instant Handshake: Mobil telefon QR-kodni skanerlagan zahoti
+    const handleDeviceConnected = (data: any) => {
+      setStatus((prev) => ({
+        sessionId: session.sessionId,
+        status: 'SCANNED',
+        remainingSeconds: session.remainingSeconds || 60,
+        docNumber: session.docNumber,
+        title: session.title,
+        ...(prev || {}),
+        ...data,
+      }));
+      if (data?.deviceInfo) {
+        setConnectedDevice(data.deviceInfo);
+      }
+      Message.info('📱 Mobil telefon ulandi, biometrik tasdiq kutilmoqda...');
+    };
+
+    // 2. Instant Handshake: Mobil biometrika (TouchID / FaceID) tasdiqlanganda
+    const handleSignatureCompleted = (data: any) => {
+      cleanupTimers();
+      const signedStatusResult: SigningSessionStatusResult = {
+        sessionId: session.sessionId,
+        status: 'SIGNED',
+        remainingSeconds: session.remainingSeconds || 60,
+        docNumber: session.docNumber,
+        title: session.title,
+        docType: session.docType,
+        ...data,
+      };
+
+      setStatus(signedStatusResult);
+      Message.success('Hujjat mobil biometrika orqali muvaffaqiyatli imzolandi!');
+
+      if (onSuccess) {
+        onSuccess(signedStatusResult);
+      }
+      if (onOpenOfficialDoc) {
+        onOpenOfficialDoc(signedStatusResult);
+      }
+
+      // Ssenariy 5: Kompyuterda QR modal avtomatik yopilib rasmiy hujjatga yo‘naltirish
+      if (autoCloseOnSuccess) {
+        autoCloseTimeoutRef.current = setTimeout(() => {
+          handleClose();
+        }, 1200);
+      }
+    };
+
+    // 3. Sessiya bekor qilinganda
+    const handleSessionCancelled = () => {
+      cleanupTimers();
+      setStatus((prev) => (prev ? { ...prev, status: 'CANCELLED' } : null));
+    };
+
+    socket.on('qr:device_connected', handleDeviceConnected);
+    socket.on('qr:signature_completed', handleSignatureCompleted);
+    socket.on('qr:session_cancelled', handleSessionCancelled);
+
+    return () => {
+      socket.off('qr:device_connected', handleDeviceConnected);
+      socket.off('qr:signature_completed', handleSignatureCompleted);
+      socket.off('qr:session_cancelled', handleSessionCancelled);
+      if (tokenRoom) leaveRoom(tokenRoom);
+      leaveRoom(sessionRoom);
+    };
+  }, [socket, session?.sessionId, session?.sessionToken]);
 
   useEffect(() => {
     if (visible) {
@@ -126,6 +195,7 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
       cleanupTimers();
       setSession(null);
       setStatus(null);
+      setConnectedDevice(null);
     }
     return () => cleanupTimers();
   }, [visible, payload.docNumber]);
@@ -163,15 +233,18 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: isSigned ? '#E8FFEA' : isExpired ? '#FFECE8' : '#E8F3FF',
+              backgroundColor: isSigned ? '#E8FFEA' : isExpired ? '#FFECE8' : isScanned ? '#E8F3FF' : '#F2F3F5',
+              transition: 'background-color 0.3s ease',
             }}
           >
             {isSigned ? (
               <IconCheckCircle style={{ fontSize: 32, color: '#00B42A' }} />
             ) : isExpired ? (
               <IconCloseCircle style={{ fontSize: 32, color: '#F53F3F' }} />
+            ) : isScanned ? (
+              <IconMobile style={{ fontSize: 30, color: '#165DFF' }} />
             ) : (
-              <IconMobile style={{ fontSize: 28, color: '#165DFF' }} />
+              <IconMobile style={{ fontSize: 28, color: '#4E5969' }} />
             )}
           </div>
 
@@ -180,11 +253,17 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
               ? 'Hujjat Muvaffaqiyatli Imzolandi!'
               : isExpired
               ? 'Imzolash Vaqti Tugadi (60s)'
+              : isScanned
+              ? '📱 Mobil Qurilma Ulandi'
               : 'Dinamik QR-Pairing Orqali Imzolash'}
           </Title>
           <Text type="secondary" style={{ fontSize: 13, marginTop: 4, display: 'block' }}>
             {isSigned
-              ? 'Hujjatga doimiy raqamli QR-muhr muvaffaqiyatli bosildi'
+              ? 'Hujjatga doimiy raqamli QR-muhr bosildi, rasmiy dalolatnoma ochilmoqda...'
+              : isExpired
+              ? 'Xavfsizlik muddati tugadi. Qayta urinib ko‘ring'
+              : isScanned
+              ? 'Smartfonda biometrik tasdiqlash (TouchID / FaceID) kutilmoqda...'
               : 'Kompyuterda PIN kiritilmaydi. Shaxsiy telefoningiz kamerasi orqali tasdiqlang'}
           </Text>
         </div>
@@ -323,15 +402,16 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
               )}
             </div>
 
-            {/* Dynamic QR Box */}
+            {/* Dynamic QR Box with Instant Handshake State */}
             <div
               style={{
                 display: 'inline-block',
                 padding: 16,
                 backgroundColor: '#fff',
-                border: '2px solid var(--color-border-2)',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
+                border: isScanned ? '2px solid #165DFF' : '2px solid var(--color-border-2)',
+                boxShadow: isScanned ? '0 6px 20px rgba(22,93,255,0.22)' : '0 4px 14px rgba(0,0,0,0.06)',
                 position: 'relative',
+                transition: 'all 0.3s ease',
               }}
             >
               {session?.qrUrl && (
@@ -348,6 +428,31 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
                   includeMargin={false}
                 />
               )}
+
+              {isScanned && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: 16,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: 'rgba(22, 93, 255, 0.95)',
+                    color: '#ffffff',
+                    padding: '5px 12px',
+                    borderRadius: 16,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <Spin dot size={10} />
+                  <span>📱 Qurilma bog‘landi</span>
+                </div>
+              )}
             </div>
 
             {/* Timer & Status feedback */}
@@ -356,7 +461,7 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
                 <Text style={{ fontSize: 12 }}>
                   {isScanned ? (
                     <span style={{ color: '#165DFF', fontWeight: 600 }}>
-                      📱 Telefon ulandi, biometrika kutilmoqda...
+                      📱 {connectedDevice ? `Telefon: ${connectedDevice.substring(0, 24)}...` : 'Telefon ulandi, biometrika kutilmoqda...'}
                     </span>
                   ) : (
                     'Kamerangizni QR-kodga qarating:'
@@ -369,7 +474,7 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
 
               <Progress
                 percent={Math.round((secondsLeft / 60) * 100)}
-                status={secondsLeft <= 10 ? 'error' : 'normal'}
+                status={secondsLeft <= 10 ? 'error' : isScanned ? 'normal' : 'normal'}
                 showText={false}
                 style={{ width: '100%' }}
               />
@@ -379,7 +484,8 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
               <div style={{ marginTop: 16 }}>
                 <Alert
                   type="info"
-                  content="Telefoningiz ekrani ochildi. Endi telefoningizda TouchID yoki FaceID bilan tasdiqlang."
+                  title="Mobil qurilma bilan jonli aloqa o‘rnatildi (0s kechikish)"
+                  content="Telefoningiz ekrani ochildi. TouchID yoki FaceID tasdiqlangach, ushbu oyna avtomatik yopilib muhrlangan rasmiy hujjat ochiladi."
                 />
               </div>
             ) : (

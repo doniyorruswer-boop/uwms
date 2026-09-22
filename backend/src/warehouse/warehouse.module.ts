@@ -3,11 +3,13 @@ import { WarehouseService } from './warehouse.service';
 import { WarehouseController } from './warehouse.controller';
 import { IdempotencyModule } from '../idempotency/idempotency.module';
 import { DocumentStampsModule } from '../document-stamps/document-stamps.module';
+import { EventsModule } from '../events/events.module';
 
 @Module({
-  imports: [IdempotencyModule, DocumentStampsModule],
+  imports: [IdempotencyModule, DocumentStampsModule, EventsModule],
   providers: [WarehouseService],
   controllers: [WarehouseController],
   exports: [WarehouseService],
 })
 export class WarehouseModule {}
+

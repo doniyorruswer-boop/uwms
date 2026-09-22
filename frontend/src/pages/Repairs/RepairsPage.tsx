@@ -34,6 +34,8 @@ import { PageTabs } from '../../components/Common/PageTabs';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { TableActions } from '../../components/Common/TableActions';
 import { StandardTable } from '../../components/Common/StandardTable';
+import { StatusTag } from '../../components/Common/StatusTag';
+import { getStatusLabel } from '../../constants/status.constants';
 import { exportToExcel } from '../../utils/exportExcel';
 
 const FormItem = Form.Item;
@@ -224,16 +226,11 @@ export const RepairsPage: React.FC = () => {
       title: 'Bosqich',
       dataIndex: 'status',
       width: 165,
-      render: (status: string) => {
-        let badge;
-        if (status === 'IN_REPAIR') badge = <Badge status="processing" text="Ta’mir jarayonida" />;
-        else if (status === 'PENDING') badge = <Badge status="warning" text="Kutilmoqda" />;
-        else if (status === 'COMPLETED') badge = <Badge status="success" text="Yakunlangan" />;
-        else if (status === 'UNREPAIRABLE')
-          badge = <Badge status="error" text="Yaroqsiz (Spisanie)" />;
-        else badge = <Tag style={{ borderRadius: 0 }}>{status}</Tag>;
-        return <div style={{ whiteSpace: 'nowrap' }}>{badge}</div>;
-      },
+      render: (status: string) => (
+        <div style={{ whiteSpace: 'nowrap' }}>
+          <StatusTag status={status} domain="repair" mode="badge" />
+        </div>
+      ),
     },
     {
       title: 'Amallar',
@@ -337,14 +334,7 @@ export const RepairsPage: React.FC = () => {
       'Ustaxona / Servis': r.serviceProvider || '—',
       'Xarajat (so‘m)': r.cost || 0,
       'Dalolatnoma №': r.actNumber || '—',
-      'Holati':
-        r.status === 'IN_REPAIR'
-          ? 'Ta’mirda'
-          : r.status === 'COMPLETED'
-          ? 'Yakunlangan'
-          : r.status === 'UNREPAIRABLE'
-          ? 'Yaroqsiz (Spisaniega)'
-          : 'Kutilmoqda',
+      'Holati': getStatusLabel(r.status, 'repair'),
       'Yuboruvchi': r.requestedBy?.fullName || '—',
       'Sana': r.createdAt?.substring(0, 10),
     }));

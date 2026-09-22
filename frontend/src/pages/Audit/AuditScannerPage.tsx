@@ -11,6 +11,7 @@ import {
   Alert,
   Table,
   Message,
+  Notification,
   Popconfirm,
   Switch,
   Typography,
@@ -41,6 +42,7 @@ import { useAssetsQuery } from '../../hooks/useAssetsQuery';
 import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
 import { useAuditsQuery, useAuditDetailQuery } from '../../hooks/useAuditsQuery';
 import { useAuditCampaignsQuery } from '../../hooks/useAuditCampaignsQuery';
+import { useSocket } from '../../hooks/useSocket';
 import { OfficialDocModal } from '../../components/OfficialDocument/OfficialDocModal';
 import { useAuthStore } from '../../store/authStore';
 import type { ItemInstance } from '../../types';
@@ -213,6 +215,106 @@ export const AuditScannerPage: React.FC = () => {
 
   const currentAuditId = activeAuditId || roomAuditSummary?.id || null;
   const { data: auditDetail, refetch: refetchAuditDetail } = useAuditDetailQuery(currentAuditId);
+
+  // Real-Time Multi-Auditor Sync & Collision Guard Socket Integration
+  const { socket, isConnected: isSocketConnected, joinRoom, leaveRoom } = useSocket();
+  const [collisionAlert, setCollisionAlert] = useState<{
+    previousRoomNumber?: string;
+    previousRoomName?: string;
+    minutesAgo?: number;
+    message?: string;
+  } | null>(null);
+
+  // Join campaign and room socket rooms
+  useEffect(() => {
+    if (!socket || !isSocketConnected) return;
+
+    if (selectedCampaignId) {
+      joinRoom(`campaign:${selectedCampaignId}`);
+    }
+    if (activeRoom) {
+      joinRoom(`room:${activeRoom}`);
+    }
+
+    return () => {
+      if (selectedCampaignId) {
+        leaveRoom(`campaign:${selectedCampaignId}`);
+      }
+      if (activeRoom) {
+        leaveRoom(`room:${activeRoom}`);
+      }
+    };
+  }, [socket, isSocketConnected, selectedCampaignId, activeRoom, joinRoom, leaveRoom]);
+
+  // Real-Time Sync: Listen for remote scans and collision guard events
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleAssetScanned = (payload: any) => {
+      if (payload?.roomId === activeRoom) {
+        const scannedQr = payload?.asset?.qrCode;
+        if (scannedQr) {
+          setScannedCodes((prev) => (prev.includes(scannedQr) ? prev : [...prev, scannedQr]));
+        }
+
+        Message.info({
+          content: `Auditor jihozni skanerladi: ${payload.asset.itemName} (${payload.asset.inventoryNumber})`,
+          icon: <IconCheckCircle style={{ color: '#00B42A' }} />,
+        });
+
+        if (soundEnabled) {
+          playScannerBeep();
+        }
+
+        setRecentScans((prev) => {
+          if (prev.some((p) => p.qrCode === scannedQr)) return prev;
+          return [
+            {
+              id: `${Date.now()}-${Math.random()}`,
+              qrCode: scannedQr,
+              inventoryNumber: payload.asset.inventoryNumber,
+              itemName: payload.asset.itemName,
+              roomStatus: payload.status,
+              scannedAt: new Date(payload.scannedAt).toLocaleTimeString('uz-UZ'),
+              isOffline: false,
+            },
+            ...prev.slice(0, 4),
+          ];
+        });
+
+        refetchAuditDetail();
+      }
+
+      // To'qnashuv hodisasi
+      if (payload?.collision?.detected) {
+        Notification.warning({
+          title: 'To‘qnashuv aniqlandi! (Collision Guard)',
+          content: payload.collision.message,
+          duration: 7,
+        });
+        setCollisionAlert(payload.collision);
+      }
+    };
+
+    const handleCollisionDetected = (payload: any) => {
+      if (payload?.collision?.detected) {
+        Notification.warning({
+          title: '⚠️ To‘qnashuv aniqlandi!',
+          content: payload.collision.message,
+          duration: 8,
+        });
+        setCollisionAlert(payload.collision);
+      }
+    };
+
+    socket.on('audit:asset_scanned', handleAssetScanned);
+    socket.on('audit:collision_detected', handleCollisionDetected);
+
+    return () => {
+      socket.off('audit:asset_scanned', handleAssetScanned);
+      socket.off('audit:collision_detected', handleCollisionDetected);
+    };
+  }, [socket, activeRoom, soundEnabled, refetchAuditDetail]);
 
   // Expected assets in this room
   const expectedAssets = useMemo(() => {
@@ -458,6 +560,19 @@ export const AuditScannerPage: React.FC = () => {
         if (scanRes && scanRes.auditId) {
           setActiveAuditId(scanRes.auditId);
         }
+
+        // Collision Guard (To'qnashuv) tekshiruvi natijasi
+        if (scanRes?.collision?.detected) {
+          Notification.warning({
+            title: '⚠️ To‘qnashuv aniqlandi! (Collision Guard)',
+            content: scanRes.collision.message,
+            duration: 8,
+          });
+          setCollisionAlert(scanRes.collision);
+        } else {
+          setCollisionAlert(null);
+        }
+
         await refetchAuditDetail();
 
         setRecentScans((prev) => [
@@ -741,6 +856,26 @@ export const AuditScannerPage: React.FC = () => {
         />
       )}
 
+      {/* Collision Guard (To'qnashuvdan himoya) Alert */}
+      {collisionAlert && (
+        <Alert
+          type="error"
+          icon={<IconExclamationCircle />}
+          closable
+          onClose={() => setCollisionAlert(null)}
+          title="⚠️ Qayta Skanerlash To‘qnashuvi Aniqlangan (Collision Guard)!"
+          content={
+            <div style={{ fontSize: 13, marginTop: 4 }}>
+              <b>{collisionAlert.message}</b>
+              <div style={{ color: 'var(--color-text-3)', fontSize: 12, marginTop: 2 }}>
+                Agar ushbu jihoz rostdan ham boshqa xonadan olib kelingan bo‘lsa, u nomutanosiblik (RELOCATED) sifatida tizimda rasmiylashtiriladi.
+              </div>
+            </div>
+          }
+          style={{ borderRadius: 0 }}
+        />
+      )}
+
       {/* Room Selection and Options Header */}
       <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '16px 20px' }}>
         <div
@@ -753,12 +888,25 @@ export const AuditScannerPage: React.FC = () => {
           }}
         >
           <div>
-            <Title heading={5} style={{ margin: 0 }}>
-              {currentRoom ? `${currentRoom.number}-xona: ${currentRoom.name}` : 'Mobil QR Audit va Inventarizatsiya'}
-            </Title>
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              Moddiy javobgar: <b>{currentRoom?.responsibleUserName || 'Belgilanmagan'}</b> | Bino: {currentRoom?.building || 'Bosh bino'}
-            </Text>
+            <Space align="center">
+              <Title heading={5} style={{ margin: 0 }}>
+                {currentRoom ? `${currentRoom.number}-xona: ${currentRoom.name}` : 'Mobil QR Audit va Inventarizatsiya'}
+              </Title>
+              {isSocketConnected ? (
+                <Tag color="green" icon={<IconWifi />} style={{ borderRadius: 0, fontWeight: 600 }}>
+                  Real-Time Sync (Faol)
+                </Tag>
+              ) : (
+                <Tag color="gray" style={{ borderRadius: 0 }}>
+                  Offline
+                </Tag>
+              )}
+            </Space>
+            <div style={{ marginTop: 4 }}>
+              <Text type="secondary" style={{ fontSize: 13 }}>
+                Moddiy javobgar: <b>{currentRoom?.responsibleUserName || 'Belgilanmagan'}</b> | Bino: {currentRoom?.building || 'Bosh bino'}
+              </Text>
+            </div>
           </div>
 
           <Space size="medium" wrap>

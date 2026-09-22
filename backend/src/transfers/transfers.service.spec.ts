@@ -6,7 +6,7 @@ import { SequenceService } from '../common/services/sequence.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
 import { DocumentStampsService } from '../document-stamps/document-stamps.service';
-import { TransferStatus, AssetStatus, MovementType, RoleType } from '@prisma/client';
+import { TransferStatus, AssetStatus, MovementType, RoleType, HandoverStatus } from '@prisma/client';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 
 describe('TransfersService (Unit Tests)', () => {
@@ -41,6 +41,7 @@ describe('TransfersService (Unit Tests)', () => {
       },
       user: {
         findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         findUnique: jest.fn().mockImplementation(({ where }) =>
           Promise.resolve({
             id: where?.id || 'user-1',
@@ -75,6 +76,10 @@ describe('TransfersService (Unit Tests)', () => {
       },
       handoverItemAction: {
         create: jest.fn(),
+      },
+      signingSession: {
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue({ id: 'sess-1' }),
       },
       $transaction: jest.fn((arg) => (typeof arg === 'function' ? arg(prisma) : Promise.all(arg))),
     };
@@ -526,6 +531,130 @@ describe('TransfersService (Unit Tests)', () => {
         expect.objectContaining({
           where: { id: 'item-3' },
           data: expect.objectContaining({ status: AssetStatus.MISSING }),
+        }),
+      );
+    });
+
+    it('submitResponsibilityHandover: DRAFT holatidagi arizani RECEIVER_REVIEW ga o‘tkazishi va xabarnoma yuborishi kerak', async () => {
+      const mockDraft = {
+        id: 'handover-draft',
+        handoverNumber: 'AKT-2026-0009',
+        status: HandoverStatus.DRAFT,
+        departingUserId: 'user-mol',
+        targetUserId: 'target-mol',
+        departingUser: { id: 'user-mol', fullName: 'Aliyev Anvar' },
+      };
+
+      prisma.responsibilityHandover.findUnique.mockResolvedValue(mockDraft);
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-mol', role: RoleType.MOL });
+      prisma.responsibilityHandover.update.mockResolvedValue({
+        ...mockDraft,
+        status: HandoverStatus.RECEIVER_REVIEW,
+      });
+
+      const res = await service.submitResponsibilityHandover('handover-draft', 'user-mol');
+      expect(res.status).toBe(HandoverStatus.RECEIVER_REVIEW);
+      expect(prisma.responsibilityHandover.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'handover-draft' },
+          data: { status: HandoverStatus.RECEIVER_REVIEW },
+        }),
+      );
+      expect(notifications.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'target-mol',
+        }),
+      );
+    });
+
+    it('cancelResponsibilityHandover: arizani CANCELLED holatiga o‘tkazishi kerak', async () => {
+      const mockPending = {
+        id: 'handover-pending',
+        handoverNumber: 'AKT-2026-0010',
+        status: HandoverStatus.SUBMITTED,
+        departingUserId: 'user-mol',
+        departingUser: { id: 'user-mol', fullName: 'Aliyev Anvar' },
+      };
+
+      prisma.responsibilityHandover.findUnique.mockResolvedValue(mockPending);
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-mol', role: RoleType.MOL });
+      prisma.responsibilityHandover.update.mockResolvedValue({
+        ...mockPending,
+        status: HandoverStatus.CANCELLED,
+      });
+
+      const res = await service.cancelResponsibilityHandover('handover-pending', { reason: 'Xato topshirildi' }, 'user-mol');
+      expect(res.status).toBe(HandoverStatus.CANCELLED);
+      expect(prisma.responsibilityHandover.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'handover-pending' },
+          data: expect.objectContaining({ status: HandoverStatus.CANCELLED }),
+        }),
+      );
+    });
+
+    it('signResponsibilityHandover: barcha 3 ta mas’ul imzolaganda status PENDING_APPROVAL bo‘lishi kerak', async () => {
+      const mockHandover = {
+        id: 'handover-sign',
+        handoverNumber: 'AKT-2026-0011',
+        status: HandoverStatus.COMMANDANT_REVIEW,
+        departingUserId: 'user-old',
+        targetUserId: 'user-new',
+        commandantUserId: 'user-cmd',
+        accountantUserId: 'user-acc',
+        departingUser: { id: 'user-old', fullName: 'Eski MOL' },
+        targetUser: { id: 'user-new', fullName: 'Yangi MOL' },
+        commandantUser: { id: 'user-cmd', fullName: 'Komendant' },
+        accountantUser: { id: 'user-acc', fullName: 'Hisobchi' },
+        items: [{ id: 'item-1' }],
+      };
+
+      prisma.responsibilityHandover.findUnique.mockResolvedValue(mockHandover);
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-acc', role: RoleType.EMPLOYEE, fullName: 'Hisobchi' });
+      // Signed sessions for TARGET and COMMANDANT already present, now ACCOUNTANT signs
+      prisma.signingSession.findMany.mockResolvedValue([
+        { docNumber: 'AKT-2026-0011', status: 'SIGNED', signedById: 'user-new', metadataJson: '{"signatoryRole":"TARGET"}' },
+        { docNumber: 'AKT-2026-0011', status: 'SIGNED', signedById: 'user-cmd', metadataJson: '{"signatoryRole":"COMMANDANT"}' },
+        { docNumber: 'AKT-2026-0011', status: 'SIGNED', signedById: 'user-acc', metadataJson: '{"signatoryRole":"ACCOUNTANT"}' },
+      ]);
+      prisma.user.findMany.mockResolvedValue([{ id: 'finance-1', role: RoleType.VICE_RECTOR_FINANCE }]);
+      prisma.responsibilityHandover.update.mockResolvedValue({
+        ...mockHandover,
+        status: HandoverStatus.PENDING_APPROVAL,
+      });
+
+      const res = await service.signResponsibilityHandover('handover-sign', { note: 'Buxgalteriya ko‘rigi yakunlandi' }, 'user-acc');
+      expect(res.status).toBe(HandoverStatus.PENDING_APPROVAL);
+      expect(prisma.responsibilityHandover.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'handover-sign' },
+          data: expect.objectContaining({ status: HandoverStatus.PENDING_APPROVAL }),
+        }),
+      );
+    });
+
+    it('rejectResponsibilityHandover: arizani REJECTED holatiga o‘tkazishi va xabarnoma yuborishi kerak', async () => {
+      const mockHandover = {
+        id: 'handover-rej',
+        handoverNumber: 'AKT-2026-0012',
+        status: HandoverStatus.RECEIVER_REVIEW,
+        departingUserId: 'user-old',
+        targetUserId: 'user-new',
+        departingUser: { id: 'user-old', fullName: 'Eski MOL' },
+      };
+
+      prisma.responsibilityHandover.findUnique.mockResolvedValue(mockHandover);
+      prisma.responsibilityHandover.update.mockResolvedValue({
+        ...mockHandover,
+        status: HandoverStatus.REJECTED,
+      });
+
+      const res = await service.rejectResponsibilityHandover('handover-rej', { reason: 'Ashyolar butun emas' }, 'user-new');
+      expect(res.status).toBe(HandoverStatus.REJECTED);
+      expect(notifications.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-old',
+          title: 'Topshirish Dalolatnomasi Rad Etildi',
         }),
       );
     });

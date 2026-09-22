@@ -3,12 +3,14 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { SigningSessionsService } from './signing-sessions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { DocumentStampsService } from '../document-stamps/document-stamps.service';
+import { EventsGateway } from '../events/events.gateway';
 import { SYSTEM_AUDIT_ACTIONS } from '../common/constants';
 
 describe('SigningSessionsService', () => {
   let service: SigningSessionsService;
   let prisma: any;
   let stampsService: any;
+  let eventsGateway: any;
 
   const mockSession = {
     id: 'session-uuid-1',
@@ -63,6 +65,13 @@ describe('SigningSessionsService', () => {
     sanitizePublicMetadata: jest.fn((meta) => meta),
   };
 
+  const mockEventsGateway = {
+    emitToRoom: jest.fn(),
+    emitToUser: jest.fn(),
+    emitToRole: jest.fn(),
+    broadcast: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -71,12 +80,14 @@ describe('SigningSessionsService', () => {
         SigningSessionsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: DocumentStampsService, useValue: mockStampsService },
+        { provide: EventsGateway, useValue: mockEventsGateway },
       ],
     }).compile();
 
     service = module.get<SigningSessionsService>(SigningSessionsService);
     prisma = module.get<PrismaService>(PrismaService);
     stampsService = module.get<DocumentStampsService>(DocumentStampsService);
+    eventsGateway = module.get<EventsGateway>(EventsGateway);
   });
 
   describe('initSession', () => {

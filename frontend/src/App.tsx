@@ -8,6 +8,8 @@ import { useAuthStore } from './store/authStore';
 import { useLanguageStore } from './store/languageStore';
 import { getArcoLocale } from './locales/arcoLocales';
 import { ErrorBoundary } from './components/Common/ErrorBoundary';
+import { InactivityWatcher } from './components/Common/InactivityWatcher';
+import { SocketProvider } from './providers/SocketProvider';
 import './locales/i18n';
 
 export function App() {
@@ -48,11 +50,14 @@ export function App() {
           },
         }}
       >
-        <ErrorBoundary>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </ErrorBoundary>
+        <SocketProvider>
+          <ErrorBoundary>
+            <InactivityWatcher />
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </ErrorBoundary>
+        </SocketProvider>
       </ConfigProvider>
     </QueryClientProvider>
   );

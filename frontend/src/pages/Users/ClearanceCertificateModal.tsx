@@ -8,6 +8,7 @@ import {
   Spin,
   Alert,
   Typography,
+  Message,
 } from '@arco-design/web-react';
 import {
   IconFile,
@@ -18,8 +19,6 @@ import {
 } from '@arco-design/web-react/icon';
 import { useClearanceCertificateQuery } from '../../hooks/useHandoverQuery';
 import type { UserItem } from '../../hooks/useUsersQuery';
-import { API_BASE_URL } from '../../api/client';
-import { API_ENDPOINTS } from '../../constants';
 
 const { Text } = Typography;
 
@@ -51,9 +50,17 @@ export const ClearanceCertificateModal: React.FC<ClearanceCertificateModalProps>
   };
 
   const handleDownload = () => {
-    if (!userId) return;
-    const downloadUrl = `${API_BASE_URL}${API_ENDPOINTS.REPORTS.CLEARANCE_CERTIFICATE_DOWNLOAD(userId)}`;
-    window.open(downloadUrl, '_blank');
+    if (!data?.contentHtml) return;
+    const blob = new Blob([data.contentHtml], { type: 'text/html;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Aylanma_Varaqa_${data.certificateNumber || user?.fullName || 'doc'}.html`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    Message.success('Aylanma varaqa rasmiy hujjati yuklab olindi!');
   };
 
   return (
@@ -68,23 +75,23 @@ export const ClearanceCertificateModal: React.FC<ClearanceCertificateModalProps>
         </Space>
       }
       onCancel={onClose}
-      style={{ width: 920, maxWidth: '95vw', top: 25 }}
+      style={{ width: 920, maxWidth: '95vw', top: 25, borderRadius: 0 }}
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <Space>
             {data?.isCleared ? (
-              <Tag color="green" icon={<IconCheckCircle />}>
+              <Tag color="green" icon={<IconCheckCircle />} style={{ borderRadius: 0 }}>
                 Moddiy javobgarlikdan to‘liq ozod qilingan
               </Tag>
             ) : (
-              <Tag color="red" icon={<IconCloseCircle />}>
+              <Tag color="red" icon={<IconCloseCircle />} style={{ borderRadius: 0 }}>
                 Zimmasida aktivlar mavjud ({data?.activeAssets || 0} ta)
               </Tag>
             )}
           </Space>
 
           <Space>
-            <Button icon={<IconDownload />} onClick={handleDownload} disabled={!data}>
+            <Button icon={<IconDownload />} onClick={handleDownload} disabled={!data} style={{ borderRadius: 0 }}>
               Faylni Yuklab Olish
             </Button>
             <Button
@@ -92,10 +99,11 @@ export const ClearanceCertificateModal: React.FC<ClearanceCertificateModalProps>
               icon={<IconPrinter />}
               onClick={handlePrint}
               disabled={!data}
+              style={{ borderRadius: 0 }}
             >
               Chop Etish / PDF
             </Button>
-            <Button type="secondary" onClick={onClose}>
+            <Button type="secondary" onClick={onClose} style={{ borderRadius: 0 }}>
               Yopish
             </Button>
           </Space>

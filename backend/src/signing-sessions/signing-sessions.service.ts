@@ -8,6 +8,7 @@ import {
 import { RoleType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DocumentStampsService } from '../document-stamps/document-stamps.service';
+import { EventsGateway } from '../events/events.gateway';
 import { InitSigningSessionDto, ConfirmBiometricSignDto, InitHandoverSigningSessionDto } from './signing-session.dto';
 import { DOCUMENT_VERIFICATION, SYSTEM_AUDIT_ACTIONS } from '../common/constants';
 import * as crypto from 'crypto';
@@ -19,6 +20,7 @@ export class SigningSessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly documentStampsService: DocumentStampsService,
+    private readonly eventsGateway: EventsGateway,
   ) {}
 
   /**
@@ -227,6 +229,21 @@ export class SigningSessionsService {
         data: { status: 'SCANNED' },
       });
       currentStatus = 'SCANNED';
+
+      // Real-Time Desktop QR Handshake: Telefon ulandi!
+      const deviceConnectedPayload = {
+        sessionId: session.id,
+        sessionToken: session.sessionToken,
+        status: 'SCANNED',
+        docNumber: session.docNumber,
+        docType: session.docType,
+        title: session.title,
+        expectedSignerName: session.signerName,
+        expectedSignerRole: session.signerRole,
+        time: new Date().toISOString(),
+      };
+      this.eventsGateway.emitToRoom(`session:${session.id}`, 'qr:device_connected', deviceConnectedPayload);
+      this.eventsGateway.emitToRoom(`session:${session.sessionToken}`, 'qr:device_connected', deviceConnectedPayload);
     }
 
     let parsedMetadata = {};
@@ -479,7 +496,7 @@ export class SigningSessionsService {
 
       this.logger.log(`Document ${session.docNumber} successfully signed via ${dto.biometricType || 'TOUCH_ID'} by ${finalSignerName} (IP: ${ipAddress || 'unknown'})`);
 
-      return {
+      const signResult = {
         success: true,
         sessionId: updatedSession.id,
         status: updatedSession.status,
@@ -492,6 +509,12 @@ export class SigningSessionsService {
         location: dto.location || null,
         stamp: updatedSession.stamp,
       };
+
+      // Real-Time Desktop QR Handshake: Imzolandi va muhrlandi!
+      this.eventsGateway.emitToRoom(`session:${session.id}`, 'qr:signature_completed', signResult);
+      this.eventsGateway.emitToRoom(`session:${session.sessionToken}`, 'qr:signature_completed', signResult);
+
+      return signResult;
     });
   }
 
@@ -555,9 +578,13 @@ export class SigningSessionsService {
       return session;
     }
 
-    return this.prisma.signingSession.update({
+    const updated = await this.prisma.signingSession.update({
       where: { id: sessionId },
       data: { status: 'CANCELLED' },
     });
+
+    this.eventsGateway.emitToRoom(`session:${sessionId}`, 'qr:session_cancelled', { sessionId, sessionToken: session.sessionToken });
+    this.eventsGateway.emitToRoom(`session:${session.sessionToken}`, 'qr:session_cancelled', { sessionId, sessionToken: session.sessionToken });
+    return updated;
   }
 }

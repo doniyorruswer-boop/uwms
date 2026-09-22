@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { WriteOffsService } from './write-offs.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
+import { EventsGateway } from '../events/events.gateway';
 import { AssetStatus, WriteOffStatus, VoteStatus, MovementType } from '@prisma/client';
 import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 
@@ -9,8 +10,16 @@ describe('WriteOffsService (Unit Tests)', () => {
   let service: WriteOffsService;
   let prisma: any;
   let codeGen: any;
+  let eventsGateway: any;
 
   beforeEach(async () => {
+    eventsGateway = {
+      server: {
+        emit: jest.fn(),
+      },
+      emitToRole: jest.fn(),
+      emitToUser: jest.fn(),
+    };
     prisma = {
       writeOffRequest: {
         findMany: jest.fn(),
@@ -65,6 +74,7 @@ describe('WriteOffsService (Unit Tests)', () => {
         WriteOffsService,
         { provide: PrismaService, useValue: prisma },
         { provide: CodeGeneratorService, useValue: codeGen },
+        { provide: EventsGateway, useValue: eventsGateway },
       ],
     }).compile();
 
@@ -363,5 +373,148 @@ describe('WriteOffsService (Unit Tests)', () => {
         }),
       );
     });
+
+    it('oraliq ovoz berilganda writeoff:quorum_updated soket hodisasini emit qilishi kerak (masalan 4/5)', async () => {
+      prisma.writeOffMemberVote.findUnique.mockResolvedValue({
+        id: 'vote-4',
+        writeOffId: 'wo-quorum',
+        userId: 'user-4',
+        vote: VoteStatus.PENDING,
+        writeOffRequest: {
+          id: 'wo-quorum',
+          actNumber: 'OS4-2026-004',
+          assetId: 'asset-4',
+          reason: 'Kompyuter protsessori kuygan',
+          asset: {
+            item: { name: 'Kompyuter Core i7' },
+            inventoryNumber: 'INV-PC-004',
+          },
+        },
+      });
+
+      prisma.writeOffMemberVote.findMany.mockResolvedValue([
+        { id: 'vote-1', vote: VoteStatus.APPROVED },
+        { id: 'vote-2', vote: VoteStatus.APPROVED },
+        { id: 'vote-3', vote: VoteStatus.APPROVED },
+        { id: 'vote-4', vote: VoteStatus.APPROVED },
+        { id: 'vote-5', vote: VoteStatus.PENDING },
+      ]);
+
+      prisma.writeOffRequest.findUnique.mockResolvedValue({
+        id: 'wo-quorum',
+        actNumber: 'OS4-2026-004',
+        status: WriteOffStatus.IN_REVIEW,
+        members: [
+          { id: 'vote-1', vote: VoteStatus.APPROVED },
+          { id: 'vote-2', vote: VoteStatus.APPROVED },
+          { id: 'vote-3', vote: VoteStatus.APPROVED },
+          { id: 'vote-4', vote: VoteStatus.APPROVED },
+          { id: 'vote-5', vote: VoteStatus.PENDING },
+        ],
+        asset: {
+          item: { name: 'Kompyuter Core i7', category: { name: 'IT' } },
+          inventoryNumber: 'INV-PC-004',
+          purchasePrice: 6000000,
+          createdAt: new Date(),
+        },
+      });
+
+      await service.voteWriteOff('wo-quorum', 'user-4', {
+        vote: VoteStatus.APPROVED,
+      });
+
+      expect(eventsGateway.server.emit).toHaveBeenCalledWith(
+        'writeoff:quorum_updated',
+        expect.objectContaining({
+          writeOffId: 'wo-quorum',
+          actNumber: 'OS4-2026-004',
+          votedCount: 4,
+          totalCount: 5,
+          percentage: 80,
+          vote: VoteStatus.APPROVED,
+        }),
+      );
+    });
+
+    it('5-a’zo ovoz berishi bilan writeoff:finalized va stock:updated emit qilishi kerak', async () => {
+      prisma.writeOffMemberVote.findUnique.mockResolvedValue({
+        id: 'vote-5',
+        writeOffId: 'wo-final',
+        userId: 'user-5',
+        vote: VoteStatus.PENDING,
+        writeOffRequest: {
+          id: 'wo-final',
+          actNumber: 'OS4-2026-005',
+          assetId: 'asset-5',
+          reason: 'Eskirgan printer',
+          asset: {
+            item: { name: 'HP LaserJet M1132' },
+            inventoryNumber: 'INV-PRN-005',
+          },
+        },
+      });
+
+      prisma.writeOffMemberVote.findMany.mockResolvedValue([
+        { id: 'vote-1', vote: VoteStatus.APPROVED },
+        { id: 'vote-2', vote: VoteStatus.APPROVED },
+        { id: 'vote-3', vote: VoteStatus.APPROVED },
+        { id: 'vote-4', vote: VoteStatus.APPROVED },
+        { id: 'vote-5', vote: VoteStatus.APPROVED },
+      ]);
+
+      prisma.writeOffRequest.findUnique.mockResolvedValue({
+        id: 'wo-final',
+        actNumber: 'OS4-2026-005',
+        assetId: 'asset-5',
+        status: WriteOffStatus.APPROVED,
+        hasWormStamp: true,
+        members: [
+          { id: 'vote-1', vote: VoteStatus.APPROVED },
+          { id: 'vote-2', vote: VoteStatus.APPROVED },
+          { id: 'vote-3', vote: VoteStatus.APPROVED },
+          { id: 'vote-4', vote: VoteStatus.APPROVED },
+          { id: 'vote-5', vote: VoteStatus.APPROVED },
+        ],
+        asset: {
+          item: { name: 'HP LaserJet M1132', category: { name: 'Orgtexnika' } },
+          inventoryNumber: 'INV-PRN-005',
+          purchasePrice: 2000000,
+          createdAt: new Date(),
+        },
+      });
+
+      await service.voteWriteOff('wo-final', 'user-5', {
+        vote: VoteStatus.APPROVED,
+      });
+
+      expect(eventsGateway.server.emit).toHaveBeenCalledWith(
+        'writeoff:quorum_updated',
+        expect.objectContaining({
+          writeOffId: 'wo-final',
+          votedCount: 5,
+          totalCount: 5,
+          percentage: 100,
+          allApproved: true,
+        }),
+      );
+
+      expect(eventsGateway.server.emit).toHaveBeenCalledWith(
+        'writeoff:finalized',
+        expect.objectContaining({
+          writeOffId: 'wo-final',
+          actNumber: 'OS4-2026-005',
+          status: 'APPROVED',
+        }),
+      );
+
+      expect(eventsGateway.server.emit).toHaveBeenCalledWith(
+        'stock:updated',
+        expect.objectContaining({
+          action: 'WRITE_OFF',
+          assetId: 'asset-5',
+        }),
+      );
+    });
   });
 });
+

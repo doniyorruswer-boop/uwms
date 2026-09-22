@@ -29,6 +29,7 @@ export class AssetsService {
     status?: string;
     roomId?: string;
     fundingSource?: string;
+    responsibleUserId?: string;
     page?: number | string;
     limit?: number | string;
   }) {
@@ -44,6 +45,10 @@ export class AssetsService {
 
     if (query?.fundingSource && query.fundingSource !== 'ALL') {
       where.fundingSource = query.fundingSource as FundingSource;
+    }
+
+    if (query?.responsibleUserId && query.responsibleUserId !== 'ALL') {
+      where.responsibleUserId = query.responsibleUserId;
     }
 
     if (query?.search) {

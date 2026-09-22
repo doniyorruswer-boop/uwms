@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException,
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { DocumentStampsService } from '../document-stamps/document-stamps.service';
+import { EventsGateway } from '../events/events.gateway';
 import { CreateWriteOffDto, VoteWriteOffDto } from './dto/write-off.dto';
 import { AssetStatus, WriteOffStatus, VoteStatus, MovementType, RoleType } from '@prisma/client';
 
@@ -11,6 +12,7 @@ export class WriteOffsService {
     private prisma: PrismaService,
     private codeGen: CodeGeneratorService,
     @Optional() private documentStampsService?: DocumentStampsService,
+    @Optional() private eventsGateway?: EventsGateway,
   ) {}
 
   async getWriteOffs(query?: { status?: WriteOffStatus; assetId?: string }) {
@@ -151,7 +153,7 @@ export class WriteOffsService {
       throw new BadRequestException('Ushbu ashyo allaqachon hisobdan chiqarilgan (Spisanie)!');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. Generate OS-4 Act Number
       const count = await tx.writeOffRequest.count();
       const actNumber = this.codeGen.generateDocNumber('OS4', count + 1);
@@ -230,10 +232,21 @@ export class WriteOffsService {
 
       return writeOff;
     });
+
+    if (this.eventsGateway?.server) {
+      this.eventsGateway.server.emit('writeoff:created', {
+        writeOffId: result.id,
+        actNumber: result.actNumber,
+        assetId: result.assetId,
+        membersCount: result.members?.length || 0,
+      });
+    }
+
+    return result;
   }
 
   async voteWriteOff(writeOffId: string, userId: string, dto: VoteWriteOffDto) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const memberVote = await tx.writeOffMemberVote.findUnique({
         where: {
           writeOffId_userId: {
@@ -379,5 +392,46 @@ export class WriteOffsService {
 
       return this.getWriteOffById(writeOffId);
     });
+
+    if (this.eventsGateway?.server) {
+      const allMembers = result.members || [];
+      const votedMembers = allMembers.filter((m: any) => m.vote !== 'PENDING');
+      const votedCount = votedMembers.length;
+      const totalCount = allMembers.length;
+      const percentage = totalCount > 0 ? Math.round((votedCount / totalCount) * 100) : 0;
+
+      this.eventsGateway.server.emit('writeoff:quorum_updated', {
+        writeOffId: result.id,
+        actNumber: result.actNumber,
+        votedCount,
+        totalCount,
+        percentage,
+        voterId: userId,
+        vote: dto.vote,
+        status: result.status,
+        allApproved: result.status === 'APPROVED',
+        hasRejection: result.status === 'REJECTED',
+      });
+
+      if (result.status === 'APPROVED') {
+        this.eventsGateway.server.emit('writeoff:finalized', {
+          writeOffId: result.id,
+          actNumber: result.actNumber,
+          assetId: result.assetId,
+          assetName: result.asset?.item?.name,
+          inventoryNumber: result.asset?.inventoryNumber,
+          status: 'APPROVED',
+          hasWormStamp: Boolean(result.hasWormStamp),
+          message: `OS-4 Dalolatnomasi (${result.actNumber}) to‘liq kvorum (${votedCount}/${totalCount}) bilan tasdiqlandi va WORM SHA-256 tamg‘asi bosildi!`,
+        });
+
+        this.eventsGateway.server.emit('stock:updated', {
+          action: 'WRITE_OFF',
+          assetId: result.assetId,
+        });
+      }
+    }
+
+    return result;
   }
 }

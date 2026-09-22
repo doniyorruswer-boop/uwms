@@ -30,6 +30,7 @@ import { InboxModule } from './inbox/inbox.module';
 import { SearchModule } from './search/search.module';
 import { HealthModule } from './health/health.module';
 import { IdempotencyModule } from './idempotency/idempotency.module';
+import { EventsModule } from './events/events.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { RequestContextMiddleware } from './common/context/request-context.middleware';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -47,6 +48,7 @@ import { APP_GUARD } from '@nestjs/core';
     ]),
     PrismaModule,
     CommonModule,
+    EventsModule,
     SystemAuditModule,
     NotificationsModule,
     QuotasModule,

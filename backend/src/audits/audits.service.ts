@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
 import { DocumentStampsService } from '../document-stamps/document-stamps.service';
+import { EventsGateway } from '../events/events.gateway';
 import { AuditStatus, AuditRecordStatus, AssetStatus } from '@prisma/client';
 import * as crypto from 'crypto';
 
@@ -11,6 +12,7 @@ export class AuditsService {
     private prisma: PrismaService,
     private auditService: SystemAuditService,
     private documentStampsService: DocumentStampsService,
+    @Optional() private eventsGateway?: EventsGateway,
   ) {}
 
   private generateAuditNumber(): string {
@@ -108,6 +110,43 @@ export class AuditsService {
       });
     }
 
+    // Collision Guard: Tekshirish — ushbu vosita boshqa xonada so'nggi paytda skanerlanganmi?
+    let collision: {
+      detected: boolean;
+      previousRoomNumber?: string;
+      previousRoomName?: string;
+      scannedAt?: Date;
+      minutesAgo?: number;
+      message?: string;
+    } | null = null;
+
+    const previousRecentRecord = await this.prisma.inventoryAuditRecord.findFirst({
+      where: {
+        itemInstanceId: asset.id,
+        foundRoomId: { not: roomId },
+      },
+      orderBy: { scannedAt: 'desc' },
+      include: {
+        audit: { include: { room: true } },
+      },
+    });
+
+    if (previousRecentRecord) {
+      const minutesAgo = Math.max(
+        1,
+        Math.round((Date.now() - new Date(previousRecentRecord.scannedAt).getTime()) / (1000 * 60)),
+      );
+      const prevRoomNum = previousRecentRecord.audit?.room?.number || 'boshqa';
+      collision = {
+        detected: true,
+        previousRoomNumber: prevRoomNum,
+        previousRoomName: previousRecentRecord.audit?.room?.name,
+        scannedAt: previousRecentRecord.scannedAt,
+        minutesAgo,
+        message: `⚠️ Ushbu vosita ${minutesAgo} daqiqa oldin Xona ${prevRoomNum} da skanerlangan!`,
+      };
+    }
+
     // Check if asset was already scanned in this audit
     const existingRecord = await this.prisma.inventoryAuditRecord.findFirst({
       where: {
@@ -126,11 +165,80 @@ export class AuditsService {
           foundRoomId: roomId,
           status: recordStatus,
           scannedAt: new Date(),
-          notes: isMatch
+          notes: collision
+            ? `Qayta skan (To‘qnashuv): Avval Xona ${collision.previousRoomNumber} da skanerlangan`
+            : isMatch
             ? 'Reja bo‘yicha o‘z xonasida topildi'
             : `Nomutanosiblik: tegishli xona: ${asset.room?.name || 'ombor'}`,
         },
       });
+    }
+
+    // Ushbu xonadagi jami kutilgan va topilgan aktivlar soni
+    const expectedCount = await this.prisma.itemInstance.count({
+      where: {
+        roomId,
+        status: { notIn: [AssetStatus.WRITTEN_OFF] },
+      },
+    });
+
+    const matchedCount = await this.prisma.inventoryAuditRecord.count({
+      where: {
+        auditId: audit.id,
+        status: AuditRecordStatus.MATCHED,
+      },
+    });
+
+    const isRoomComplete = expectedCount > 0 && matchedCount >= expectedCount;
+
+    const eventPayload = {
+      campaignId: campaignId || audit.campaignId || null,
+      auditId: audit.id,
+      roomId,
+      roomNumber: asset.room?.number,
+      asset: {
+        id: asset.id,
+        inventoryNumber: asset.inventoryNumber,
+        serialNumber: asset.serialNumber,
+        qrCode: asset.qrCode,
+        itemName: asset.item.name,
+        expectedRoom: asset.room ? `${asset.room.number}-xona` : 'Ombor',
+        responsibleUser: asset.responsibleUser?.fullName,
+      },
+      status: recordStatus,
+      isMatch,
+      scannedAt: new Date().toISOString(),
+      collision,
+      roomStats: {
+        roomId,
+        expectedCount,
+        matchedCount,
+        isRoomComplete,
+      },
+    };
+
+    // Real-Time Socket hodisalarini tarqatish (Multi-Auditor Sync)
+    if (this.eventsGateway) {
+      const targetCampaign = campaignId || audit.campaignId;
+      if (targetCampaign) {
+        this.eventsGateway.emitToRoom(
+          `campaign:${targetCampaign}`,
+          'audit:asset_scanned',
+          eventPayload,
+        );
+      }
+      this.eventsGateway.emitToRoom(`room:${roomId}`, 'audit:asset_scanned', eventPayload);
+
+      if (collision) {
+        if (targetCampaign) {
+          this.eventsGateway.emitToRoom(
+            `campaign:${targetCampaign}`,
+            'audit:collision_detected',
+            eventPayload,
+          );
+        }
+        this.eventsGateway.emitToRoom(`room:${roomId}`, 'audit:collision_detected', eventPayload);
+      }
     }
 
     return {
@@ -147,7 +255,16 @@ export class AuditsService {
         expectedRoom: asset.room ? `${asset.room.number}-xona` : 'Ombor',
         responsibleUser: asset.responsibleUser?.fullName,
       },
-      message: isMatch
+      collision,
+      roomStats: {
+        roomId,
+        expectedCount,
+        matchedCount,
+        isRoomComplete,
+      },
+      message: collision
+        ? collision.message
+        : isMatch
         ? `Topildi: ${asset.item.name} (${asset.inventoryNumber})`
         : `DIQQAT! Bu uskuna ${asset.room?.name || 'ombor'}ga tegishli!`,
     };
@@ -272,7 +389,7 @@ export class AuditsService {
       throw new BadRequestException('Ushbu inventarizatsiya sessiyasi allaqachon yakunlangan!');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       let missingCount = 0;
 
       // Agar xonaga biriktirilgan audit bo'lsa, xonadagi barcha mavjud ashyolar bilan solishtirish
@@ -378,6 +495,33 @@ export class AuditsService {
 
       return completed;
     });
+
+    if (this.eventsGateway) {
+      const roomCompletedPayload = {
+        campaignId: result.campaignId,
+        auditId: result.id,
+        roomId: result.roomId,
+        roomNumber: result.room?.number,
+        totalRecords: result.records.length,
+        completedAt: result.completedAt,
+      };
+      if (result.campaignId) {
+        this.eventsGateway.emitToRoom(
+          `campaign:${result.campaignId}`,
+          'audit:room_completed',
+          roomCompletedPayload,
+        );
+      }
+      if (result.roomId) {
+        this.eventsGateway.emitToRoom(
+          `room:${result.roomId}`,
+          'audit:room_completed',
+          roomCompletedPayload,
+        );
+      }
+    }
+
+    return result;
   }
 
   async getAllAudits() {

@@ -82,9 +82,12 @@ export const API_ENDPOINTS = {
     BASE: '/transfers/handovers',
     BY_ID: (id: string) => `/transfers/handovers/${id}`,
     DOCUMENT: (id: string) => `/transfers/handovers/${id}/document`,
+    AUDIT: (id: string) => `/transfers/handovers/${id}/audit`,
     INITIATE_SIGNING: (id: string) => `/transfers/handovers/${id}/initiate-signing`,
     SIGN: (id: string) => `/transfers/handovers/${id}/sign`,
     REJECT: (id: string) => `/transfers/handovers/${id}/reject`,
+    SUBMIT: (id: string) => `/transfers/handovers/${id}/submit`,
+    CANCEL: (id: string) => `/transfers/handovers/${id}/cancel`,
   },
 
   // Talabnomalar (Zayavkalar)

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EventsGateway } from '../events/events.gateway';
 import { CreateNotificationDto } from './notification.dto';
 import { NotificationType, RoleType } from '@prisma/client';
 
@@ -7,10 +8,13 @@ import { NotificationType, RoleType } from '@prisma/client';
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventsGateway: EventsGateway,
+  ) {}
 
   async create(dto: CreateNotificationDto) {
-    return this.prisma.notification.create({
+    const notification = await this.prisma.notification.create({
       data: {
         userId: dto.userId,
         title: dto.title,
@@ -19,6 +23,11 @@ export class NotificationsService {
         link: dto.link || null,
       },
     });
+
+    // Real-Time shaxsiy bildirishnoma uzatish
+    this.eventsGateway.emitToUser(dto.userId, 'notification:new', notification);
+
+    return notification;
   }
 
   async notifyRole(
@@ -44,6 +53,15 @@ export class NotificationsService {
           type,
           link: link || null,
         })),
+      });
+
+      // Real-Time rol bo‘yicha bildirishnoma tarqatish
+      this.eventsGateway.emitToRole(role, 'notification:new', {
+        title,
+        message,
+        type,
+        link: link || null,
+        createdAt: new Date().toISOString(),
       });
     } catch (error) {
       this.logger.error(`Failed to notify role ${role}`, error);

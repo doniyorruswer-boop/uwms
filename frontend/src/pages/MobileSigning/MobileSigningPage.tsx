@@ -32,6 +32,7 @@ import { API_ENDPOINTS } from '../../constants/api.constants';
 import { MobileSigningDetailsResult } from '../../types';
 import { useAuthStore } from '../../store/authStore';
 import { formatRoleName } from '../../constants/roles.constants';
+import { useSocket } from '../../hooks/useSocket';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -39,6 +40,7 @@ export const MobileSigningPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, user: currentUser, login } = useAuthStore();
+  const { socket, joinRoom, leaveRoom } = useSocket();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [session, setSession] = useState<MobileSigningDetailsResult | null>(null);
@@ -55,6 +57,46 @@ export const MobileSigningPage: React.FC = () => {
   const [geoPermissionState, setGeoPermissionState] = useState<'prompt' | 'granted' | 'denied' | 'unknown'>('unknown');
   const [cachedLocation, setCachedLocation] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState<boolean>(false);
+
+  // Real-Time Socket Connection for Instant Handshake
+  useEffect(() => {
+    if (!token) return;
+
+    const tokenRoom = `session:${token}`;
+    const sessionRoom = session?.sessionId ? `session:${session.sessionId}` : null;
+
+    joinRoom(tokenRoom);
+    if (sessionRoom) {
+      joinRoom(sessionRoom);
+    }
+
+    if (socket?.connected) {
+      socket.emit('qr:device_connected', {
+        sessionId: session?.sessionId,
+        sessionToken: token,
+        deviceInfo: typeof navigator !== 'undefined' ? navigator.userAgent : 'Mobile Device',
+        signerName: currentUser?.fullName || signerName,
+        signerRole: currentUser?.role || signerRole,
+      });
+    }
+
+    const handleCancelled = () => {
+      Message.warning('Kompyuter ekranida imzolash sessiyasi bekor qilindi!');
+      setError('Ushbu sessiya kompyuterda bekor qilingan.');
+    };
+
+    if (socket) {
+      socket.on('qr:session_cancelled', handleCancelled);
+    }
+
+    return () => {
+      if (socket) {
+        socket.off('qr:session_cancelled', handleCancelled);
+      }
+      leaveRoom(tokenRoom);
+      if (sessionRoom) leaveRoom(sessionRoom);
+    };
+  }, [socket, token, session?.sessionId, currentUser, signerName, signerRole]);
 
   useEffect(() => {
     if (typeof navigator !== 'undefined' && 'permissions' in navigator) {
@@ -328,6 +370,16 @@ export const MobileSigningPage: React.FC = () => {
 
       setSignedResult(res.data);
       Message.success('Hujjat biometrika orqali muvaffaqiyatli imzolandi!');
+
+      // Instant Handshake: Kompyuter ekraniga 0ms kechikish bilan xabar berish
+      if (socket?.connected) {
+        socket.emit('qr:signature_completed', {
+          sessionId: session?.sessionId,
+          sessionToken: token,
+          ...res.data,
+        });
+      }
+
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         try { navigator.vibrate([60, 100, 60]); } catch { /* ignore */ }
       }

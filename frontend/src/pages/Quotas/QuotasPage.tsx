@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Card,
   Button,
@@ -15,6 +16,7 @@ import {
   Alert,
   Tooltip,
 } from '@arco-design/web-react';
+import { useSocket } from '../../hooks/useSocket';
 import { StockLevelGauge } from '../../components/Common/StockLevelGauge';
 import {
   IconPlus,
@@ -87,6 +89,9 @@ export const QuotasPage: React.FC = () => {
     }
   }, [isDepartmentStaff, user?.departmentId]);
 
+  const queryClient = useQueryClient();
+  const { socket, isConnected } = useSocket();
+
   const { data: quotas = [], isLoading, isError, refetch } = useQuotasQuery({
     departmentId: selectedDept !== 'ALL' ? selectedDept : undefined,
     period: currentPeriod || undefined,
@@ -94,6 +99,25 @@ export const QuotasPage: React.FC = () => {
 
   const { departments } = useOrganizationQuery();
   const { stocks = [] } = useWarehouseQuery();
+
+  // Real-Time Socket.io Sync for Quotas & Stock Balance
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleStockUpdated = () => {
+      // Invalidate both quotas and warehouse stocks immediately
+      queryClient.invalidateQueries({ queryKey: ['quotas'] });
+      queryClient.invalidateQueries({ queryKey: ['stocks'] });
+    };
+
+    socket.on('stock:updated', handleStockUpdated);
+    socket.on('stock:low_alert', handleStockUpdated);
+
+    return () => {
+      socket.off('stock:updated', handleStockUpdated);
+      socket.off('stock:low_alert', handleStockUpdated);
+    };
+  }, [socket, queryClient]);
 
   const setQuotaMutation = useSetQuotaMutation();
   const updateQuotaMutation = useUpdateQuotaMutation();
@@ -466,6 +490,18 @@ export const QuotasPage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Real-time Status Indicator (Rule 4.2 & Faza 4) */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: -6 }}>
+        <Space size="small">
+          <Tag color={isConnected ? 'green' : 'orange'} icon={<IconRefresh spin={!isConnected} />}>
+            {isConnected ? 'Real-Time Quota & Stock Sync (Faol)' : 'Sinxronizatsiya kutilmoqda'}
+          </Tag>
+          <Tag color="cyan">
+            Jonli Qoldiqlar (0ms)
+          </Tag>
+        </Space>
+      </div>
+
       {/* Tabs Filter */}
       <PageTabs
         activeTab={statusFilter}

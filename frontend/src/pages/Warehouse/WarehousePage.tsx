@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Card,
   Button,
@@ -14,7 +15,9 @@ import {
   Tooltip,
   Popconfirm,
   Switch,
+  Notification,
 } from '@arco-design/web-react';
+import { useSocket } from '../../hooks/useSocket';
 import {
   IconPlus,
   IconSearch,
@@ -61,6 +64,7 @@ import { PageTabs } from '../../components/Common/PageTabs';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { TableActions } from '../../components/Common/TableActions';
 import { StandardTable } from '../../components/Common/StandardTable';
+import { StatusTag } from '../../components/Common/StatusTag';
 import { ForbiddenView } from '../../components/Common/ForbiddenView';
 import { NewRequestModal } from '../../components/Requests/NewRequestModal';
 import { CreateWarehouseModal } from './CreateWarehouseModal';
@@ -80,6 +84,8 @@ export const WarehousePage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
+  const { socket, isConnected } = useSocket();
   const { stocks, isLoading, isFetching, isError, refetch } = useWarehouseQuery();
   const { lowStockItems, isLoading: isLowStockLoading, refetch: refetchLowStock } = useLowStockQuery();
   const { movements, isLoading: isMovementsLoading, isFetching: isMovementsFetching } = useMovementsQuery();
@@ -118,6 +124,39 @@ export const WarehousePage: React.FC = () => {
   const canManageWarehouse = user?.role === 'SUPER_ADMIN' || user?.role === 'HEAD_WAREHOUSE';
   // Moddiy javobgarlik va davlat auditi qoidasi bo'yicha talabnomani faqat rasmiy Ombor Mudiri shakllantiradi
   const canRequestReplenishment = user?.role === 'HEAD_WAREHOUSE';
+
+  // Real-Time Socket.io Tandem (Live Stock Balance & Sentinel Alerts)
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleStockUpdated = (data: any) => {
+      // Invalidate queries so that stocks, movements, and alerts update instantly (0ms)
+      queryClient.invalidateQueries({ queryKey: ['stocks'] });
+      queryClient.invalidateQueries({ queryKey: ['movements'] });
+      queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+      queryClient.invalidateQueries({ queryKey: ['warehouses'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-analytics'] });
+    };
+
+    const handleLowStockAlert = (data: { itemName: string; remainingQty: number; unit: string; minLimit: number; message?: string }) => {
+      const alertMsg = data.message || `🚨 ${data.itemName} kritik darajaga tushdi (${data.remainingQty} ${data.unit} qoldi)!`;
+      Notification.error({
+        title: 'Kritik Zaxira Ogohlantirishi!',
+        content: alertMsg,
+        duration: 8,
+      });
+      queryClient.invalidateQueries({ queryKey: ['stocks'] });
+      queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+    };
+
+    socket.on('stock:updated', handleStockUpdated);
+    socket.on('stock:low_alert', handleLowStockAlert);
+
+    return () => {
+      socket.off('stock:updated', handleStockUpdated);
+      socket.off('stock:low_alert', handleLowStockAlert);
+    };
+  }, [socket, queryClient]);
 
   useEffect(() => {
     const action = searchParams.get('action');
@@ -305,6 +344,22 @@ export const WarehousePage: React.FC = () => {
           }
         />
       )}
+
+      {/* Real-time Status Indicator (Rule 4.2 & Faza 4) */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: -6 }}>
+        <Space size="small">
+          <Tooltip content="Ombor kirim va chiqimlari barcha foydalanuvchilar ekranida sahifani yangilamasdan real vaqtda (jonli) aks etadi">
+            <Tag color={isConnected ? 'green' : 'orange'} icon={<IconSync spin={!isConnected} />} style={{ cursor: 'pointer' }}>
+              {isConnected ? 'Live Stock Sync (Faol)' : 'Sinxronizatsiya kutilmoqda'}
+            </Tag>
+          </Tooltip>
+          <Tooltip content="Bir vaqtning o‘zida bir nechta chiqim talabnomasi tushganda ombor qoldig‘i manfiyga tushib ketishidan 100% himoyalangan">
+            <Tag color="arcoblue" icon={<IconSafe />} style={{ cursor: 'pointer' }}>
+              Qoldiq xavfsizligi
+            </Tag>
+          </Tooltip>
+        </Space>
+      </div>
 
       {/* Main Tabs Navigation */}
       <PageTabs
@@ -842,35 +897,13 @@ export const WarehousePage: React.FC = () => {
               title: 'Turi',
               dataIndex: 'movementType',
               width: 120,
-              render: (type: string) => {
-                if (type === 'INCOMING') return <Tag color="blue" style={{ borderRadius: 0 }}>Kirim</Tag>;
-                if (type === 'TRANSFER') return <Tag color="cyan" style={{ borderRadius: 0 }}>Siljish</Tag>;
-                if (type === 'WRITE_OFF') return <Tag color="red" style={{ borderRadius: 0 }}>Spisanie</Tag>;
-                if (type === 'RETURN') return <Tag color="orange" style={{ borderRadius: 0 }}>Qaytarish</Tag>;
-                return <Tag style={{ borderRadius: 0 }}>{type}</Tag>;
-              },
+              render: (type: string) => <StatusTag domain="movement" status={type} />,
             },
             {
               title: 'Moliyalashtirish',
               dataIndex: 'fundingSource',
-              width: 150,
-              render: (source: string) => {
-                const s = source || 'BYUDJET';
-                let color = 'blue';
-                let label = 'Byudjet';
-                if (s === 'KONTRAKT_RIVOJLANTIRISH' || s === 'KONTRAKT') {
-                  color = 'purple';
-                  label = 'Kontrakt';
-                } else if (s === 'GRANT') {
-                  color = 'green';
-                  label = 'Grant';
-                }
-                return (
-                  <Tag color={color} size="small" style={{ borderRadius: 0 }}>
-                    {label}
-                  </Tag>
-                );
-              },
+              width: 170,
+              render: (source: string) => <StatusTag domain="funding" status={source} />,
             },
             {
               title: 'Mahsulotlar va Miqdori',

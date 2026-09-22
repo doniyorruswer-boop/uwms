@@ -15,8 +15,14 @@ export class SystemAuditController {
   constructor(private readonly systemAuditService: SystemAuditService) {}
 
   @Get()
-  @Roles(RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Tizim xavfsizlik audit jurnali (Faqat Bosh Administrator)' })
+  @Roles(
+    RoleType.SUPER_ADMIN,
+    RoleType.AUDITOR,
+    RoleType.CHIEF_ACCOUNTANT,
+    RoleType.VICE_RECTOR_FINANCE,
+    RoleType.HEAD_WAREHOUSE,
+  )
+  @ApiOperation({ summary: 'Tizim xavfsizlik audit jurnali' })
   async getLogs(@Query() query: QuerySystemAuditDto) {
     return this.systemAuditService.findAll(query);
   }

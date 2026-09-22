@@ -18,13 +18,30 @@ export interface PendingHandoverItem {
   handoverNumber: string;
   type: string;
   status: string;
-  departingUser: { id: string; fullName: string; role: string; position?: string };
-  targetUser?: { id: string; fullName: string; role: string; position?: string } | null;
+  departingUserId?: string;
+  targetUserId?: string | null;
+  commandantUserId?: string | null;
+  accountantUserId?: string | null;
+  departingUser: {
+    id: string;
+    fullName: string;
+    role: string;
+    position?: string;
+    department?: { id: string; name: string } | null;
+  };
+  targetUser?: {
+    id: string;
+    fullName: string;
+    role: string;
+    position?: string;
+    department?: { id: string; name: string } | null;
+  } | null;
   commandantUser?: { id: string; fullName: string; role: string; position?: string } | null;
   accountantUser?: { id: string; fullName: string; role: string; position?: string } | null;
   building?: { id: string; name: string; code?: string } | null;
   room?: { id: string; number: string; name: string } | null;
   targetWarehouse?: { id: string; name: string } | null;
+  items?: any[];
   _count?: { items: number };
   createdAt: string;
   note?: string | null;

@@ -53,7 +53,7 @@ export class AssetsController {
 
   @Get()
   @ApiOperation({ summary: 'Asosiy vositalar ro‘yxati (qidiruv, filtr bilan)' })
-  async getAllAssets(@Query() query: { search?: string; status?: string; roomId?: string; fundingSource?: string; page?: string; limit?: string }) {
+  async getAllAssets(@Query() query: { search?: string; status?: string; roomId?: string; fundingSource?: string; responsibleUserId?: string; page?: string; limit?: string }) {
     return this.assetsService.getAllAssets(query);
   }
 

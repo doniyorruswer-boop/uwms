@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -22,6 +22,7 @@ import {
   Spin,
   Tooltip,
   Message,
+  Notification,
 } from '@arco-design/web-react';
 import {
   IconPlus,
@@ -39,7 +40,9 @@ import {
   IconScan,
   IconRefresh,
   IconQrcode,
+  IconWifi,
 } from '@arco-design/web-react/icon';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useAuditCampaignsQuery,
   useAuditCampaignProgressQuery,
@@ -53,6 +56,7 @@ import {
   CampaignStatus,
   CompleteCampaignParams,
 } from '../../hooks/useAuditCampaignsQuery';
+import { useSocket } from '../../hooks/useSocket';
 import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
 import { useUsersQuery } from '../../hooks/useUsersQuery';
 import { useAuthStore } from '../../store/authStore';
@@ -65,6 +69,7 @@ import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { TableActions } from '../../components/Common/TableActions';
 import { StandardTable } from '../../components/Common/StandardTable';
 import { ForbiddenView } from '../../components/Common/ForbiddenView';
+import { StatusTag } from '../../components/Common/StatusTag';
 
 const { Title, Text } = Typography;
 const { Row, Col } = Grid;
@@ -126,6 +131,118 @@ export const AuditCampaignsPage: React.FC = () => {
     useAuditCampaignProgressQuery(selectedCampaignId);
   const { data: missingData, isLoading: isLoadingMissing } =
     useAuditCampaignMissingReportQuery(selectedCampaignId);
+
+  // Real-Time Monitoring & Multi-Auditor Sync Socket Integration
+  const queryClient = useQueryClient();
+  const { socket, isConnected: isSocketConnected, joinRoom, leaveRoom } = useSocket();
+
+  // Faol kampaniyalar va tanlangan monitoring kampaniyasi xonalariga a'zo bo'lish
+  useEffect(() => {
+    if (!socket || !isSocketConnected) return;
+
+    if (selectedCampaignId) {
+      joinRoom(`campaign:${selectedCampaignId}`);
+    }
+
+    campaigns
+      .filter((c) => c.status === 'IN_PROGRESS')
+      .forEach((c) => {
+        joinRoom(`campaign:${c.id}`);
+      });
+
+    return () => {
+      if (selectedCampaignId) {
+        leaveRoom(`campaign:${selectedCampaignId}`);
+      }
+      campaigns
+        .filter((c) => c.status === 'IN_PROGRESS')
+        .forEach((c) => {
+          leaveRoom(`campaign:${c.id}`);
+        });
+    };
+  }, [socket, isSocketConnected, selectedCampaignId, campaigns, joinRoom, leaveRoom]);
+
+  // Real-time skanlarni qabul qilib, StockLevelGauge va xonalar holatini jonli yangilash
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleAssetScanned = (payload: any) => {
+      // 1. Markaziy bildirishnoma
+      Notification.info({
+        title: 'Jonli Skanerlash (Real-Time)',
+        content: `Auditor ${payload.asset.itemName} (${payload.asset.inventoryNumber}) vositasini ${payload.roomNumber ? payload.roomNumber + '-xona' : ''}da skanerladi`,
+        duration: 4,
+      });
+
+      // 2. Monitoring draweridagi ma'lumotlarni 0ms da (optimistic) yangilash
+      if (payload.campaignId) {
+        queryClient.setQueryData(['audit-campaign-progress', payload.campaignId], (old: any) => {
+          if (!old || !old.rooms) return old;
+          const updatedRooms = old.rooms.map((r: any) => {
+            if (r.roomId === payload.roomId) {
+              const newMatched = payload.status === 'MATCHED' ? r.matchedCount + 1 : r.matchedCount;
+              const isComplete =
+                payload.roomStats?.isRoomComplete ??
+                (newMatched >= r.expectedCount && r.expectedCount > 0);
+              return {
+                ...r,
+                matchedCount: newMatched,
+                totalScanned: r.totalScanned + 1,
+                auditStatus: 'IN_PROGRESS',
+                isCompleted: isComplete,
+              };
+            }
+            return r;
+          });
+
+          const completedRoomsCount = updatedRooms.filter((r: any) => r.isCompleted).length;
+          const totalMatchedCount = updatedRooms.reduce(
+            (sum: number, r: any) => sum + r.matchedCount,
+            0,
+          );
+          const progressPercent =
+            old.totals.totalRooms > 0
+              ? Math.round((completedRoomsCount / old.totals.totalRooms) * 100)
+              : 0;
+
+          return {
+            ...old,
+            totals: {
+              ...old.totals,
+              completedRooms: completedRoomsCount,
+              totalMatched: totalMatchedCount,
+              progressPercent,
+            },
+            rooms: updatedRooms,
+          };
+        });
+
+        // Baza bilan to'liq solishtirish uchun fon so'rovi
+        queryClient.invalidateQueries({ queryKey: ['audit-campaign-progress', payload.campaignId] });
+        queryClient.invalidateQueries({ queryKey: ['audit-campaigns'] });
+      }
+    };
+
+    const handleRoomCompleted = (payload: any) => {
+      Notification.success({
+        title: 'Xona Inventarizatsiyasi Yakunlandi',
+        content: `${payload.roomNumber ? payload.roomNumber + '-xona' : 'Xona'} tekshiruvi to‘liq yakunlandi va INV-19 muhrlandi.`,
+        duration: 5,
+      });
+      if (payload.campaignId) {
+        queryClient.invalidateQueries({ queryKey: ['audit-campaign-progress', payload.campaignId] });
+        queryClient.invalidateQueries({ queryKey: ['audit-campaigns'] });
+      }
+    };
+
+    socket.on('audit:asset_scanned', handleAssetScanned);
+    socket.on('audit:room_completed', handleRoomCompleted);
+
+    return () => {
+      socket.off('audit:asset_scanned', handleAssetScanned);
+      socket.off('audit:room_completed', handleRoomCompleted);
+    };
+  }, [socket, queryClient]);
 
   const handleOpenCreateModal = () => {
     form.resetFields();
@@ -258,21 +375,6 @@ export const AuditCampaignsPage: React.FC = () => {
       `Kamomad_Hisoboti_${missingData.campaignNumber}`,
       'Missing Assets',
     );
-  };
-
-  const getStatusBadge = (status: CampaignStatus) => {
-    switch (status) {
-      case 'PLANNED':
-        return <Tag color="gold" style={{ borderRadius: 0 }}>Rejalashtirilgan</Tag>;
-      case 'IN_PROGRESS':
-        return <Tag color="arcoblue" style={{ borderRadius: 0 }}>Jarayonda</Tag>;
-      case 'COMPLETED':
-        return <Tag color="green" style={{ borderRadius: 0 }}>Yakunlangan</Tag>;
-      case 'CANCELLED':
-        return <Tag color="gray" style={{ borderRadius: 0 }}>Bekor qilingan</Tag>;
-      default:
-        return <Tag>{status}</Tag>;
-    }
   };
 
   if (!canViewCampaigns) {
@@ -491,7 +593,9 @@ export const AuditCampaignsPage: React.FC = () => {
           {
             title: 'Holati',
             width: 140,
-            render: (_, record: AuditCampaignItem) => getStatusBadge(record.status),
+            render: (_, record: AuditCampaignItem) => (
+              <StatusTag status={record.status} domain="audit" />
+            ),
           },
           {
             title: 'WORM Imzo & INV-19',
@@ -752,7 +856,16 @@ export const AuditCampaignsPage: React.FC = () => {
 
       {/* Campaign Progress & Room-by-room Drawer */}
       <Drawer
-        title={progressData ? `Inventarizatsiya Progressi: ${progressData.title}` : 'Kampaniya Progressi'}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span>{progressData ? `Inventarizatsiya Progressi: ${progressData.title}` : 'Kampaniya Progressi'}</span>
+            {isSocketConnected && (
+              <Tag color="green" icon={<IconWifi />} style={{ borderRadius: 0, fontWeight: 600 }}>
+                Jonli Monitoring (Multi-Auditor Sync)
+              </Tag>
+            )}
+          </div>
+        }
         visible={progressDrawerVisible}
         onCancel={() => setProgressDrawerVisible(false)}
         footer={null}
@@ -788,7 +901,7 @@ export const AuditCampaignsPage: React.FC = () => {
                     Jami {progressData.totals.totalRooms} ta xonadan {progressData.totals.completedRooms} tasi to‘liq tekshirildi
                   </Text>
                 </div>
-                {getStatusBadge(progressData.status)}
+                <StatusTag status={progressData.status} domain="audit" />
               </div>
               <StockLevelGauge
                 percent={progressData.totals.progressPercent}
@@ -860,9 +973,9 @@ export const AuditCampaignsPage: React.FC = () => {
                   title: 'Holati',
                   width: 140,
                   render: (_, r) => {
-                    if (r.isCompleted) return <Tag color="green" style={{ borderRadius: 0 }}>Tekshirildi</Tag>;
-                    if (r.auditStatus === 'IN_PROGRESS') return <Tag color="arcoblue" style={{ borderRadius: 0 }}>Jarayonda</Tag>;
-                    return <Tag color="gray" style={{ borderRadius: 0 }}>Boshlanmagan</Tag>;
+                    if (r.isCompleted) return <StatusTag status="COMPLETED" domain="audit" label="Tekshirildi" />;
+                    if (r.auditStatus === 'IN_PROGRESS') return <StatusTag status="IN_PROGRESS" domain="audit" />;
+                    return <StatusTag status="PLANNED" domain="audit" label="Boshlanmagan" />;
                   },
                 },
                 {

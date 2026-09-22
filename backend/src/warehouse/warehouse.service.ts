@@ -4,6 +4,7 @@ import { CodeGeneratorService } from '../common/code-generator.service';
 import { SequenceService } from '../common/services/sequence.service';
 import { DocumentStampsService } from '../document-stamps/document-stamps.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
+import { EventsGateway } from '../events/events.gateway';
 import { IngestStockDto, InterWarehouseTransferDto } from './dto/warehouse.dto';
 import { CreateWarehouseDto, UpdateWarehouseDto } from './dto/warehouse-crud.dto';
 
@@ -15,6 +16,7 @@ export class WarehouseService {
     private systemAuditService: SystemAuditService,
     @Optional() private sequenceService?: SequenceService,
     @Optional() private documentStampsService?: DocumentStampsService,
+    @Optional() private eventsGateway?: EventsGateway,
   ) {}
 
   async getStocks(query?: { search?: string; categoryId?: string; fundingSource?: string; page?: number | string; limit?: number | string }) {
@@ -129,7 +131,7 @@ export class WarehouseService {
       throw new BadRequestException('Kirim miqdori noldan katta (musbat son) bo‘lishi shart!');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const stock = await tx.stock.findUnique({
         where: { id: stockId },
         include: { item: true, warehouse: true },
@@ -200,6 +202,19 @@ export class WarehouseService {
         status: targetStock.quantity <= stock.item.minStockLimit ? 'LOW' : 'NORMAL',
       };
     });
+
+    if (this.eventsGateway?.server) {
+      this.eventsGateway.server.emit('stock:updated', {
+        action: 'REPLENISH',
+        stockId: result.id,
+        itemId: result.itemId,
+        warehouseId: result.warehouseId,
+        quantity: result.quantity,
+        fundingSource: result.fundingSource,
+      });
+    }
+
+    return result;
   }
 
   async ingestStock(dto: IngestStockDto & { executedById: string }) {
@@ -464,6 +479,17 @@ export class WarehouseService {
       }
     }
 
+    if (this.eventsGateway?.server) {
+      this.eventsGateway.server.emit('stock:updated', {
+        action: 'INGEST',
+        invoiceNumber: result.invoiceNumber,
+        movementNumber: result.movementNumber,
+        itemsCount: dto.items.length,
+        warehouseId: dto.warehouseId,
+        fundingSource: dto.fundingSource || 'BYUDJET',
+      });
+    }
+
     return result;
   }
 
@@ -617,7 +643,7 @@ export class WarehouseService {
       throw new BadRequestException('Chiqaruvchi va qabul qiluvchi omborxona bir xil bo‘lishi mumkin emas!');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. Check source stock with row-level lock (FOR UPDATE) to prevent concurrency races
       const lockedStocks = await tx.$queryRaw<
         Array<{
@@ -709,7 +735,7 @@ export class WarehouseService {
         },
       });
 
-      return {
+      const transferResult = {
         success: true,
         movementNumber: movNum,
         transferredItem: sourceStock.itemName,
@@ -717,7 +743,23 @@ export class WarehouseService {
         fromWarehouse: sourceStock.warehouseName,
         toWarehouse: targetWh.name,
       };
+
+      return transferResult;
     });
+
+    if (this.eventsGateway?.server) {
+      this.eventsGateway.server.emit('stock:updated', {
+        action: 'TRANSFER',
+        movementNumber: result.movementNumber,
+        itemId: dto.itemId,
+        transferredItem: result.transferredItem,
+        quantity: result.quantity,
+        fromWarehouseId: dto.fromWarehouseId,
+        toWarehouseId: dto.toWarehouseId,
+      });
+    }
+
+    return result;
   }
 
   /**
@@ -835,6 +877,31 @@ export class WarehouseService {
       }
     }
 
+    if (this.eventsGateway?.server) {
+      this.eventsGateway.server.emit('stock:updated', {
+        action: 'DEDUCT',
+        requestNumber: request.requestNumber,
+        warehouseId: warehouse.id,
+        itemsCount: request.items.length,
+      });
+
+      if (lowStockAlerts.length > 0) {
+        for (const alert of lowStockAlerts) {
+          const alertPayload = {
+            itemName: alert.name,
+            remainingQty: alert.remainingQty,
+            minLimit: alert.minLimit,
+            unit: alert.unit,
+            message: `🚨 ${alert.name} kritik darajaga tushdi (${alert.remainingQty} ${alert.unit} qoldi)!`,
+          };
+          this.eventsGateway.emitToRole('HEAD_WAREHOUSE', 'stock:low_alert', alertPayload);
+          this.eventsGateway.emitToRole('MOL', 'stock:low_alert', alertPayload);
+          this.eventsGateway.emitToRole('SUPER_ADMIN', 'stock:low_alert', alertPayload);
+          this.eventsGateway.server.emit('stock:low_alert', alertPayload);
+        }
+      }
+    }
+
     return { movement, lowStockAlerts };
   }
 
@@ -919,6 +986,15 @@ export class WarehouseService {
         },
       },
     });
+
+    if (this.eventsGateway?.server) {
+      this.eventsGateway.server.emit('stock:updated', {
+        action: 'RECEIVE_REQUEST',
+        requestNumber: request.requestNumber,
+        warehouseId: warehouse.id,
+        itemsCount: request.items.length,
+      });
+    }
 
     return movement;
   }

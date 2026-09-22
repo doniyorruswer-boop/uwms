@@ -3,6 +3,8 @@ import { WarehouseService } from './warehouse.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SequenceService } from '../common/services/sequence.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
+import { SystemAuditService } from '../system-audit/system-audit.service';
+import { DocumentStampsService } from '../document-stamps/document-stamps.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 describe('Transaction Integrity & Negative Stock Rollback Tests', () => {
@@ -64,6 +66,18 @@ describe('Transaction Integrity & Negative Stock Rollback Tests', () => {
           useValue: {
             nextMovementNumber: jest.fn().mockResolvedValue('MOV-2026-0001'),
             nextInvoiceNumber: jest.fn().mockResolvedValue('INV-2026-0001'),
+          },
+        },
+        {
+          provide: SystemAuditService,
+          useValue: {
+            log: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: DocumentStampsService,
+          useValue: {
+            stampDocument: jest.fn().mockResolvedValue({ id: 'stamp-1' }),
           },
         },
       ],

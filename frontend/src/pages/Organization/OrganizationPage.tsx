@@ -115,6 +115,7 @@ export const OrganizationPage: React.FC = () => {
   const { user } = useAuthStore();
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const canTransferRoom = isSuperAdmin || user?.role === 'COMMENDANT' || user?.role === 'HEAD_WAREHOUSE';
 
   // Tabs state
   const [activeTab, setActiveTab] = useState<'TREE' | 'BUILDINGS' | 'DEPARTMENTS' | 'ROOMS'>('TREE');
@@ -953,13 +954,13 @@ export const OrganizationPage: React.FC = () => {
             deleteTooltip={isSuperAdmin ? 'O‘chirish' : 'O‘chirish faqat Super Admin uchun'}
             rightPadding={16}
           >
-            <Tooltip content={isSuperAdmin ? 'Boshqa kafedra yoki bo‘limga o‘tkazish' : 'O‘tkazish faqat Super Admin uchun'}>
+            <Tooltip content={canTransferRoom ? 'Xona va jihozlar javobgarligini topshirish (OS-1)' : 'Topshirish faqat Komendant yoki Super Admin uchun'}>
               <Button
                 size="small"
                 type="outline"
                 icon={<IconSwap />}
                 style={{ borderRadius: 0 }}
-                disabled={!isSuperAdmin}
+                disabled={!canTransferRoom}
                 onClick={() => setTransferringRoom(record)}
               />
             </Tooltip>
@@ -1260,17 +1261,17 @@ export const OrganizationPage: React.FC = () => {
                         </Title>
                       </div>
 
-                      <Space>
-                        <Tooltip content={isSuperAdmin ? 'Boshqa kafedra yoki bo‘limga o‘tkazish' : 'Faqat Super Admin uchun'}>
+                      <Space wrap>
+                        <Tooltip content={canTransferRoom ? 'Xona va jihozlar javobgarligini topshirish (OS-1)' : 'Faqat Komendant yoki Super Admin uchun'}>
                           <Button
                             size="small"
-                            type="outline"
+                            type="primary"
                             icon={<IconSwap />}
                             style={{ borderRadius: 0 }}
-                            disabled={!isSuperAdmin}
+                            disabled={!canTransferRoom}
                             onClick={() => setTransferringRoom(selectedRoom)}
                           >
-                            Bo‘limga O‘tkazish
+                            Xona javobgarligini topshirish
                           </Button>
                         </Tooltip>
                         <Tooltip content={isSuperAdmin ? 'Xonani tahrirlash' : 'Tahrirlash faqat Super Admin uchun'}>
@@ -1331,19 +1332,49 @@ export const OrganizationPage: React.FC = () => {
                       </Space>
                     </div>
 
+                    {/* Room Quick Stats Grid */}
                     <div style={{ marginTop: 16 }}>
-                      <CategoryThumbnail
-                        icon={<IconUser />}
-                        name={selectedRoom.responsibleUserName || 'MOL Belgilanmagan'}
-                        subtitle={
-                          selectedRoom.responsibleUserPhone
-                            ? `Aloqa: ${selectedRoom.responsibleUserPhone}`
-                            : 'Moddiy javobgar shaxs biriktirilmagan'
-                        }
-                        tag="Moddiy Javobgar Shaxs (MOL)"
-                        color={selectedRoom.responsibleUserName ? '#165DFF' : '#F53F3F'}
-                        bg={selectedRoom.responsibleUserName ? '#E8F3FF' : '#FFECE8'}
-                      />
+                      <Row gutter={[12, 12]}>
+                        <Col span={8}>
+                          <Card style={{ background: 'var(--color-fill-2)', borderRadius: 0, padding: 12 }}>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginBottom: 4 }}>
+                              Joriy Mas’ul Shaxs (MOL)
+                            </div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: selectedRoom.responsibleUserName ? '#165DFF' : '#F53F3F' }}>
+                              {selectedRoom.responsibleUserName || 'Biriktirilmagan'}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2 }}>
+                              {selectedRoom.responsibleUserPhone ? `Tel: ${selectedRoom.responsibleUserPhone}` : 'Aloqa ma’lumoti yo‘q'}
+                            </div>
+                          </Card>
+                        </Col>
+                        <Col span={8}>
+                          <Card style={{ background: 'var(--color-fill-2)', borderRadius: 0, padding: 12 }}>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginBottom: 4 }}>
+                              Xonadagi Jihozlar
+                            </div>
+                            <div style={{ fontSize: 18, fontWeight: 700, color: '#00B42A' }}>
+                              {roomAssets.length} ta aktiv
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2 }}>
+                              {roomAssets.filter((a) => a.status === 'IN_USE').length} ta foydalanishda
+                            </div>
+                          </Card>
+                        </Col>
+                        <Col span={8}>
+                          <Card style={{ background: 'var(--color-fill-2)', borderRadius: 0, padding: 12 }}>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginBottom: 4 }}>
+                              Joylashuv & Bo‘lim
+                            </div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#FF7D00' }}>
+                              {selectedRoom.building} • {selectedRoom.floor}-qavat
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2 }}>
+                              {selectedRoom.departmentName || 'Kafedra biriktirilmagan'}
+                            </div>
+                          </Card>
+                        </Col>
+                      </Row>
                     </div>
                   </div>
 
@@ -1539,13 +1570,13 @@ export const OrganizationPage: React.FC = () => {
                                     Ko‘rish
                                   </Button>
                                 </Tooltip>
-                                <Tooltip content={isSuperAdmin ? 'Boshqa kafedra/bo‘limga o‘tkazish' : 'Faqat Super Admin uchun'}>
+                                <Tooltip content={canTransferRoom ? 'Xona va jihozlar javobgarligini topshirish (OS-1)' : 'Faqat Komendant yoki Super Admin uchun'}>
                                   <Button
                                     size="mini"
                                     type="outline"
                                     icon={<IconSwap />}
                                     style={{ borderRadius: 0 }}
-                                    disabled={!isSuperAdmin}
+                                    disabled={!canTransferRoom}
                                     onClick={() => setTransferringRoom(r)}
                                   />
                                 </Tooltip>
@@ -1785,13 +1816,13 @@ export const OrganizationPage: React.FC = () => {
                                     Ko‘rish
                                   </Button>
                                 </Tooltip>
-                                <Tooltip content={isSuperAdmin ? 'Boshqa kafedra/bo‘limga o‘tkazish' : 'Faqat Super Admin uchun'}>
+                                <Tooltip content={canTransferRoom ? 'Xona va jihozlar javobgarligini topshirish (OS-1)' : 'Faqat Komendant yoki Super Admin uchun'}>
                                   <Button
                                     size="mini"
                                     type="outline"
                                     icon={<IconSwap />}
                                     style={{ borderRadius: 0 }}
-                                    disabled={!isSuperAdmin}
+                                    disabled={!canTransferRoom}
                                     onClick={() => setTransferringRoom(r)}
                                   />
                                 </Tooltip>

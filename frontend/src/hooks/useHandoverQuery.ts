@@ -193,6 +193,50 @@ export function useRejectHandoverMutation() {
 }
 
 /**
+ * Qoralama (DRAFT) dalolatnomani topshirishga yuborish (SUBMIT)
+ */
+export function useSubmitHandoverMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.post<ResponsibilityHandover>(API_ENDPOINTS.HANDOVERS.SUBMIT(id));
+      return res.data;
+    },
+    onSuccess: (handover) => {
+      Message.success(`'${handover.handoverNumber}' arizasi ko‘rib chiqishga muvaffaqiyatli yuborildi!`);
+      queryClient.invalidateQueries({ queryKey: ['handovers'] });
+      queryClient.invalidateQueries({ queryKey: ['handover-detail', handover.id] });
+      queryClient.invalidateQueries({ queryKey: ['inbox'] });
+    },
+    onError: (err: any) => {
+      Message.error(err?.response?.data?.message || 'Arizani yuborishda xatolik yuz berdi');
+    },
+  });
+}
+
+/**
+ * Dalolatnomani bekor qilish (CANCEL)
+ */
+export function useCancelHandoverMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const res = await apiClient.post<ResponsibilityHandover>(API_ENDPOINTS.HANDOVERS.CANCEL(id), { reason });
+      return res.data;
+    },
+    onSuccess: (handover) => {
+      Message.info(`'${handover.handoverNumber}' arizasi bekor qilindi`);
+      queryClient.invalidateQueries({ queryKey: ['handovers'] });
+      queryClient.invalidateQueries({ queryKey: ['handover-detail', handover.id] });
+      queryClient.invalidateQueries({ queryKey: ['inbox'] });
+    },
+    onError: (err: any) => {
+      Message.error(err?.response?.data?.message || 'Arizani bekor qilishda xatolik yuz berdi');
+    },
+  });
+}
+
+/**
  * Dalolatnomaning rasmiy OS-1 elektron hujjatini olish
  */
 export function useHandoverDocumentQuery(id: string, options?: { enabled?: boolean }) {
@@ -200,6 +244,54 @@ export function useHandoverDocumentQuery(id: string, options?: { enabled?: boole
     queryKey: ['handover-document', id],
     queryFn: async () => {
       const res = await apiClient.get<HandoverDocumentResponse>(API_ENDPOINTS.HANDOVERS.DOCUMENT(id));
+      return res.data;
+    },
+    enabled: !!id && (options?.enabled ?? true),
+  });
+}
+
+export interface HandoverAuditResponse {
+  handover: ResponsibilityHandover;
+  auditLogs: Array<{
+    id: string;
+    action: string;
+    entity: string;
+    entityId?: string | null;
+    details?: string | null;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+    createdAt: string;
+    user?: {
+      id: string;
+      fullName: string;
+      role: string;
+      position?: string | null;
+    } | null;
+  }>;
+  signingSessions: Array<{
+    id: string;
+    docNumber: string;
+    status: string;
+    signatureType: string;
+    biometricVerified: boolean;
+    signedAt?: string | null;
+    createdAt: string;
+    signedBy?: {
+      id: string;
+      fullName: string;
+      role: string;
+    } | null;
+  }>;
+}
+
+/**
+ * Dalolatnomaning to‘liq audit jurnali va imzo xronologiyasini olish
+ */
+export function useHandoverAuditQuery(id: string, options?: { enabled?: boolean }) {
+  return useQuery<HandoverAuditResponse>({
+    queryKey: ['handover-audit', id],
+    queryFn: async () => {
+      const res = await apiClient.get<HandoverAuditResponse>(API_ENDPOINTS.HANDOVERS.AUDIT(id));
       return res.data;
     },
     enabled: !!id && (options?.enabled ?? true),

@@ -211,7 +211,7 @@ export const UsersPage: React.FC = () => {
     {
       title: 'Mas’ul Asosiy Vositalar',
       key: 'assets',
-      width: 200,
+      width: 210,
       render: (_: any, record: UserItem) => {
         const assetCount = record._count?.responsibleInstances || 0;
         const roomCount = record._count?.responsibleRooms || 0;
@@ -231,14 +231,22 @@ export const UsersPage: React.FC = () => {
             >
               {assetCount} ta ashyo / {roomCount} xona
             </Button>
-            {isFullyCleared && (
+            {isFullyCleared ? (
               <Tag
                 color="green"
                 size="small"
                 icon={<IconCheckCircle />}
+                style={{ borderRadius: 0, fontSize: 11, fontWeight: 600 }}
+              >
+                Ozod qilingan
+              </Tag>
+            ) : (
+              <Tag
+                color="orange"
+                size="small"
                 style={{ borderRadius: 0, fontSize: 11, fontWeight: 500 }}
               >
-                Javobgarlikdan ozod
+                Majburiyat mavjud
               </Tag>
             )}
           </div>
@@ -250,39 +258,68 @@ export const UsersPage: React.FC = () => {
       dataIndex: 'isActive',
       key: 'isActive',
       width: 105,
-      render: (isActive: boolean, record: UserItem) => (
-        <div onClick={(e) => e.stopPropagation()}>
-          <Popconfirm
-            title="Foydalanuvchi holatini o‘zgartirish"
-            content={`Rostdan ham '${record.fullName}' foydalanuvchisini ${
-              isActive ? 'faolsizlantirmoqchimisiz' : 'faollashtirmoqchimisiz'
-            }?`}
-            okText="Ha, o‘zgartirish"
-            cancelText="Yo‘q"
-            onOk={() => handleToggleStatus(record)}
-            disabled={record.id === currentUser?.id}
-          >
-            <Tooltip content={record.id === currentUser?.id ? 'O‘z hisobingizni o‘zgartira olmaysiz' : 'Holatni almashtirish uchun bosing'}>
-              <Tag
-                color={isActive ? 'green' : 'red'}
-                size="small"
-                style={{
-                  borderRadius: 0,
-                  cursor: record.id === currentUser?.id ? 'not-allowed' : 'pointer',
-                  fontWeight: 600,
-                }}
+      render: (isActive: boolean, record: UserItem) => {
+        const hasObligations =
+          isActive &&
+          ((record._count?.responsibleInstances || 0) > 0 ||
+           (record._count?.responsibleRooms || 0) > 0);
+
+        if (hasObligations) {
+          return (
+            <div onClick={(e) => e.stopPropagation()}>
+              <Tooltip
+                content={`Zimmasida ${record._count?.responsibleInstances || 0} ta aktiv yoki ${record._count?.responsibleRooms || 0} ta xona mas’ulligi mavjud! Avval moddiy javobgarlikni topshirish talab etiladi.`}
               >
-                {isActive ? 'FAOL' : 'NOFAOL'}
-              </Tag>
-            </Tooltip>
-          </Popconfirm>
-        </div>
-      ),
+                <Tag
+                  color="green"
+                  size="small"
+                  style={{
+                    borderRadius: 0,
+                    cursor: 'not-allowed',
+                    fontWeight: 600,
+                  }}
+                >
+                  FAOL
+                </Tag>
+              </Tooltip>
+            </div>
+          );
+        }
+
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <Popconfirm
+              title="Foydalanuvchi holatini o‘zgartirish"
+              content={`Rostdan ham '${record.fullName}' foydalanuvchisini ${
+                isActive ? 'faolsizlantirmoqchimisiz' : 'faollashtirmoqchimisiz'
+              }?`}
+              okText="Ha, o‘zgartirish"
+              cancelText="Yo‘q"
+              onOk={() => handleToggleStatus(record)}
+              disabled={record.id === currentUser?.id}
+            >
+              <Tooltip content={record.id === currentUser?.id ? 'O‘z hisobingizni o‘zgartira olmaysiz' : 'Holatni almashtirish uchun bosing'}>
+                <Tag
+                  color={isActive ? 'green' : 'red'}
+                  size="small"
+                  style={{
+                    borderRadius: 0,
+                    cursor: record.id === currentUser?.id ? 'not-allowed' : 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  {isActive ? 'FAOL' : 'NOFAOL'}
+                </Tag>
+              </Tooltip>
+            </Popconfirm>
+          </div>
+        );
+      },
     },
     {
       title: 'Amallar',
       key: 'actions',
-      width: roleTab === 'DELETED' ? 140 : 160,
+      width: roleTab === 'DELETED' ? 140 : 220,
       fixed: 'right' as const,
       render: (_: any, record: UserItem) => (
         <div onClick={(e) => e.stopPropagation()}>
@@ -308,27 +345,54 @@ export const UsersPage: React.FC = () => {
                   const hasObligations =
                     (record._count?.responsibleInstances || 0) > 0 ||
                     (record._count?.responsibleRooms || 0) > 0;
+                  const isFullyCleared = !hasObligations;
 
                   return (
-                    <Tooltip
-                      content={
-                        hasObligations
-                          ? "Moddiy javobgarlikni topshirish va zimmasidan chiqarish (MOL Offboarding)"
-                          : "Xodim zimmasida topshirilishi lozim bo‘lgan ashyolar mavjud emas (Javobgarlikdan ozod)"
-                      }
-                    >
-                      <Button
-                        size="small"
-                        type="secondary"
-                        disabled={!hasObligations}
-                        icon={<IconSwap />}
-                        style={{
-                          borderRadius: 0,
-                          color: hasObligations ? 'var(--color-primary-6)' : undefined,
-                        }}
-                        onClick={() => setHandoverUser(record)}
-                      />
-                    </Tooltip>
+                    <>
+                      {/* 1. Javobgarlik Holati (Audit) tugmasi */}
+                      <Tooltip
+                        content={
+                          hasObligations
+                            ? `Javobgarlik Holati (Audit) — xodim zimmasidagi ${record._count?.responsibleInstances || 0} ta aktiv va ${record._count?.responsibleRooms || 0} ta xona balansi ko‘rigi hamda topshirish jarayoni`
+                            : "Javobgarlik Holati (Audit) — xodim zimmasida topshirilishi lozim bo‘lgan aktivlar yo‘q"
+                        }
+                      >
+                        <Button
+                          size="small"
+                          type={hasObligations ? "outline" : "secondary"}
+                          icon={<IconSwap />}
+                          style={{
+                            borderRadius: 0,
+                            color: hasObligations ? 'var(--color-primary-6)' : undefined,
+                            borderColor: hasObligations ? 'var(--color-primary-6)' : undefined,
+                          }}
+                          onClick={() => setHandoverUser(record)}
+                        />
+                      </Tooltip>
+
+                      {/* 2. Agar xodimning aktivlari 0 ta bo‘lsa va majburiyatlari bo‘lmasa: Aylanma Varaqa (Clearance) tugmasi */}
+                      <Tooltip
+                        content={
+                          isFullyCleared
+                            ? "Aylanma Varaqa (Clearance) — barcha moddiy majburiyatlardan ozod qilinganlik rasmiy ma’lumotnomasi va QR-shtamp"
+                            : `Aylanma Varaqa berilmaydi: avval zimmasidagi ${record._count?.responsibleInstances || 0} ta aktiv va ${record._count?.responsibleRooms || 0} ta xona topshirilishi shart`
+                        }
+                      >
+                        <Button
+                          size="small"
+                          type={isFullyCleared ? "outline" : "secondary"}
+                          status={isFullyCleared ? "success" : "default"}
+                          disabled={!isFullyCleared}
+                          icon={<IconFile />}
+                          style={{
+                            borderRadius: 0,
+                            color: isFullyCleared ? '#00B42A' : undefined,
+                            borderColor: isFullyCleared ? '#00B42A' : undefined,
+                          }}
+                          onClick={() => setCertUser(record)}
+                        />
+                      </Tooltip>
+                    </>
                   );
                 })()}
 
@@ -343,16 +407,6 @@ export const UsersPage: React.FC = () => {
                     />
                   </Tooltip>
                 )}
-
-                <Tooltip content="Elektron Aylanma Varaqa (Clearance Certificate)">
-                  <Button
-                    size="small"
-                    type="secondary"
-                    icon={<IconFile />}
-                    style={{ borderRadius: 0, color: '#00B42A' }}
-                    onClick={() => setCertUser(record)}
-                  />
-                </Tooltip>
 
                 <Tooltip content="Ma’lumotlarni tahrirlash">
                   <Button
@@ -383,7 +437,7 @@ export const UsersPage: React.FC = () => {
                     if (hasActiveAssets) {
                       return (
                         <Tooltip
-                          content={`Zimmasida ${record._count?.responsibleInstances || 0} ta aktiv yoki ${record._count?.responsibleRooms || 0} ta xona mavjud! Avval moddiy javobgarlikni topshiring.`}
+                          content={`Xodimni o‘chirish / arxivlash taqiqlanadi! Zimmasida ${record._count?.responsibleInstances || 0} ta aktiv yoki ${record._count?.responsibleRooms || 0} ta xona mas’ulligi mavjud. Avval to‘liq topshirish dalolatnomasi tuzilishi va aylanma varaqa olinishi shart.`}
                         >
                           <Button
                             size="small"
@@ -398,11 +452,11 @@ export const UsersPage: React.FC = () => {
 
                     return (
                       <Popconfirm
-                        title="Ushbu xodimni o‘chirishni (Soft-delete) tasdiqlaysizmi?"
+                        title="Ushbu xodimni arxivlashni (Soft-delete) tasdiqlaysizmi?"
                         onOk={() => deleteUserMutation.mutate(record.id)}
                         okButtonProps={{ status: 'danger' }}
                       >
-                        <Tooltip content="Xodimni o‘chirish (Soft delete)">
+                        <Tooltip content="Xodimni arxivlash (Soft delete)">
                           <Button
                             size="small"
                             status="danger"

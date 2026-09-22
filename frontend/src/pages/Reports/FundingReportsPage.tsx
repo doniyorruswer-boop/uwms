@@ -43,6 +43,8 @@ import { ForbiddenView } from '../../components/Common/ForbiddenView';
 import { useChiefAccountantExport } from '../../hooks/useChiefAccountantQuery';
 import { formatMoney, formatMln, formatDate } from '../../utils/formatters';
 import { useTranslation } from 'react-i18next';
+import { StatusTag } from '../../components/Common/StatusTag';
+import { getStatusSelectOptions } from '../../constants/status.constants';
 
 const { Title, Text } = Typography;
 const { Row, Col } = Grid;
@@ -166,38 +168,6 @@ export const FundingReportsPage: React.FC = () => {
   const kontraktStat = summaryData?.byFundingSource.find((s) => s.source === 'KONTRAKT_RIVOJLANTIRISH');
   const grantStat = summaryData?.byFundingSource.find((s) => s.source === 'GRANT');
 
-  // Source tag color helper
-  const renderSourceTag = (source: FundingSourceType | string) => {
-    switch (source) {
-      case 'BYUDJET':
-        return <Tag color="arcoblue">Davlat byudjeti</Tag>;
-      case 'KONTRAKT_RIVOJLANTIRISH':
-        return <Tag color="orange">To‘lov-shartnoma</Tag>;
-      case 'GRANT':
-        return <Tag color="purple">Ilmiy grant</Tag>;
-      default:
-        return <Tag>{source}</Tag>;
-    }
-  };
-
-  // Movement type tag helper
-  const renderMovementTypeTag = (type: string) => {
-    switch (type) {
-      case 'INCOMING':
-        return <Tag color="green">Kirim (Faktura)</Tag>;
-      case 'TRANSFER':
-        return <Tag color="blue">Ichki ko‘chirish</Tag>;
-      case 'OUTGOING':
-        return <Tag color="cyan">Berish (Talabnoma)</Tag>;
-      case 'RETURN':
-        return <Tag color="gold">Qaytarish</Tag>;
-      case 'WRITE_OFF':
-        return <Tag color="red">Spisanie (OS-4)</Tag>;
-      default:
-        return <Tag>{type}</Tag>;
-    }
-  };
-
   return (
     <div style={{ padding: '0 4px', display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header Bar */}
@@ -270,12 +240,8 @@ export const FundingReportsPage: React.FC = () => {
               style={{ width: 230 }}
               value={selectedSource}
               onChange={(val) => setSelectedSource(val as any)}
-            >
-              <Select.Option value="ALL">Barcha manbalar</Select.Option>
-              <Select.Option value="BYUDJET">Davlat byudjeti</Select.Option>
-              <Select.Option value="KONTRAKT_RIVOJLANTIRISH">To‘lov-shartnoma</Select.Option>
-              <Select.Option value="GRANT">Ilmiy va xalqaro grantlar</Select.Option>
-            </Select>
+              options={getStatusSelectOptions('funding', true, 'Barcha manbalar')}
+            />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -403,7 +369,7 @@ export const FundingReportsPage: React.FC = () => {
                         dataIndex: 'label',
                         render: (col, record) => (
                           <Space>
-                            {renderSourceTag(record.source)}
+                            <StatusTag status={record.source} domain="funding" />
                             <Text bold>{col}</Text>
                           </Space>
                         ),
@@ -614,13 +580,13 @@ export const FundingReportsPage: React.FC = () => {
                       title: 'Turi',
                       dataIndex: 'movementType',
                       width: 140,
-                      render: (type) => renderMovementTypeTag(type),
+                      render: (type) => <StatusTag status={type} domain="movement" />,
                     },
                     {
                       title: 'Manba',
                       dataIndex: 'fundingSource',
                       width: 160,
-                      render: (src) => renderSourceTag(src),
+                      render: (src) => <StatusTag status={src} domain="funding" />,
                     },
                     {
                       title: 'Qayerdan',

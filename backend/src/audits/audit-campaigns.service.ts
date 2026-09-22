@@ -334,7 +334,7 @@ export class AuditCampaignsService {
 
       // 2. Auto-initialize room audits scoped to this campaign & assigned auditor
       const auditorId = campaign.assignedAuditorId || userId;
-      for (const scope of campaign.scopes) {
+      for (const scope of campaign.scopes || []) {
         const existingAudit = await tx.inventoryAudit.findFirst({
           where: {
             roomId: scope.roomId,

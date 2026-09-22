@@ -14,6 +14,7 @@ import {
   QueryHandoversDto,
   SignHandoverDto,
   RejectHandoverDto,
+  CancelHandoverDto,
 } from './dto/handover.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -70,6 +71,12 @@ export class TransfersController {
     return this.documentArchivesService.getHandoverDocument(id, user?.id);
   }
 
+  @Get('handovers/:id/audit')
+  @ApiOperation({ summary: 'Bitta topshirish dalolatnomasining audit jurnali va imzo xronologiyasini olish' })
+  async getHandoverAudit(@Param('id') id: string) {
+    return this.transfersService.getHandoverAudit(id);
+  }
+
   @Post('handovers/:id/initiate-signing')
   @ApiOperation({ summary: 'Dalolatnoma ishtirokchisi uchun dinamik mobil imzolash sessiyasini ochish' })
   async initiateHandoverSigning(
@@ -104,5 +111,24 @@ export class TransfersController {
     @CurrentUser() user: any,
   ) {
     return this.transfersService.rejectResponsibilityHandover(id, dto, user?.id);
+  }
+
+  @Post('handovers/:id/submit')
+  @ApiOperation({ summary: 'Qoralama (DRAFT) dalolatnomani topshirishga yuborish' })
+  async submitHandover(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.transfersService.submitResponsibilityHandover(id, user?.id);
+  }
+
+  @Post('handovers/:id/cancel')
+  @ApiOperation({ summary: 'Dalolatnomani bekor qilish' })
+  async cancelHandover(
+    @Param('id') id: string,
+    @Body() dto: CancelHandoverDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.transfersService.cancelResponsibilityHandover(id, dto, user?.id);
   }
 }

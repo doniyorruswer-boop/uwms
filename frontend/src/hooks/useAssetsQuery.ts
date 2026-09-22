@@ -4,7 +4,15 @@ import { API_ENDPOINTS } from '../constants';
 import type { ItemInstance } from '../types';
 import { Message } from '@arco-design/web-react';
 
-export function useAssetsQuery(params?: { search?: string; status?: string; roomId?: string; fundingSource?: string; page?: number; limit?: number }) {
+export function useAssetsQuery(params?: {
+  search?: string;
+  status?: string;
+  roomId?: string;
+  fundingSource?: string;
+  responsibleUserId?: string;
+  page?: number;
+  limit?: number;
+}) {
   const queryClient = useQueryClient();
 
   const assetsQuery = useQuery({

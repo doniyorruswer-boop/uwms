@@ -35,6 +35,7 @@ import {
   QueryHandoversDto,
   SignHandoverDto,
   RejectHandoverDto,
+  CancelHandoverDto,
 } from './dto/handover.dto';
 
 @Injectable()
@@ -125,7 +126,7 @@ export class TransfersService {
     return this.prisma.$transaction(async (tx) => {
       const asset = await tx.itemInstance.findUnique({
         where: { id: assetId },
-        include: { room: true },
+        include: { room: true, item: true },
       });
       if (!asset) throw new NotFoundException('Asosiy vosita topilmadi!');
 
@@ -164,6 +165,16 @@ export class TransfersService {
           executedById: senderId,
         },
       });
+
+      if (targetRoom.responsibleUserId) {
+        this.notificationsService.create({
+          userId: targetRoom.responsibleUserId,
+          title: 'Yangi jihoz biriktirildi',
+          message: `Sizning nomingizga yangi jihoz (${asset.item?.name || 'Aktiv'}) biriktirildi.`,
+          type: NotificationType.INFO,
+          link: '/assets',
+        }).catch(() => {});
+      }
 
       return transfer;
     });
@@ -368,6 +379,15 @@ export class TransfersService {
               receiver: fullTransfer.receiver?.fullName,
             },
           });
+        }
+        if (fullTransfer?.receiverId) {
+          this.notificationsService.create({
+            userId: fullTransfer.receiverId,
+            title: 'Yangi jihoz biriktirildi',
+            message: `Sizning nomingizga yangi jihoz (${fullTransfer.asset.item.name}) biriktirildi va qabul qilindi.`,
+            type: NotificationType.INFO,
+            link: '/assets',
+          }).catch(() => {});
         }
       } catch (e) {
         // Non-blocking stamp error
@@ -664,19 +684,25 @@ export class TransfersService {
     }
 
     for (const asset of existingAssets) {
-      if (asset.responsibleUserId && asset.responsibleUserId !== dto.departingUserId) {
+      if (!asset.responsibleUserId || asset.responsibleUserId !== dto.departingUserId) {
         throw new BadRequestException(
           `'${asset.item.name}' (${asset.inventoryNumber}) ashyosi topshiruvchi xodimga tegishli emas!`
         );
       }
     }
 
+    const initialStatus = dto.isDraft
+      ? HandoverStatus.DRAFT
+      : dto.targetUserId
+      ? HandoverStatus.RECEIVER_REVIEW
+      : HandoverStatus.SUBMITTED;
+
     // Create ResponsibilityHandover and HandoverItemAction records
     const handover = await this.prisma.responsibilityHandover.create({
       data: {
         handoverNumber,
         type: dto.type,
-        status: HandoverStatus.PENDING_SIGNATURES,
+        status: initialStatus,
         departingUserId: dto.departingUserId,
         targetUserId: dto.targetUserId,
         targetWarehouseId: dto.targetWarehouseId,
@@ -714,25 +740,37 @@ export class TransfersService {
       },
     });
 
-    // Notify participants
-    if (dto.targetUserId) {
-      await this.notificationsService.create({
-        userId: dto.targetUserId,
-        title: 'Moddiy Javobgarlik Topshirish Dalolatnomasi',
-        message: `${departingUser.fullName} sizga ${dto.items.length} ta aktiv bo‘yicha javobgarlik topshirmoqda (${handoverNumber}).`,
-        type: NotificationType.TRANSFER,
-        link: '/assets',
-      });
-    }
+    // Notify participants (if submitted)
+    if (!dto.isDraft) {
+      if (dto.targetUserId) {
+        await this.notificationsService.create({
+          userId: dto.targetUserId,
+          title: 'Moddiy Javobgarlik Topshirish Dalolatnomasi',
+          message: `${departingUser.fullName} sizga ${dto.items.length} ta aktiv bo‘yicha javobgarlik topshirmoqda (${handoverNumber}). Ko‘rib chiqishingiz kutilmoqda.`,
+          type: NotificationType.TRANSFER,
+          link: '/inbox',
+        });
+      }
 
-    if (commandantUserId) {
-      await this.notificationsService.create({
-        userId: commandantUserId,
-        title: 'Bino Bo‘yicha Moddiy Topshirish Dalolatnomasi',
-        message: `Siz nazorat qiluvchi binoda moddiy topshirish dalolatnomasi (${handoverNumber}) rasmiylashtirilmoqda.`,
-        type: NotificationType.TRANSFER,
-        link: '/assets',
-      });
+      if (commandantUserId) {
+        await this.notificationsService.create({
+          userId: commandantUserId,
+          title: 'Bino Bo‘yicha Moddiy Topshirish Dalolatnomasi',
+          message: `Siz nazorat qiluvchi binoda moddiy topshirish dalolatnomasi (${handoverNumber}) ko‘rib chiqishga yuborildi.`,
+          type: NotificationType.TRANSFER,
+          link: '/inbox',
+        });
+      }
+
+      if (dto.accountantUserId) {
+        await this.notificationsService.create({
+          userId: dto.accountantUserId,
+          title: 'Topshirish Dalolatnomasi (Buxgalteriya)',
+          message: `${handoverNumber} raqamli moddiy topshirish dalolatnomasi bo‘yicha balans tekshiruvi kutilmoqda.`,
+          type: NotificationType.TRANSFER,
+          link: '/inbox',
+        });
+      }
     }
 
     await this.systemAuditService.log({
@@ -791,6 +829,19 @@ export class TransfersService {
           room: { select: { id: true, number: true, name: true, floor: true } },
           targetWarehouse: { select: { id: true, name: true, code: true } },
           _count: { select: { items: true } },
+          docArchive: {
+            select: {
+              id: true,
+              docNumber: true,
+              docType: true,
+              title: true,
+              pdfPath: true,
+              checksum: true,
+              metadata: true,
+              status: true,
+              signedAt: true,
+            },
+          },
         },
       }),
       this.prisma.responsibilityHandover.count({ where }),
@@ -844,9 +895,302 @@ export class TransfersService {
   }
 
   /**
+   * Bitta dalolatnomaning audit jurnali, imzo xronologiyasi va tizim loglarini olish
+   */
+  async getHandoverAudit(id: string) {
+    const handover = await this.prisma.responsibilityHandover.findFirst({
+      where: {
+        OR: [{ id }, { handoverNumber: id }],
+      },
+      include: {
+        departingUser: { select: { id: true, fullName: true, role: true, position: true, phone: true } },
+        targetUser: { select: { id: true, fullName: true, role: true, position: true, phone: true } },
+        commandantUser: { select: { id: true, fullName: true, role: true, position: true, phone: true } },
+        accountantUser: { select: { id: true, fullName: true, role: true, position: true, phone: true } },
+        approvedByUser: { select: { id: true, fullName: true, role: true, position: true } },
+        building: true,
+        room: true,
+        targetWarehouse: true,
+        docArchive: {
+          include: {
+            stamp: true,
+            signedBy: { select: { id: true, fullName: true, role: true, position: true } },
+          },
+        },
+        _count: { select: { items: true } },
+      },
+    });
+
+    if (!handover) {
+      throw new NotFoundException('Topshirish dalolatnomasi topilmadi!');
+    }
+
+    const auditLogs = await this.prisma.systemAuditLog.findMany({
+      where: {
+        OR: [
+          { entityId: handover.id },
+          { entityId: handover.handoverNumber },
+          { details: { contains: handover.id } },
+          { details: { contains: handover.handoverNumber } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: { id: true, fullName: true, role: true, position: true },
+        },
+      },
+      take: 50,
+    });
+
+    const signingSessions = await this.prisma.signingSession.findMany({
+      where: { docNumber: handover.handoverNumber },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        signedBy: { select: { id: true, fullName: true, role: true, position: true } },
+      },
+    });
+
+    return {
+      handover,
+      auditLogs,
+      signingSessions,
+    };
+  }
+
+  /**
    * Dalolatnomani imzolash va atomik tranzaksiyani bajarish
    */
   async signResponsibilityHandover(id: string, dto: SignHandoverDto, currentUserId: string) {
+    const handover = await this.prisma.responsibilityHandover.findUnique({
+      where: { id },
+      include: {
+        departingUser: true,
+        targetUser: true,
+        commandantUser: true,
+        accountantUser: true,
+        items: true,
+      },
+    });
+
+    if (!handover) {
+      throw new NotFoundException('Topshirish dalolatnomasi topilmadi!');
+    }
+
+    if (handover.status === HandoverStatus.COMPLETED) {
+      throw new BadRequestException('Ushbu dalolatnoma allaqachon to‘liq imzolangan va yakunlangan!');
+    }
+
+    // Check user has permission to sign (departing, target, commandant, accountant, or superadmin/finance)
+    const currentUser = await this.prisma.user.findUnique({ where: { id: currentUserId } });
+    const isSignatory =
+      currentUserId === handover.departingUserId ||
+      currentUserId === handover.targetUserId ||
+      currentUserId === handover.commandantUserId ||
+      currentUserId === handover.accountantUserId ||
+      currentUser?.role === RoleType.SUPER_ADMIN ||
+      currentUser?.role === RoleType.CHIEF_ACCOUNTANT ||
+      currentUser?.role === RoleType.VICE_RECTOR_FINANCE ||
+      currentUser?.role === RoleType.COMMENDANT;
+
+    if (!isSignatory) {
+      throw new ForbiddenException('Siz ushbu dalolatnomani imzolash huquqiga ega emassiz!');
+    }
+
+    let signatoryRole = 'PARTICIPANT';
+    if (currentUserId === handover.departingUserId) signatoryRole = 'DEPARTING';
+    else if (currentUserId === handover.targetUserId) signatoryRole = 'TARGET';
+    else if (currentUserId === handover.commandantUserId || currentUser?.role === RoleType.COMMENDANT) signatoryRole = 'COMMANDANT';
+    else if (currentUserId === handover.accountantUserId || currentUser?.role === RoleType.CHIEF_ACCOUNTANT) signatoryRole = 'ACCOUNTANT';
+    else if (currentUser?.role === RoleType.SUPER_ADMIN) signatoryRole = 'SUPER_ADMIN';
+    else if (currentUser?.role === RoleType.VICE_RECTOR_FINANCE) signatoryRole = 'VICE_RECTOR_FINANCE';
+
+    // 1. Record a SigningSession for this participant if model exists
+    if (this.prisma.signingSession) {
+      const now = new Date();
+      await this.prisma.signingSession.create({
+        data: {
+          sessionToken: `SIGN-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          docNumber: handover.handoverNumber,
+          docType: 'HANDOVER_ACT',
+          title: `Moddiy Javobgarlikni Topshirish Dalolatnomasi (${handover.handoverNumber})`,
+          itemSummary: `${handover.items?.length || 0} ta aktiv topshirilmoqda`,
+          status: 'SIGNED',
+          expiresAt: new Date(now.getTime() + 3600 * 1000),
+          signedAt: now,
+          signedById: currentUserId,
+          signerName: currentUser?.fullName || 'Mas’ul Shaxs',
+          signerRole: signatoryRole,
+          biometricType: dto.pin ? 'PIN_VERIFIED' : 'BIOMETRIC_VERIFIED',
+          createdById: currentUserId,
+          metadataJson: JSON.stringify({
+            handoverId: handover.id,
+            signatoryRole,
+            note: dto.note,
+          }),
+        },
+      });
+    }
+
+    // Check which signatories have signed
+    const signedSessions = this.prisma.signingSession
+      ? await this.prisma.signingSession.findMany({
+          where: { docNumber: handover.handoverNumber, status: 'SIGNED' },
+        })
+      : [];
+
+    const isRoleSigned = (r: string, uid?: string | null) => {
+      return signedSessions.some(
+        (s) => s.metadataJson?.includes(`"signatoryRole":"${r}"`) || (uid && s.signedById === uid)
+      );
+    };
+
+    const isTargetSigned = !handover.targetUserId || isRoleSigned('TARGET', handover.targetUserId);
+    const isCommandantSigned = !handover.commandantUserId || isRoleSigned('COMMANDANT', handover.commandantUserId);
+    const isAccountantSigned = !handover.accountantUserId || isRoleSigned('ACCOUNTANT', handover.accountantUserId);
+    const isExecutiveOverride =
+      currentUser?.role === RoleType.SUPER_ADMIN ||
+      currentUser?.role === RoleType.VICE_RECTOR_FINANCE ||
+      currentUser?.role === RoleType.RECTOR ||
+      currentUser?.role === RoleType.CHIEF_ACCOUNTANT;
+
+    const allOperationalSigned = isTargetSigned && isCommandantSigned && isAccountantSigned;
+
+    // State Machine Decision Logic:
+    let shouldComplete = false;
+    let nextStatus: HandoverStatus = handover.status;
+
+    if (allOperationalSigned) {
+      if (isExecutiveOverride || handover.status === HandoverStatus.PENDING_APPROVAL) {
+        shouldComplete = true;
+        nextStatus = HandoverStatus.COMPLETED;
+      } else {
+        nextStatus = HandoverStatus.PENDING_APPROVAL;
+      }
+    } else {
+      if (isExecutiveOverride && dto.note?.toLowerCase().includes('override')) {
+        // Executive explicit administrative override
+        shouldComplete = true;
+        nextStatus = HandoverStatus.COMPLETED;
+      } else {
+        // Multi-party operational review state progression
+        if (handover.targetUserId && !isTargetSigned) {
+          nextStatus = HandoverStatus.RECEIVER_REVIEW;
+        } else if (handover.commandantUserId && !isCommandantSigned) {
+          nextStatus = HandoverStatus.COMMANDANT_REVIEW;
+        } else if (!isAccountantSigned) {
+          nextStatus = HandoverStatus.ACCOUNTANT_REVIEW;
+        } else {
+          nextStatus = HandoverStatus.PENDING_APPROVAL;
+        }
+      }
+    }
+
+    if (shouldComplete) {
+      // Execute atomic transaction ($transaction)
+      const completed = await this.executeResponsibilityHandoverTransaction(id, currentUserId);
+
+      // Generate electronic signature stamp (non-blocking)
+      try {
+        await this.documentStampsService.stampDocument({
+          docType: 'MOL_TRANSFER',
+          docNumber: completed.handoverNumber,
+          title: `Moddiy Javobgarlikni Topshirish-Qabul Qilish Dalolatnomasi (${completed.handoverNumber})`,
+          signerName: currentUser?.fullName || 'Mas’ul Shaxs',
+          signerRole: currentUser?.position || currentUser?.role || 'MOL',
+          metadata: {
+            handoverNumber: completed.handoverNumber,
+            type: completed.type,
+            fromUser: completed.departingUser?.fullName,
+            toUser: completed.targetUser?.fullName,
+            itemsCount: completed.items.length,
+          },
+        });
+      } catch (e) {
+        // Non-blocking
+      }
+
+      await this.systemAuditService.log({
+        action: 'TRANSFER',
+        entity: 'RESPONSIBILITY_HANDOVER',
+        entityId: completed.handoverNumber,
+        details: {
+          handoverId: completed.id,
+          handoverNumber: completed.handoverNumber,
+          type: completed.type,
+          signedBy: currentUser?.fullName,
+          itemsCount: completed.items.length,
+          status: 'COMPLETED',
+        },
+        userId: currentUserId,
+      });
+
+      return completed;
+    } else {
+      // Record progress signature in notes and audit log
+      const signBadge = `[✔ ${signatoryRole} imzoladi: ${currentUser?.fullName || ''} - ${new Date().toISOString()}]`;
+      const currentNote = handover.note || '';
+      const updatedNote = currentNote ? `${currentNote}\n${signBadge}` : signBadge;
+
+      const updated = await this.prisma.responsibilityHandover.update({
+        where: { id },
+        data: {
+          status: nextStatus,
+          note: updatedNote,
+        },
+        include: {
+          items: { include: { itemInstance: { include: { item: true, room: true } } } },
+          departingUser: { select: { id: true, fullName: true, role: true, position: true } },
+          targetUser: { select: { id: true, fullName: true, role: true, position: true } },
+          commandantUser: { select: { id: true, fullName: true, role: true, position: true } },
+          accountantUser: { select: { id: true, fullName: true, role: true, position: true } },
+          building: { select: { id: true, name: true, code: true } },
+          room: { select: { id: true, number: true, name: true } },
+          targetWarehouse: { select: { id: true, name: true } },
+        },
+      });
+
+      // If moved to PENDING_APPROVAL, alert executives
+      if (nextStatus === HandoverStatus.PENDING_APPROVAL) {
+        const executives = await this.prisma.user.findMany({
+          where: {
+            role: { in: [RoleType.VICE_RECTOR_FINANCE, RoleType.CHIEF_ACCOUNTANT, RoleType.SUPER_ADMIN] },
+            isActive: true,
+          },
+        });
+        for (const exec of executives) {
+          await this.notificationsService.create({
+            userId: exec.id,
+            title: 'Topshirish Dalolatnomasi Yakuniy Tasdiqda (PENDING_APPROVAL)',
+            message: `${handover.handoverNumber} raqamli dalolatnoma barcha mas’ullar (yangi MOL, komendant, hisobchi) tomonidan imzolandi va rahbariyat tasdig‘ini kutmoqda.`,
+            type: NotificationType.TRANSFER,
+            link: '/inbox',
+          });
+        }
+      }
+
+      await this.systemAuditService.log({
+        action: 'UPDATE',
+        entity: 'RESPONSIBILITY_HANDOVER',
+        entityId: updated.handoverNumber,
+        details: {
+          handoverId: updated.id,
+          handoverNumber: updated.handoverNumber,
+          signatoryRole,
+          signedBy: currentUser?.fullName,
+          status: updated.status,
+        },
+        userId: currentUserId,
+      });
+
+      return updated;
+    }
+  }
+
+  /**
+   * Qoralama (DRAFT) arizani topshirishga yuborish (SUBMITTED / RECEIVER_REVIEW)
+   */
+  async submitResponsibilityHandover(id: string, currentUserId: string) {
     const handover = await this.prisma.responsibilityHandover.findUnique({
       where: { id },
       include: {
@@ -861,63 +1205,137 @@ export class TransfersService {
       throw new NotFoundException('Topshirish dalolatnomasi topilmadi!');
     }
 
-    if (handover.status === HandoverStatus.COMPLETED) {
-      throw new BadRequestException('Ushbu dalolatnoma allaqachon to‘liq imzolangan va yakunlangan!');
+    if (handover.status !== HandoverStatus.DRAFT) {
+      throw new BadRequestException('Faqat qoralama (DRAFT) arizalarni topshirishga yuborish mumkin!');
     }
 
-    // Check user has permission to sign (departing, target, commandant, accountant, or superadmin)
     const currentUser = await this.prisma.user.findUnique({ where: { id: currentUserId } });
-    const isSignatory =
-      currentUserId === handover.departingUserId ||
-      currentUserId === handover.targetUserId ||
-      currentUserId === handover.commandantUserId ||
-      currentUserId === handover.accountantUserId ||
-      currentUser?.role === RoleType.SUPER_ADMIN ||
-      currentUser?.role === RoleType.CHIEF_ACCOUNTANT ||
-      currentUser?.role === RoleType.VICE_RECTOR_FINANCE;
+    const isDepartingOrAdmin =
+      currentUserId === handover.departingUserId || currentUser?.role === RoleType.SUPER_ADMIN;
 
-    if (!isSignatory) {
-      throw new ForbiddenException('Siz ushbu dalolatnomani imzolash huquqiga ega emassiz!');
+    if (!isDepartingOrAdmin) {
+      throw new ForbiddenException('Arizani faqat topshiruvchi xodim yoki SuperAdmin yuborishi mumkin!');
     }
 
-    // Execute atomic transaction
-    const completed = await this.executeResponsibilityHandoverTransaction(id, currentUserId);
+    const nextStatus = handover.targetUserId
+      ? HandoverStatus.RECEIVER_REVIEW
+      : handover.commandantUserId
+      ? HandoverStatus.COMMANDANT_REVIEW
+      : HandoverStatus.SUBMITTED;
 
-    // Generate electronic signature stamp (non-blocking)
-    try {
-      await this.documentStampsService.stampDocument({
-        docType: 'MOL_TRANSFER',
-        docNumber: completed.handoverNumber,
-        title: `Moddiy Javobgarlikni Topshirish-Qabul Qilish Dalolatnomasi (${completed.handoverNumber})`,
-        signerName: currentUser?.fullName || 'Mas’ul Shaxs',
-        signerRole: currentUser?.position || currentUser?.role || 'MOL',
-        metadata: {
-          handoverNumber: completed.handoverNumber,
-          type: completed.type,
-          fromUser: completed.departingUser?.fullName,
-          toUser: completed.targetUser?.fullName,
-          itemsCount: completed.items.length,
-        },
+    const updated = await this.prisma.responsibilityHandover.update({
+      where: { id },
+      data: { status: nextStatus },
+      include: {
+        items: { include: { itemInstance: { include: { item: true, room: true } } } },
+        departingUser: { select: { id: true, fullName: true, role: true, position: true } },
+        targetUser: { select: { id: true, fullName: true, role: true, position: true } },
+        commandantUser: { select: { id: true, fullName: true, role: true, position: true } },
+        accountantUser: { select: { id: true, fullName: true, role: true, position: true } },
+        building: { select: { id: true, name: true, code: true } },
+        room: { select: { id: true, number: true, name: true } },
+        targetWarehouse: { select: { id: true, name: true } },
+      },
+    });
+
+    // Notify participants
+    if (handover.targetUserId) {
+      await this.notificationsService.create({
+        userId: handover.targetUserId,
+        title: 'Yangi Moddiy Javobgarlik Topshirish Arizasi',
+        message: `${handover.departingUser?.fullName} sizga aktivlarni topshirish bo‘yicha ariza (${handover.handoverNumber}) yubordi. Ko‘rib chiqishingiz kutilmoqda.`,
+        type: NotificationType.TRANSFER,
+        link: '/inbox',
       });
-    } catch (e) {
-      // Non-blocking
+    }
+
+    if (handover.commandantUserId) {
+      await this.notificationsService.create({
+        userId: handover.commandantUserId,
+        title: 'Bino Bo‘yicha Moddiy Topshirish Dalolatnomasi',
+        message: `Siz nazorat qiluvchi binoda moddiy topshirish dalolatnomasi (${handover.handoverNumber}) yuborildi.`,
+        type: NotificationType.TRANSFER,
+        link: '/inbox',
+      });
+    }
+
+    if (handover.accountantUserId) {
+      await this.notificationsService.create({
+        userId: handover.accountantUserId,
+        title: 'Topshirish Dalolatnomasi (Buxgalteriya)',
+        message: `${handover.handoverNumber} raqamli moddiy topshirish dalolatnomasi bo‘yicha balans tekshiruvi kutilmoqda.`,
+        type: NotificationType.TRANSFER,
+        link: '/inbox',
+      });
     }
 
     await this.systemAuditService.log({
-      action: 'TRANSFER',
+      action: 'SUBMIT',
       entity: 'RESPONSIBILITY_HANDOVER',
-      entityId: completed.handoverNumber,
+      entityId: updated.handoverNumber,
       details: {
-        handoverId: completed.id,
-        handoverNumber: completed.handoverNumber,
-        type: completed.type,
-        signedBy: currentUser?.fullName,
-        itemsCount: completed.items.length,
+        handoverId: updated.id,
+        handoverNumber: updated.handoverNumber,
+        status: updated.status,
       },
       userId: currentUserId,
     });
 
-    return completed;
+    return updated;
+  }
+
+  /**
+   * Dalolatnomani bekor qilish (CANCELLED)
+   */
+  async cancelResponsibilityHandover(id: string, dto: CancelHandoverDto, currentUserId: string) {
+    const handover = await this.prisma.responsibilityHandover.findUnique({
+      where: { id },
+      include: { departingUser: true },
+    });
+
+    if (!handover) {
+      throw new NotFoundException('Topshirish dalolatnomasi topilmadi!');
+    }
+
+    if (handover.status === HandoverStatus.COMPLETED) {
+      throw new BadRequestException('Yakunlangan dalolatnomani bekor qilib bo‘lmaydi!');
+    }
+
+    if (handover.status === HandoverStatus.CANCELLED) {
+      throw new BadRequestException('Arizasi allaqachon bekor qilingan!');
+    }
+
+    const currentUser = await this.prisma.user.findUnique({ where: { id: currentUserId } });
+    const isDepartingOrAdmin =
+      currentUserId === handover.departingUserId || currentUser?.role === RoleType.SUPER_ADMIN;
+
+    if (!isDepartingOrAdmin) {
+      throw new ForbiddenException('Arizani faqat topshiruvchi xodim yoki SuperAdmin bekor qilishi mumkin!');
+    }
+
+    const updated = await this.prisma.responsibilityHandover.update({
+      where: { id },
+      data: {
+        status: HandoverStatus.CANCELLED,
+        note: handover.note
+          ? `${handover.note} | Bekor qilindi: ${dto?.reason || 'Sabab ko‘rsatilmadi'}`
+          : `Bekor qilindi: ${dto?.reason || 'Sabab ko‘rsatilmadi'}`,
+      },
+    });
+
+    await this.systemAuditService.log({
+      action: 'CANCEL',
+      entity: 'RESPONSIBILITY_HANDOVER',
+      entityId: updated.handoverNumber,
+      details: {
+        handoverId: updated.id,
+        handoverNumber: updated.handoverNumber,
+        reason: dto?.reason,
+      },
+      userId: currentUserId,
+    });
+
+    return updated;
   }
 
   /**
@@ -937,12 +1355,34 @@ export class TransfersService {
       throw new BadRequestException('Yakunlangan dalolatnomani rad etib bo‘lmaydi!');
     }
 
+    const currentUser = await this.prisma.user.findUnique({ where: { id: currentUserId } });
+    const isDepartingOrAdmin =
+      currentUserId === handover.departingUserId ||
+      currentUser?.role === RoleType.SUPER_ADMIN ||
+      (handover.targetUserId && currentUserId === handover.targetUserId);
+
+    if (!isDepartingOrAdmin) {
+      throw new ForbiddenException('Arizani faqat uni yaratgan mas’ul xodim yoki SuperAdmin rad etishi mumkin!');
+    }
+
     const updated = await this.prisma.responsibilityHandover.update({
       where: { id },
       data: {
         status: HandoverStatus.REJECTED,
         note: handover.note ? `${handover.note} | Rad etish: ${dto.reason}` : `Rad etish: ${dto.reason}`,
       },
+    });
+
+    await this.systemAuditService.log({
+      action: 'REJECT',
+      entity: 'RESPONSIBILITY_HANDOVER',
+      entityId: updated.handoverNumber,
+      details: {
+        handoverId: updated.id,
+        handoverNumber: updated.handoverNumber,
+        reason: dto.reason,
+      },
+      userId: currentUserId,
     });
 
     await this.notificationsService.create({

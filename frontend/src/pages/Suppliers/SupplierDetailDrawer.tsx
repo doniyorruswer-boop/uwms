@@ -29,6 +29,7 @@ import {
 import { useSupplierDetailQuery, SupplierItem } from '../../hooks/useSuppliersQuery';
 import { useAuthStore } from '../../store/authStore';
 import { formatMoney } from '../../utils/formatters';
+import { StatusTag } from '../../components/Common/StatusTag';
 
 const TabPane = Tabs.TabPane;
 
@@ -406,15 +407,7 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
                     title: 'Moliyalashtirish Manbasi',
                     dataIndex: 'fundingSource',
                     width: 160,
-                    render: (src?: string) => {
-                      if (src === 'KONTRAKT_RIVOJLANTIRISH' || src === 'KONTRAKT') {
-                        return <Tag color="green">To‘lov-Kontrakt</Tag>;
-                      }
-                      if (src === 'GRANT') {
-                        return <Tag color="purple">Ilmiy Grant</Tag>;
-                      }
-                      return <Tag color="arcoblue">Davlat Byudjeti</Tag>;
-                    },
+                    render: (src?: string) => <StatusTag status={src || 'BYUDJET'} domain="funding" />,
                   },
                   {
                     title: 'Joriy Xona',
@@ -429,12 +422,7 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
                   {
                     title: 'Holati',
                     dataIndex: 'status',
-                    render: (st: string) => {
-                      if (st === 'NEW') return <Tag color="green">Yangi</Tag>;
-                      if (st === 'IN_USE') return <Tag color="blue">Foydalanishda</Tag>;
-                      if (st === 'IN_REPAIR') return <Tag color="orange">Ta’mirda</Tag>;
-                      return <Tag>{st}</Tag>;
-                    },
+                    render: (st: string) => <StatusTag status={st} domain="asset" />,
                   },
                 ]}
               />
@@ -470,15 +458,7 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
                     title: 'Moliyalashtirish Manbasi',
                     dataIndex: 'fundingSource',
                     width: 160,
-                    render: (src?: string) => {
-                      if (src === 'KONTRAKT_RIVOJLANTIRISH' || src === 'KONTRAKT') {
-                        return <Tag color="green">To‘lov-Kontrakt</Tag>;
-                      }
-                      if (src === 'GRANT') {
-                        return <Tag color="purple">Ilmiy Grant</Tag>;
-                      }
-                      return <Tag color="arcoblue">Davlat Byudjeti</Tag>;
-                    },
+                    render: (src?: string) => <StatusTag status={src || 'BYUDJET'} domain="funding" />,
                   },
                   {
                     title: 'Ombor',

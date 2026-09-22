@@ -3,14 +3,24 @@ import { WarehouseService } from './warehouse.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
+import { EventsGateway } from '../events/events.gateway';
 import { BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 
 describe('WarehouseService (Unit Tests)', () => {
   let service: WarehouseService;
   let prisma: any;
   let codeGen: any;
+  let eventsGateway: any;
 
   beforeEach(async () => {
+    eventsGateway = {
+      server: {
+        emit: jest.fn(),
+      },
+      emitToRole: jest.fn(),
+      emitToUser: jest.fn(),
+    };
+
     prisma = {
       stock: {
         findMany: jest.fn(),
@@ -40,6 +50,7 @@ describe('WarehouseService (Unit Tests)', () => {
       },
       user: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
       },
       item: {
         findUnique: jest.fn(),
@@ -64,6 +75,7 @@ describe('WarehouseService (Unit Tests)', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: CodeGeneratorService, useValue: codeGen },
         { provide: SystemAuditService, useValue: { log: jest.fn() } },
+        { provide: EventsGateway, useValue: eventsGateway },
       ],
     }).compile();
 
@@ -387,4 +399,88 @@ describe('WarehouseService (Unit Tests)', () => {
       expect(res.success).toBe(true);
     });
   });
+
+  describe('Real-Time Stock Synchronization & Low Stock Alerts', () => {
+    it('replenishStock tovar qoldig‘i to‘ldirilganda stock:updated emit qilishi kerak', async () => {
+      prisma.stock.findUnique.mockResolvedValueOnce({
+        id: 'st-rep',
+        warehouseId: 'wh-1',
+        itemId: 'it-rep',
+        quantity: 10,
+        fundingSource: 'BYUDJET',
+        item: { name: 'A4 Qog‘oz', unit: 'PACHKA', minStockLimit: 5 },
+      });
+      prisma.stock.update.mockResolvedValueOnce({
+        id: 'st-rep',
+        warehouseId: 'wh-1',
+        itemId: 'it-rep',
+        quantity: 30,
+        fundingSource: 'BYUDJET',
+      });
+      prisma.user.findFirst.mockResolvedValueOnce({ id: 'wh-manager' });
+      prisma.stockMovement.count.mockResolvedValueOnce(0);
+      prisma.stockMovement.create.mockResolvedValueOnce({ id: 'mov-1', movementNumber: 'MOV-001' });
+
+      await service.replenishStock('st-rep', 20, 'wh-manager');
+
+      expect(eventsGateway.server.emit).toHaveBeenCalledWith('stock:updated', expect.objectContaining({
+        action: 'REPLENISH',
+        stockId: 'st-rep',
+        quantity: 30,
+      }));
+    });
+
+    it('deductStockForRequest kritik zaxiraga tushganda stock:low_alert va stock:updated emit qilishi kerak', async () => {
+      prisma.warehouse.findFirst.mockResolvedValueOnce({ id: 'wh-main', isMain: true, name: 'Bosh ombor' });
+      prisma.$queryRaw.mockResolvedValueOnce([{ id: 'st-low', quantity: 5 }]);
+      prisma.$executeRaw.mockResolvedValueOnce(1);
+      prisma.stockMovement.count.mockResolvedValueOnce(0);
+      prisma.stockMovement.create.mockResolvedValueOnce({ id: 'mov-out', movementNumber: 'MOV-OUT-001' });
+
+      const requestMock = {
+        id: 'req-1',
+        requestNumber: 'REQ-2026-001',
+        purpose: 'Kafedra uchun qog‘oz',
+        requesterId: 'user-1',
+        items: [
+          {
+            id: 'ri-1',
+            itemId: 'it-paper',
+            requestedQty: 3,
+            item: { name: 'A4 Qog‘oz', unit: 'pachka', minStockLimit: 5 },
+          },
+        ],
+      };
+
+      const result = await service.deductStockForRequest(requestMock as any, 'exec-1');
+
+      expect(result.lowStockAlerts).toHaveLength(1);
+      expect(result.lowStockAlerts[0].remainingQty).toBe(2);
+
+      // Verify stock:updated emitted
+      expect(eventsGateway.server.emit).toHaveBeenCalledWith('stock:updated', expect.objectContaining({
+        action: 'DEDUCT',
+        requestNumber: 'REQ-2026-001',
+      }));
+
+      // Verify stock:low_alert emitted to roles and broadcasted
+      expect(eventsGateway.emitToRole).toHaveBeenCalledWith(
+        'HEAD_WAREHOUSE',
+        'stock:low_alert',
+        expect.objectContaining({
+          itemName: 'A4 Qog‘oz',
+          remainingQty: 2,
+          message: expect.stringContaining('🚨 A4 Qog‘oz kritik darajaga tushdi (2 pachka qoldi)!'),
+        }),
+      );
+      expect(eventsGateway.server.emit).toHaveBeenCalledWith(
+        'stock:low_alert',
+        expect.objectContaining({
+          itemName: 'A4 Qog‘oz',
+          remainingQty: 2,
+        }),
+      );
+    });
+  });
 });
+

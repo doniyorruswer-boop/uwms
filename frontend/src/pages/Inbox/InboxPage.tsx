@@ -56,6 +56,7 @@ import { RoleType, type RequestStatus } from '../../types';
 import { RejectReasonModal } from '../../components/Common/RejectReasonModal';
 import { RectorVisaModal } from './RectorVisaModal';
 import { HandoverReviewModal } from '../../components/Inbox/HandoverReviewModal';
+import { useRejectHandoverMutation } from '../../hooks/useHandoverQuery';
 
 const { Title, Text, Paragraph } = Typography;
 const TabPane = Tabs.TabPane;
@@ -87,6 +88,7 @@ export const InboxPage: React.FC = () => {
   const [isCampaignQrModalVisible, setIsCampaignQrModalVisible] = useState(false);
   const [selectedHandoverId, setSelectedHandoverId] = useState<string | null>(null);
   const [isHandoverModalVisible, setIsHandoverModalVisible] = useState(false);
+  const [rejectingHandover, setRejectingHandover] = useState<PendingHandoverItem | null>(null);
 
   // QR-Pairing Mobile Signing States
   const [signingTransferItem, setSigningTransferItem] = useState<PendingTransferItem | null>(null);
@@ -101,6 +103,23 @@ export const InboxPage: React.FC = () => {
   const { updateRequestStatus } = useRequestsQuery();
   const { voteWriteOff } = useWriteOffQuery();
   const startCampaignMutation = useStartCampaignMutation();
+  const rejectHandoverMutation = useRejectHandoverMutation();
+
+  const handleConfirmRejectHandover = async (reason: string) => {
+    if (!rejectingHandover) return;
+    try {
+      await rejectHandoverMutation.mutateAsync({
+        id: rejectingHandover.id,
+        payload: { reason },
+      });
+      setRejectingHandover(null);
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['inbox'] });
+      queryClient.invalidateQueries({ queryKey: ['handovers'] });
+    } catch {
+      // handled by mutation
+    }
+  };
 
   const handleCampaignQrSignSuccess = async (result: any) => {
     if (!signingCampaignItem) return;
@@ -326,6 +345,37 @@ export const InboxPage: React.FC = () => {
     const isTarget = user?.id === item.targetUser?.id;
     const isCommandant = user?.id === item.commandantUser?.id || user?.role === 'COMMENDANT';
     const isAccountant = user?.id === item.accountantUser?.id || user?.role === 'CHIEF_ACCOUNTANT';
+    const isDeparting = user?.id === item.departingUserId;
+
+    let userStatusNote = 'Sizning tasdig‘ingiz kutilmoqda';
+    let statusColor = 'orange';
+
+    if (isTarget) {
+      userStatusNote = 'Sizning tasdig‘ingiz kutilmoqda (Qabul qiluvchi MOL)';
+      statusColor = 'green';
+    } else if (isCommandant) {
+      userStatusNote = 'Sizning tasdig‘ingiz kutilmoqda (Bino Komendanti)';
+      statusColor = 'cyan';
+    } else if (isAccountant) {
+      userStatusNote = 'Sizning tasdig‘ingiz kutilmoqda (Moddiy Hisobchi)';
+      statusColor = 'purple';
+    } else if (item.status === 'PENDING_APPROVAL') {
+      userStatusNote = 'Rahbariyat tasdig‘i kutilmoqda';
+      statusColor = 'gold';
+    } else if (isDeparting) {
+      userStatusNote = item.status === 'DRAFT' ? 'Qoralama holatida' : 'Ko‘rib chiqilmoqda';
+      statusColor = 'arcoblue';
+    }
+
+    const dept = (item.departingUser as any)?.department?.name;
+    const departingText = `${item.departingUser.fullName}${dept ? ` (${dept})` : item.departingUser.position ? ` (${item.departingUser.position})` : ''}`;
+
+    const itemsCount = item._count?.items ?? item.items?.length ?? 0;
+    const roomText = item.room
+      ? `${item.building?.name ? item.building.name + ', ' : ''}${item.room.number}-auditoriya`
+      : item.building?.name
+      ? item.building.name
+      : 'Xona biriktirilmagan';
 
     return (
       <Card
@@ -352,34 +402,24 @@ export const InboxPage: React.FC = () => {
               <Tag color="blue" style={{ borderRadius: 4, fontWeight: 600 }}>
                 {item.handoverNumber}
               </Tag>
-              <Tag color="orange" style={{ borderRadius: 4 }}>
-                Tasdiqlash Kutilmoqda
+              <Tag color={statusColor as any} style={{ borderRadius: 4, fontWeight: 600 }}>
+                {userStatusNote}
               </Tag>
-              {isTarget && <Tag color="green">Siz Qabul Qiluvchisiz</Tag>}
-              {isCommandant && <Tag color="cyan">Bino Komendanti</Tag>}
-              {isAccountant && <Tag color="purple">Moddiy Hisobchi</Tag>}
             </Space>
 
             <Title heading={6} style={{ margin: '4px 0', fontSize: isMobile ? 15 : 16 }}>
-              Moddiy Javobgarlik Topshiruvi ({item._count?.items || 0} ta aktiv)
+              Moddiy Javobgarlik Topshiruvi ({itemsCount} ta ashyo)
             </Title>
 
             <Paragraph style={{ margin: '4px 0', fontSize: 13, color: 'var(--color-text-2)' }}>
-              <strong>Topshiruvchi (Eski MOL):</strong> {item.departingUser.fullName} ({item.departingUser.position || 'Xodim'}) &nbsp;➔&nbsp;{' '}
+              <strong>Topshiruvchi:</strong> {departingText} &nbsp;➔&nbsp;{' '}
               <strong>Qabul Qiluvchi:</strong> {item.targetUser?.fullName || item.targetWarehouse?.name || 'Omborxona'}
             </Paragraph>
 
             <Space size="medium" style={{ fontSize: 12, color: 'var(--color-text-3)' }} wrap>
-              {item.room && (
-                <span>
-                  Xona: <strong>{item.room.number} - {item.room.name}</strong>
-                </span>
-              )}
-              {item.building && (
-                <span>
-                  Bino: <strong>{item.building.name}</strong>
-                </span>
-              )}
+              <span>
+                Xona: <strong>{roomText} ({itemsCount} ta ashyo)</strong>
+              </span>
               <span>
                 <IconCalendar /> {new Date(item.createdAt).toLocaleString('uz-UZ')}
               </span>
@@ -392,14 +432,25 @@ export const InboxPage: React.FC = () => {
               type="primary"
               status="success"
               icon={<IconCheckCircle />}
-              style={{ flex: isMobile ? '1 1 100%' : 'none', minHeight: 38, borderRadius: 6 }}
+              style={{ flex: isMobile ? '1 1 100%' : 'none', minHeight: 38, borderRadius: 6, fontWeight: 600 }}
               onClick={() => {
                 setSelectedHandoverId(item.id);
                 setIsHandoverModalVisible(true);
               }}
             >
-              Ko‘rib Chiqish va Qabul Qilish (OS-1)
+              Ko‘rib chiqish va Qabul qilish
             </Button>
+
+            {(isDeparting || isSuperAdmin) && (
+              <Button
+                status="danger"
+                icon={<IconCloseCircle />}
+                style={{ flex: isMobile ? '1 1 110px' : 'none', minHeight: 38, borderRadius: 6 }}
+                onClick={() => setRejectingHandover(item)}
+              >
+                Rad etish
+              </Button>
+            )}
           </div>
         </div>
       </Card>
@@ -1217,7 +1268,7 @@ export const InboxPage: React.FC = () => {
                 key="handovers"
                 title={
                   <span>
-                    MOL Topshirishlari (OS-1){' '}
+                    Moddiy javobgarlik arizalari (Handover Requests){' '}
                     <Badge count={summary?.pendingHandoversCount} style={{ marginLeft: 6 }} />
                   </span>
                 }
@@ -1482,20 +1533,33 @@ export const InboxPage: React.FC = () => {
       )}
 
       {/* HANDOVER REVIEW AND SIGN MODAL */}
-      <HandoverReviewModal
-        visible={isHandoverModalVisible}
-        handoverId={selectedHandoverId}
-        onClose={() => {
-          setIsHandoverModalVisible(false);
-          setSelectedHandoverId(null);
-        }}
-        onSuccess={() => {
-          refetch();
-          queryClient.invalidateQueries({ queryKey: ['inbox'] });
-          queryClient.invalidateQueries({ queryKey: ['assets'] });
-          queryClient.invalidateQueries({ queryKey: ['handovers'] });
-        }}
-      />
+      {isHandoverModalVisible && selectedHandoverId && (
+        <HandoverReviewModal
+          visible={isHandoverModalVisible}
+          handoverId={selectedHandoverId}
+          onClose={() => {
+            setIsHandoverModalVisible(false);
+            setSelectedHandoverId(null);
+          }}
+          onSuccess={() => {
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ['inbox'] });
+            queryClient.invalidateQueries({ queryKey: ['assets'] });
+            queryClient.invalidateQueries({ queryKey: ['handovers'] });
+          }}
+        />
+      )}
+
+      {/* REJECT HANDOVER MODAL */}
+      {rejectingHandover && (
+        <RejectReasonModal
+          visible={!!rejectingHandover}
+          title="Topshirish Dalolatnomasini Rad Etish"
+          itemIdentifier={rejectingHandover.handoverNumber}
+          onClose={() => setRejectingHandover(null)}
+          onConfirm={handleConfirmRejectHandover}
+        />
+      )}
     </div>
   );
 };

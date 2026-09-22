@@ -11,6 +11,7 @@ import { BadRequestException, NotFoundException, ForbiddenException } from '@nes
 
 import { WarehouseService } from '../warehouse/warehouse.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
+import { EventsGateway } from '../events/events.gateway';
 
 describe('RequestsService (Unit Tests)', () => {
   let service: RequestsService;
@@ -19,6 +20,7 @@ describe('RequestsService (Unit Tests)', () => {
   let systemAudit: any;
   let documentStamps: any;
   let sequenceService: any;
+  let eventsGateway: any;
 
   beforeEach(async () => {
     prisma = {
@@ -82,6 +84,13 @@ describe('RequestsService (Unit Tests)', () => {
       nextDocNumber: jest.fn().mockResolvedValue('OS1-2026-0001'),
     };
 
+    eventsGateway = {
+      emitToRole: jest.fn(),
+      emitToUser: jest.fn(),
+      broadcast: jest.fn(),
+      emitToRoom: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RequestsService,
@@ -93,6 +102,7 @@ describe('RequestsService (Unit Tests)', () => {
         { provide: SystemAuditService, useValue: systemAudit },
         { provide: DocumentStampsService, useValue: documentStamps },
         { provide: SequenceService, useValue: sequenceService },
+        { provide: EventsGateway, useValue: eventsGateway },
       ],
     }).compile();
 
@@ -213,6 +223,43 @@ describe('RequestsService (Unit Tests)', () => {
             notes: expect.stringContaining('Kafedra oylik kvotasi oshirilgan'),
           }),
         }),
+      );
+    });
+
+    it('yangi talabnoma kiritilganda Prorektor, Rektor va Omborchiga REQUEST_CREATED hamda tizimga REQUEST_UPDATED emit qilishi kerak', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', fullName: 'Ali Valiyev', departmentId: 'dept-1' });
+      prisma.item.findUnique.mockResolvedValue({ id: 'item-1', name: 'A4 Qog‘oz', unit: 'PACHKA' });
+      prisma.request.create.mockResolvedValue({
+        id: 'req-realtime',
+        requestNumber: 'REQ-2026-0001',
+        purpose: 'Imtihon qog‘ozlari',
+        status: RequestStatus.SUBMITTED,
+        requesterId: 'user-1',
+        departmentId: 'dept-1',
+        isOverQuota: false,
+        createdAt: new Date(),
+      });
+
+      await service.createRequest({
+        purpose: 'Imtihon qog‘ozlari',
+        requesterId: 'user-1',
+        departmentId: 'dept-1',
+        items: [{ itemId: 'item-1', quantity: 2 }],
+      });
+
+      expect(eventsGateway.emitToRole).toHaveBeenCalledWith(
+        'VICE_RECTOR_FINANCE',
+        'REQUEST_CREATED',
+        expect.objectContaining({ requestNumber: 'REQ-2026-0001' }),
+      );
+      expect(eventsGateway.emitToRole).toHaveBeenCalledWith(
+        'RECTOR',
+        'REQUEST_CREATED',
+        expect.objectContaining({ requestNumber: 'REQ-2026-0001' }),
+      );
+      expect(eventsGateway.broadcast).toHaveBeenCalledWith(
+        'REQUEST_UPDATED',
+        expect.objectContaining({ requestNumber: 'REQ-2026-0001' }),
       );
     });
   });

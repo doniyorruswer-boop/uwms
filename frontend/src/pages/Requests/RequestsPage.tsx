@@ -11,6 +11,7 @@ import {
   Select,
   InputNumber,
   Message,
+  Notification,
   Badge,
   Steps,
   Descriptions,
@@ -32,9 +33,12 @@ import {
   IconRefresh,
   IconUserGroup,
   IconMobile,
+  IconWifi,
 } from '@arco-design/web-react/icon';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRequestsQuery } from '../../hooks/useRequestsQuery';
 import { useWarehouseQuery } from '../../hooks/useWarehouseQuery';
+import { useSocket } from '../../hooks/useSocket';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { StandardTable } from '../../components/Common/StandardTable';
@@ -47,6 +51,8 @@ import { OfficialDocModal } from '../../components/OfficialDocument/OfficialDocM
 import { TableActions } from '../../components/Common/TableActions';
 import { QRPairingModal } from '../../components/Common/QRPairingModal';
 import { NewRequestModal } from '../../components/Requests/NewRequestModal';
+import { StatusTag } from '../../components/Common/StatusTag';
+import { getStatusLabel, getStatusSelectOptions } from '../../constants/status.constants';
 
 const FormItem = Form.Item;
 const Step = Steps.Step;
@@ -95,6 +101,99 @@ export const RequestsPage: React.FC = () => {
 
   const [form] = Form.useForm();
   const [financeForm] = Form.useForm();
+
+  // Real-Time Live Approval Workflow Socket Integration
+  const queryClient = useQueryClient();
+  const { socket, isConnected: isSocketConnected } = useSocket();
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRequestCreated = (payload: any) => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+
+      if (
+        user?.role === 'VICE_RECTOR_FINANCE' ||
+        user?.role === 'RECTOR' ||
+        user?.role === 'HEAD_WAREHOUSE' ||
+        user?.role === 'SUPER_ADMIN'
+      ) {
+        Notification.info({
+          title: 'Yangi Talabnoma Kiritildi',
+          content: `${payload.requestNumber}: ${payload.purpose}`,
+          duration: 5,
+        });
+      }
+    };
+
+    const handleRequestUpdated = (payload: any) => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+
+      // Ochiq turgan 7-bosqichli Stepper komponenti jonli oldinga siljiydi
+      setSelectedRequest((prev) => {
+        if (prev && prev.id === payload.id) {
+          return {
+            ...prev,
+            ...payload,
+          };
+        }
+        return prev;
+      });
+
+      // Roli bo‘yicha mas’ul xodimga real-time bildirishnoma
+      if (
+        payload.status === 'APPROVED_BY_PRORECTOR' &&
+        (user?.role === 'RECTOR' || user?.role === 'SUPER_ADMIN')
+      ) {
+        Notification.info({
+          title: 'Rektor Vizasi Kutilmoqda',
+          content: `${payload.requestNumber} talabnomasiga Prorektor viza berdi. Yakuniy ruxsat berishingiz kutilmoqda.`,
+          duration: 5,
+        });
+      } else if (
+        payload.status === 'APPROVED_BY_RECTOR' &&
+        (user?.role === 'CHIEF_ACCOUNTANT' || user?.role === 'SUPER_ADMIN')
+      ) {
+        Notification.info({
+          title: 'Moliyalashtirish Kutilmoqda (Bosh Hisobchi)',
+          content: `${payload.requestNumber} talabnomasi Rektor tomonidan tasdiqlandi. Sub-hisob biriktirishingiz kutilmoqda.`,
+          duration: 5,
+        });
+      } else if (
+        payload.status === 'FINANCED_BY_ACCOUNTANT' &&
+        (user?.role === 'HEAD_WAREHOUSE' || user?.role === 'SUPER_ADMIN')
+      ) {
+        Notification.info({
+          title: 'Ombor Kirimi Kutilmoqda (OS-1)',
+          content: `${payload.requestNumber} talabnomasi moliyalashtirildi. Tovar keltirilgach qabul qilinishi lozim.`,
+          duration: 5,
+        });
+      } else if (
+        payload.status === 'RECEIVED_AT_WAREHOUSE' &&
+        (user?.role === 'COMMENDANT' || user?.role === 'SUPER_ADMIN')
+      ) {
+        Notification.info({
+          title: 'Binoga Qabul Qilish Kutilmoqda (Komendant)',
+          content: `${payload.requestNumber} mahsulotlari omborga yetib keldi. Binoga qabul qilib olishingiz so‘raladi.`,
+          duration: 5,
+        });
+      } else if (user?.id === payload.requesterId) {
+        Notification.success({
+          title: 'Talabnomangiz Holati Yangilandi',
+          content: `${payload.requestNumber} talabnomasi yangi bosqichga o‘tdi.`,
+          duration: 4,
+        });
+      }
+    };
+
+    socket.on('REQUEST_CREATED', handleRequestCreated);
+    socket.on('REQUEST_UPDATED', handleRequestUpdated);
+
+    return () => {
+      socket.off('REQUEST_CREATED', handleRequestCreated);
+      socket.off('REQUEST_UPDATED', handleRequestUpdated);
+    };
+  }, [socket, user, queryClient]);
 
   // Support prefilled draft items from Low-Stock assistant (Warehouse or Inbox)
   useEffect(() => {
@@ -451,6 +550,12 @@ export const RequestsPage: React.FC = () => {
 
   const handleQrSignSuccess = async () => {
     if (pendingWorkflowAction) {
+      const targetReq = pendingWorkflowAction.req;
+      const targetDocType: DocType =
+        pendingWorkflowAction.targetStatus === 'RECEIVED_AT_WAREHOUSE'
+          ? 'KIRIM'
+          : 'TRANSFER';
+
       try {
         await advanceWorkflow({
           id: pendingWorkflowAction.req.id,
@@ -461,6 +566,11 @@ export const RequestsPage: React.FC = () => {
           allocatedAmount: pendingWorkflowAction.payload?.allocatedAmount,
         });
         Message.success('Bosqich QR-kod orqali muvaffaqiyatli imzolandi va keyingi bosqichga o‘tkazildi!');
+
+        // Ssenariy 5: Muhrlangan rasmiy elektron hujjatni (OS-1 / OS-2) avtomatik ochish
+        setSelectedDocRequest(targetReq);
+        setDocModalType(targetDocType);
+        setIsDocModalVisible(true);
       } catch (err: any) {
         Message.error(err?.response?.data?.message || 'Bosqichni o‘tkazishda xatolik yuz berdi');
       }
@@ -603,7 +713,7 @@ export const RequestsPage: React.FC = () => {
       'Bo‘lim / Kafedra': r.departmentName || '',
       'Maqsad': r.purpose,
       'Mahsulotlar': r.items.map((i) => `${i.itemName} (${i.requestedQty} ${i.unit})`).join('; '),
-      'Holati': r.status,
+      'Holati': getStatusLabel(r.status, 'request'),
       'Izoh': r.approvalNote || '',
       'Sana': r.createdAt,
     }));
@@ -654,6 +764,13 @@ export const RequestsPage: React.FC = () => {
               onChange={setSearchText}
               allowClear
             />
+            {isSocketConnected ? (
+              <Tag color="green" icon={<IconWifi />} style={{ borderRadius: 0, fontWeight: 600 }}>
+                Live Workflow Sync (Faol)
+              </Tag>
+            ) : (
+              <Tag color="gray" style={{ borderRadius: 0 }}>Offline</Tag>
+            )}
           </Space>
 
           <Space size="medium" wrap>
@@ -1017,7 +1134,16 @@ export const RequestsPage: React.FC = () => {
       {/* ARCO STEPS: REQUEST DETAIL MODAL */}
       <Modal
         style={{ width: 720 }}
-        title={`Talabnoma Holati va 7-Bosqichli Xarid Zanjiri: ${selectedRequest?.requestNumber}`}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span>Talabnoma Holati va 7-Bosqichli Xarid Zanjiri: {selectedRequest?.requestNumber}</span>
+            {isSocketConnected && (
+              <Tag color="green" icon={<IconWifi />} style={{ borderRadius: 0, fontWeight: 600 }}>
+                Jonli Stepper (0ms)
+              </Tag>
+            )}
+          </div>
+        }
         visible={isDetailModalVisible}
         onCancel={() => setIsDetailModalVisible(false)}
         footer={
@@ -1235,7 +1361,7 @@ export const RequestsPage: React.FC = () => {
                   label: 'Moliyalashtirish Holati',
                   value: selectedRequest.fundingSource ? (
                     <div>
-                      <Tag color="purple">{selectedRequest.fundingSource}</Tag>{' '}
+                      <StatusTag status={selectedRequest.fundingSource} domain="funding" />{' '}
                       <Tag color="cyan">Sub-hisob: {selectedRequest.subAccountCode}</Tag>{' '}
                       {selectedRequest.allocatedAmount && (
                         <Tag color="green">{Number(selectedRequest.allocatedAmount).toLocaleString()} so‘m</Tag>
@@ -1293,11 +1419,10 @@ export const RequestsPage: React.FC = () => {
             field="fundingSource"
             rules={[{ required: true, message: 'Mablag‘ manbasini tanlang!' }]}
           >
-            <Select placeholder="Mablag‘ manbasini tanlang">
-              <Select.Option value="BYUDJET">🏛 Davlat Byudjeti (Byudjet mablag‘lari)</Select.Option>
-              <Select.Option value="KONTRAKT_RIVOJLANTIRISH">💼 To‘lov-shartnoma Maxsus Rivojlantirish Jamg‘armasi</Select.Option>
-              <Select.Option value="GRANT">🔬 Ilmiy Grantlar va Xalqaro Loyihalar</Select.Option>
-            </Select>
+            <Select
+              placeholder="Mablag‘ manbasini tanlang"
+              options={getStatusSelectOptions('funding')}
+            />
           </FormItem>
 
           <FormItem

@@ -1,14 +1,16 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateRepairDto, UpdateRepairStatusDto } from './dto/repair.dto';
-import { AssetStatus, RepairStatus } from '@prisma/client';
+import { AssetStatus, RepairStatus, NotificationType } from '@prisma/client';
 
 @Injectable()
 export class RepairsService {
   constructor(
     private prisma: PrismaService,
     private codeGen: CodeGeneratorService,
+    @Optional() private notificationsService?: NotificationsService,
   ) {}
 
   async getRepairs(query?: { status?: RepairStatus; assetId?: string }) {
@@ -163,7 +165,7 @@ export class RepairsService {
 
     const effectiveApproverId = approverId || repair.requestedById;
 
-    return this.prisma.$transaction(async (tx) => {
+    const txResult = await this.prisma.$transaction(async (tx) => {
       const isCompleted = dto.status === RepairStatus.COMPLETED;
       const isUnrepairable = dto.status === RepairStatus.UNREPAIRABLE;
 
@@ -230,10 +232,31 @@ export class RepairsService {
         });
       }
 
-      return {
+      const result = {
         ...updated,
         cost: updated.cost !== null && updated.cost !== undefined ? Number(updated.cost) : null,
       };
+
+      return result;
     });
+
+    if (this.notificationsService && repair.requestedById) {
+      const statusText =
+        dto.status === RepairStatus.COMPLETED
+          ? 'muvaffaqiyatli yakunlandi'
+          : dto.status === RepairStatus.UNREPAIRABLE
+          ? 'ta’mirlab bo‘lmas deb topildi'
+          : 'muhandis tomonidan qabul qilindi';
+
+      this.notificationsService.create({
+        userId: repair.requestedById,
+        title: 'Ta’mirlash talabnomasi yangilandi',
+        message: `Yuborgan ta’mirlash talabnomangiz (${repair.repairNumber}) ${statusText}.`,
+        type: NotificationType.INFO,
+        link: '/repairs',
+      }).catch(() => {});
+    }
+
+    return txResult;
   }
 }

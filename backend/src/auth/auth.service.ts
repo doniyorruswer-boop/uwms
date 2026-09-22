@@ -1,8 +1,9 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, Optional } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
+import { EventsGateway } from '../events/events.gateway';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private systemAuditService: SystemAuditService,
+    @Optional() private eventsGateway?: EventsGateway,
   ) {}
 
   private async generateTokens(user: { id: string; username: string; role: any }) {
@@ -77,6 +79,13 @@ export class AuthService {
       where: { id: user.id },
       data: { hashedRefreshToken },
     });
+
+    if (this.eventsGateway) {
+      this.eventsGateway.emitToUser(user.id, 'security:concurrent_login', {
+        message: 'Diqqat: Hisobingizga boshqa IP manzildan ulanish amalga oshirildi',
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     return {
       access_token: accessToken,

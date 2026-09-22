@@ -461,43 +461,120 @@ export class InboxService {
     let pendingHandoversPromise = Promise.resolve<any[]>([]);
     const handoverActiveStatuses = [
       HandoverStatus.DRAFT,
-      HandoverStatus.PENDING_AUDIT,
+      HandoverStatus.SUBMITTED,
+      HandoverStatus.RECEIVER_REVIEW,
+      HandoverStatus.COMMANDANT_REVIEW,
+      HandoverStatus.ACCOUNTANT_REVIEW,
+      HandoverStatus.PENDING_APPROVAL,
       HandoverStatus.PENDING_SIGNATURES,
+      HandoverStatus.PENDING_AUDIT,
     ];
 
     if (isSystemScope) {
       pendingHandoversPromise = this.prisma.responsibilityHandover.findMany({
         where: { status: { in: handoverActiveStatuses } },
         include: {
-          departingUser: { select: { id: true, fullName: true, role: true, position: true } },
-          targetUser: { select: { id: true, fullName: true, role: true, position: true } },
+          departingUser: {
+            select: {
+              id: true,
+              fullName: true,
+              role: true,
+              position: true,
+              department: { select: { id: true, name: true } },
+            },
+          },
+          targetUser: {
+            select: {
+              id: true,
+              fullName: true,
+              role: true,
+              position: true,
+              department: { select: { id: true, name: true } },
+            },
+          },
           commandantUser: { select: { id: true, fullName: true, role: true, position: true } },
           accountantUser: { select: { id: true, fullName: true, role: true, position: true } },
           building: { select: { id: true, name: true, code: true } },
           room: { select: { id: true, number: true, name: true } },
           targetWarehouse: { select: { id: true, name: true } },
+          items: {
+            include: {
+              itemInstance: {
+                select: {
+                  id: true,
+                  inventoryNumber: true,
+                  serialNumber: true,
+                  status: true,
+                  item: { select: { id: true, name: true, model: true } },
+                  room: { select: { id: true, number: true, name: true, building: true } },
+                },
+              },
+            },
+          },
           _count: { select: { items: true } },
         },
         orderBy: { createdAt: 'desc' },
         take: 30,
       });
     } else {
-      const orConditions: Prisma.ResponsibilityHandoverWhereInput[] = [
-        { departingUserId: userId },
-        { targetUserId: userId },
-        { commandantUserId: userId },
-        { accountantUserId: userId },
-        { approvedByUserId: userId },
-      ];
-      if (isCommendant) {
-        orConditions.push({ building: { commendantId: userId } });
+      const orConditions: Prisma.ResponsibilityHandoverWhereInput[] = [];
+
+      // 1. Yangi qabul qiluvchi MOL (SUBMITTED / RECEIVER_REVIEW holatida)
+      orConditions.push({
+        targetUserId: userId,
+        status: { in: [HandoverStatus.SUBMITTED, HandoverStatus.RECEIVER_REVIEW, HandoverStatus.PENDING_SIGNATURES] },
+      });
+
+      // 2. Bino Komendanti (SUBMITTED / RECEIVER_REVIEW / COMMANDANT_REVIEW holatida)
+      if (isCommendant || isWarehouse) {
+        orConditions.push(
+          {
+            commandantUserId: userId,
+            status: { in: [HandoverStatus.SUBMITTED, HandoverStatus.RECEIVER_REVIEW, HandoverStatus.COMMANDANT_REVIEW] },
+          },
+          {
+            building: { commendantId: userId },
+            status: { in: [HandoverStatus.SUBMITTED, HandoverStatus.RECEIVER_REVIEW, HandoverStatus.COMMANDANT_REVIEW] },
+          }
+        );
+      } else {
+        orConditions.push({
+          commandantUserId: userId,
+          status: { in: [HandoverStatus.SUBMITTED, HandoverStatus.RECEIVER_REVIEW, HandoverStatus.COMMANDANT_REVIEW] },
+        });
       }
+
+      // 3. Moddiy Hisobchi (COMMANDANT_REVIEW / ACCOUNTANT_REVIEW / SUBMITTED holatida)
       if (isAccountant) {
-        orConditions.push({ accountantUserId: null });
+        orConditions.push(
+          {
+            accountantUserId: userId,
+            status: { in: [HandoverStatus.SUBMITTED, HandoverStatus.COMMANDANT_REVIEW, HandoverStatus.ACCOUNTANT_REVIEW] },
+          },
+          {
+            accountantUserId: null,
+            status: { in: [HandoverStatus.SUBMITTED, HandoverStatus.COMMANDANT_REVIEW, HandoverStatus.ACCOUNTANT_REVIEW] },
+          }
+        );
+      } else {
+        orConditions.push({
+          accountantUserId: userId,
+          status: { in: [HandoverStatus.SUBMITTED, HandoverStatus.COMMANDANT_REVIEW, HandoverStatus.ACCOUNTANT_REVIEW] },
+        });
       }
+
+      // 4. Rahbariyat (Prorektor / Rektor) yakuniy viza
       if (isProrector || isRector) {
-        orConditions.push({ approvedByUserId: null });
+        orConditions.push({
+          status: HandoverStatus.PENDING_APPROVAL,
+        });
       }
+
+      // 5. Topshiruvchi MOL (o'zining aktiv topshirishlarini kuzatish uchun)
+      orConditions.push({
+        departingUserId: userId,
+        status: { in: [HandoverStatus.DRAFT, HandoverStatus.SUBMITTED, HandoverStatus.RECEIVER_REVIEW, HandoverStatus.COMMANDANT_REVIEW, HandoverStatus.ACCOUNTANT_REVIEW, HandoverStatus.PENDING_APPROVAL] },
+      });
 
       pendingHandoversPromise = this.prisma.responsibilityHandover.findMany({
         where: {
@@ -505,13 +582,43 @@ export class InboxService {
           OR: orConditions,
         },
         include: {
-          departingUser: { select: { id: true, fullName: true, role: true, position: true } },
-          targetUser: { select: { id: true, fullName: true, role: true, position: true } },
+          departingUser: {
+            select: {
+              id: true,
+              fullName: true,
+              role: true,
+              position: true,
+              department: { select: { id: true, name: true } },
+            },
+          },
+          targetUser: {
+            select: {
+              id: true,
+              fullName: true,
+              role: true,
+              position: true,
+              department: { select: { id: true, name: true } },
+            },
+          },
           commandantUser: { select: { id: true, fullName: true, role: true, position: true } },
           accountantUser: { select: { id: true, fullName: true, role: true, position: true } },
           building: { select: { id: true, name: true, code: true } },
           room: { select: { id: true, number: true, name: true } },
           targetWarehouse: { select: { id: true, name: true } },
+          items: {
+            include: {
+              itemInstance: {
+                select: {
+                  id: true,
+                  inventoryNumber: true,
+                  serialNumber: true,
+                  status: true,
+                  item: { select: { id: true, name: true, model: true } },
+                  room: { select: { id: true, number: true, name: true, building: true } },
+                },
+              },
+            },
+          },
           _count: { select: { items: true } },
         },
         orderBy: { createdAt: 'desc' },

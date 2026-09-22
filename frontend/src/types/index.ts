@@ -16,6 +16,8 @@ export type ItemType = 'FIXED_ASSET' | 'CONSUMABLE';
 
 export type AssetStatus = 'NEW' | 'IN_USE' | 'IN_REPAIR' | 'WRITTEN_OFF';
 
+export type FundingSource = 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT';
+
 export type RequestStatus =
   | 'SUBMITTED'
   | 'PENDING'
@@ -456,6 +458,11 @@ export type HandoverType =
 
 export type HandoverStatus =
   | 'DRAFT'
+  | 'SUBMITTED'
+  | 'RECEIVER_REVIEW'
+  | 'COMMANDANT_REVIEW'
+  | 'ACCOUNTANT_REVIEW'
+  | 'PENDING_APPROVAL'
   | 'PENDING_AUDIT'
   | 'PENDING_SIGNATURES'
   | 'COMPLETED'
@@ -561,10 +568,12 @@ export interface ResponsibilityHandover {
     docNumber: string;
     docType: string;
     title: string;
-    contentHtml: string;
+    contentHtml?: string;
     pdfUrl?: string | null;
-    qrPayloadUrl: string;
-    documentHash: string;
+    pdfPath?: string | null;
+    qrPayloadUrl?: string;
+    documentHash?: string;
+    checksum?: string;
     signatories?: any[];
   } | null;
 }

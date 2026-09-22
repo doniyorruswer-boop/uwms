@@ -13,6 +13,7 @@ import { SystemAuditService } from '../system-audit/system-audit.service';
 import { DocumentStampsService } from '../document-stamps/document-stamps.service';
 import { SequenceService } from '../common/services/sequence.service';
 import { WarehouseService } from '../warehouse/warehouse.service';
+import { EventsGateway } from '../events/events.gateway';
 import { RequestStatus, RoleType, NotificationType, FundingSource, Prisma } from '@prisma/client';
 
 @Injectable()
@@ -25,6 +26,7 @@ export class RequestsService {
     private readonly documentStampsService: DocumentStampsService,
     @Optional() private readonly sequenceService?: SequenceService,
     @Optional() private readonly warehouseService?: WarehouseService,
+    @Optional() private readonly eventsGateway?: EventsGateway,
   ) {}
 
   async getAllRequests(
@@ -180,7 +182,7 @@ export class RequestsService {
     departmentId?: string;
     items: { itemId?: string; itemName?: string; quantity: number; unit?: string }[];
   }) {
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       // Find user & department
       const user = await tx.user.findUnique({ where: { id: dto.requesterId } });
       const departmentId = dto.departmentId || user?.departmentId || undefined;
@@ -316,6 +318,26 @@ export class RequestsService {
 
       return request;
     });
+
+    if (this.eventsGateway) {
+      const eventPayload = {
+        id: created.id,
+        requestNumber: created.requestNumber,
+        purpose: created.purpose,
+        status: created.status,
+        requesterId: created.requesterId,
+        departmentId: created.departmentId,
+        isOverQuota: created.isOverQuota,
+        createdAt: created.createdAt,
+      };
+
+      this.eventsGateway.emitToRole('VICE_RECTOR_FINANCE', 'REQUEST_CREATED', eventPayload);
+      this.eventsGateway.emitToRole('RECTOR', 'REQUEST_CREATED', eventPayload);
+      this.eventsGateway.emitToRole('HEAD_WAREHOUSE', 'REQUEST_CREATED', eventPayload);
+      this.eventsGateway.broadcast('REQUEST_UPDATED', eventPayload);
+    }
+
+    return created;
   }
 
   async advanceWorkflowStage(
@@ -848,6 +870,67 @@ export class RequestsService {
           NotificationType.WARNING,
           '/warehouse',
         );
+      }
+    }
+
+    if (this.eventsGateway) {
+      const eventPayload = {
+        id: result.id,
+        requestNumber: result.requestNumber,
+        purpose: result.purpose,
+        status: result.status,
+        requesterId: result.requesterId,
+        requesterName: result.requester?.fullName,
+        departmentId: result.departmentId,
+        departmentName: result.department?.name,
+        approvalNote: result.approvalNote,
+        fundingSource: result.fundingSource,
+        subAccountCode: result.subAccountCode,
+        allocatedAmount: result.allocatedAmount ? Number(result.allocatedAmount) : undefined,
+        targetRoomId: result.targetRoomId,
+        targetRoomName: result.targetRoom?.name,
+        targetRoomNumber: result.targetRoom?.number,
+        commendantId: result.commendantId,
+        commendantName: result.commendant?.fullName,
+        submittedAt: result.submittedAt?.toISOString(),
+        prorektorApprovedAt: result.prorektorApprovedAt?.toISOString(),
+        prorektorApprovedById: result.prorektorApprovedById,
+        prorektorApprovedByName: result.prorektorApprovedBy?.fullName,
+        rectorApprovedAt: result.rectorApprovedAt?.toISOString(),
+        rectorApprovedById: result.rectorApprovedById,
+        rectorApprovedByName: result.rectorApprovedBy?.fullName,
+        accountantFinancedAt: result.accountantFinancedAt?.toISOString(),
+        accountantFinancedById: result.accountantFinancedById,
+        accountantFinancedByName: result.accountantFinancedBy?.fullName,
+        warehouseReceivedAt: result.warehouseReceivedAt?.toISOString(),
+        warehouseReceivedById: result.warehouseReceivedById,
+        warehouseReceivedByName: result.warehouseReceivedBy?.fullName,
+        commendantHandedAt: result.commendantHandedAt?.toISOString(),
+        commendantHandedById: result.commendantHandedById,
+        commendantHandedByName: result.commendantHandedBy?.fullName,
+        fulfilledAt: result.fulfilledAt?.toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // 1. Tizim bo'ylab barcha faol mijozlarga umumiy yangilanish signali
+      this.eventsGateway.broadcast('REQUEST_UPDATED', eventPayload);
+
+      // 2. Talabnoma kiritgan shaxsning ekrani (Stepper jonli oldinga siljishi uchun)
+      this.eventsGateway.emitToUser(result.requesterId, 'REQUEST_UPDATED', eventPayload);
+
+      // 3. Rollar kesimida navbatdagi mas'ul xodimga maqsadli signal:
+      if (status === RequestStatus.APPROVED_BY_PRORECTOR) {
+        this.eventsGateway.emitToRole('RECTOR', 'REQUEST_UPDATED', eventPayload);
+      } else if (status === RequestStatus.APPROVED_BY_RECTOR) {
+        this.eventsGateway.emitToRole('CHIEF_ACCOUNTANT', 'REQUEST_UPDATED', eventPayload);
+      } else if (status === RequestStatus.FINANCED_BY_ACCOUNTANT) {
+        this.eventsGateway.emitToRole('HEAD_WAREHOUSE', 'REQUEST_UPDATED', eventPayload);
+      } else if (status === RequestStatus.RECEIVED_AT_WAREHOUSE) {
+        this.eventsGateway.emitToRole('COMMENDANT', 'REQUEST_UPDATED', eventPayload);
+      } else if (status === RequestStatus.HANDED_TO_COMMENDANT) {
+        this.eventsGateway.emitToUser(result.requesterId, 'REQUEST_UPDATED', eventPayload);
+      } else if (status === RequestStatus.FULFILLED) {
+        this.eventsGateway.emitToUser(result.requesterId, 'REQUEST_UPDATED', eventPayload);
       }
     }
 

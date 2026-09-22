@@ -34,15 +34,19 @@ import {
   IconSync,
   IconClockCircle,
   IconCalendar,
+  IconWifi,
 } from '@arco-design/web-react/icon';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/authStore';
 import { useDashboardAnalyticsQuery } from '../../hooks/useDashboardAnalyticsQuery';
 import { useQuotasQuery } from '../../hooks/useQuotasQuery';
+import { useSocket } from '../../hooks/useSocket';
 import { exportToExcel } from '../../utils/exportExcel';
 import { StatHeroCard } from '../../components/Common/StatHeroCard';
 import { StockLevelGauge } from '../../components/Common/StockLevelGauge';
 import { formatMoney, formatMln, formatPercent } from '../../utils/formatters';
+import { StatusTag } from '../../components/Common/StatusTag';
 
 const { Title, Text } = Typography;
 const { Row, Col } = Grid;
@@ -62,6 +66,28 @@ export const DashboardPage: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Real-Time Live Sync: Talabnomalar va operativ ko'rsatkichlar yangilanganda dashboardni sinxronlash
+  const queryClient = useQueryClient();
+  const { socket, isConnected: isSocketConnected } = useSocket();
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleWorkflowSync = () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['warehouse'] });
+    };
+
+    socket.on('REQUEST_CREATED', handleWorkflowSync);
+    socket.on('REQUEST_UPDATED', handleWorkflowSync);
+
+    return () => {
+      socket.off('REQUEST_CREATED', handleWorkflowSync);
+      socket.off('REQUEST_UPDATED', handleWorkflowSync);
+    };
+  }, [socket, queryClient]);
 
   // Current period for quotas (YYYY-MM)
   const currentPeriod = useMemo(() => {
@@ -121,9 +147,16 @@ export const DashboardPage: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* EXECUTIVE HEADER TOOLBAR */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '4px 0' }}>
-        <h1 style={{ fontSize: isMobile ? 18 : 20, fontWeight: 700, margin: 0, color: 'var(--color-text-1)' }}>
-          Xush kelibsiz, {user?.fullName}!
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <h1 style={{ fontSize: isMobile ? 18 : 20, fontWeight: 700, margin: 0, color: 'var(--color-text-1)' }}>
+            Xush kelibsiz, {user?.fullName}!
+          </h1>
+          {isSocketConnected && (
+            <Tag color="green" icon={<IconWifi />} style={{ borderRadius: 0, fontWeight: 600 }}>
+              Live Sync (Faol)
+            </Tag>
+          )}
+        </div>
 
         <Space size="small" wrap style={{ width: isMobile ? '100%' : 'auto' }}>
           <Button
@@ -1029,12 +1062,7 @@ export const DashboardPage: React.FC = () => {
                 {
                   title: 'Holati',
                   dataIndex: 'status',
-                  render: (status: string) => {
-                    if (status === 'PENDING') return <Tag color="orange" style={{ borderRadius: 0 }}>Kutilmoqda</Tag>;
-                    if (status === 'APPROVED_BY_HEAD') return <Tag color="green" style={{ borderRadius: 0 }}>Tasdiqlandi</Tag>;
-                    if (status === 'FULFILLED') return <Tag color="arcoblue" style={{ borderRadius: 0 }}>Bajarildi</Tag>;
-                    return <Tag style={{ borderRadius: 0 }}>{status}</Tag>;
-                  },
+                  render: (status: string) => <StatusTag status={status} domain="request" />,
                 },
               ]}
             />

@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Tag,
@@ -17,7 +18,9 @@ import {
   Tabs,
   Progress,
   Tooltip,
+  Notification,
 } from '@arco-design/web-react';
+import { useSocket } from '../../hooks/useSocket';
 import {
   IconPlus,
   IconSearch,
@@ -39,6 +42,8 @@ import { StandardTable } from '../../components/Common/StandardTable';
 import { exportToExcel } from '../../utils/exportExcel';
 import { TableActions } from '../../components/Common/TableActions';
 import { QRPairingModal } from '../../components/Common/QRPairingModal';
+import { StatusTag } from '../../components/Common/StatusTag';
+import { getStatusLabel } from '../../constants/status.constants';
 
 const { Row, Col } = Grid;
 const FormItem = Form.Item;
@@ -81,9 +86,82 @@ export const WriteOffPage: React.FC = () => {
   const [docModalVisible, setDocModalVisible] = useState(false);
   const [activeDocData, setActiveDocData] = useState<any>(null);
 
+  const queryClient = useQueryClient();
+  const { socket, isConnected } = useSocket();
+
   const { writeOffs, isLoading, isError, refetch, voteWriteOff, isVoting } = useWriteOffQuery({
     status: statusFilter !== 'ALL' ? statusFilter : undefined,
   });
+
+  // Real-Time Socket.io Tandem (Live Quorum Voting & OS-4 Finalization)
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleQuorumUpdated = (data: {
+      writeOffId: string;
+      actNumber: string;
+      votedCount: number;
+      totalCount: number;
+      percentage: number;
+      status: string;
+      vote: string;
+      allApproved: boolean;
+      hasRejection: boolean;
+    }) => {
+      // Invalidate writeOffs query so that table progress gauge moves smoothly (3/5 -> 4/5)
+      queryClient.invalidateQueries({ queryKey: ['writeOffs'] });
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+
+      // If user has the passport drawer open for this write-off, refresh selected item
+      if (selectedPassportItem && selectedPassportItem.id === data.writeOffId) {
+        setSelectedPassportItem((prev) =>
+          prev ? { ...prev, status: data.status as any } : null
+        );
+      }
+
+      if (data.hasRejection) {
+        Notification.warning({
+          title: 'Komissiya Ovozi: Rad Etildi',
+          content: `${data.actNumber}: Komissiya a’zosi tomonidan rad etildi. Jarayon to‘xtatildi.`,
+          duration: 6,
+        });
+      } else if (!data.allApproved) {
+        Notification.info({
+          title: 'Jonli Kvorum Yangilanishi',
+          content: `${data.actNumber}: Kvorum ${data.votedCount}/${data.totalCount} (${data.percentage}%) ga yetdi.`,
+          duration: 4,
+        });
+      }
+    };
+
+    const handleFinalized = (data: {
+      writeOffId: string;
+      actNumber: string;
+      assetName?: string;
+      inventoryNumber?: string;
+      message?: string;
+    }) => {
+      queryClient.invalidateQueries({ queryKey: ['writeOffs'] });
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+      queryClient.invalidateQueries({ queryKey: ['stocks'] });
+
+      Notification.success({
+        title: 'OS-4 Dalolatnomasi Qulflanib Muhrlandi!',
+        content:
+          data.message ||
+          `${data.actNumber} bo‘yicha to‘liq kvorum yig‘ildi. WORM SHA-256 tamg‘asi bosildi!`,
+        duration: 8,
+      });
+    };
+
+    socket.on('writeoff:quorum_updated', handleQuorumUpdated);
+    socket.on('writeoff:finalized', handleFinalized);
+
+    return () => {
+      socket.off('writeoff:quorum_updated', handleQuorumUpdated);
+      socket.off('writeoff:finalized', handleFinalized);
+    };
+  }, [socket, queryClient, selectedPassportItem]);
 
   // Calculate metrics dynamically from real PostgreSQL records
   const totalCount = writeOffs.length;
@@ -140,10 +218,11 @@ export const WriteOffPage: React.FC = () => {
 
   const handleQrVoteSuccess = async (result: any) => {
     if (!pendingQrVote) return;
+    const votedItem = pendingQrVote.writeOff;
     setQrModalVisible(false);
     try {
       await voteWriteOff({
-        id: pendingQrVote.writeOff.id,
+        id: votedItem.id,
         vote: pendingQrVote.vote,
         comment: pendingQrVote.comment,
         signatureHash: result.signatureHash || result.sessionId,
@@ -152,6 +231,9 @@ export const WriteOffPage: React.FC = () => {
       });
       setPendingQrVote(null);
       setSelectedWriteOff(null);
+
+      // Ssenariy 5: Muhrlangan OS-4 rasmiy elektron hujjatini darhol ochish
+      handleOpenDoc(votedItem);
     } catch (err) {
       console.error(err);
     }
@@ -219,12 +301,7 @@ export const WriteOffPage: React.FC = () => {
         'Eskirish Holati': bookVal === 0 ? 'To‘liq eskirgan (100%)' : 'Chala eskirgan (Qoldiq > 0)',
         'Hisobdan Chiqarish Sababi': w.reason,
         'Ekspertiza Xulosasi': w.technicalConclusion || '-',
-        'Holati':
-          w.status === 'APPROVED'
-            ? 'Tasdiqlangan (OS-4)'
-            : w.status === 'REJECTED'
-            ? 'Rad Etilgan'
-            : 'Komissiya Ko‘rigida',
+        'Holati': getStatusLabel(w.status, 'writeOff'),
         'WORM Tamg‘asi': w.hasWormStamp ? 'WORM Muhrlangan' : 'Muhrlanmagan',
         'Tasdiqlagan A’zolar': `${w.members.filter((m) => m.vote === 'APPROVED').length}/${w.members.length}`,
         'Ariza Sanasi': w.createdAt ? w.createdAt.substring(0, 10) : '-',
@@ -422,11 +499,7 @@ export const WriteOffPage: React.FC = () => {
       width: 165,
       render: (status: string) => (
         <div style={{ whiteSpace: 'nowrap' }}>
-          {status === 'APPROVED' && <Badge status="success" text="Tasdiqlangan (OS-4)" />}
-          {status === 'REJECTED' && <Badge status="error" text="Rad etilgan" />}
-          {status !== 'APPROVED' && status !== 'REJECTED' && (
-            <Badge status="processing" text="Komissiya ko‘rigida" />
-          )}
+          <StatusTag status={status} domain="writeOff" mode="badge" />
         </div>
       ),
     },
@@ -515,6 +588,18 @@ export const WriteOffPage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Real-time Status Indicator (Rule 4.2 & Faza 5) */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: -6 }}>
+        <Space size="small">
+          <Tag color={isConnected ? 'green' : 'orange'} icon={<IconRefresh spin={!isConnected} />}>
+            {isConnected ? 'Live Quorum Sync (Faol)' : 'Sinxronizatsiya kutilmoqda'}
+          </Tag>
+          <Tag color="arcoblue">
+            5-A’zoli OS-4 Kvorum (0ms)
+          </Tag>
+        </Space>
+      </div>
+
       {/* Tabs Filter */}
       <PageTabs
         activeTab={statusFilter}
@@ -864,22 +949,7 @@ export const WriteOffPage: React.FC = () => {
               {selectedPassportItem?.asset.inventoryNumber || 'Asosiy Vosita Pasporti'}
             </span>
             {selectedPassportItem && (
-              <Tag
-                color={
-                  selectedPassportItem.status === 'APPROVED'
-                    ? 'green'
-                    : selectedPassportItem.status === 'REJECTED'
-                    ? 'red'
-                    : 'orange'
-                }
-                style={{ borderRadius: 0 }}
-              >
-                {selectedPassportItem.status === 'APPROVED'
-                  ? 'Tasdiqlangan (OS-4)'
-                  : selectedPassportItem.status === 'REJECTED'
-                  ? 'Rad Etilgan'
-                  : 'Komissiya Ko‘rigida'}
-              </Tag>
+              <StatusTag status={selectedPassportItem.status} domain="writeOff" />
             )}
           </div>
         }
@@ -953,9 +1023,10 @@ export const WriteOffPage: React.FC = () => {
                     {
                       label: 'Moliyalashtirish Manbasi',
                       value: (
-                        <Tag color="arcoblue" size="small" style={{ borderRadius: 0 }}>
-                          {selectedPassportItem.asset.fundingSource || 'BYUDJET'}
-                        </Tag>
+                        <StatusTag
+                          status={selectedPassportItem.asset.fundingSource || 'BYUDJET'}
+                          domain="funding"
+                        />
                       ),
                     },
                     {
@@ -1093,15 +1164,6 @@ export const WriteOffPage: React.FC = () => {
                 </div>
 
                 {selectedPassportItem.members.map((m) => {
-                  let badgeColor = 'orange';
-                  let voteText = 'Kutilmoqda';
-                  if (m.vote === 'APPROVED') {
-                    badgeColor = 'green';
-                    voteText = 'Tasdiqlagan';
-                  } else if (m.vote === 'REJECTED') {
-                    badgeColor = 'red';
-                    voteText = 'Rad etgan';
-                  }
                   return (
                     <Card
                       key={m.id}
@@ -1124,9 +1186,7 @@ export const WriteOffPage: React.FC = () => {
                             ({m.roleName})
                           </span>
                         </div>
-                        <Tag color={badgeColor} size="small" style={{ borderRadius: 0 }}>
-                          {voteText}
-                        </Tag>
+                        <StatusTag status={m.vote} domain="general" />
                       </div>
                       {m.comment && (
                         <div
