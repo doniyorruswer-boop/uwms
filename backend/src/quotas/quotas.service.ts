@@ -30,7 +30,7 @@ export class QuotasService {
 
     return this.prisma.departmentQuota.findMany({
       where,
-      orderBy: [{ period: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ period: 'desc' }, { updatedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         department: {
           select: { id: true, name: true, code: true },

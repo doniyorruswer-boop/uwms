@@ -8,7 +8,7 @@ menu.requests,Talabnomalar (Zayavka),Заявки на получение,Reques
 menu.repairs,Ta’mirlash & Servis,Ремонт и сервис,Repairs & Service
 menu.writeOffs,Spisanie (OS-4),Списание (ОС-4),Write-Off (OS-4)
 menu.organization,Tuzilma & Xonalar,Структура и помещения,Structure & Rooms
-menu.quotas,Kafedralar Kvotasi,Квоты кафедр,Department Quotas
+menu.quotas,Kafedralar va Bo‘limlar Kvotasi,Квоты кафедр и отделов,Department & Chair Quotas
 menu.audit,Tizim Auditi,Аудит системы,System Audit
 menu.integrations,Integratsiyalar,Интеграции,Integrations
 menu.scanner,QR Inventarizatsiya,QR Инвентаризация,QR Inventory Audit

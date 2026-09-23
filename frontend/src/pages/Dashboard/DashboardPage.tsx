@@ -13,6 +13,7 @@ import {
   Badge,
   Tooltip,
   Skeleton,
+  Progress,
 } from '@arco-design/web-react';
 import {
   IconScan,
@@ -25,6 +26,7 @@ import {
   IconExclamationCircle,
   IconDownload,
   IconBranch,
+  IconApps,
   IconSafe,
   IconStorage,
   IconCheckCircle,
@@ -80,12 +82,23 @@ export const DashboardPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['warehouse'] });
     };
 
-    socket.on('REQUEST_CREATED', handleWorkflowSync);
-    socket.on('REQUEST_UPDATED', handleWorkflowSync);
+    const syncEvents = [
+      'REQUEST_CREATED',
+      'REQUEST_UPDATED',
+      'request:created',
+      'request:status_changed',
+      'stock:updated',
+      'STOCK_UPDATED',
+      'stock:low_alert',
+      'writeoff:created',
+      'writeoff:finalized',
+      'transfer:accepted',
+    ];
+
+    syncEvents.forEach((evt) => socket.on(evt, handleWorkflowSync));
 
     return () => {
-      socket.off('REQUEST_CREATED', handleWorkflowSync);
-      socket.off('REQUEST_UPDATED', handleWorkflowSync);
+      syncEvents.forEach((evt) => socket.off(evt, handleWorkflowSync));
     };
   }, [socket, queryClient]);
 
@@ -104,6 +117,14 @@ export const DashboardPage: React.FC = () => {
     [quotas]
   );
 
+  const sortedQuotas = useMemo(() => {
+    return [...quotas].sort((a: any, b: any) => {
+      const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
+  }, [quotas]);
+
   const warningQuotas = useMemo(
     () =>
       quotas.filter(
@@ -120,6 +141,26 @@ export const DashboardPage: React.FC = () => {
   const recentMovements = analytics?.recentMovements || [];
   const recentRequests = analytics?.recentRequests || [];
   const lowStocks = analytics?.lowStockItems || [];
+
+  // Foydalanuvchi roli va vakolatlari
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isRector = user?.role === 'RECTOR';
+  const isProrector = user?.role === 'VICE_RECTOR_FINANCE';
+  const isChiefAccountant = user?.role === 'CHIEF_ACCOUNTANT';
+  const isAuditor = user?.role === 'AUDITOR';
+  const isWarehouse = user?.role === 'HEAD_WAREHOUSE';
+  const isCommendant = user?.role === 'COMMENDANT';
+  const isDepartmentStaff = user?.role === 'MOL' || user?.role === 'EMPLOYEE';
+
+  const isLeadership = isSuperAdmin || isRector || isProrector || isChiefAccountant || isAuditor;
+
+  // Agar kafedra xodimi yoki MOL bo‘lsa, kvotalarni o‘z kafedrasi bo‘yicha filtrlaymiz
+  const displayedQuotas = useMemo(() => {
+    if (isDepartmentStaff && user?.departmentId) {
+      return sortedQuotas.filter((q: any) => q.departmentId === user.departmentId);
+    }
+    return sortedQuotas;
+  }, [sortedQuotas, isDepartmentStaff, user?.departmentId]);
 
 
   const handleExportExecutiveExcel = () => {
@@ -151,6 +192,23 @@ export const DashboardPage: React.FC = () => {
           <h1 style={{ fontSize: isMobile ? 18 : 20, fontWeight: 700, margin: 0, color: 'var(--color-text-1)' }}>
             Xush kelibsiz, {user?.fullName}!
           </h1>
+          <Tag color="arcoblue" style={{ borderRadius: 0, fontWeight: 600 }}>
+            {user?.role === 'VICE_RECTOR_FINANCE'
+              ? 'Moliya-iqtisodiyot bo‘yicha prorektor'
+              : user?.role === 'RECTOR'
+              ? 'Universitet Rektori'
+              : user?.role === 'CHIEF_ACCOUNTANT'
+              ? 'Bosh hisobchi'
+              : user?.role === 'HEAD_WAREHOUSE'
+              ? 'Bosh ombor mudiri'
+              : user?.role === 'COMMENDANT'
+              ? 'Bino komendanti'
+              : user?.role === 'MOL'
+              ? 'Moddiy javobgar shaxs (MOL)'
+              : user?.role === 'EMPLOYEE'
+              ? 'Xodim / O‘qituvchi'
+              : 'Bosh Administrator'}
+          </Tag>
           {isSocketConnected && (
             <Tag color="green" icon={<IconWifi />} style={{ borderRadius: 0, fontWeight: 600 }}>
               Live Sync (Faol)
@@ -175,7 +233,7 @@ export const DashboardPage: React.FC = () => {
           >
             Yangi Zayavka
           </Button>
-          {!isMobile && (
+          {(isLeadership || isWarehouse) && !isMobile && (
             <Button
               icon={<IconDownload />}
               onClick={handleExportExecutiveExcel}
@@ -370,313 +428,373 @@ export const DashboardPage: React.FC = () => {
         </Col>
       </Row>
 
-      {/* ROW 2: "NEEDS ATTENTION" OPERATIONAL WIDGET & DEPRECIATION BALANCE */}
-      <Row gutter={[16, 16]}>
-        {/* Snipe-IT "Needs Attention" Operational Action List */}
-        <Col xs={24} lg={12}>
+      {/* ROW 2: RECENT MOVEMENTS & REQUESTS AUDIT LOG TABLES */}
+      <Row gutter={[16, 16]} style={{ display: 'flex', alignItems: 'stretch' }}>
+        <Col xs={24} lg={14} style={{ display: 'flex' }}>
           <Card
             className="uwms-card"
-            style={{ borderRadius: 0, height: '100%' }}
+            style={{ borderRadius: 0, width: '100%', display: 'flex', flexDirection: 'column' }}
+            bodyStyle={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column' }}
             title={
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <IconStorage style={{ color: '#165DFF', fontSize: 18 }} />
+                <span style={{ fontWeight: 600, fontSize: 14 }}>
+                  So‘nggi Ombor Harakatlari (Audit Log)
+                </span>
+              </div>
+            }
+            extra={
+              <Button
+                type="outline"
+                size="mini"
+                onClick={() => navigate('/movements')}
+                style={{ borderRadius: 0 }}
+              >
+                Barchasini ko‘rish <IconRight />
+              </Button>
+            }
+          >
+            <Table
+              rowKey="id"
+              pagination={false}
+              size="small"
+              data={recentMovements}
+              noDataElement={<Empty description="Harakatlar jurnali bo‘sh" />}
+              columns={[
+                {
+                  title: 'Harakat №',
+                  dataIndex: 'movementNumber',
+                  width: 140,
+                  render: (val: string) => (
+                    <span style={{ fontWeight: 600, fontSize: 13, color: '#165DFF', whiteSpace: 'nowrap' }}>
+                      {val}
+                    </span>
+                  ),
+                },
+                {
+                  title: 'Turi',
+                  dataIndex: 'movementType',
+                  width: 95,
+                  render: (val: string) => {
+                    if (val === 'INCOMING') return <Tag color="blue" size="small" style={{ borderRadius: 0, fontSize: 12 }}>Kirim</Tag>;
+                    if (val === 'OUTGOING') return <Tag color="arcoblue" size="small" style={{ borderRadius: 0, fontSize: 12 }}>Chiqim</Tag>;
+                    if (val === 'TRANSFER') return <Tag color="cyan" size="small" style={{ borderRadius: 0, fontSize: 12 }}>Siljish</Tag>;
+                    if (val === 'WRITE_OFF') return <Tag color="red" size="small" style={{ borderRadius: 0, fontSize: 12 }}>Spisanie</Tag>;
+                    if (val === 'RETURN') return <Tag color="orange" size="small" style={{ borderRadius: 0, fontSize: 12 }}>Qaytarish</Tag>;
+                    return <Tag size="small" style={{ borderRadius: 0, fontSize: 12 }}>{val}</Tag>;
+                  },
+                },
+                {
+                  title: 'Mahsulotlar',
+                  dataIndex: 'itemSummary',
+                  render: (text: string) => (
+                    <span style={{ fontSize: 13, color: 'var(--color-text-1)' }}>
+                      {text}
+                    </span>
+                  ),
+                },
+                {
+                  title: 'Qayerga / Kimga',
+                  dataIndex: 'targetLocation',
+                  width: 160,
+                  render: (text: string) => (
+                    <span style={{ fontSize: 13, color: 'var(--color-text-1)' }}>
+                      {text}
+                    </span>
+                  ),
+                },
+                {
+                  title: 'Sana',
+                  dataIndex: 'createdAt',
+                  width: 105,
+                  render: (d: string) => (
+                    <span style={{ color: 'var(--color-text-3)', fontSize: 13, whiteSpace: 'nowrap' }}>
+                      {d}
+                    </span>
+                  ),
+                },
+              ]}
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} lg={10} style={{ display: 'flex' }}>
+          <Card
+            className="uwms-card"
+            style={{ borderRadius: 0, width: '100%', display: 'flex', flexDirection: 'column' }}
+            bodyStyle={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column' }}
+            title={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <IconFile style={{ color: '#FA8C16', fontSize: 18 }} />
+                <span style={{ fontWeight: 600, fontSize: 14 }}>
+                  Faol Talabnomalar (Zayavkalar)
+                </span>
+              </div>
+            }
+            extra={
+              <Button
+                type="outline"
+                size="mini"
+                onClick={() => navigate('/requests')}
+                style={{ borderRadius: 0 }}
+              >
+                Barchasini ko‘rish <IconRight />
+              </Button>
+            }
+          >
+            <Table
+              rowKey="id"
+              pagination={false}
+              size="small"
+              data={recentRequests}
+              noDataElement={<Empty description="Faol zayavkalar yo‘q" />}
+              columns={[
+                {
+                  title: 'Zayavka №',
+                  dataIndex: 'requestNumber',
+                  width: 135,
+                  render: (num: string) => (
+                    <span style={{ fontWeight: 600, fontSize: 13, color: '#165DFF', whiteSpace: 'nowrap' }}>
+                      {num}
+                    </span>
+                  ),
+                },
+                {
+                  title: 'Talabgor',
+                  dataIndex: 'requesterName',
+                  width: 160,
+                  render: (name: string) => (
+                    <span style={{ fontSize: 13, color: 'var(--color-text-1)', fontWeight: 500 }}>
+                      {name}
+                    </span>
+                  ),
+                },
+                {
+                  title: 'Holati',
+                  dataIndex: 'status',
+                  render: (status: string) => (
+                    <StatusTag status={status} domain="request" />
+                  ),
+                },
+              ]}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* ROW 3: AKTIVLAR TOIFALARI VA FAKULTETLAR BO‘YICHA MULK BALANSI */}
+      <Row gutter={[16, 16]} style={{ display: 'flex', alignItems: 'stretch' }}>
+        {/* Left: Category Breakdown (Aktivlar Toifalari Balansi) */}
+        <Col xs={24} lg={10} style={{ display: 'flex' }}>
+          <Card
+            className="uwms-card"
+            style={{ borderRadius: 0, width: '100%', display: 'flex', flexDirection: 'column' }}
+            bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+            title={
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <IconExclamationCircle style={{ color: '#FF7D00', fontSize: 18 }} />
+                  <IconApps style={{ color: '#722ED1', fontSize: 18 }} />
                   <span style={{ fontWeight: 600, fontSize: 14 }}>
-                    Diqqat Talab Qiluvchi Operativ Vazifalar (Needs Attention)
+                    Aktivlar Toifalari Balansi
                   </span>
+                  <Tag color="purple" size="small" style={{ borderRadius: 0, fontWeight: 600 }}>
+                    {categories.length} ta toifa
+                  </Tag>
                 </div>
-                {(needsAttention?.totalAttentionItems || 0) > 0 ? (
-                  <Tag color="red" size="small" style={{ borderRadius: 0 }}>
-                    {needsAttention?.totalAttentionItems} ta vazifa
-                  </Tag>
-                ) : (
-                  <Tag color="green" size="small" style={{ borderRadius: 0 }}>
-                    Hammasi barqaror
-                  </Tag>
-                )}
+                <Button
+                  size="mini"
+                  type="outline"
+                  onClick={() => navigate('/assets')}
+                  style={{ borderRadius: 0 }}
+                >
+                  Barcha toifalar <IconRight />
+                </Button>
               </div>
             }
           >
             {isLoading ? (
-              <div style={{ textAlign: 'center', padding: '30px 0' }}>
-                <Spin dot size={20} tip="Operativ vazifalar tahlil qilinmoqda..." />
+              <div style={{ textAlign: 'center', padding: '40px 0', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Spin dot size={20} tip="Toifalar bo‘yicha balans yuklanmoqda..." />
+              </div>
+            ) : categories.length === 0 ? (
+              <div style={{ padding: '30px 0', textAlign: 'center', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Empty description="Toifalar bo‘yicha ashyolar topilmadi" />
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {/* 1. Low Stock Alert */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    backgroundColor: (needsAttention?.lowStockCount || 0) > 0 ? 'var(--color-danger-light-1, #FFECE8)' : 'var(--color-fill-2)',
-                    borderLeft: `4px solid ${(needsAttention?.lowStockCount || 0) > 0 ? '#F53F3F' : '#00B42A'}`,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Badge count={needsAttention?.lowStockCount || 0} maxCount={99} dotStyle={{ borderRadius: 0 }} />
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>
-                      Zaxirasi kritik kam mahsulotlar
-                    </div>
-                  </div>
-                  {(needsAttention?.lowStockCount || 0) > 0 ? (
-                    <Button
-                      size="mini"
-                      type="primary"
-                      status="danger"
-                      style={{ borderRadius: 0 }}
-                      onClick={() => navigate('/warehouse?action=incoming')}
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1, gap: 8 }}>
+                {categories.map((cat, index) => {
+                  const catPalette = ['#165DFF', '#722ED1', '#00B42A', '#FF7D00', '#F53F3F', '#0FC6C2'];
+                  const color = catPalette[index % catPalette.length];
+                  return (
+                    <div
+                      key={cat.name}
+                      style={{
+                        padding: '10px 12px',
+                        backgroundColor: 'var(--color-fill-2)',
+                        borderLeft: `3px solid ${color}`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        gap: 6,
+                        flex: 1,
+                        cursor: 'pointer',
+                        transition: 'background-color 0.2s',
+                      }}
+                      onClick={() => navigate(`/assets?search=${encodeURIComponent(cat.name)}`)}
                     >
-                      + Kirim qilish
-                    </Button>
-                  ) : (
-                    <Tag color="green" size="small" style={{ borderRadius: 0 }}>Yetarli</Tag>
-                  )}
-                </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              backgroundColor: color,
+                              display: 'inline-block',
+                            }}
+                          />
+                          <b style={{ fontSize: 13, color: 'var(--color-text-1)' }}>
+                            {cat.name}
+                          </b>
+                        </div>
+                        <Tag size="small" style={{ borderRadius: 0, fontWeight: 600, color, backgroundColor: 'var(--color-bg-2)' }}>
+                          {cat.count} ta vosita
+                        </Tag>
+                      </div>
 
-                {/* 2. Pending Requests */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    backgroundColor: (needsAttention?.pendingRequestsCount || 0) > 0 ? 'var(--color-warning-light-1, #FFF7E8)' : 'var(--color-fill-2)',
-                    borderLeft: `4px solid ${(needsAttention?.pendingRequestsCount || 0) > 0 ? '#FF7D00' : '#00B42A'}`,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Badge count={needsAttention?.pendingRequestsCount || 0} maxCount={99} dotStyle={{ borderRadius: 0 }} />
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>
-                      Tasdiq kutilayotgan talabnomalar
-                    </div>
-                  </div>
-                  {(needsAttention?.pendingRequestsCount || 0) > 0 ? (
-                    <Button
-                      size="mini"
-                      type="primary"
-                      status="warning"
-                      style={{ borderRadius: 0 }}
-                      onClick={() => navigate('/requests')}
-                    >
-                      Tasdiqlash
-                    </Button>
-                  ) : (
-                    <Tag color="green" size="small" style={{ borderRadius: 0 }}>Ko‘rilgan</Tag>
-                  )}
-                </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
+                        <span style={{ color: 'var(--color-text-3)' }}>
+                          Balans qiymati:
+                        </span>
+                        <b style={{ color: 'var(--color-text-1)' }}>
+                          {formatMoney(cat.initialCost)}
+                        </b>
+                      </div>
 
-                {/* 3. Pending Transfers */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    backgroundColor: (needsAttention?.pendingTransfersCount || 0) > 0 ? 'var(--color-primary-light-1, #E8F3FF)' : 'var(--color-fill-2)',
-                    borderLeft: `4px solid ${(needsAttention?.pendingTransfersCount || 0) > 0 ? '#165DFF' : '#00B42A'}`,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Badge count={needsAttention?.pendingTransfersCount || 0} maxCount={99} dotStyle={{ borderRadius: 0 }} />
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>
-                      Topshirish-qabul qilish dalolatnomalari (OS-1)
+                      <Progress
+                        percent={cat.percentage}
+                        size="small"
+                        color={color}
+                        style={{ width: '100%' }}
+                      />
                     </div>
-                  </div>
-                  {(needsAttention?.pendingTransfersCount || 0) > 0 ? (
-                    <Button
-                      size="mini"
-                      type="primary"
-                      style={{ borderRadius: 0 }}
-                      onClick={() => navigate('/assets')}
-                    >
-                      Qabul qilish
-                    </Button>
-                  ) : (
-                    <Tag color="green" size="small" style={{ borderRadius: 0 }}>Toza</Tag>
-                  )}
-                </div>
-
-                {/* 4. In Repair Hardware */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    backgroundColor: (summary?.statusCounts?.IN_REPAIR || 0) > 0 ? 'var(--color-fill-2)' : 'var(--color-fill-2)',
-                    borderLeft: `4px solid ${(summary?.statusCounts?.IN_REPAIR || 0) > 0 ? '#F53F3F' : '#00B42A'}`,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Badge count={summary?.statusCounts?.IN_REPAIR || 0} maxCount={99} dotStyle={{ borderRadius: 0 }} />
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>
-                      Ta’mirdagi nosoz uskunalar
-                    </div>
-                  </div>
-                  {(summary?.statusCounts?.IN_REPAIR || 0) > 0 && (
-                    <Button
-                      size="mini"
-                      type="outline"
-                      status="danger"
-                      style={{ borderRadius: 0 }}
-                      onClick={() => navigate('/repairs')}
-                    >
-                      Ko‘rish
-                    </Button>
-                  )}
-                </div>
-
-                {/* 5. Pending Write-Offs */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    backgroundColor: 'var(--color-fill-2)',
-                    borderLeft: `4px solid ${(needsAttention?.pendingWriteOffsCount || 0) > 0 ? '#722ED1' : '#00B42A'}`,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Badge count={needsAttention?.pendingWriteOffsCount || 0} maxCount={99} dotStyle={{ borderRadius: 0 }} />
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>
-                      Spisanie komissiya xulosalari (OS-4)
-                    </div>
-                  </div>
-                  {(needsAttention?.pendingWriteOffsCount || 0) > 0 && (
-                    <Button
-                      size="mini"
-                      type="outline"
-                      style={{ borderRadius: 0 }}
-                      onClick={() => navigate('/write-offs')}
-                    >
-                      Ovoz berish
-                    </Button>
-                  )}
-                </div>
-
-                {/* 6. Over-Quota Departments Alert */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    backgroundColor: exceededQuotas.length > 0 ? 'var(--color-danger-light-1, #FFECE8)' : 'var(--color-fill-2)',
-                    borderLeft: `4px solid ${exceededQuotas.length > 0 ? '#F53F3F' : '#00B42A'}`,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Badge count={exceededQuotas.length} maxCount={99} dotStyle={{ borderRadius: 0 }} />
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>
-                      Kafedralar oylik sarf limitidan (kvota) oshgan holatlar
-                    </div>
-                  </div>
-                  {exceededQuotas.length > 0 ? (
-                    <Button
-                      size="mini"
-                      type="primary"
-                      status="danger"
-                      style={{ borderRadius: 0 }}
-                      onClick={() => navigate('/quotas')}
-                    >
-                      Ruxsat berish
-                    </Button>
-                  ) : (
-                    <Tag color="green" size="small" style={{ borderRadius: 0 }}>Me’yorda</Tag>
-                  )}
-                </div>
+                  );
+                })}
               </div>
             )}
           </Card>
         </Col>
 
-        {/* Quick Replenish Table for Low Stock items */}
-        <Col xs={24} lg={12}>
+        {/* Right: Department & Faculty Asset Registry Table */}
+        <Col xs={24} lg={14} style={{ display: 'flex' }}>
           <Card
             className="uwms-card"
-            style={{ borderRadius: 0, height: '100%' }}
+            style={{ borderRadius: 0, width: '100%', display: 'flex', flexDirection: 'column' }}
+            bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column' }}
             title={
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <IconStorage style={{ color: '#F53F3F' }} />
-                  <span style={{ fontWeight: 600 }}>Kritik Qoldiqdagi Sarf Tovarlar (Quick Replenish)</span>
-                  {lowStocks.length > 0 && (
-                    <Badge count={lowStocks.length} maxCount={99} dotStyle={{ borderRadius: 0 }} />
-                  )}
+                  <IconBranch style={{ color: '#165DFF', fontSize: 18 }} />
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>
+                    Fakultet va Kafedralar Bo‘yicha Mulk Balansi
+                  </span>
+                  <Tag color="blue" size="small" style={{ borderRadius: 0, fontWeight: 600 }}>
+                    {departments.length} ta tuzilma
+                  </Tag>
                 </div>
-                {lowStocks.length > 0 && (
+                <Space size="small">
                   <Button
-                    type="primary"
-                    status="danger"
                     size="mini"
+                    type="outline"
+                    onClick={() => navigate('/organization')}
                     style={{ borderRadius: 0 }}
-                    onClick={() => navigate('/warehouse?action=incoming')}
                   >
-                    + Yangi Kirim Orderi
+                    Tuzilma xaritasi <IconRight />
                   </Button>
-                )}
+                </Space>
               </div>
             }
           >
-            {lowStocks.length === 0 ? (
-              <div style={{ padding: '24px 0', textAlign: 'center' }}>
-                <Empty description="Barcha sarf mahsulotlari qoldig‘i yetarli darajada" />
+            {isLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                <Spin dot size={20} tip="Fakultet va kafedralar balansi yuklanmoqda..." />
+              </div>
+            ) : departments.length === 0 ? (
+              <div style={{ padding: '30px 0', textAlign: 'center' }}>
+                <Empty description="Tuzilmalar bo‘yicha ashyolar ma’lumoti topilmadi" />
               </div>
             ) : (
               <Table
-                rowKey="id"
-                pagination={false}
+                rowKey={(record) => record.id || record.name}
+                pagination={{ pageSize: 6, sizeCanChange: false }}
                 size="small"
-                data={lowStocks}
+                data={departments}
                 columns={[
                   {
-                    title: 'Mahsulot nomi',
+                    title: 'Kafedra / Bo‘lim',
                     dataIndex: 'name',
-                    render: (name: string) => (
-                      <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)' }}>{name}</span>
+                    render: (name: string, record: any) => (
+                      <div>
+                        <div style={{ fontWeight: 600, color: 'var(--color-text-1)', fontSize: 13 }}>
+                          {name}
+                        </div>
+                        {record.facultyName && (
+                          <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2 }}>
+                            {record.facultyName}
+                          </div>
+                        )}
+                      </div>
                     ),
                   },
                   {
-                    title: 'Zaxira Holati',
-                    width: 140,
-                    render: (_: any, item: any) => (
-                      <StockLevelGauge
-                        quantity={item.quantity}
-                        minLimit={item.minLimit}
-                        unit={item.unit}
-                        status="LOW"
-                        type="circle"
-                        showMinLimit={false}
-                      />
+                    title: 'Vositalar Soni',
+                    dataIndex: 'count',
+                    width: 120,
+                    sorter: (a, b) => a.count - b.count,
+                    render: (cnt: number) => (
+                      <Badge count={cnt} maxCount={9999} />
                     ),
                   },
                   {
-                    title: 'Kamomad',
-                    width: 110,
-                    render: (_: any, item: any) => {
-                      const deficit = item.deficit ?? Math.max(0, item.minLimit - item.quantity);
-                      return (
-                        <Tag color="red" size="small" style={{ borderRadius: 0, fontWeight: 600 }}>
-                          -{deficit} {item.unit}
-                        </Tag>
-                      );
-                    },
+                    title: 'Balans Qiymati',
+                    dataIndex: 'initialCost',
+                    width: 165,
+                    sorter: (a, b) => a.initialCost - b.initialCost,
+                    render: (val: number, record: any) => (
+                      <div style={{ fontWeight: 600, color: '#00B42A', fontSize: 13 }}>
+                        {formatMoney(val || record.initialCost)}
+                      </div>
+                    ),
+                  },
+                  {
+                    title: 'Mulk Ulushi',
+                    dataIndex: 'percentage',
+                    width: 130,
+                    sorter: (a, b) => a.percentage - b.percentage,
+                    render: (pct: number) => (
+                      <div style={{ width: '100%' }}>
+                        <Progress
+                          percent={pct}
+                          size="small"
+                          color="#165DFF"
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+                    ),
                   },
                   {
                     title: 'Amal',
-                    width: 90,
-                    render: (_: any, item: any) => (
+                    width: 75,
+                    render: (_: any, record: any) => (
                       <Button
                         size="mini"
-                        type="primary"
-                        status="danger"
-                        style={{ borderRadius: 0 }}
-                        onClick={() => navigate(`/warehouse?action=incoming&itemId=${item.itemId || item.id}`)}
+                        type="text"
+                        onClick={() => {
+                          const term = record.id === 'warehouse' ? 'ombor' : record.name;
+                          navigate(`/assets?search=${encodeURIComponent(term)}`);
+                        }}
                       >
-                        + Kirim
+                        Aktivlar
                       </Button>
                     ),
                   },
@@ -687,8 +805,9 @@ export const DashboardPage: React.FC = () => {
         </Col>
       </Row>
 
-      {/* ROW 3: MULK AMORTIZATSIYASI & FUNDING SOURCES BALANCE */}
-      <Row gutter={[16, 16]}>
+      {/* ROW 3: MULK AMORTIZATSIYASI & FUNDING SOURCES BALANCE (Faqat Rahbariyat va Bosh Hisobchi) */}
+      {isLeadership && (
+        <Row gutter={[16, 16]}>
         {/* Mulk Amortizatsiyasi va Eskirish Tahlili (Book Value Engine) */}
         <Col xs={24} lg={12}>
           <Card
@@ -778,8 +897,9 @@ export const DashboardPage: React.FC = () => {
             extra={
               <Button
                 size="mini"
-                type="text"
+                type="outline"
                 onClick={() => navigate('/reports/funding')}
+                style={{ borderRadius: 0 }}
               >
                 Batafsil hisobot <IconRight />
               </Button>
@@ -826,6 +946,7 @@ export const DashboardPage: React.FC = () => {
           </Card>
         </Col>
       </Row>
+      )}
 
       {/* ROW 3.5: KAFEDRALAR OYLIK KVOTA MONITORINGI (DEPARTMENT QUOTA LIMIT WATCHER) */}
       <Card
@@ -836,38 +957,40 @@ export const DashboardPage: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <IconCalendar style={{ color: '#165DFF', fontSize: 18 }} />
               <span style={{ fontWeight: 600, fontSize: 14 }}>
-                Kafedralar Oylik Sarf Kvotalari Nazorati ({currentPeriod} davri)
+                {isDepartmentStaff && user?.departmentName
+                  ? `${user.departmentName} Oylik Sarf Kvotalari Nazorati (${currentPeriod} davri)`
+                  : `Kafedralar va Bo‘limlar Oylik Sarf Kvotalari Nazorati (${currentPeriod} davri)`}
               </span>
               {exceededQuotas.length > 0 ? (
                 <Tag color="red" size="small" style={{ borderRadius: 0, fontWeight: 600 }}>
-                  {exceededQuotas.length} ta kafedrada oylik limitdan oshish qayd etildi!
+                  {exceededQuotas.length} ta tuzilmada oylik limitdan oshish qayd etildi!
                 </Tag>
               ) : (
                 <Tag color="green" size="small" style={{ borderRadius: 0 }}>
-                  Barcha kafedralar me’yoriy limit doirasida
+                  Barcha tuzilmalar me’yoriy limit doirasida
                 </Tag>
               )}
             </div>
-            <Button size="mini" type="outline" onClick={() => navigate('/quotas')}>
-              Barcha kvotalar reestri <IconRight />
+            <Button size="mini" type="outline" onClick={() => navigate('/quotas')} style={{ borderRadius: 0 }}>
+              {isProrector ? 'Kvotalarni boshqarish' : 'Kvotalar reestri'} <IconRight />
             </Button>
           </div>
         }
       >
         {isQuotasLoading ? (
           <div style={{ textAlign: 'center', padding: '30px 0' }}>
-            <Spin dot size={20} tip="Kafedralar oylik kvotalari monitoringi yuklanmoqda..." />
+            <Spin dot size={20} tip="Kafedralar va bo‘limlar oylik kvotalari monitoringi yuklanmoqda..." />
           </div>
         ) : quotas.length === 0 ? (
           <div style={{ padding: '24px 0', textAlign: 'center' }}>
-            <Empty description="Joriy oy uchun kafedralar sarf kvotasi belgilanmagan" />
+            <Empty description="Joriy oy uchun kafedralar va bo‘limlar sarf kvotasi belgilanmagan" />
           </div>
         ) : (
           <Table
             rowKey="id"
-            pagination={{ pageSize: 5, sizeCanChange: false }}
+            pagination={{ pageSize: 6, sizeCanChange: false }}
             size="small"
-            data={quotas}
+            data={displayedQuotas}
             columns={[
               {
                 title: 'Kafedra / Bo‘lim',
@@ -965,7 +1088,9 @@ export const DashboardPage: React.FC = () => {
                     style={{ borderRadius: 0 }}
                     onClick={() => navigate('/quotas')}
                   >
-                    {record.usedQuantity > record.monthlyLimit ? 'Ruxsat Berish' : 'Tahrirlash'}
+                    {isProrector
+                      ? (record.usedQuantity > record.monthlyLimit ? 'Ruxsat Berish' : 'Tahrirlash')
+                      : 'Ko‘rish'}
                   </Button>
                 ),
               },
@@ -973,102 +1098,6 @@ export const DashboardPage: React.FC = () => {
           />
         )}
       </Card>
-
-
-      {/* ROW 4: RECENT MOVEMENTS & REQUESTS AUDIT LOG TABLES */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={14}>
-          <Card
-            className="uwms-card"
-            style={{ borderRadius: 0 }}
-            bodyStyle={{ padding: 0 }}
-            title={<Title heading={6} style={{ margin: 0 }}>So‘nggi Ombor Harakatlari (Audit Log)</Title>}
-            extra={
-              <Button type="text" size="small" onClick={() => navigate('/movements')}>
-                Barchasini ko‘rish
-              </Button>
-            }
-          >
-            <Table
-              rowKey="id"
-              pagination={false}
-              size="small"
-              data={recentMovements}
-              noDataElement={<Empty description="Harakatlar jurnali bo‘sh" />}
-              columns={[
-                {
-                  title: 'Harakat №',
-                  dataIndex: 'movementNumber',
-                  render: (val: string) => <b style={{ color: '#165DFF' }}>{val}</b>,
-                },
-                {
-                  title: 'Turi',
-                  dataIndex: 'movementType',
-                  render: (val: string) => {
-                    if (val === 'INCOMING') return <Tag color="blue" style={{ borderRadius: 0 }}>Kirim</Tag>;
-                    if (val === 'TRANSFER') return <Tag color="cyan" style={{ borderRadius: 0 }}>Siljish</Tag>;
-                    if (val === 'WRITE_OFF') return <Tag color="red" style={{ borderRadius: 0 }}>Spisanie</Tag>;
-                    if (val === 'RETURN') return <Tag color="orange" style={{ borderRadius: 0 }}>Qaytarish</Tag>;
-                    return <Tag style={{ borderRadius: 0 }}>{val}</Tag>;
-                  },
-                },
-                {
-                  title: 'Mahsulotlar',
-                  dataIndex: 'itemSummary',
-                },
-                {
-                  title: 'Qayerga / Kimga',
-                  dataIndex: 'targetLocation',
-                },
-                {
-                  title: 'Sana',
-                  dataIndex: 'createdAt',
-                  render: (d: string) => <span style={{ color: 'var(--color-text-3)', fontSize: 12 }}>{d}</span>,
-                },
-              ]}
-            />
-          </Card>
-        </Col>
-
-        <Col xs={24} lg={10}>
-          <Card
-            className="uwms-card"
-            style={{ borderRadius: 0 }}
-            bodyStyle={{ padding: 0 }}
-            title={<Title heading={6} style={{ margin: 0 }}>Faol Talabnomalar (Zayavkalar)</Title>}
-            extra={
-              <Button type="text" size="small" onClick={() => navigate('/requests')}>
-                Zayavkalar
-              </Button>
-            }
-          >
-            <Table
-              rowKey="id"
-              pagination={false}
-              size="small"
-              data={recentRequests}
-              noDataElement={<Empty description="Faol zayavkalar yo‘q" />}
-              columns={[
-                {
-                  title: 'Zayavka №',
-                  dataIndex: 'requestNumber',
-                  render: (num: string) => <span style={{ fontWeight: 600, color: '#165DFF' }}>{num}</span>,
-                },
-                {
-                  title: 'Talabgor',
-                  dataIndex: 'requesterName',
-                  render: (name: string) => <span style={{ fontSize: 13 }}>{name}</span>,
-                },
-                {
-                  title: 'Holati',
-                  dataIndex: 'status',
-                  render: (status: string) => <StatusTag status={status} domain="request" />,
-                },
-              ]}
-            />
-          </Card>
-        </Col>
-      </Row>
     </div>
   );
 };

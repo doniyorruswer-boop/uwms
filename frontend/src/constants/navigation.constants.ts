@@ -111,9 +111,9 @@ export const NAVIGATION_ITEMS: NavItem[] = [
   {
     key: 'quotas',
     path: '/quotas',
-    label: 'Kafedralar Kvotasi',
-    pageTitle: 'Kafedralar Oylik Kantselyariya va Material Limitlari',
-    allowedRoles: ['SUPER_ADMIN', 'HEAD_WAREHOUSE', 'VICE_RECTOR_FINANCE', 'RECTOR', 'CHIEF_ACCOUNTANT', 'AUDITOR', 'MOL', 'EMPLOYEE'],
+    label: 'Kafedralar va Bo‘limlar Kvotasi',
+    pageTitle: 'Kafedralar va Bo‘limlar Oylik Sarf Kvotalari Nazorati',
+    allowedRoles: ['VICE_RECTOR_FINANCE', 'SUPER_ADMIN'],
   },
   {
     key: 'systemAudit',

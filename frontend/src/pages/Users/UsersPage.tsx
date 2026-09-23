@@ -196,15 +196,10 @@ export const UsersPage: React.FC = () => {
     {
       title: 'Aloqa',
       key: 'contact',
-      width: 160,
+      width: 140,
       render: (_: any, record: UserItem) => (
-        <div style={{ fontSize: 13 }}>
-          <div>{record.phone || '—'}</div>
-          {record.email && (
-            <div style={{ fontSize: 12, color: 'var(--color-text-3)' }}>
-              {record.email}
-            </div>
-          )}
+        <div style={{ fontSize: 13, color: 'var(--color-text-1)' }}>
+          {record.phone || '—'}
         </div>
       ),
     },

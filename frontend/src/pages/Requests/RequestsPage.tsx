@@ -219,19 +219,21 @@ export const RequestsPage: React.FC = () => {
     switch (status) {
       case 'SUBMITTED':
       case 'PENDING':
-        return 1;
-      case 'APPROVED_BY_PRORECTOR':
+      case 'APPROVED_BY_HEAD':
         return 2;
-      case 'APPROVED_BY_RECTOR':
+      case 'APPROVED_BY_PRORECTOR':
         return 3;
-      case 'FINANCED_BY_ACCOUNTANT':
+      case 'APPROVED_BY_RECTOR':
         return 4;
-      case 'RECEIVED_AT_WAREHOUSE':
+      case 'FINANCED_BY_ACCOUNTANT':
         return 5;
-      case 'HANDED_TO_COMMENDANT':
+      case 'RECEIVED_AT_WAREHOUSE':
+      case 'APPROVED_BY_WAREHOUSE':
         return 6;
-      case 'FULFILLED':
+      case 'HANDED_TO_COMMENDANT':
         return 7;
+      case 'FULFILLED':
+        return 8;
       case 'REJECTED':
       case 'CANCELLED':
         return 1;
@@ -244,50 +246,51 @@ export const RequestsPage: React.FC = () => {
     switch (status) {
       case 'SUBMITTED':
       case 'PENDING':
+      case 'APPROVED_BY_HEAD':
         return {
-          step: 1,
+          step: 2,
           total: 7,
           percent: 14,
-          title: '1/7: Prorektor Vizasi',
+          title: '2/7: Prorektor Vizasi',
           currentActor: record?.prorektorApprovedByName
             ? `Moliya-iqtisod prorektori (${record.prorektorApprovedByName})`
             : 'Moliya-iqtisod prorektori',
           color: '#ff7d00',
           badgeStatus: 'warning' as const,
-          description: 'Talabnoma arizasi yuborilgan, prorektor ko‘rib chiqishi kutilmoqda',
+          description: 'Talabnoma topshirilgan, Moliya-iqtisod prorektori vizasi kutilmoqda',
         };
       case 'APPROVED_BY_PRORECTOR':
         return {
-          step: 2,
+          step: 3,
           total: 7,
           percent: 28,
-          title: '2/7: Rektor Vizasi',
+          title: '3/7: Rektor Vizasi',
           currentActor: record?.rectorApprovedByName
             ? `Universitet Rektori (${record.rectorApprovedByName})`
             : 'Universitet Rektori',
-          color: '#165dff',
+          color: '#722ed1',
           badgeStatus: 'processing' as const,
-          description: 'Prorektor viza berdi, Rektor xaridga yakuniy ruxsat berishi kutilmoqda',
+          description: 'Prorektor viza berdi, Universitet Rektori tasdig‘i kutilmoqda',
         };
       case 'APPROVED_BY_RECTOR':
         return {
-          step: 3,
+          step: 4,
           total: 7,
           percent: 42,
-          title: '3/7: Moliyalashtirish',
+          title: '4/7: Bosh Hisobchi Moliyalash',
           currentActor: record?.accountantFinancedByName
             ? `Bosh hisobchi (${record.accountantFinancedByName})`
             : 'Bosh hisobchi',
-          color: '#722ed1',
+          color: '#165dff',
           badgeStatus: 'processing' as const,
           description: 'Rektor ruxsat berdi, byudjet/kontrakt smetasi va sub-hisob biriktirilmoqda',
         };
       case 'FINANCED_BY_ACCOUNTANT':
         return {
-          step: 4,
+          step: 5,
           total: 7,
           percent: 57,
-          title: '4/7: Ombor Kirimi (OS-1)',
+          title: '5/7: Ombor Kirimi (OS-1)',
           currentActor: record?.warehouseReceivedByName
             ? `Bosh ombor mudiri (${record.warehouseReceivedByName})`
             : 'Bosh ombor mudiri',
@@ -296,11 +299,12 @@ export const RequestsPage: React.FC = () => {
           description: 'Mablag‘ ajratildi, tovarlar xarid qilinib omborga qabul qilinishi kutilmoqda',
         };
       case 'RECEIVED_AT_WAREHOUSE':
+      case 'APPROVED_BY_WAREHOUSE':
         return {
-          step: 5,
+          step: 6,
           total: 7,
           percent: 71,
-          title: '5/7: Binoga Topshirish (OS-2)',
+          title: '6/7: Binoga Topshirish (OS-2)',
           currentActor: record?.commendantHandedByName || record?.commendantName
             ? `Bosh omborchi va Bino komendanti (${record.commendantHandedByName || record.commendantName})`
             : 'Bosh omborchi va Bino komendanti',
@@ -310,10 +314,10 @@ export const RequestsPage: React.FC = () => {
         };
       case 'HANDED_TO_COMMENDANT':
         return {
-          step: 6,
+          step: 7,
           total: 7,
-          percent: 85,
-          title: '6/7: Xonada Qabul Qilish',
+          percent: 86,
+          title: '7/7: Xonada Qabul Qilish',
           currentActor: record?.requesterName
             ? `Bino komendanti va Talabgor (${record.requesterName})`
             : 'Bino komendanti va Talabgor',
@@ -1262,7 +1266,7 @@ export const RequestsPage: React.FC = () => {
                   title="2. Moliya-iqtisod Prorektori Vizasi"
                   description={
                     <div style={{ fontSize: 13, marginTop: 4 }}>
-                      <div><b>Holat:</b> {getStepCurrent(selectedRequest.status) > 1 ? '✅ Viza berildi (QR Biometrik)' : '⏳ Viza kutilmoqda'}</div>
+                      <div><b>Holat:</b> {selectedRequest.prorektorApprovedAt || getStepCurrent(selectedRequest.status) > 2 ? '✅ Viza berildi (QR Biometrik)' : '⏳ Prorektor vizasi kutilmoqda'}</div>
                       {selectedRequest.prorektorApprovedAt && (
                         <div><b>Sana:</b> {new Date(selectedRequest.prorektorApprovedAt).toLocaleString()}</div>
                       )}
@@ -1273,7 +1277,7 @@ export const RequestsPage: React.FC = () => {
                   title="3. Universitet Rektori Vizasi"
                   description={
                     <div style={{ fontSize: 13, marginTop: 4 }}>
-                      <div><b>Holat:</b> {getStepCurrent(selectedRequest.status) > 2 ? '✅ Ruxsat berildi va imzolandi' : '⏳ Rektor qabulida'}</div>
+                      <div><b>Holat:</b> {selectedRequest.rectorApprovedAt || getStepCurrent(selectedRequest.status) > 3 ? '✅ Ruxsat berildi va imzolandi' : getStepCurrent(selectedRequest.status) === 3 ? '⏳ Rektor qabulida (Tasdiq kutilmoqda)' : '⏳ Kutilmoqda'}</div>
                       {selectedRequest.rectorApprovedAt && (
                         <div><b>Sana:</b> {new Date(selectedRequest.rectorApprovedAt).toLocaleString()}</div>
                       )}
@@ -1284,7 +1288,7 @@ export const RequestsPage: React.FC = () => {
                   title="4. Bosh Hisobchi Moliyaviy Tasdig‘i"
                   description={
                     <div style={{ fontSize: 13, marginTop: 4 }}>
-                      <div><b>Holat:</b> {getStepCurrent(selectedRequest.status) > 3 ? '✅ Moliyalashtirildi va sub-hisob biriktirildi' : '⏳ Moliyaviy tasdiq kutilmoqda'}</div>
+                      <div><b>Holat:</b> {selectedRequest.accountantFinancedAt || getStepCurrent(selectedRequest.status) > 4 ? '✅ Moliyalashtirildi va sub-hisob biriktirildi' : getStepCurrent(selectedRequest.status) === 4 ? '⏳ Moliyaviy tasdiq kutilmoqda' : '⏳ Kutilmoqda'}</div>
                       {selectedRequest.accountantFinancedAt && (
                         <div style={{ marginTop: 4 }}>
                           <Tag color="purple" style={{ marginRight: 6 }}>Manba: {selectedRequest.fundingSource || 'BYUDJET'}</Tag>
@@ -1304,7 +1308,7 @@ export const RequestsPage: React.FC = () => {
                   title="5. Ombor Kirimi (OS-1 Kirim Akti)"
                   description={
                     <div style={{ fontSize: 13, marginTop: 4 }}>
-                      <div><b>Holat:</b> {getStepCurrent(selectedRequest.status) > 4 ? '✅ Mahsulot omborga qabul qilindi (OS-1 muhrlandi)' : '⏳ Xarid va ombor kirimi kutilmoqda'}</div>
+                      <div><b>Holat:</b> {selectedRequest.warehouseReceivedAt || getStepCurrent(selectedRequest.status) > 5 ? '✅ Mahsulot omborga qabul qilindi (OS-1 muhrlandi)' : getStepCurrent(selectedRequest.status) === 5 ? '⏳ Xarid va ombor kirimi kutilmoqda' : '⏳ Kutilmoqda'}</div>
                       {selectedRequest.warehouseReceivedAt && (
                         <div><b>Sana:</b> {new Date(selectedRequest.warehouseReceivedAt).toLocaleString()}</div>
                       )}
@@ -1315,7 +1319,7 @@ export const RequestsPage: React.FC = () => {
                   title="6. Bino Komendantiga Topshirish (OS-2 Nakladnoy)"
                   description={
                     <div style={{ fontSize: 13, marginTop: 4 }}>
-                      <div><b>Holat:</b> {getStepCurrent(selectedRequest.status) > 5 ? '✅ Omborchi va Komendant o‘rtasida OS-2 nakladnoyi imzolandi' : '⏳ Ombordan binoga topshirish kutilmoqda'}</div>
+                      <div><b>Holat:</b> {selectedRequest.commendantHandedAt || getStepCurrent(selectedRequest.status) > 6 ? '✅ Omborchi va Komendant o‘rtasida OS-2 nakladnoyi imzolandi' : getStepCurrent(selectedRequest.status) === 6 ? '⏳ Ombordan binoga topshirish kutilmoqda' : '⏳ Kutilmoqda'}</div>
                       {selectedRequest.commendantHandedAt && (
                         <div><b>Sana:</b> {new Date(selectedRequest.commendantHandedAt).toLocaleString()}</div>
                       )}
@@ -1326,7 +1330,7 @@ export const RequestsPage: React.FC = () => {
                   title={`7. ${selectedRequest.requesterName || 'Mas\'ul Xodim'} — Bo'lim Qabul Qilish Dalolatnomasi`}
                   description={
                     <div style={{ fontSize: 13, marginTop: 4 }}>
-                      <div><b>Holat:</b> {selectedRequest.status === 'FULFILLED' ? '🎉 Komendant va Talabgor o‘rtasida o‘zaro topshirish-qabul qilish dalolatnomasi imzolandi' : '⏳ Mudir xonasida o‘zaro topshirish-qabul qilish kutilmoqda'}</div>
+                      <div><b>Holat:</b> {selectedRequest.status === 'FULFILLED' ? '🎉 Komendant va Talabgor o‘rtasida o‘zaro topshirish-qabul qilish dalolatnomasi imzolandi' : getStepCurrent(selectedRequest.status) === 7 ? '⏳ Xonada o‘zaro topshirish-qabul qilish kutilmoqda' : '⏳ Kutilmoqda'}</div>
                       {selectedRequest.fulfilledAt && (
                         <div><b>Sana:</b> {new Date(selectedRequest.fulfilledAt).toLocaleString()}</div>
                       )}

@@ -26,14 +26,14 @@ export class QuotasController {
   }
 
   @Post()
-  @Roles('SUPER_ADMIN', 'HEAD_WAREHOUSE', 'VICE_RECTOR_FINANCE')
+  @Roles('VICE_RECTOR_FINANCE')
   @ApiOperation({ summary: 'Kafedra uchun oylik kvota belgilash yoki yangilash' })
   async setQuota(@Request() req: any, @Body() dto: SetQuotaDto) {
     return this.quotasService.setQuota(dto, req.user.id);
   }
 
   @Patch(':id')
-  @Roles('SUPER_ADMIN', 'HEAD_WAREHOUSE', 'VICE_RECTOR_FINANCE')
+  @Roles('VICE_RECTOR_FINANCE')
   @ApiOperation({ summary: 'Kvota limitini tahrirlash' })
   async updateQuota(
     @Request() req: any,

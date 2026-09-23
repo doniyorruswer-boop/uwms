@@ -6,8 +6,44 @@ import { AssetStatus, FundingSource } from '@prisma/client';
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getAnalytics() {
+  async getAnalytics(user?: any) {
     const now = new Date();
+
+    const isDepartmentStaff = user?.role === 'MOL' || user?.role === 'EMPLOYEE';
+    const isWarehouse = user?.role === 'HEAD_WAREHOUSE';
+    const isCommendant = user?.role === 'COMMENDANT';
+
+    const requestWhere: any = {};
+    if (isDepartmentStaff && user) {
+      if (user.departmentId) {
+        requestWhere.OR = [{ departmentId: user.departmentId }, { requesterId: user.id }];
+      } else {
+        requestWhere.requesterId = user.id;
+      }
+    } else if (isWarehouse) {
+      requestWhere.status = {
+        in: [
+          'FINANCED_BY_ACCOUNTANT',
+          'RECEIVED_AT_WAREHOUSE',
+          'APPROVED_BY_WAREHOUSE',
+          'HANDED_TO_COMMENDANT',
+          'FULFILLED',
+        ],
+      };
+    } else if (isCommendant) {
+      requestWhere.status = {
+        in: ['RECEIVED_AT_WAREHOUSE', 'HANDED_TO_COMMENDANT', 'FULFILLED'],
+      };
+    }
+
+    const pendingCountWhere: any = { status: 'PENDING' };
+    if (isDepartmentStaff && user) {
+      if (user.departmentId) {
+        pendingCountWhere.OR = [{ departmentId: user.departmentId }, { requesterId: user.id }];
+      } else {
+        pendingCountWhere.requesterId = user.id;
+      }
+    }
 
     // 1. Fetch assets, stocks, requests, movements, suppliers, transfers, repairs, write-offs, and MOL counts
     const [
@@ -41,7 +77,13 @@ export class DashboardService {
           },
           room: {
             select: {
-              department: { select: { id: true, name: true } },
+              department: {
+                select: {
+                  id: true,
+                  name: true,
+                  parent: { select: { id: true, name: true } },
+                },
+              },
             },
           },
         },
@@ -61,11 +103,11 @@ export class DashboardService {
         },
       }),
       this.prisma.request.count({
-        where: { status: 'PENDING' },
+        where: pendingCountWhere,
       }),
       this.prisma.supplier.count(),
       this.prisma.stockMovement.findMany({
-        take: 5,
+        take: 6,
         orderBy: { createdAt: 'desc' },
         include: {
           toWarehouse: { select: { name: true } },
@@ -78,10 +120,13 @@ export class DashboardService {
         },
       }),
       this.prisma.request.findMany({
-        take: 5,
+        where: requestWhere,
+        take: 6,
         orderBy: { createdAt: 'desc' },
         include: {
           requester: { select: { fullName: true } },
+          approvedBy: { select: { fullName: true, role: true, position: true } },
+          department: { select: { name: true, type: true } },
         },
       }),
       this.prisma.transferAcceptance.count({
@@ -186,9 +231,14 @@ export class DashboardService {
       categoryMap.set(catName, catEntry);
 
       // Department
-      const deptName = asset.room?.department?.name || 'Markaziy omborda';
-      const deptEntry = departmentMap.get(deptName) || {
+      const dept = asset.room?.department;
+      const deptName = dept?.name || 'Markaziy omborda';
+      const facultyName = dept?.parent?.name || (dept ? 'Tegishli bo‘lim' : 'Markaziy bino');
+      const deptKey = dept?.id || 'warehouse';
+      const deptEntry = departmentMap.get(deptKey) || {
+        id: deptKey,
         name: deptName,
+        facultyName,
         count: 0,
         initialCost: 0,
         netBookValue: 0,
@@ -196,7 +246,7 @@ export class DashboardService {
       deptEntry.count += 1;
       deptEntry.initialCost += price;
       deptEntry.netBookValue += bookValue;
-      departmentMap.set(deptName, deptEntry);
+      departmentMap.set(deptKey, deptEntry);
     }
 
     // 3. Consumable Stock Metrics
@@ -228,10 +278,10 @@ export class DashboardService {
           totalInitialCost > 0 ? Math.round((c.initialCost / totalInitialCost) * 100) : 0,
       }));
 
-    // Top Departments sorted by value
+    // Top Departments sorted by asset count and value
     const departmentsList = Array.from(departmentMap.values())
-      .sort((a, b) => b.initialCost - a.initialCost)
-      .slice(0, 6)
+      .sort((a, b) => b.count - a.count || b.initialCost - a.initialCost)
+      .slice(0, 20)
       .map((d) => ({
         ...d,
         percentage:
@@ -255,6 +305,14 @@ export class DashboardService {
         molsCount,
         suppliersCount,
         statusCounts,
+        userRole: user?.role || 'SUPER_ADMIN',
+        userDepartmentId: user?.departmentId || null,
+        userDepartmentAssetCount: user?.departmentId
+          ? departmentMap.get(user.departmentId)?.count || 0
+          : 0,
+        userDepartmentBookValue: user?.departmentId
+          ? departmentMap.get(user.departmentId)?.netBookValue || 0
+          : 0,
       },
       needsAttention: {
         lowStockCount: lowStockItems.length,
@@ -285,14 +343,43 @@ export class DashboardService {
           createdAt: m.createdAt.toISOString().split('T')[0],
         };
       }),
-      recentRequests: recentRequests.map((r) => ({
-        id: r.id,
-        requestNumber: r.requestNumber,
-        requesterName: r.requester?.fullName || 'Noma’lum xodim',
-        purpose: r.purpose,
-        status: r.status,
-        createdAt: r.createdAt.toISOString().split('T')[0],
-      })),
+      recentRequests: recentRequests.map((r) => {
+        let approvalMethod = 'Tizim orqali';
+        if (r.status === 'REJECTED') {
+          approvalMethod = r.approvalNote ? `Rad etildi: ${r.approvalNote}` : 'Rad etilgan';
+        } else if (r.status === 'APPROVED_BY_HEAD') {
+          approvalMethod = r.approvalNote || 'Kafedra/Bo‘lim rahbari tasdiqlagan (Elektron viza)';
+        } else if (r.status === 'APPROVED_BY_PRORECTOR') {
+          approvalMethod = 'Moliya prorektori elektron vizasi (QR)';
+        } else if (r.status === 'APPROVED_BY_RECTOR') {
+          approvalMethod = 'Rektor raqamli tasdig‘i (QR)';
+        } else if (r.status === 'FINANCED_BY_ACCOUNTANT') {
+          approvalMethod = 'Bosh buxgalteriya moliyalashtirgan';
+        } else if (r.status === 'RECEIVED_AT_WAREHOUSE' || r.status === 'APPROVED_BY_WAREHOUSE') {
+          approvalMethod = 'Ombor qabul akti (OS-1)';
+        } else if (r.status === 'HANDED_TO_COMMENDANT') {
+          approvalMethod = 'Bino komendanti qabul nakladnoyi (OS-2)';
+        } else if (r.status === 'FULFILLED') {
+          approvalMethod = 'Xonada qabul qilingan (Topshirilgan)';
+        } else if (r.status === 'PENDING' || r.status === 'SUBMITTED') {
+          approvalMethod = 'Ko‘rib chiqish kutilmoqda';
+        } else if (r.status === 'CANCELLED') {
+          approvalMethod = 'Talabgor tomonidan bekor qilingan';
+        }
+
+        return {
+          id: r.id,
+          requestNumber: r.requestNumber,
+          requesterName: r.requester?.fullName || 'Noma’lum xodim',
+          departmentName: r.department?.name,
+          purpose: r.purpose,
+          status: r.status,
+          approvalNote: r.approvalNote,
+          approvedByName: r.approvedBy?.fullName,
+          approvalMethod,
+          createdAt: r.createdAt.toISOString().split('T')[0],
+        };
+      }),
       lowStockItems: lowStockItems.map((s) => ({
         id: s.id,
         itemId: s.itemId,

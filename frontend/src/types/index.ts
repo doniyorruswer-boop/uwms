@@ -122,6 +122,9 @@ export interface ItemInstance {
   roomNumber?: string;
   responsibleUserId?: string;
   responsibleUserName?: string;
+  departmentName?: string;
+  facultyName?: string;
+  supplierName?: string;
   reprintCount?: number;
   lastReprintReason?: string;
   lastReprintedAt?: string;
@@ -183,6 +186,8 @@ export interface RequestRecord {
   departmentId?: string;
   departmentName?: string;
   approvalNote?: string;
+  approvedById?: string;
+  approvedByName?: string;
   fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT' | string;
   subAccountCode?: string;
   allocatedAmount?: number;

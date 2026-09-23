@@ -320,13 +320,6 @@ export const WriteOffPage: React.FC = () => {
           <CategoryThumbnail
             icon={<IconFile />}
             name={record.asset?.item?.name || 'Asosiy vosita'}
-            subtitle={
-              record.asset?.room
-                ? `${record.asset.room.number}-xona`
-                : record.asset?.inventoryNumber
-                ? `Inv: ${record.asset.inventoryNumber}`
-                : undefined
-            }
             tag={record.actNumber}
             color="#F53F3F"
             bg="#FFECE8"

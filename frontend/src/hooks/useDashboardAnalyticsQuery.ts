@@ -16,6 +16,10 @@ export interface DashboardSummary {
   pendingWriteOffsCount?: number;
   molsCount?: number;
   suppliersCount: number;
+  userRole?: string;
+  userDepartmentId?: string | null;
+  userDepartmentAssetCount?: number;
+  userDepartmentBookValue?: number;
   statusCounts: {
     NEW: number;
     IN_USE: number;
@@ -51,7 +55,9 @@ export interface CategoryBreakdownItem {
 }
 
 export interface DepartmentBreakdownItem {
+  id?: string;
   name: string;
+  facultyName?: string;
   count: number;
   initialCost: number;
   netBookValue: number;
@@ -71,8 +77,12 @@ export interface RecentRequestItem {
   id: string;
   requestNumber: string;
   requesterName: string;
+  departmentName?: string;
   purpose: string;
   status: string;
+  approvalNote?: string | null;
+  approvedByName?: string | null;
+  approvalMethod?: string;
   createdAt: string;
 }
 
@@ -107,7 +117,9 @@ export function useDashboardAnalyticsQuery() {
       const res = await apiClient.get<DashboardAnalyticsData>(API_ENDPOINTS.DASHBOARD.ANALYTICS);
       return res.data;
     },
-    refetchInterval: 30000, // Background poll every 30s for live data
+    refetchInterval: 10000, // Background poll every 10s for live data
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   return {

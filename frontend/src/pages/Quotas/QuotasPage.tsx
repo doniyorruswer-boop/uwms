@@ -15,6 +15,7 @@ import {
   Grid,
   Alert,
   Tooltip,
+  DatePicker,
 } from '@arco-design/web-react';
 import { useSocket } from '../../hooks/useSocket';
 import { StockLevelGauge } from '../../components/Common/StockLevelGauge';
@@ -56,10 +57,9 @@ const FormItem = Form.Item;
 export const QuotasPage: React.FC = () => {
   const { user } = useAuthStore();
 
-  const canManageQuotas =
-    user?.role === 'SUPER_ADMIN' ||
-    user?.role === 'VICE_RECTOR_FINANCE' ||
-    user?.role === 'HEAD_WAREHOUSE';
+  // Faqat Moliya-iqtisod prorektori kvotalarni boshqarishi (yangi belgilash, tahrirlash) mumkin.
+  // Superadminga ham tahrirlash qat’iyan disable bo‘ladi.
+  const canManageQuotas = user?.role === 'VICE_RECTOR_FINANCE';
 
   const isDepartmentStaff = user?.role === 'EMPLOYEE' || user?.role === 'MOL';
 
@@ -196,6 +196,10 @@ export const QuotasPage: React.FC = () => {
       }
 
       return true;
+    }).sort((a, b) => {
+      const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return dateB - dateA;
     });
   }, [quotas, statusFilter, search, isDepartmentStaff, user?.departmentId]);
 
@@ -209,7 +213,7 @@ export const QuotasPage: React.FC = () => {
         period: values.period || currentPeriod,
         notes: values.notes,
       });
-      Message.success('Kafedra kvotasi muvaffaqiyatli belgilandi!');
+      Message.success('Kvota muvaffaqiyatli belgilandi!');
       setCreateModalVisible(false);
       createForm.resetFields();
       refetch();
@@ -271,12 +275,12 @@ export const QuotasPage: React.FC = () => {
           : 'ME’YORDA',
       'Izoh': q.notes || '-',
     }));
-    exportToExcel(exportData, 'Kafedralar_Oylik_Kvotasi');
+    exportToExcel(exportData, 'Kafedra_va_Bolimlar_Oylik_Kvotasi');
   };
 
   const columns = [
     {
-      title: 'Kafedra / Bo‘linma',
+      title: 'Kafedra / Bo‘lim',
       dataIndex: 'department.name',
       width: 175,
       render: (_: any, record: DepartmentQuota) => (
@@ -308,7 +312,6 @@ export const QuotasPage: React.FC = () => {
         <CategoryThumbnail
           icon={<IconStorage />}
           name={record.item.name}
-          subtitle={`O‘lchov birligi: ${record.item.unit}`}
           tag={record.period}
           color="#165DFF"
           bg="#E8F3FF"
@@ -460,18 +463,17 @@ export const QuotasPage: React.FC = () => {
               Tahrirlash
             </Button>
           ) : (
-            <Button
-              size="small"
-              type="outline"
-              icon={<IconEye />}
-              style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
-              onClick={(e) => {
-                e?.stopPropagation?.();
-                openEditModal(record);
-              }}
-            >
-              Ko‘rish
-            </Button>
+            <Tooltip content="Kvotani tahrirlash faqat Moliya-iqtisod prorektori vakolatida">
+              <Button
+                size="small"
+                type="outline"
+                disabled
+                icon={<IconEdit />}
+                style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+              >
+                Tahrirlash
+              </Button>
+            </Tooltip>
           )}
         </TableActions>
       ),
@@ -482,8 +484,8 @@ export const QuotasPage: React.FC = () => {
   if (isDepartmentStaff && !user?.departmentId) {
     return (
       <ForbiddenView
-        title="Kafedra Biriktirilmagan"
-        subTitle="Sizning akkauntingizga rasmiy kafedra yoki bo‘linma biriktirilmagan. Kvotalarni ko‘rish uchun administratorga murojaat qiling."
+        title="Kafedra yoki Bo‘lim Biriktirilmagan"
+        subTitle="Sizning akkauntingizga rasmiy kafedra yoki bo‘lim biriktirilmagan. Kvotalarni ko‘rish uchun administratorga murojaat qiling."
       />
     );
   }
@@ -529,7 +531,7 @@ export const QuotasPage: React.FC = () => {
           <Space size="medium" wrap>
             <Input
               prefix={<IconSearch />}
-              placeholder="Kafedra yoki mahsulot nomi..."
+              placeholder="Kafedra / bo‘lim yoki mahsulot nomi..."
               style={{ width: 260, borderRadius: 0 }}
               value={search}
               onChange={setSearch}
@@ -543,7 +545,7 @@ export const QuotasPage: React.FC = () => {
                   icon={<IconLock />}
                   style={{ borderRadius: 0, padding: '4px 10px', fontSize: 13, height: 32, display: 'inline-flex', alignItems: 'center' }}
                 >
-                  {user?.departmentName || (user as any)?.department?.name || 'Kafedrangiz'}
+                  {user?.departmentName || (user as any)?.department?.name || 'Kafedra yoki bo‘limingiz'}
                 </Tag>
                 <Tag
                   color="gray"
@@ -558,7 +560,7 @@ export const QuotasPage: React.FC = () => {
                 value={selectedDept}
                 onChange={setSelectedDept}
               >
-                <Select.Option value="ALL">Barcha Kafedralar</Select.Option>
+                <Select.Option value="ALL">Barcha Kafedra va Bo‘limlar</Select.Option>
                 {departments.map((d) => (
                   <Select.Option key={d.id} value={d.id}>
                     {d.name}
@@ -567,11 +569,14 @@ export const QuotasPage: React.FC = () => {
               </Select>
             )}
 
-            <Input
-              type="month"
-              style={{ width: 150, borderRadius: 0 }}
+            <DatePicker.MonthPicker
+              format="YYYY-MM"
+              style={{ width: 160, borderRadius: 0 }}
               value={currentPeriod}
-              onChange={setCurrentPeriod}
+              onChange={(val) => {
+                if (val) setCurrentPeriod(val);
+              }}
+              placeholder="Davrni tanlang"
             />
           </Space>
 
@@ -592,7 +597,7 @@ export const QuotasPage: React.FC = () => {
               Excel
             </Button>
 
-            {canManageQuotas && (
+            {canManageQuotas ? (
               <Button
                 type="primary"
                 icon={<IconPlus />}
@@ -601,6 +606,17 @@ export const QuotasPage: React.FC = () => {
               >
                 Yangi Kvota Belgilash
               </Button>
+            ) : (
+              <Tooltip content="Kvota belgilash faqat Moliya-iqtisod prorektori vakolatida">
+                <Button
+                  type="primary"
+                  disabled
+                  icon={<IconPlus />}
+                  style={{ borderRadius: 0 }}
+                >
+                  Yangi Kvota Belgilash
+                </Button>
+              </Tooltip>
             )}
           </Space>
         </div>
@@ -610,7 +626,7 @@ export const QuotasPage: React.FC = () => {
       {exceededQuotas > 0 && (
         <Alert
           type="warning"
-          title={`${exceededQuotas} ta kafedrada oylik sarf limiti oshib ketgan!`}
+          title={`${exceededQuotas} ta kafedra va bo‘limda oylik sarf limiti oshib ketgan!`}
           content="Universitet Nizomi 5.4-bandiga muvofiq, oylik limitdan ortiqcha berilgan talabnomalar uchun Moliya-iqtisodiyot bo‘yicha prorektor yoki Rektoratning maxsus ruxsati (rezolyutsiyasi) talab qilinadi."
           action={
             statusFilter !== 'RECTOR_APPROVAL' ? (
@@ -632,7 +648,7 @@ export const QuotasPage: React.FC = () => {
       {isError && (
         <Alert
           type="error"
-          title="Kafedra kvotalarini yuklashda xatolik yuz berdi"
+          title="Kvotalarni yuklashda xatolik yuz berdi"
           content="Server bilan aloqa uzildi. Iltimos qayta urinib ko‘ring."
           action={
             <Button
@@ -665,7 +681,7 @@ export const QuotasPage: React.FC = () => {
 
       {/* Create Modal */}
       <Modal
-        title="Yangi Kafedra Kvotasini Belgilash"
+        title="Yangi Kvota Belgilash (Kafedra va Bo‘limlar)"
         visible={createModalVisible}
         onOk={handleCreateQuota}
         onCancel={() => {
@@ -679,11 +695,11 @@ export const QuotasPage: React.FC = () => {
       >
         <Form form={createForm} layout="vertical">
           <FormItem
-            label="Kafedra / Bo‘linma"
+            label="Kafedra / Bo‘lim"
             field="departmentId"
-            rules={[{ required: true, message: 'Kafedrani tanlang' }]}
+            rules={[{ required: true, message: 'Kafedra yoki bo‘limni tanlang' }]}
           >
-            <Select placeholder="Kafedrani tanlang" style={{ borderRadius: 0 }}>
+            <Select placeholder="Kafedra yoki bo‘limni tanlang" style={{ borderRadius: 0 }}>
               {departments.map((d) => (
                 <Select.Option key={d.id} value={d.id}>
                   {d.name} {d.code ? `(${d.code})` : ''}
@@ -722,7 +738,11 @@ export const QuotasPage: React.FC = () => {
             </Col>
             <Col span={12}>
               <FormItem label="Davr (Oy/Yil)" field="period" initialValue={currentPeriod}>
-                <Input type="month" style={{ width: '100%', borderRadius: 0 }} />
+                <DatePicker.MonthPicker
+                  format="YYYY-MM"
+                  style={{ width: '100%', borderRadius: 0 }}
+                  placeholder="Davrni tanlang"
+                />
               </FormItem>
             </Col>
           </Row>

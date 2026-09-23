@@ -42,6 +42,7 @@ import {
   IconStorage,
   IconExclamationCircle,
   IconUser,
+  IconApps,
 } from '@arco-design/web-react/icon';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -61,6 +62,7 @@ import { PageTabs } from '../../components/Common/PageTabs';
 import { TableActions } from '../../components/Common/TableActions';
 import { StandardTable } from '../../components/Common/StandardTable';
 import { StatusTag } from '../../components/Common/StatusTag';
+import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { ForbiddenView } from '../../components/Common/ForbiddenView';
 import { CreateRepairModal } from '../../components/Repairs/CreateRepairModal';
 import { CreateWriteOffModal } from '../../components/WriteOff/CreateWriteOffModal';
@@ -195,11 +197,18 @@ export const AssetsPage: React.FC = () => {
 
   // Filtered assets
   const filteredAssets = assets.filter((a) => {
+    const s = searchText.trim().toLowerCase();
     const matchesSearch =
-      a.itemName.toLowerCase().includes(searchText.toLowerCase()) ||
-      a.inventoryNumber.toLowerCase().includes(searchText.toLowerCase()) ||
-      (a.roomName && a.roomName.toLowerCase().includes(searchText.toLowerCase())) ||
-      (a.serialNumber && a.serialNumber.toLowerCase().includes(searchText.toLowerCase()));
+      !s ||
+      a.itemName.toLowerCase().includes(s) ||
+      a.inventoryNumber.toLowerCase().includes(s) ||
+      (a.categoryName && a.categoryName.toLowerCase().includes(s)) ||
+      (a.roomName && a.roomName.toLowerCase().includes(s)) ||
+      (a.serialNumber && a.serialNumber.toLowerCase().includes(s)) ||
+      (a.departmentName && a.departmentName.toLowerCase().includes(s)) ||
+      (a.facultyName && a.facultyName.toLowerCase().includes(s)) ||
+      (a.responsibleUserName && a.responsibleUserName.toLowerCase().includes(s)) ||
+      (s.includes('ombor') && (!a.roomId || a.roomName?.toLowerCase().includes('ombor')));
 
     const matchesStatus = statusFilter === 'ALL' || a.status === statusFilter;
     const matchesFunding = fundingSourceFilter === 'ALL' || a.fundingSource === fundingSourceFilter;
@@ -300,6 +309,24 @@ export const AssetsPage: React.FC = () => {
     Message.success('Excel fayl muvaffaqiyatli yuklab olindi!');
   };
 
+  // Official Category-based visual representation for assets (matching Warehouse/Requests/Users standard)
+  const getAssetCategoryVisual = (categoryName?: string) => {
+    const cat = (categoryName || '').toLowerCase();
+    if (cat.includes('kompyuter') || cat.includes('noutbuk') || cat.includes('server') || cat.includes('monoblok')) {
+      return { icon: <IconDesktop />, color: '#165DFF', bg: '#E8F3FF' };
+    }
+    if (cat.includes('printer') || cat.includes('skaner') || cat.includes('nusxa') || cat.includes('kartridj')) {
+      return { icon: <IconPrinter />, color: '#722ED1', bg: '#F5E8FF' };
+    }
+    if (cat.includes('mebel') || cat.includes('stol') || cat.includes('stul') || cat.includes('shkaf')) {
+      return { icon: <IconStorage />, color: '#FF7D00', bg: '#FFF7E8' };
+    }
+    if (cat.includes('konditsioner') || cat.includes('sovutgich') || cat.includes('texnika') || cat.includes('jihoz') || cat.includes('asbob')) {
+      return { icon: <IconTool />, color: '#00B42A', bg: '#E8FFEA' };
+    }
+    return { icon: <IconApps />, color: '#165DFF', bg: '#E8F3FF' };
+  };
+
   // Permission checks
   const isAllowedToView = !user?.role || ALLOWED_ASSET_ROLES.includes(user.role);
   if (!isAllowedToView || (error && (error as any)?.response?.status === 403)) {
@@ -360,9 +387,9 @@ export const AssetsPage: React.FC = () => {
                 const displayNum = docNum || `TRF-${r.id.substring(0, 8).toUpperCase()}`;
                 return (
                   <div style={{ paddingLeft: 8 }}>
-                    <b style={{ color: '#165DFF', whiteSpace: 'nowrap' }}>
+                    <span style={{ color: '#165DFF', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
                       {displayNum}
-                    </b>
+                    </span>
                   </div>
                 );
               },
@@ -372,7 +399,7 @@ export const AssetsPage: React.FC = () => {
               dataIndex: 'assetName',
               minWidth: 180,
               render: (name: string) => (
-                <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)', wordBreak: 'break-word' }}>
                   {name}
                 </div>
               ),
@@ -416,7 +443,7 @@ export const AssetsPage: React.FC = () => {
               dataIndex: 'createdAt',
               width: 130,
               render: (createdAt: string) => (
-                <span style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 13, color: 'var(--color-text-3)', whiteSpace: 'nowrap' }}>
                   {createdAt ? createdAt.replace('T', ' ').substring(0, 16) : '—'}
                 </span>
               ),
@@ -644,49 +671,57 @@ export const AssetsPage: React.FC = () => {
               {
                 title: 'Inventar №',
                 dataIndex: 'inventoryNumber',
-                width: 120,
+                width: 130,
                 render: (inv: string) => (
-                  <b style={{ color: '#165DFF', whiteSpace: 'nowrap' }}>{inv}</b>
+                  <span style={{ color: '#165DFF', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
+                    {inv}
+                  </span>
                 ),
               },
               {
-                title: 'Jihoz Nomi va Modeli',
+                title: 'Jihoz Nomi',
                 dataIndex: 'itemName',
-                minWidth: 200,
-                render: (name: string, record: ItemInstance) => (
-                  <div>
-                    <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>{name}</div>
-                    {record.categoryName && (
-                      <Tag size="small" style={{ marginTop: 4, borderRadius: 0 }}>{record.categoryName}</Tag>
-                    )}
-                  </div>
-                ),
+                minWidth: 260,
+                render: (name: string, record: ItemInstance) => {
+                  const visual = getAssetCategoryVisual(record.categoryName);
+                  return (
+                    <CategoryThumbnail
+                      icon={visual.icon}
+                      name={name}
+                      tag={record.categoryName}
+                      color={visual.color}
+                      bg={visual.bg}
+                    />
+                  );
+                },
               },
               {
                 title: 'Joylashuvi & Javobgar Shaxs',
                 dataIndex: 'roomName',
                 width: 220,
                 render: (room: string, record: ItemInstance) => (
-                  <div>
-                    <div style={{ fontWeight: 500, lineHeight: 1.35 }}>{room || 'Markaziy ombor'}</div>
+                  <div style={{ lineHeight: 1.35 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)' }}>
+                      {room || 'Markaziy ombor'}
+                    </div>
                     <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 2 }}>
-                      Mas’ul: <b>{record.responsibleUserName || 'Belgilanmagan'}</b>
+                      Mas’ul: <span style={{ fontWeight: 600, color: 'var(--color-text-2)' }}>{record.responsibleUserName || 'Belgilanmagan'}</span>
                     </div>
                   </div>
                 ),
               },
               {
                 title: 'Balans & Qoldiq Qiymat',
-                width: 160,
+                width: 165,
                 sorter: (a: ItemInstance, b: ItemInstance) => (a.purchasePrice || 0) - (b.purchasePrice || 0),
                 render: (_, record: ItemInstance) => {
                   const bookVal = record.currentBookValue !== undefined ? record.currentBookValue : record.purchasePrice || 0;
                   return (
                     <div style={{ lineHeight: 1.35 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)', whiteSpace: 'nowrap' }}>
                         {record.purchasePrice ? record.purchasePrice.toLocaleString('uz-UZ') + ' so‘m' : '—'}
                       </div>
-                      <div style={{ fontSize: 11, color: '#00B42A', fontWeight: 600, whiteSpace: 'nowrap', marginTop: 2 }}>
+                      <div style={{ fontSize: 12, color: '#00B42A', fontWeight: 600, whiteSpace: 'nowrap', marginTop: 2 }}>
                         Qoldiq: {Number(bookVal).toLocaleString('uz-UZ')} so‘m
                       </div>
                     </div>
@@ -708,7 +743,7 @@ export const AssetsPage: React.FC = () => {
                     label = 'Grant';
                   }
                   return (
-                    <Tag color={color} size="small" style={{ borderRadius: 0, whiteSpace: 'nowrap' }}>
+                    <Tag color={color} size="small" style={{ borderRadius: 0, whiteSpace: 'nowrap', fontSize: 12, fontWeight: 500 }}>
                       {label}
                     </Tag>
                   );

@@ -127,6 +127,8 @@ export class RequestsService {
       requesterPosition: r.requester.position ?? undefined,  // Lavozim: "Kafedra mudiri", "Prorektor", "Laborant" va h.k.
       departmentName: r.department?.name,
       approvalNote: r.approvalNote,
+      approvedById: r.approvedById,
+      approvedByName: r.approvedBy?.fullName,
       fundingSource: r.fundingSource,
       subAccountCode: r.subAccountCode,
       allocatedAmount: r.allocatedAmount ? Number(r.allocatedAmount) : undefined,

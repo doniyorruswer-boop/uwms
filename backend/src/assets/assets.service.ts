@@ -52,12 +52,23 @@ export class AssetsService {
     }
 
     if (query?.search) {
+      const isWarehouseSearch = /ombor/i.test(query.search);
       where.OR = [
         { inventoryNumber: { contains: query.search, mode: 'insensitive' } },
         { serialNumber: { contains: query.search, mode: 'insensitive' } },
         { item: { name: { contains: query.search, mode: 'insensitive' } } },
+        { item: { model: { contains: query.search, mode: 'insensitive' } } },
+        { item: { category: { name: { contains: query.search, mode: 'insensitive' } } } },
         { room: { name: { contains: query.search, mode: 'insensitive' } } },
+        { room: { number: { contains: query.search, mode: 'insensitive' } } },
+        { room: { department: { name: { contains: query.search, mode: 'insensitive' } } } },
+        { room: { department: { parent: { name: { contains: query.search, mode: 'insensitive' } } } } },
+        { responsibleUser: { fullName: { contains: query.search, mode: 'insensitive' } } },
+        { responsibleUser: { department: { name: { contains: query.search, mode: 'insensitive' } } } },
       ];
+      if (isWarehouseSearch) {
+        where.OR.push({ roomId: null });
+      }
     }
 
     const isPaginated = query?.page !== undefined || query?.limit !== undefined;
@@ -71,16 +82,32 @@ export class AssetsService {
       : 'createdAt';
     const sortOrder = query && (query as any).sortOrder === 'asc' ? 'asc' : 'desc';
 
+    const assetInclude = {
+      item: { include: { category: true } },
+      room: {
+        include: {
+          department: {
+            include: { parent: true },
+          },
+        },
+      },
+      responsibleUser: {
+        select: {
+          id: true,
+          fullName: true,
+          department: {
+            include: { parent: true },
+          },
+        },
+      },
+      supplier: true,
+    };
+
     const [instances, total] = isPaginated
       ? await this.prisma.$transaction([
           this.prisma.itemInstance.findMany({
             where,
-            include: {
-              item: { include: { category: true } },
-              room: true,
-              responsibleUser: { select: { id: true, fullName: true } },
-              supplier: true,
-            },
+            include: assetInclude,
             orderBy: { [sortField]: sortOrder },
             skip,
             take: limit,
@@ -90,12 +117,7 @@ export class AssetsService {
       : [
           await this.prisma.itemInstance.findMany({
             where,
-            include: {
-              item: { include: { category: true } },
-              room: true,
-              responsibleUser: { select: { id: true, fullName: true } },
-              supplier: true,
-            },
+            include: assetInclude,
             orderBy: { [sortField]: sortOrder },
           }),
           0,
@@ -138,6 +160,8 @@ export class AssetsService {
         roomNumber: inst.room?.number || 'OMB',
         responsibleUserId: inst.responsibleUserId,
         responsibleUserName: inst.responsibleUser?.fullName || 'Bosh omborchi',
+        departmentName: inst.room?.department?.name || inst.responsibleUser?.department?.name || (inst.roomId ? undefined : 'Markaziy omborda'),
+        facultyName: inst.room?.department?.parent?.name || inst.responsibleUser?.department?.parent?.name,
         supplierName: inst.supplier?.name,
         reprintCount: inst.reprintCount || 0,
         lastReprintReason: inst.lastReprintReason,
