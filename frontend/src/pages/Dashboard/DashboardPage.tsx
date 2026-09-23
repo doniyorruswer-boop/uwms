@@ -286,165 +286,86 @@ export const DashboardPage: React.FC = () => {
         />
       )}
 
-      {/* ARCO DESIGN PRO ANALYSIS METRIC CARDS (Exact match to ByteDance Arco Design Pro reference) */}
-      <Card
-        className="uwms-card"
-        style={{
-          borderRadius: 0,
-          border: '1px solid var(--border-color)',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-        }}
-        bodyStyle={{ padding: '16px 20px 20px' }}
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-            <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--color-text-1)' }}>
-              Operativ Boshqaruv & Tahlil Markazi (Overview)
-            </span>
-            <Space size="small" wrap>
-              <Radio.Group
-                type="button"
-                size="small"
-                value={kpiTab}
-                onChange={(val) => setKpiTab(val)}
-                style={{ borderRadius: 0 }}
-              >
-                <Radio value="assets">Asosiy Vositalar</Radio>
-                <Radio value="warehouse">Ombor & Xizmatlar</Radio>
-              </Radio.Group>
-            </Space>
-          </div>
-        }
-      >
-        {kpiTab === 'assets' ? (
-          <Row gutter={[16, 16]}>
-            {/* Card 1: Jami Asosiy Vositalar (Blue Wave Sparkline) */}
-            <Col xs={24} sm={12} lg={6}>
-              <AnalysisStatCard
-                title="Asosiy Vositalar"
-                value={isLoading ? '—' : (summary?.totalAssets ?? 0).toLocaleString()}
-                trendLabel="Faol:"
-                trendValue={`${summary?.totalAssets ? Math.round(((summary?.statusCounts?.IN_USE || 0) / summary.totalAssets) * 100) : 100}%`}
-                trendDirection="up"
-                theme="blue"
-                chartType="wave"
-                onClick={() => navigate('/assets')}
-              />
-            </Col>
+      {/* 6 COLORFUL HERO METRIC CARDS WITH SPARKLINES (Image 1 cards + Image 2 charts) */}
+      <Row gutter={[16, 16]}>
+        {/* Card 1: Assets (Blue with Wave Chart) */}
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <StatHeroCard
+            title="Asosiy Vositalar"
+            value={isLoading ? '—' : `${summary?.totalAssets || 0}`}
+            subtext="100% QR hisobga olingan"
+            color="blue"
+            chartType="wave"
+            linkText="Barcha vositalar"
+            onClick={() => navigate('/assets')}
+          />
+        </Col>
 
-            {/* Card 2: Qoldiq Balans Qiymati (Green Bar Sparkline) */}
-            <Col xs={24} sm={12} lg={6}>
-              <AnalysisStatCard
-                title="Qoldiq Qiymat"
-                value={isLoading ? '—' : `${formatMln(summary?.totalNetBookValue)} mln`}
-                trendLabel="Dastlabki:"
-                trendValue={`${formatMln(summary?.totalInitialCost)} mln`}
-                trendDirection="up"
-                theme="green"
-                chartType="bar"
-                onClick={() => navigate('/assets')}
-              />
-            </Col>
+        {/* Card 2: Book Value (Green with Bar Chart) */}
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <StatHeroCard
+            title="Qoldiq Qiymat (Book Value)"
+            value={isLoading ? '—' : `${formatMln(summary?.totalNetBookValue)} mln`}
+            subtext={`Dastlabki: ${formatMln(summary?.totalInitialCost)} mln`}
+            color="green"
+            chartType="bar"
+            linkText="Moliyaviy reestr"
+            onClick={() => navigate('/assets')}
+          />
+        </Col>
 
-            {/* Card 3: Kutilayotgan Zayavkalar (Cyan Decaying Wave Sparkline) */}
-            <Col xs={24} sm={12} lg={6}>
-              <AnalysisStatCard
-                title="Zayavkalar"
-                value={isLoading ? '—' : `${summary?.pendingRequestsCount || 0} ta`}
-                trendLabel="Ko‘chirish:"
-                trendValue={`${summary?.pendingTransfersCount || 0} ta`}
-                trendDirection={(summary?.pendingRequestsCount || 0) > 0 ? 'up' : 'down'}
-                trendColor={(summary?.pendingRequestsCount || 0) > 0 ? '#F53F3F' : '#00B42A'}
-                theme="cyan"
-                chartType="decay-wave"
-                onClick={() => navigate('/requests')}
-              />
-            </Col>
+        {/* Card 3: Pending Requests (Orange with Decaying Wave) */}
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <StatHeroCard
+            title="Kutilayotgan Zayavkalar"
+            value={isLoading ? '—' : `${summary?.pendingRequestsCount || 0}`}
+            subtext={(summary?.pendingRequestsCount || 0) > 0 ? 'Tasdiqlash kutilmoqda' : 'Hammasi bajarilgan'}
+            color="orange"
+            chartType="decay-wave"
+            linkText="Zayavkalarni ko‘rish"
+            onClick={() => navigate('/requests')}
+          />
+        </Col>
 
-            {/* Card 4: Mulk Holati Taqsimoti (Purple Donut with 3-item Legend) */}
-            <Col xs={24} sm={12} lg={6}>
-              <AnalysisStatCard
-                title="Mulk Balansi"
-                value={isLoading ? '—' : `${summary?.totalAssets || 0} ta`}
-                trendLabel="Foydalanishda:"
-                trendValue={`${summary?.statusCounts?.IN_USE || 0} ta`}
-                trendDirection="up"
-                theme="purple"
-                chartType="donut"
-                donutLegend={[
-                  { label: 'Band', value: summary?.statusCounts?.IN_USE || 0, color: '#722ED1' },
-                  { label: 'Ombor', value: summary?.statusCounts?.NEW || 0, color: '#165DFF' },
-                  { label: 'Ta’mir', value: summary?.statusCounts?.IN_REPAIR || 0, color: '#00B42A' },
-                ]}
-                onClick={() => navigate('/assets')}
-              />
-            </Col>
-          </Row>
-        ) : (
-          <Row gutter={[16, 16]}>
-            {/* Card 1: Ombor Sarf Mahsulotlari */}
-            <Col xs={24} sm={12} lg={6}>
-              <AnalysisStatCard
-                title="Ombor Zaxirasi"
-                value={isLoading ? '—' : `${(summary?.totalStockUnits || 0).toLocaleString()} dona`}
-                trendLabel="Holat:"
-                trendValue="Yetarli"
-                trendDirection="up"
-                theme="blue"
-                chartType="wave"
-                onClick={() => navigate('/warehouse')}
-              />
-            </Col>
+        {/* Card 4: Consumables (Purple with Bar Chart) */}
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <StatHeroCard
+            title="Ombor Sarf Zaxirasi"
+            value={isLoading ? '—' : `${summary?.totalStockUnits || 0}`}
+            subtext={(summary?.lowStockCount || 0) > 0 ? `${summary?.lowStockCount} turdagi tovar kam` : 'Zaxiralar yetarli'}
+            color="purple"
+            chartType="bar"
+            linkText="Ombor hisoboti"
+            onClick={() => navigate('/warehouse')}
+          />
+        </Col>
 
-            {/* Card 2: Kritik Qoldiqdagi Sarflar */}
-            <Col xs={24} sm={12} lg={6}>
-              <AnalysisStatCard
-                title="Kritik Qoldiq"
-                value={isLoading ? '—' : `${summary?.lowStockCount || 0} tur`}
-                trendLabel="Kamomad:"
-                trendValue={`${summary?.lowStockCount || 0} ta`}
-                trendDirection={(summary?.lowStockCount || 0) > 0 ? 'up' : 'down'}
-                trendColor={(summary?.lowStockCount || 0) > 0 ? '#F53F3F' : '#00B42A'}
-                theme="green"
-                chartType="bar"
-                onClick={() => navigate('/warehouse?action=incoming')}
-              />
-            </Col>
+        {/* Card 5: In Repairs (Red with Decaying Wave) */}
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <StatHeroCard
+            title="Ta’mirdagi Texnikalar"
+            value={isLoading ? '—' : `${summary?.statusCounts?.IN_REPAIR || 0}`}
+            subtext="Servis va ustaxona"
+            color="red"
+            chartType="decay-wave"
+            linkText="Ta’mirlash jurnali"
+            onClick={() => navigate('/repairs')}
+          />
+        </Col>
 
-            {/* Card 3: Ta’mirdagi Uskunalar */}
-            <Col xs={24} sm={12} lg={6}>
-              <AnalysisStatCard
-                title="Ta’mirda"
-                value={isLoading ? '—' : `${summary?.statusCounts?.IN_REPAIR || 0} ta`}
-                trendLabel="Servis:"
-                trendValue="Ustaxonada"
-                trendDirection="down"
-                theme="cyan"
-                chartType="decay-wave"
-                onClick={() => navigate('/repairs')}
-              />
-            </Col>
-
-            {/* Card 4: Moddiy Javobgarlar (MOL) */}
-            <Col xs={24} sm={12} lg={6}>
-              <AnalysisStatCard
-                title="MOL Xodimlar"
-                value={isLoading ? '—' : `${summary?.molsCount || 0} nafar`}
-                trendLabel="Tuzilma:"
-                trendValue={`${departments.length || 0} ta`}
-                trendDirection="up"
-                theme="purple"
-                chartType="donut"
-                donutLegend={[
-                  { label: 'Kafedralar', color: '#722ED1' },
-                  { label: 'Bo‘limlar', color: '#165DFF' },
-                  { label: 'Laboratoriyalar', color: '#00B42A' },
-                ]}
-                onClick={() => navigate('/users')}
-              />
-            </Col>
-          </Row>
-        )}
-      </Card>
+        {/* Card 6: MOL & Staff (Teal with Donut Chart) */}
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <StatHeroCard
+            title="Moddiy Javobgarlar (MOL)"
+            value={isLoading ? '—' : `${summary?.molsCount || 0}`}
+            subtext="Ashyo biriktirilgan xodimlar"
+            color="teal"
+            chartType="donut"
+            linkText="MOL pasportlari"
+            onClick={() => navigate('/users')}
+          />
+        </Col>
+      </Row>
 
       {/* ROW 2: "NEEDS ATTENTION" OPERATIONAL WIDGET & DEPRECIATION BALANCE */}
       <Row gutter={[16, 16]}>
