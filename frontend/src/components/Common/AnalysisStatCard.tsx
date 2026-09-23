@@ -17,8 +17,9 @@ export interface AnalysisStatCardProps {
   trendValue?: string | number;
   trendDirection?: 'up' | 'down';
   trendColor?: string;
-  theme?: 'blue' | 'green' | 'cyan' | 'purple';
-  chartType: AnalysisChartType;
+  theme?: 'blue' | 'green' | 'cyan' | 'purple' | 'orange' | 'red' | 'teal';
+  chartType?: AnalysisChartType;
+  icon?: React.ReactNode;
   donutLegend?: DonutLegendItem[];
   onClick?: () => void;
   style?: React.CSSProperties;
@@ -32,6 +33,7 @@ const THEME_STYLES: Record<
     darkBg: string;
     darkBorder: string;
     accent: string;
+    iconBg: string;
   }
 > = {
   blue: {
@@ -40,6 +42,7 @@ const THEME_STYLES: Record<
     darkBg: 'rgba(22, 93, 255, 0.10)',
     darkBorder: 'rgba(22, 93, 255, 0.25)',
     accent: '#165DFF',
+    iconBg: 'rgba(22, 93, 255, 0.10)',
   },
   green: {
     bg: 'linear-gradient(180deg, #F6FDF9 0%, #E8F8F0 100%)',
@@ -47,6 +50,7 @@ const THEME_STYLES: Record<
     darkBg: 'rgba(0, 180, 42, 0.10)',
     darkBorder: 'rgba(0, 180, 42, 0.25)',
     accent: '#00B42A',
+    iconBg: 'rgba(0, 180, 42, 0.10)',
   },
   cyan: {
     bg: 'linear-gradient(180deg, #F4F9FF 0%, #EBF4FE 100%)',
@@ -54,6 +58,15 @@ const THEME_STYLES: Record<
     darkBg: 'rgba(22, 93, 255, 0.08)',
     darkBorder: 'rgba(22, 93, 255, 0.22)',
     accent: '#165DFF',
+    iconBg: 'rgba(22, 93, 255, 0.10)',
+  },
+  orange: {
+    bg: 'linear-gradient(180deg, #FFF9F2 0%, #FFF2E6 100%)',
+    border: '#FFD8B2',
+    darkBg: 'rgba(255, 125, 0, 0.10)',
+    darkBorder: 'rgba(255, 125, 0, 0.25)',
+    accent: '#FF7D00',
+    iconBg: 'rgba(255, 125, 0, 0.10)',
   },
   purple: {
     bg: 'linear-gradient(180deg, #F9F8FE 0%, #F1EEFD 100%)',
@@ -61,6 +74,23 @@ const THEME_STYLES: Record<
     darkBg: 'rgba(114, 46, 209, 0.10)',
     darkBorder: 'rgba(114, 46, 209, 0.25)',
     accent: '#722ED1',
+    iconBg: 'rgba(114, 46, 209, 0.10)',
+  },
+  red: {
+    bg: 'linear-gradient(180deg, #FFF5F5 0%, #FEEBEB 100%)',
+    border: '#FFCCCC',
+    darkBg: 'rgba(245, 63, 63, 0.10)',
+    darkBorder: 'rgba(245, 63, 63, 0.25)',
+    accent: '#F53F3F',
+    iconBg: 'rgba(245, 63, 63, 0.10)',
+  },
+  teal: {
+    bg: 'linear-gradient(180deg, #F2FAF9 0%, #E6F5F3 100%)',
+    border: '#BFE7E2',
+    darkBg: 'rgba(0, 154, 135, 0.10)',
+    darkBorder: 'rgba(0, 154, 135, 0.25)',
+    accent: '#009A87',
+    iconBg: 'rgba(0, 154, 135, 0.10)',
   },
 };
 
@@ -254,6 +284,7 @@ export const AnalysisStatCard: React.FC<AnalysisStatCardProps> = ({
   trendColor,
   theme = 'blue',
   chartType,
+  icon,
   donutLegend,
   onClick,
   style,
@@ -354,20 +385,60 @@ export const AnalysisStatCard: React.FC<AnalysisStatCardProps> = ({
         )}
       </div>
 
-      {/* Right Sparkline / Donut Chart Column */}
-      <div
-        style={{
-          width: chartType === 'donut' ? 115 : 105,
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          zIndex: 1,
-          marginLeft: 8,
-        }}
-      >
-        {renderChart()}
-      </div>
+      {/* Right Column: Icon OR Sparkline / Donut Chart */}
+      {icon ? (
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 10,
+            backgroundColor: currentTheme.iconBg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: currentTheme.accent,
+            fontSize: 26,
+            flexShrink: 0,
+            zIndex: 2,
+            marginLeft: 8,
+          }}
+        >
+          {icon}
+        </div>
+      ) : chartType ? (
+        <div
+          style={{
+            width: chartType === 'donut' ? 115 : 105,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            zIndex: 1,
+            marginLeft: 8,
+          }}
+        >
+          {renderChart()}
+        </div>
+      ) : null}
+
+      {/* Subtle background watermark when icon is provided */}
+      {icon && (
+        <div
+          style={{
+            position: 'absolute',
+            right: -6,
+            bottom: -8,
+            fontSize: 70,
+            color: currentTheme.accent,
+            opacity: 0.08,
+            pointerEvents: 'none',
+            zIndex: 1,
+            lineHeight: 1,
+          }}
+        >
+          {icon}
+        </div>
+      )}
     </div>
   );
 };

@@ -522,3 +522,18 @@ td.arco-table-cell-fixed-right {
   background: rgba(114, 46, 209, 0.12) !important;
   border-color: rgba(114, 46, 209, 0.28) !important;
 }
+
+[arco-theme='dark'] .uwms-analysis-card[data-theme='orange'] {
+  background: rgba(255, 125, 0, 0.12) !important;
+  border-color: rgba(255, 125, 0, 0.28) !important;
+}
+
+[arco-theme='dark'] .uwms-analysis-card[data-theme='red'] {
+  background: rgba(245, 63, 63, 0.12) !important;
+  border-color: rgba(245, 63, 63, 0.28) !important;
+}
+
+[arco-theme='dark'] .uwms-analysis-card[data-theme='teal'] {
+  background: rgba(0, 154, 135, 0.12) !important;
+  border-color: rgba(0, 154, 135, 0.28) !important;
+}

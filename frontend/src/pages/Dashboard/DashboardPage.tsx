@@ -286,86 +286,156 @@ export const DashboardPage: React.FC = () => {
         />
       )}
 
-      {/* 6 COLORFUL HERO METRIC CARDS WITH SPARKLINES (Image 1 cards + Image 2 charts) */}
-      <Row gutter={[16, 16]}>
-        {/* Card 1: Assets (Blue with Wave Chart) */}
-        <Col xs={24} sm={12} md={8} lg={4}>
-          <StatHeroCard
-            title="Asosiy Vositalar"
-            value={isLoading ? '—' : `${summary?.totalAssets || 0}`}
-            subtext="100% QR hisobga olingan"
-            color="blue"
-            chartType="wave"
-            linkText="Barcha vositalar"
-            onClick={() => navigate('/assets')}
-          />
-        </Col>
+      {/* ARCO DESIGN PRO OVERVIEW WIDGET (Image 2 style with Image 1 icons) */}
+      <Card
+        className="uwms-card"
+        style={{ borderRadius: 4, marginBottom: 16 }}
+        bodyStyle={{ padding: 16 }}
+        title={
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 8,
+            }}
+          >
+            <span style={{ fontWeight: 600, fontSize: 15 }}>
+              Operativ Boshqaruv & Tahlil Markazi (Overview)
+            </span>
+            <Radio.Group
+              type="button"
+              size="small"
+              value={kpiTab}
+              onChange={(val) => setKpiTab(val)}
+            >
+              <Radio value="assets">Asosiy Vositalar</Radio>
+              <Radio value="warehouse">Ombor & Xizmatlar</Radio>
+            </Radio.Group>
+          </div>
+        }
+      >
+        {kpiTab === 'assets' ? (
+          <Row gutter={[16, 16]}>
+            {/* Card 1: Asosiy Vositalar (Image 2 blue card with Image 1 Desktop Icon) */}
+            <Col xs={24} sm={12} lg={6}>
+              <AnalysisStatCard
+                title="Asosiy Vositalar"
+                value={isLoading ? '—' : `${summary?.totalAssets || 0}`}
+                trendLabel="Faol:"
+                trendValue="100% QR"
+                trendDirection="up"
+                theme="blue"
+                icon={<IconDesktop />}
+                onClick={() => navigate('/assets')}
+              />
+            </Col>
 
-        {/* Card 2: Book Value (Green with Bar Chart) */}
-        <Col xs={24} sm={12} md={8} lg={4}>
-          <StatHeroCard
-            title="Qoldiq Qiymat (Book Value)"
-            value={isLoading ? '—' : `${formatMln(summary?.totalNetBookValue)} mln`}
-            subtext={`Dastlabki: ${formatMln(summary?.totalInitialCost)} mln`}
-            color="green"
-            chartType="bar"
-            linkText="Moliyaviy reestr"
-            onClick={() => navigate('/assets')}
-          />
-        </Col>
+            {/* Card 2: Qoldiq Balans Qiymati (Image 2 green card with Image 1 Safe/Shield Icon) */}
+            <Col xs={24} sm={12} lg={6}>
+              <AnalysisStatCard
+                title="Qoldiq Qiymat"
+                value={isLoading ? '—' : `${formatMln(summary?.totalNetBookValue)} mln`}
+                trendLabel="Dastlabki:"
+                trendValue={`${formatMln(summary?.totalInitialCost)} mln`}
+                trendDirection="up"
+                theme="green"
+                icon={<IconSafe />}
+                onClick={() => navigate('/assets')}
+              />
+            </Col>
 
-        {/* Card 3: Pending Requests (Orange with Decaying Wave) */}
-        <Col xs={24} sm={12} md={8} lg={4}>
-          <StatHeroCard
-            title="Kutilayotgan Zayavkalar"
-            value={isLoading ? '—' : `${summary?.pendingRequestsCount || 0}`}
-            subtext={(summary?.pendingRequestsCount || 0) > 0 ? 'Tasdiqlash kutilmoqda' : 'Hammasi bajarilgan'}
-            color="orange"
-            chartType="decay-wave"
-            linkText="Zayavkalarni ko‘rish"
-            onClick={() => navigate('/requests')}
-          />
-        </Col>
+            {/* Card 3: Kutilayotgan Zayavkalar (Image 2 cyan card with Image 1 File Icon) */}
+            <Col xs={24} sm={12} lg={6}>
+              <AnalysisStatCard
+                title="Zayavkalar"
+                value={isLoading ? '—' : `${summary?.pendingRequestsCount || 0} ta`}
+                trendLabel="Ko‘chirish:"
+                trendValue={`${summary?.pendingTransfersCount || 0} ta`}
+                trendDirection={(summary?.pendingRequestsCount || 0) > 0 ? 'up' : 'down'}
+                trendColor={(summary?.pendingRequestsCount || 0) > 0 ? '#F53F3F' : '#00B42A'}
+                theme="cyan"
+                icon={<IconFile />}
+                onClick={() => navigate('/requests')}
+              />
+            </Col>
 
-        {/* Card 4: Consumables (Purple with Bar Chart) */}
-        <Col xs={24} sm={12} md={8} lg={4}>
-          <StatHeroCard
-            title="Ombor Sarf Zaxirasi"
-            value={isLoading ? '—' : `${summary?.totalStockUnits || 0}`}
-            subtext={(summary?.lowStockCount || 0) > 0 ? `${summary?.lowStockCount} turdagi tovar kam` : 'Zaxiralar yetarli'}
-            color="purple"
-            chartType="bar"
-            linkText="Ombor hisoboti"
-            onClick={() => navigate('/warehouse')}
-          />
-        </Col>
+            {/* Card 4: Mulk Balansi (Image 2 purple card with Image 1 UserGroup Icon) */}
+            <Col xs={24} sm={12} lg={6}>
+              <AnalysisStatCard
+                title="Mulk Balansi"
+                value={isLoading ? '—' : `${summary?.totalAssets || 0} ta`}
+                trendLabel="Foydalanishda:"
+                trendValue={`${summary?.statusCounts?.IN_USE || 0} ta`}
+                trendDirection="up"
+                theme="purple"
+                icon={<IconUserGroup />}
+                onClick={() => navigate('/assets')}
+              />
+            </Col>
+          </Row>
+        ) : (
+          <Row gutter={[16, 16]}>
+            {/* Card 1: Ombor Zaxirasi (Image 2 blue card with Image 1 Archive/Box Icon) */}
+            <Col xs={24} sm={12} lg={6}>
+              <AnalysisStatCard
+                title="Ombor Zaxirasi"
+                value={isLoading ? '—' : `${(summary?.totalStockUnits || 0).toLocaleString()} dona`}
+                trendLabel="Holat:"
+                trendValue="Yetarli"
+                trendDirection="up"
+                theme="blue"
+                icon={<IconArchive />}
+                onClick={() => navigate('/warehouse')}
+              />
+            </Col>
 
-        {/* Card 5: In Repairs (Red with Decaying Wave) */}
-        <Col xs={24} sm={12} md={8} lg={4}>
-          <StatHeroCard
-            title="Ta’mirdagi Texnikalar"
-            value={isLoading ? '—' : `${summary?.statusCounts?.IN_REPAIR || 0}`}
-            subtext="Servis va ustaxona"
-            color="red"
-            chartType="decay-wave"
-            linkText="Ta’mirlash jurnali"
-            onClick={() => navigate('/repairs')}
-          />
-        </Col>
+            {/* Card 2: Kritik Qoldiq (Image 2 green card with Image 1 File Icon) */}
+            <Col xs={24} sm={12} lg={6}>
+              <AnalysisStatCard
+                title="Kritik Qoldiq"
+                value={isLoading ? '—' : `${summary?.lowStockCount || 0} tur`}
+                trendLabel="Kamomad:"
+                trendValue={`${summary?.lowStockCount || 0} ta`}
+                trendDirection={(summary?.lowStockCount || 0) > 0 ? 'up' : 'down'}
+                trendColor={(summary?.lowStockCount || 0) > 0 ? '#F53F3F' : '#00B42A'}
+                theme="green"
+                icon={<IconFile />}
+                onClick={() => navigate('/warehouse?action=incoming')}
+              />
+            </Col>
 
-        {/* Card 6: MOL & Staff (Teal with Donut Chart) */}
-        <Col xs={24} sm={12} md={8} lg={4}>
-          <StatHeroCard
-            title="Moddiy Javobgarlar (MOL)"
-            value={isLoading ? '—' : `${summary?.molsCount || 0}`}
-            subtext="Ashyo biriktirilgan xodimlar"
-            color="teal"
-            chartType="donut"
-            linkText="MOL pasportlari"
-            onClick={() => navigate('/users')}
-          />
-        </Col>
-      </Row>
+            {/* Card 3: Ta’mirdagi Uskunalar (Image 2 cyan card with Image 1 Tool Icon) */}
+            <Col xs={24} sm={12} lg={6}>
+              <AnalysisStatCard
+                title="Ta’mirda"
+                value={isLoading ? '—' : `${summary?.statusCounts?.IN_REPAIR || 0} ta`}
+                trendLabel="Servis:"
+                trendValue="Ustaxonada"
+                trendDirection="down"
+                theme="cyan"
+                icon={<IconTool />}
+                onClick={() => navigate('/repairs')}
+              />
+            </Col>
+
+            {/* Card 4: Moddiy Javobgarlar (MOL) (Image 2 purple card with Image 1 UserGroup Icon) */}
+            <Col xs={24} sm={12} lg={6}>
+              <AnalysisStatCard
+                title="MOL Xodimlar"
+                value={isLoading ? '—' : `${summary?.molsCount || 0} nafar`}
+                trendLabel="Tuzilma:"
+                trendValue={`${departments.length || 0} ta`}
+                trendDirection="up"
+                theme="purple"
+                icon={<IconUserGroup />}
+                onClick={() => navigate('/users')}
+              />
+            </Col>
+          </Row>
+        )}
+      </Card>
 
       {/* ROW 2: "NEEDS ATTENTION" OPERATIONAL WIDGET & DEPRECIATION BALANCE */}
       <Row gutter={[16, 16]}>
