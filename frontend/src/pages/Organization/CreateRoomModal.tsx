@@ -35,32 +35,65 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
   const { data: usersData } = useUsersQuery({ pageSize: 100, isActive: true });
 
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | undefined>(defaultBuildingId);
+  const [selectedFacultyId, setSelectedFacultyId] = useState<string | undefined>(undefined);
+
   const selectedBuilding = buildings.find((b) => b.id === selectedBuildingId);
   const maxFloor = selectedBuilding?.floorsCount || 20;
+
+  // Filter faculties vs chairs
+  const facultyOptions = allDepartments.filter((d) => d.type === 'FACULTY' || !d.parentId);
+  const chairOptions = selectedFacultyId
+    ? allDepartments.filter((d) => d.parentId === selectedFacultyId)
+    : allDepartments.filter((d) => d.type === 'CHAIR' || d.type === 'LAB');
 
   useEffect(() => {
     if (visible) {
       const initialBuildingId = defaultBuildingId || (buildings.length > 0 ? buildings[0].id : undefined);
       setSelectedBuildingId(initialBuildingId);
+
+      let initialFacId: string | undefined = undefined;
+      let initialChairId: string | undefined = undefined;
+
+      if (defaultDepartmentId) {
+        const dept = allDepartments.find((d) => d.id === defaultDepartmentId);
+        if (dept) {
+          if (dept.parentId) {
+            initialFacId = dept.parentId;
+            initialChairId = dept.id;
+          } else {
+            initialFacId = dept.id;
+          }
+        }
+      }
+
+      setSelectedFacultyId(initialFacId);
+
       form.setFieldsValue({
-        floor: 1,
         buildingId: initialBuildingId,
-        departmentId: defaultDepartmentId,
+        facultyId: initialFacId,
+        chairId: initialChairId,
+        floor: 1,
+        number: '',
+        name: '',
+        responsibleUserId: undefined,
       });
     }
-  }, [visible, defaultBuildingId, defaultDepartmentId, buildings, form]);
+  }, [visible, defaultBuildingId, defaultDepartmentId, buildings, allDepartments, form]);
 
   const handleSubmit = async () => {
     try {
       const values = await form.validate();
       const buildingObj = buildings.find((b) => b.id === values.buildingId);
+      // If chair is selected, department is the chair; otherwise department is the faculty/top dept
+      const finalDepartmentId = values.chairId || values.facultyId || undefined;
+
       await createRoomMutation.mutateAsync({
         number: values.number?.trim() || undefined,
         name: values.name.trim(),
         floor: Number(values.floor) || 1,
         buildingId: values.buildingId,
         building: buildingObj?.name || 'Bosh bino',
-        departmentId: values.departmentId || undefined,
+        departmentId: finalDepartmentId,
         responsibleUserId: values.responsibleUserId || undefined,
       });
       form.resetFields();
@@ -82,21 +115,27 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
       confirmLoading={createRoomMutation.isPending}
       okText="Saqlash"
       cancelText="Bekor qilish"
-      style={{ width: 620, borderRadius: 0 }}
+      style={{ width: 640, borderRadius: 0 }}
     >
       <Form
         form={form}
         layout="vertical"
       >
         <Row gutter={16}>
-          <Col span={14}>
+          {/* 1. Bino / Korpus */}
+          <Col span={24}>
             <FormItem
-              label="Bino / Korpus"
+              label="1. Bino / Korpus"
               field="buildingId"
               rules={[{ required: true, message: 'Binoni tanlash shart!' }]}
             >
               <Select
                 placeholder="Xona joylashgan binoni tanlang"
+                showSearch
+                filterOption={(inputValue, option) => {
+                  const text = String(option?.props?.children || '');
+                  return text.toLowerCase().includes(inputValue.toLowerCase());
+                }}
                 style={{ borderRadius: 0 }}
                 onChange={(val) => {
                   setSelectedBuildingId(val);
@@ -115,11 +154,73 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
             </FormItem>
           </Col>
 
-          <Col span={10}>
+          {/* 2. Fakultet / Bosh Bo'lim */}
+          <Col span={12}>
+            <FormItem
+              label="2. Fakultet / Bosh Bo‘lim"
+              field="facultyId"
+              rules={[{ required: true, message: 'Fakultet yoki bo‘limni tanlang!' }]}
+            >
+              <Select
+                placeholder="Fakultetni tanlang"
+                allowClear
+                showSearch
+                filterOption={(inputValue, option) => {
+                  const text = String(option?.props?.children || '');
+                  return text.toLowerCase().includes(inputValue.toLowerCase());
+                }}
+                onChange={(facId) => {
+                  setSelectedFacultyId(facId);
+                  form.setFieldValue('chairId', undefined);
+                }}
+                style={{ borderRadius: 0 }}
+              >
+                {facultyOptions.map((f) => (
+                  <Select.Option key={f.id} value={f.id}>
+                    {f.name} ({f.type === 'FACULTY' ? 'Fakultet' : f.type})
+                  </Select.Option>
+                ))}
+              </Select>
+            </FormItem>
+          </Col>
+
+          {/* 3. Kafedra / Quyi Bo'lim */}
+          <Col span={12}>
+            <FormItem
+              label="3. Kafedra / Quyi Bo‘lim (Ixtiyoriy)"
+              field="chairId"
+            >
+              <Select
+                placeholder={
+                  selectedFacultyId
+                    ? chairOptions.length > 0
+                      ? 'Kafedrani tanlang (Dekanat uchun bo‘sh qoldiring)'
+                      : 'Ushbu bo‘limda kafedra yo‘q'
+                    : 'Avval fakultetni tanlang'
+                }
+                allowClear
+                showSearch
+                filterOption={(inputValue, option) => {
+                  const text = String(option?.props?.children || '');
+                  return text.toLowerCase().includes(inputValue.toLowerCase());
+                }}
+                style={{ borderRadius: 0 }}
+              >
+                {chairOptions.map((c) => (
+                  <Select.Option key={c.id} value={c.id}>
+                    {c.name}
+                  </Select.Option>
+                ))}
+              </Select>
+            </FormItem>
+          </Col>
+
+          {/* 4. Qavat, Xona Raqami, Xona Nomi */}
+          <Col span={8}>
             <FormItem
               label={`Qavat (1 dan ${maxFloor} gacha)`}
               field="floor"
-              rules={[{ required: true, message: 'Qavat tanlanishi shart!' }]}
+              rules={[{ required: true, message: 'Qavat kiritilishi shart!' }]}
             >
               <InputNumber
                 min={1}
@@ -129,48 +230,29 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
             </FormItem>
           </Col>
 
-          <Col span={10}>
+          <Col span={8}>
             <FormItem
-              label="Xona Raqami (Ixtiyoriy)"
+              label="Xona Raqami"
               field="number"
             >
-              <Input placeholder="Masalan: 101, 204-A (raqamsiz bo‘lsa bo‘sh qoldiring)" style={{ borderRadius: 0 }} />
+              <Input placeholder="Masalan: 101, 204-A" style={{ borderRadius: 0 }} />
             </FormItem>
           </Col>
 
-          <Col span={14}>
+          <Col span={8}>
             <FormItem
               label="Xona Nomi / Maqsadi"
               field="name"
               rules={[{ required: true, message: 'Xona nomi kiritilishi shart!' }]}
             >
               <Input
-                placeholder="Masalan: Dasturlash Laboratoriyasi"
+                placeholder="Masalan: Ma’ruza zali"
                 style={{ borderRadius: 0 }}
               />
             </FormItem>
           </Col>
 
-          <Col span={24}>
-            <FormItem
-              label="Biriktirilgan Bo‘lim / Kafedra / Xizmat"
-              field="departmentId"
-            >
-              <Select
-                placeholder="Tegishli bo‘lim yoki kafedrani tanlang"
-                allowClear
-                showSearch
-                style={{ borderRadius: 0 }}
-              >
-                {allDepartments.map((d) => (
-                  <Select.Option key={d.id} value={d.id}>
-                    {d.name} — [{d.type}]
-                  </Select.Option>
-                ))}
-              </Select>
-            </FormItem>
-          </Col>
-
+          {/* 5. Mas'ul Xodim (MOL / Xona Mudiri) */}
           <Col span={24}>
             <FormItem
               label="Mas’ul Xodim (MOL / Xona Mudiri)"
@@ -180,6 +262,10 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
                 placeholder="Xonaga mas’ul shaxsni tanlang (MOL)"
                 allowClear
                 showSearch
+                filterOption={(inputValue, option) => {
+                  const text = String(option?.props?.children || '');
+                  return text.toLowerCase().includes(inputValue.toLowerCase());
+                }}
                 style={{ borderRadius: 0 }}
               >
                 {usersData?.items.map((u) => (

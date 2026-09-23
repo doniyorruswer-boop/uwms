@@ -189,29 +189,19 @@ export const SuppliersPage: React.FC = () => {
         ),
     },
     {
-      title: 'Shartnoma № & Sana',
-      width: 170,
+      title: 'Shartnoma №',
+      width: 150,
       render: (_, record: SupplierItem) => (
-        <div>
-          <div style={{ fontWeight: 500, color: '#165DFF' }}>
-            {record.contractNumber || 'Shartnomasiz'}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
-            {record.contractDate ? record.contractDate.split('T')[0] : 'Sana yo‘q'}
-          </div>
+        <div style={{ fontWeight: 500, color: '#165DFF' }}>
+          {record.contractNumber || 'Shartnomasiz'}
         </div>
       ),
     },
     {
       title: 'Bog‘lanish',
-      width: 170,
+      width: 140,
       render: (_, record: SupplierItem) => (
-        <div>
-          <div style={{ fontSize: 12 }}>{record.phone || '—'}</div>
-          {record.email && (
-            <div style={{ fontSize: 11, color: 'var(--color-text-3)' }}>{record.email}</div>
-          )}
-        </div>
+        <div style={{ fontSize: 13 }}>{record.phone || '—'}</div>
       ),
     },
     {

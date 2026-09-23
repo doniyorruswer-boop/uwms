@@ -10,6 +10,12 @@ export interface DepartmentItem {
   code?: string | null;
   type: string;
   parentId?: string | null;
+  buildingId?: string | null;
+  building?: {
+    id: string;
+    name: string;
+    code?: string | null;
+  } | null;
   parent?: {
     id: string;
     name: string;
@@ -41,9 +47,17 @@ export interface BuildingItem {
     username?: string | null;
     position?: string | null;
   } | null;
+  departments?: {
+    id: string;
+    name: string;
+    type: string;
+    code?: string | null;
+    parentId?: string | null;
+  }[];
   _count?: {
     rooms: number;
     warehouses: number;
+    departments?: number;
   };
   deletedAt?: string | null;
   createdAt?: string;
@@ -57,6 +71,7 @@ export interface CreateBuildingData {
   address?: string;
   description?: string;
   commendantId?: string;
+  departmentIds?: string[];
 }
 
 export interface UpdateBuildingData {
@@ -66,6 +81,7 @@ export interface UpdateBuildingData {
   address?: string;
   description?: string;
   commendantId?: string | null;
+  departmentIds?: string[];
 }
 
 export interface RoomItem extends Room {
@@ -82,6 +98,7 @@ export interface CreateDepartmentData {
   code?: string;
   type?: string;
   parentId?: string;
+  buildingId?: string;
 }
 
 export interface UpdateDepartmentData {
@@ -89,10 +106,11 @@ export interface UpdateDepartmentData {
   code?: string;
   type?: string;
   parentId?: string | null;
+  buildingId?: string | null;
 }
 
 export interface CreateRoomData {
-  number: string;
+  number?: string;
   name: string;
   floor: number;
   buildingId?: string;

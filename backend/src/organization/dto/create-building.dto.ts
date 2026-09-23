@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsInt, Min, Max, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, Min, Max, IsUUID, IsArray } from 'class-validator';
 
 export class CreateBuildingDto {
   @ApiProperty({
@@ -52,4 +52,14 @@ export class CreateBuildingDto {
   @IsOptional()
   @IsUUID('4', { message: 'commendantId to‘g‘ri UUID bo‘lishi kerak' })
   commendantId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Ushbu binoga biriktiriladigan fakultet yoki bo‘limlar ID lari',
+    example: ['a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray({ message: 'departmentIds massiv bo‘lishi kerak' })
+  @IsUUID('4', { each: true, message: 'Har bir departmentId to‘g‘ri UUID bo‘lishi kerak' })
+  departmentIds?: string[];
 }

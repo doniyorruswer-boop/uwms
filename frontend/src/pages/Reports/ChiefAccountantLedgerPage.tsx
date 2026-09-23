@@ -342,13 +342,8 @@ export const ChiefAccountantLedgerPage: React.FC = () => {
       title: 'Moddiy Javobgar Shaxs (MOL)',
       dataIndex: 'molFullName',
       width: 220,
-      render: (val: string, record: ChiefAccountantMolBalanceItem) => (
-        <Space direction="vertical" size={2}>
-          <Text bold>{val}</Text>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            @{record.molUsername}
-          </Text>
-        </Space>
+      render: (val: string) => (
+        <Text bold>{val}</Text>
       ),
     },
     {
@@ -921,7 +916,6 @@ export const ChiefAccountantLedgerPage: React.FC = () => {
             style={{ marginBottom: 16 }}
             data={[
               { label: 'Kafedra', value: molDetailsData.mol.department },
-              { label: 'Username', value: `@${molDetailsData.mol.username}` },
               { label: 'Aktivlar Soni', value: `${molDetailsData.totalAssetsCount} ta` },
               { label: 'Jami Qiymati', value: formatMoney(molDetailsData.totalValue) },
             ]}

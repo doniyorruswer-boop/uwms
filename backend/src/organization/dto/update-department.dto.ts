@@ -34,4 +34,12 @@ export class UpdateDepartmentDto {
   @IsOptional()
   @IsUUID('4', { message: 'parentId to‘g‘ri UUID bo‘lishi kerak' })
   parentId?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Bo‘lim joylashgan bino / korpus ID si (bo‘shatish uchun null)',
+    example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'buildingId to‘g‘ri UUID bo‘lishi kerak' })
+  buildingId?: string | null;
 }

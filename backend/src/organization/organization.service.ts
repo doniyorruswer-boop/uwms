@@ -65,6 +65,9 @@ export class OrganizationService {
         parent: {
           select: { id: true, name: true, type: true },
         },
+        building: {
+          select: { id: true, name: true, code: true },
+        },
         _count: {
           select: { children: true, rooms: true, users: true },
         },
@@ -76,6 +79,30 @@ export class OrganizationService {
   // ==================== BUILDINGS ====================
 
   async getBuildings(showDeleted?: boolean) {
+    // Auto-link any rooms that have buildingId = null to their respective Building record
+    const unlinkedRooms = await this.prisma.room.findMany({
+      where: { buildingId: null },
+      select: { id: true, building: true, floor: true },
+    });
+    if (unlinkedRooms.length > 0) {
+      for (const r of unlinkedRooms) {
+        const bName = r.building?.trim() || 'Bosh bino';
+        const b = await this.prisma.building.upsert({
+          where: { name: bName },
+          update: {},
+          create: {
+            name: bName,
+            code: bName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || 'BLD',
+            floorsCount: Math.max(r.floor || 1, 4),
+          },
+        });
+        await this.prisma.room.update({
+          where: { id: r.id },
+          data: { buildingId: b.id, building: b.name },
+        });
+      }
+    }
+
     const where: any = showDeleted ? { deletedAt: { not: null } } : { deletedAt: null };
     return this.prisma.building.findMany({
       where,
@@ -83,10 +110,15 @@ export class OrganizationService {
         commendant: {
           select: { id: true, fullName: true, phone: true, username: true, position: true },
         },
+        departments: {
+          where: { deletedAt: null },
+          select: { id: true, name: true, type: true, code: true, parentId: true },
+        },
         _count: {
           select: {
             rooms: { where: { deletedAt: null } },
             warehouses: { where: { deletedAt: null } },
+            departments: { where: { deletedAt: null } },
           },
         },
       },
@@ -100,6 +132,13 @@ export class OrganizationService {
       include: {
         commendant: {
           select: { id: true, fullName: true, phone: true, username: true, position: true },
+        },
+        departments: {
+          where: { deletedAt: null },
+          include: {
+            parent: { select: { id: true, name: true, type: true } },
+            _count: { select: { rooms: true, users: true } },
+          },
         },
         rooms: {
           where: { deletedAt: null },
@@ -121,6 +160,7 @@ export class OrganizationService {
           select: {
             rooms: { where: { deletedAt: null } },
             warehouses: { where: { deletedAt: null } },
+            departments: { where: { deletedAt: null } },
           },
         },
       },
@@ -162,7 +202,7 @@ export class OrganizationService {
     }
 
     const building = await this.prisma.$transaction(async (tx) => {
-      return tx.building.create({
+      const b = await tx.building.create({
         data: {
           name: nameTrimmed,
           code: dto.code ? dto.code.trim().toUpperCase() : null,
@@ -175,8 +215,21 @@ export class OrganizationService {
           commendant: {
             select: { id: true, fullName: true, phone: true },
           },
+          departments: {
+            where: { deletedAt: null },
+            select: { id: true, name: true, type: true, code: true },
+          },
         },
       });
+
+      if (dto.departmentIds && dto.departmentIds.length > 0) {
+        await tx.department.updateMany({
+          where: { id: { in: dto.departmentIds } },
+          data: { buildingId: b.id },
+        });
+      }
+
+      return b;
     });
 
     await this.systemAuditService.log({
@@ -190,6 +243,7 @@ export class OrganizationService {
         floorsCount: building.floorsCount,
         address: building.address,
         commendant: building.commendant?.fullName,
+        departmentIds: dto.departmentIds,
       },
     });
 
@@ -234,6 +288,22 @@ export class OrganizationService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      if (dto.departmentIds !== undefined) {
+        await tx.department.updateMany({
+          where: {
+            buildingId: id,
+            id: { notIn: dto.departmentIds },
+          },
+          data: { buildingId: null },
+        });
+        if (dto.departmentIds.length > 0) {
+          await tx.department.updateMany({
+            where: { id: { in: dto.departmentIds } },
+            data: { buildingId: id },
+          });
+        }
+      }
+
       const b = await tx.building.update({
         where: { id },
         data: {
@@ -247,6 +317,10 @@ export class OrganizationService {
         include: {
           commendant: {
             select: { id: true, fullName: true, phone: true },
+          },
+          departments: {
+            where: { deletedAt: null },
+            select: { id: true, name: true, type: true, code: true },
           },
         },
       });
@@ -470,7 +544,17 @@ export class OrganizationService {
       }
     }
 
-    // 3. Create department in transaction
+    // 3. Check building if provided
+    if (dto.buildingId) {
+      const bld = await this.prisma.building.findUnique({
+        where: { id: dto.buildingId },
+      });
+      if (!bld) {
+        throw new NotFoundException(`Tanlangan bino topilmadi`);
+      }
+    }
+
+    // 4. Create department in transaction
     const department = await this.prisma.$transaction(async (tx) => {
       return tx.department.create({
         data: {
@@ -478,14 +562,16 @@ export class OrganizationService {
           code: dto.code ? dto.code.trim().toUpperCase() : null,
           type: dto.type ? dto.type.trim().toUpperCase() : 'CHAIR',
           parentId: dto.parentId || null,
+          buildingId: dto.buildingId || null,
         },
         include: {
           parent: true,
+          building: true,
         },
       });
     });
 
-    // 4. Audit Log
+    // 5. Audit Log
     await this.systemAuditService.log({
       action: 'DEPARTMENT_CREATED',
       entity: 'Department',
@@ -496,6 +582,7 @@ export class OrganizationService {
         code: department.code,
         type: department.type,
         parent: department.parent?.name,
+        building: department.building?.name,
       },
     });
 
@@ -529,6 +616,12 @@ export class OrganizationService {
       }
     }
 
+    // 3. Check building if provided
+    if (dto.buildingId) {
+      const bld = await this.prisma.building.findUnique({ where: { id: dto.buildingId } });
+      if (!bld) throw new NotFoundException(`Tanlangan bino topilmadi`);
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
       return tx.department.update({
         where: { id },
@@ -537,9 +630,11 @@ export class OrganizationService {
           code: dto.code !== undefined ? (dto.code ? dto.code.trim().toUpperCase() : null) : undefined,
           type: dto.type !== undefined ? dto.type.trim().toUpperCase() : undefined,
           parentId: dto.parentId !== undefined ? dto.parentId : undefined,
+          buildingId: dto.buildingId !== undefined ? dto.buildingId : undefined,
         },
         include: {
           parent: true,
+          building: true,
         },
       });
     });

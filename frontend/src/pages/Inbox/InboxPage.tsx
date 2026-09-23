@@ -368,7 +368,7 @@ export const InboxPage: React.FC = () => {
     }
 
     const dept = (item.departingUser as any)?.department?.name;
-    const departingText = `${item.departingUser.fullName}${dept ? ` (${dept})` : item.departingUser.position ? ` (${item.departingUser.position})` : ''}`;
+    const departingText = `${item.departingUser?.fullName || '—'}${dept ? ` (${dept})` : item.departingUser?.position ? ` (${item.departingUser.position})` : ''}`;
 
     const itemsCount = item._count?.items ?? item.items?.length ?? 0;
     const roomText = item.room
@@ -724,8 +724,8 @@ export const InboxPage: React.FC = () => {
             </Space>
 
             <Title heading={6} style={{ margin: '4px 0', fontSize: isMobile ? 15 : 16 }}>
-              Ashyo: {item.writeOffRequest.asset?.item?.name || 'Asosiy vosita'} (
-              {item.writeOffRequest.asset?.inventoryNumber})
+              Ashyo: {item.writeOffRequest?.asset?.item?.name || 'Asosiy vosita'} (
+              {item.writeOffRequest?.asset?.inventoryNumber || '—'})
             </Title>
 
             <Paragraph style={{ margin: '4px 0', fontSize: 13, color: 'var(--color-text-2)' }}>

@@ -164,6 +164,9 @@ model Department {
   parent      Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children    Department[] @relation("DepartmentHierarchy")
 
+  buildingId  String?
+  building    Building?    @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+
   users     User[]
   rooms     Room[]
   requests  Request[]
@@ -175,6 +178,7 @@ model Department {
   updatedAt DateTime @updatedAt
 
   @@index([deletedAt])
+  @@index([buildingId])
   @@map("departments")
 }
 
@@ -189,6 +193,7 @@ model Building {
   commendant   User?       @relation("BuildingCommendant", fields: [commendantId], references: [id], onDelete: SetNull)
 
   rooms        Room[]
+  departments  Department[]
   warehouses   Warehouse[]
   handovers    ResponsibilityHandover[] @relation("BuildingHandovers")
 

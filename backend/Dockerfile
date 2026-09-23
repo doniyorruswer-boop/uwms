@@ -47,6 +47,6 @@ RUN mkdir -p /app/backups
 
 EXPOSE 4000
 
-# Ishga tushirish buyrug‘i
-CMD ["node", "dist/main.js"]
+# Ishga tushirish buyrug‘i: ishlab chiqarish bazasini schema bilan sinxronizatsiya qilib keyin serverni ishga tushirish
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss --skip-generate || echo 'Prisma db push check finished'; node dist/main.js"]
 

@@ -9,6 +9,7 @@ import {
 } from '@arco-design/web-react';
 import {
   useCreateBuildingMutation,
+  useOrganizationQuery,
 } from '../../hooks/useOrganizationQuery';
 import { useUsersQuery } from '../../hooks/useUsersQuery';
 
@@ -26,6 +27,7 @@ export const CreateBuildingModal: React.FC<CreateBuildingModalProps> = ({
 }) => {
   const [form] = Form.useForm();
   const createMutation = useCreateBuildingMutation();
+  const { allDepartments } = useOrganizationQuery();
   const { data: usersData } = useUsersQuery({ pageSize: 100, isActive: true });
 
   const handleSubmit = async () => {
@@ -38,6 +40,7 @@ export const CreateBuildingModal: React.FC<CreateBuildingModalProps> = ({
         address: values.address?.trim() || undefined,
         description: values.description?.trim() || undefined,
         commendantId: values.commendantId || undefined,
+        departmentIds: values.departmentIds || undefined,
       });
       form.resetFields();
       onClose();
@@ -58,7 +61,7 @@ export const CreateBuildingModal: React.FC<CreateBuildingModalProps> = ({
       confirmLoading={createMutation.isPending}
       okText="Saqlash"
       cancelText="Bekor qilish"
-      style={{ width: 580, borderRadius: 0 }}
+      style={{ width: 620, borderRadius: 0 }}
     >
       <Form
         form={form}
@@ -135,11 +138,40 @@ export const CreateBuildingModal: React.FC<CreateBuildingModalProps> = ({
                 placeholder="Binoga javobgar komendant yoki xodimni tanlang"
                 allowClear
                 showSearch
+                filterOption={(inputValue, option) => {
+                  const text = String(option?.props?.children || '');
+                  return text.toLowerCase().includes(inputValue.toLowerCase());
+                }}
                 style={{ borderRadius: 0 }}
               >
                 {usersData?.items.map((u) => (
                   <Select.Option key={u.id} value={u.id}>
                     {u.fullName} ({u.role} - {u.position || 'Xodim'})
+                  </Select.Option>
+                ))}
+              </Select>
+            </FormItem>
+          </Col>
+
+          <Col span={24}>
+            <FormItem
+              label="Ushbu Binoda Joylashgan Fakultet / Bo‘limlar"
+              field="departmentIds"
+            >
+              <Select
+                mode="multiple"
+                placeholder="Binoga biriktiriladigan fakultet yoki bo‘limlarni tanlang"
+                allowClear
+                showSearch
+                filterOption={(inputValue, option) => {
+                  const text = String(option?.props?.children || '');
+                  return text.toLowerCase().includes(inputValue.toLowerCase());
+                }}
+                style={{ borderRadius: 0 }}
+              >
+                {allDepartments.map((d) => (
+                  <Select.Option key={d.id} value={d.id}>
+                    {d.name} ({d.type === 'FACULTY' ? 'Fakultet' : d.type === 'CHAIR' ? 'Kafedra' : d.type})
                   </Select.Option>
                 ))}
               </Select>

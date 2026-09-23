@@ -360,17 +360,18 @@ export const OrganizationPage: React.FC = () => {
     // Default: BINO -> FAKULTET/BO'LIM/MARKAZ -> KAFEDRA -> XONALAR
     const buildingNodes = buildings.map((bld) => {
       const bldRooms = rooms.filter((r) => r.buildingId === bld.id || r.building === bld.name);
+      const bldDepts = allDepartments.filter((d) => d.buildingId === bld.id);
 
-      if (bldRooms.length === 0) {
+      if (bldRooms.length === 0 && bldDepts.length === 0) {
         return {
-          title: `${bld.name} (${bld.floorsCount} qavat) — [Xonalar mavjud emas]`,
+          title: `${bld.name} (${bld.floorsCount} qavat) — [Bo‘limlar va xonalar biriktirilmagan]`,
           key: `bld-${bld.id}`,
           icon: <IconHome />,
           children: [],
         };
       }
 
-      // Group rooms in this building by top-level department
+      // Group rooms and departments in this building by top-level department
       const topDeptMap = new Map<
         string,
         {
@@ -381,6 +382,47 @@ export const OrganizationPage: React.FC = () => {
       >();
       const unassignedRooms: RoomItem[] = [];
 
+      // 1. Populate departments explicitly attached to this building
+      bldDepts.forEach((dept) => {
+        const isChairOrChild = Boolean(
+          dept.parentId || dept.type === 'CHAIR' || dept.name.toLowerCase().includes('kafedra')
+        );
+
+        if (isChairOrChild) {
+          let parentDept = dept.parentId ? allDepartments.find((d) => d.id === dept.parentId) : null;
+          if (!parentDept && (dept.type === 'CHAIR' || dept.name.toLowerCase().includes('kafedra'))) {
+            parentDept = allDepartments.find((d) => d.type === 'FACULTY') || null;
+          }
+
+          const topKey = parentDept ? parentDept.id : dept.id;
+          const topDeptObj = parentDept || dept;
+
+          if (!topDeptMap.has(topKey)) {
+            topDeptMap.set(topKey, {
+              dept: topDeptObj,
+              directRooms: [],
+              chairs: new Map(),
+            });
+          }
+          const topEntry = topDeptMap.get(topKey)!;
+
+          if (parentDept && parentDept.id !== dept.id) {
+            if (!topEntry.chairs.has(dept.id)) {
+              topEntry.chairs.set(dept.id, { chair: dept, rooms: [] });
+            }
+          }
+        } else {
+          if (!topDeptMap.has(dept.id)) {
+            topDeptMap.set(dept.id, {
+              dept,
+              directRooms: [],
+              chairs: new Map(),
+            });
+          }
+        }
+      });
+
+      // 2. Distribute rooms in this building
       bldRooms.forEach((room) => {
         if (!room.departmentId && !room.departmentName) {
           unassignedRooms.push(room);
@@ -450,7 +492,7 @@ export const OrganizationPage: React.FC = () => {
 
       const deptNodes = Array.from(topDeptMap.values()).map(({ dept, directRooms, chairs }) => {
         const chairNodes = Array.from(chairs.values()).map(({ chair, rooms: chairRooms }) => ({
-          title: `${chair.name} (${chairRooms.length} ta xona)`,
+          title: `${chair.name}${chairRooms.length > 0 ? ` (${chairRooms.length} ta xona)` : ''}`,
           key: `bld-${bld.id}__dept-${dept.id}__chair-${chair.id}`,
           icon: <IconApps />,
           children: chairRooms.map((r) => ({
@@ -489,8 +531,9 @@ export const OrganizationPage: React.FC = () => {
           childNodes = directRoomNodes;
         }
 
+        const roomCountSuffix = totalDeptRooms > 0 ? ` • ${totalDeptRooms} ta xona` : '';
         return {
-          title: `${dept.name} (${departmentTypeLabels[dept.type] || dept.type} • ${totalDeptRooms} ta xona)`,
+          title: `${dept.name} (${departmentTypeLabels[dept.type] || dept.type}${roomCountSuffix})`,
           key: `bld-${bld.id}__dept-${dept.id}`,
           icon: <IconBranch />,
           children: childNodes,
@@ -513,8 +556,13 @@ export const OrganizationPage: React.FC = () => {
             ]
           : [];
 
+      const parts: string[] = [`${bld.floorsCount} qavat`];
+      if (bldDepts.length > 0) parts.push(`${bldDepts.length} ta bo‘lim`);
+      if (bldRooms.length > 0) parts.push(`${bldRooms.length} ta xona`);
+      if (bld.commendant) parts.push(`Komendant: ${bld.commendant.fullName}`);
+
       return {
-        title: `${bld.name} (${bld.floorsCount} qavat • ${bldRooms.length} ta xona${bld.commendant ? ` • Komendant: ${bld.commendant.fullName}${bld.commendant.phone ? ` (${bld.commendant.phone})` : ''}` : ''})`,
+        title: `${bld.name} (${parts.join(' • ')})`,
         key: `bld-${bld.id}`,
         icon: <IconHome />,
         children: [...deptNodes, ...unassignedNode],
@@ -655,6 +703,31 @@ export const OrganizationPage: React.FC = () => {
       ),
     },
     {
+      title: 'Fakultet va Bo‘limlar',
+      key: 'departments',
+      minWidth: 240,
+      render: (_: any, record: BuildingItem) => {
+        const depts = allDepartments.filter((d) => d.buildingId === record.id);
+        if (depts.length === 0) {
+          return <span style={{ color: 'var(--color-text-4)', fontSize: 12 }}>Biriktirilmagan</span>;
+        }
+        return (
+          <Space wrap size={[4, 4]}>
+            {depts.slice(0, 3).map((d) => (
+              <Tag key={d.id} size="small" color={departmentTypeColors[d.type] || 'arcoblue'} style={{ borderRadius: 0 }}>
+                {d.name}
+              </Tag>
+            ))}
+            {depts.length > 3 && (
+              <Tag size="small" style={{ borderRadius: 0 }}>
+                +{depts.length - 3} ta yana
+              </Tag>
+            )}
+          </Space>
+        );
+      },
+    },
+    {
       title: 'Xonalar Soni',
       key: 'roomsCount',
       width: 140,
@@ -755,6 +828,22 @@ export const OrganizationPage: React.FC = () => {
           bg="#E8F3FF"
         />
       ),
+    },
+    {
+      title: 'Joylashgan Bino',
+      key: 'building',
+      minWidth: 180,
+      render: (_: any, record: DepartmentItem) => {
+        const b = record.building || (record.buildingId ? buildings.find((x) => x.id === record.buildingId) : null);
+        return b ? (
+          <Tag color="green" style={{ borderRadius: 0 }}>
+            <IconHome style={{ marginRight: 4 }} />
+            {b.name}
+          </Tag>
+        ) : (
+          <span style={{ color: 'var(--color-text-4)', fontSize: 12 }}>Biriktirilmagan</span>
+        );
+      },
     },
     {
       title: 'Yuqori Bo‘lim (Fakultet)',
@@ -1745,6 +1834,50 @@ export const OrganizationPage: React.FC = () => {
                         </Col>
                       </Row>
                     </div>
+
+                    {/* Attached Departments and Faculties Section */}
+                    {(() => {
+                      const buildingDepts = allDepartments.filter((d) => d.buildingId === selectedBuilding.id);
+                      return (
+                        <div style={{ marginTop: 16 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-1)' }}>
+                              Binoda Joylashgan Fakultet va Bo‘limlar ({buildingDepts.length} ta):
+                            </span>
+                            {isSuperAdmin && (
+                              <Button
+                                size="mini"
+                                type="text"
+                                icon={<IconEdit />}
+                                style={{ borderRadius: 0, padding: 0 }}
+                                onClick={() => setEditingBuilding(selectedBuilding)}
+                              >
+                                Fakultet/Bo‘limlarni biriktirish
+                              </Button>
+                            )}
+                          </div>
+                          {buildingDepts.length > 0 ? (
+                            <Space wrap size={[8, 8]}>
+                              {buildingDepts.map((d) => (
+                                <Tag
+                                  key={d.id}
+                                  color={departmentTypeColors[d.type] || 'arcoblue'}
+                                  style={{ borderRadius: 0, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
+                                  onClick={() => setSelectedKey(`dep-${d.id}`)}
+                                >
+                                  <IconBranch style={{ marginRight: 4 }} />
+                                  {d.name} ({departmentTypeLabels[d.type] || d.type})
+                                </Tag>
+                              ))}
+                            </Space>
+                          ) : (
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              Hozircha ushbu binoga alohida fakultet yoki bo‘lim biriktirilmagan. "Binoni Tahrirlash" orqali biriktirishingiz mumkin.
+                            </Text>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Rooms list or Empty */}
@@ -2174,7 +2307,13 @@ export const OrganizationPage: React.FC = () => {
 
       <CreateDepartmentModal
         visible={isCreateDeptOpen}
-        onClose={() => setIsCreateDeptOpen(false)}
+        onClose={() => {
+          setIsCreateDeptOpen(false);
+          setPresetBuildingId(undefined);
+          setPresetDeptId(undefined);
+        }}
+        defaultBuildingId={presetBuildingId}
+        defaultParentId={presetDeptId}
       />
 
       <EditDepartmentModal

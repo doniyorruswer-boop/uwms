@@ -423,18 +423,18 @@ export class InboxService {
         })
         .then((stocks) =>
           stocks
-            .filter((s) => s.quantity <= (s.item.minStockLimit ?? 5))
+            .filter((s) => s.item && s.quantity <= (s.item.minStockLimit ?? 5))
             .map((s) => ({
               id: s.id,
               warehouseName: s.warehouse?.name || 'Asosiy Ombor',
               itemId: s.itemId,
-              itemName: s.item.name,
-              sku: s.item.sku,
-              unit: s.item.unit,
-              categoryName: s.item.category?.name,
+              itemName: s.item?.name || 'Nomaʼlum',
+              sku: s.item?.sku || '',
+              unit: s.item?.unit || 'dona',
+              categoryName: s.item?.category?.name,
               currentQuantity: s.quantity,
-              minLimit: s.item.minStockLimit ?? 5,
-              shortage: Math.max(0, (s.item.minStockLimit ?? 5) - s.quantity),
+              minLimit: s.item?.minStockLimit ?? 5,
+              shortage: Math.max(0, (s.item?.minStockLimit ?? 5) - s.quantity),
             })),
         );
     }
@@ -626,7 +626,7 @@ export class InboxService {
       });
     }
 
-    // Execute all queries in parallel without locks
+    // Execute all queries in parallel with fault tolerance (error isolation)
     const [
       pendingTransfers,
       pendingRequests,
@@ -636,13 +636,34 @@ export class InboxService {
       overQuotaRequests,
       pendingHandovers,
     ] = await Promise.all([
-      pendingTransfersPromise,
-      pendingRequestsPromise,
-      pendingWriteOffVotesPromise,
-      openAuditsPromise,
-      lowStockAlertsPromise,
-      overQuotaRequestsPromise,
-      pendingHandoversPromise,
+      pendingTransfersPromise.catch((err) => {
+        this.logger.error('Failed to fetch pendingTransfers in inbox:', err?.message || err);
+        return [];
+      }),
+      pendingRequestsPromise.catch((err) => {
+        this.logger.error('Failed to fetch pendingRequests in inbox:', err?.message || err);
+        return [];
+      }),
+      pendingWriteOffVotesPromise.catch((err) => {
+        this.logger.error('Failed to fetch pendingWriteOffVotes in inbox:', err?.message || err);
+        return [];
+      }),
+      openAuditsPromise.catch((err) => {
+        this.logger.error('Failed to fetch openAudits in inbox:', err?.message || err);
+        return [];
+      }),
+      lowStockAlertsPromise.catch((err) => {
+        this.logger.error('Failed to fetch lowStockAlerts in inbox:', err?.message || err);
+        return [];
+      }),
+      overQuotaRequestsPromise.catch((err) => {
+        this.logger.error('Failed to fetch overQuotaRequests in inbox:', err?.message || err);
+        return [];
+      }),
+      pendingHandoversPromise.catch((err) => {
+        this.logger.error('Failed to fetch pendingHandovers in inbox:', err?.message || err);
+        return [];
+      }),
     ]);
 
     const totalPendingCount =

@@ -1237,15 +1237,8 @@ export const RequestsPage: React.FC = () => {
                 showText={false}
                 color={stageDetails.color}
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 12, color: 'var(--color-text-2)', flexWrap: 'wrap', gap: 6 }}>
-                <div>
-                  <b>Hozirgi mas’ul:</b> {stageDetails.currentActor}
-                </div>
-                {selectedRequest.status !== 'FULFILLED' && selectedRequest.status !== 'REJECTED' && (
-                  <div style={{ color: 'var(--color-text-3)', fontStyle: 'italic' }}>
-                    Keyingi bosqich mas’uliga tizim avtomatik bildirishnoma yuborgan
-                  </div>
-                )}
+              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-2)' }}>
+                <b>Hozirgi mas’ul:</b> {stageDetails.currentActor}
               </div>
             </div>
 

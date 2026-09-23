@@ -9,6 +9,7 @@ import {
 } from '@arco-design/web-react';
 import {
   useUpdateBuildingMutation,
+  useOrganizationQuery,
   type BuildingItem,
 } from '../../hooks/useOrganizationQuery';
 import { useUsersQuery } from '../../hooks/useUsersQuery';
@@ -29,10 +30,15 @@ export const EditBuildingModal: React.FC<EditBuildingModalProps> = ({
 }) => {
   const [form] = Form.useForm();
   const updateMutation = useUpdateBuildingMutation();
+  const { allDepartments } = useOrganizationQuery();
   const { data: usersData } = useUsersQuery({ pageSize: 100, isActive: true });
 
   useEffect(() => {
     if (building) {
+      const assignedDeptIds = allDepartments
+        .filter((d) => d.buildingId === building.id)
+        .map((d) => d.id);
+
       form.setFieldsValue({
         name: building.name,
         code: building.code || undefined,
@@ -40,11 +46,12 @@ export const EditBuildingModal: React.FC<EditBuildingModalProps> = ({
         address: building.address || undefined,
         description: building.description || undefined,
         commendantId: building.commendantId || undefined,
+        departmentIds: assignedDeptIds,
       });
     } else {
       form.resetFields();
     }
-  }, [building, form]);
+  }, [building, allDepartments, form]);
 
   const handleSubmit = async () => {
     if (!building) return;
@@ -59,6 +66,7 @@ export const EditBuildingModal: React.FC<EditBuildingModalProps> = ({
           address: values.address?.trim() || null,
           description: values.description?.trim() || null,
           commendantId: values.commendantId || null,
+          departmentIds: values.departmentIds || [],
         },
       });
       form.resetFields();
@@ -80,7 +88,7 @@ export const EditBuildingModal: React.FC<EditBuildingModalProps> = ({
       confirmLoading={updateMutation.isPending}
       okText="Saqlash"
       cancelText="Bekor qilish"
-      style={{ width: 580, borderRadius: 0 }}
+      style={{ width: 620, borderRadius: 0 }}
     >
       <Form form={form} layout="vertical">
         <Row gutter={16}>
@@ -150,11 +158,40 @@ export const EditBuildingModal: React.FC<EditBuildingModalProps> = ({
                 placeholder="Binoga javobgar komendant yoki xodimni tanlang"
                 allowClear
                 showSearch
+                filterOption={(inputValue, option) => {
+                  const text = String(option?.props?.children || '');
+                  return text.toLowerCase().includes(inputValue.toLowerCase());
+                }}
                 style={{ borderRadius: 0 }}
               >
                 {usersData?.items.map((u) => (
                   <Select.Option key={u.id} value={u.id}>
                     {u.fullName} ({u.role} - {u.position || 'Xodim'})
+                  </Select.Option>
+                ))}
+              </Select>
+            </FormItem>
+          </Col>
+
+          <Col span={24}>
+            <FormItem
+              label="Ushbu Binoda Joylashgan Fakultet / Bo‘limlar"
+              field="departmentIds"
+            >
+              <Select
+                mode="multiple"
+                placeholder="Binoga biriktiriladigan fakultet yoki bo‘limlarni tanlang"
+                allowClear
+                showSearch
+                filterOption={(inputValue, option) => {
+                  const text = String(option?.props?.children || '');
+                  return text.toLowerCase().includes(inputValue.toLowerCase());
+                }}
+                style={{ borderRadius: 0 }}
+              >
+                {allDepartments.map((d) => (
+                  <Select.Option key={d.id} value={d.id}>
+                    {d.name} ({d.type === 'FACULTY' ? 'Fakultet' : d.type === 'CHAIR' ? 'Kafedra' : d.type})
                   </Select.Option>
                 ))}
               </Select>

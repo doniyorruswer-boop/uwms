@@ -35,7 +35,17 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       this.logger.warn(`Could not verify "User"."permissions" column: ${err?.message || err}`);
     }
 
-    // 3. Bootstrap: Agar hech qanday foydalanuvchi yo'q bo'lsa, asosiy admin yaratish
+    // 3. Department.buildingId column
+    try {
+      await this.$executeRawUnsafe(`
+        ALTER TABLE "departments" ADD COLUMN IF NOT EXISTS "buildingId" TEXT;
+      `);
+      this.logger.log('Verified database schema: "departments"."buildingId" column exists.');
+    } catch (err: any) {
+      this.logger.warn(`Could not verify "departments"."buildingId" column: ${err?.message || err}`);
+    }
+
+    // 4. Bootstrap: Agar hech qanday foydalanuvchi yo'q bo'lsa, asosiy admin yaratish
     await this.bootstrapAdminIfEmpty();
   }
 
