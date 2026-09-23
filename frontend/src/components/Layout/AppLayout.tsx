@@ -383,11 +383,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 position="br"
                 droplist={
                   <Menu style={{ borderRadius: 0, minWidth: 210 }}>
-                    {(user?.role === 'SUPER_ADMIN' || user?.role === 'HEAD_WAREHOUSE') && (
-                      <Menu.Item key="new-asset" onClick={() => navigate('/assets?action=create')}>
-                        <Space><IconDesktop /> Yangi Asosiy Vosita</Space>
-                      </Menu.Item>
-                    )}
                     <Menu.Item key="new-request" onClick={() => navigate('/requests?action=create')}>
                       <Space><IconFile /> Yangi Talabnoma</Space>
                     </Menu.Item>

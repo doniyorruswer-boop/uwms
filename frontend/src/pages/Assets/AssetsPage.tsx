@@ -51,7 +51,6 @@ import {
   TransferItem,
 } from '../../hooks/useAssetsQuery';
 import { useAssetDepreciationHistoryQuery } from '../../hooks/useDepreciationQuery';
-import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
 import { useAuthStore } from '../../store/authStore';
 import type { ItemInstance, AssetStatus, HandoverItemActionType } from '../../types';
 import { exportToExcel } from '../../utils/exportExcel';
@@ -115,7 +114,6 @@ export const AssetsPage: React.FC = () => {
     isLoading,
     isError,
     error,
-    createAsset,
     writeOffAsset,
     refetch: refetchAssets,
   } = useAssetsQuery({
@@ -127,16 +125,11 @@ export const AssetsPage: React.FC = () => {
 
   const { transfers, isLoading: isTransfersLoading, respondTransfer } = useTransfersQuery();
   const { categories: backendCategories, isLoading: isCategoriesLoading } = useCategoriesQuery();
-  const { rooms } = useOrganizationQuery();
 
   useEffect(() => {
     const q = searchParams.get('search');
     if (q !== null) {
       setSearchText(q);
-    }
-    const action = searchParams.get('action');
-    if (action === 'create') {
-      setIsAddModalVisible(true);
     }
   }, [searchParams]);
 
@@ -149,7 +142,6 @@ export const AssetsPage: React.FC = () => {
   const [isDetailDrawerVisible, setIsDetailDrawerVisible] = useState(false);
   const [isQrModalVisible, setIsQrModalVisible] = useState(false);
   const [isBatchPrintModalVisible, setIsBatchPrintModalVisible] = useState(false);
-  const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [isExcelImportModalVisible, setIsExcelImportModalVisible] = useState(false);
   const [isRepairModalVisible, setIsRepairModalVisible] = useState(false);
   const [isWriteOffModalVisible, setIsWriteOffModalVisible] = useState(false);
@@ -200,8 +192,6 @@ export const AssetsPage: React.FC = () => {
       setIsBatchPrinting(false);
     }
   };
-
-  const [addForm] = Form.useForm();
 
   // Filtered assets
   const filteredAssets = assets.filter((a) => {
@@ -290,26 +280,6 @@ export const AssetsPage: React.FC = () => {
       id: asset.id,
       reason: 'Komissiya xulosasiga ko‘ra texnik yaroqsiz deb topildi',
     });
-  };
-
-  const handleAddSubmit = async () => {
-    try {
-      const values = await addForm.validate();
-      await createAsset({
-        itemName: values.itemName,
-        model: values.model,
-        categoryName: values.categoryName,
-        inventoryNumber: values.inventoryNumber,
-        serialNumber: values.serialNumber,
-        purchasePrice: Number(values.purchasePrice) || 0,
-        fundingSource: values.fundingSource || 'BYUDJET',
-        roomId: values.roomId,
-      });
-      setIsAddModalVisible(false);
-      addForm.resetFields();
-    } catch {
-      // validation error handled by Arco
-    }
   };
 
   const handleExportExcel = (dataToExport = filteredAssets) => {
@@ -600,19 +570,6 @@ export const AssetsPage: React.FC = () => {
                 >
                   Eksport
                 </Button>
-                {canManageAssets && (
-                  <Button
-                    type="primary"
-                    icon={<IconPlus />}
-                    onClick={() => {
-                      addForm.resetFields();
-                      setIsAddModalVisible(true);
-                    }}
-                    style={{ borderRadius: 0 }}
-                  >
-                    Yangi Vosita
-                  </Button>
-                )}
               </Space>
             </div>
           </Card>
@@ -1245,80 +1202,6 @@ export const AssetsPage: React.FC = () => {
             ))}
           </div>
         </div>
-      </Modal>
-
-      {/* ADD ASSET MODAL */}
-      <Modal
-        title="Yangi Asosiy Vosita Qabul Qilish (Kirim)"
-        visible={isAddModalVisible}
-        onOk={handleAddSubmit}
-        onCancel={() => setIsAddModalVisible(false)}
-        okText="Kirim Qilish"
-        cancelText="Bekor qilish"
-      >
-        <Form form={addForm} layout="vertical">
-          <FormItem
-            label="Inventar Raqami"
-            field="inventoryNumber"
-            rules={[{ required: true, message: 'Inventar raqami shart!' }]}
-          >
-            <Input placeholder="Masalan: INV-2026-006" />
-          </FormItem>
-          <FormItem
-            label="Jihoz Nomi"
-            field="itemName"
-            rules={[{ required: true, message: 'Jihoz nomini kiriting!' }]}
-          >
-            <Input placeholder="Masalan: Kompyuter to‘plami, Proyektor, Laboratoriya stoli" />
-          </FormItem>
-          <FormItem label="Model / Tavsif" field="model">
-            <Input placeholder="Masalan: HP ProBook 450 G9 (16GB, 512GB)" />
-          </FormItem>
-          <FormItem
-            label="Kategoriya"
-            field="categoryName"
-            rules={[{ required: true, message: 'Iltimos, kategoriyani tanlang yoki kiriting!' }]}
-          >
-            <Select
-              placeholder="Kategoriyani tanlang..."
-              loading={isCategoriesLoading}
-              allowCreate
-            >
-              {backendCategories.map((c) => (
-                <Select.Option key={c.id} value={c.name}>
-                  {c.name}
-                </Select.Option>
-              ))}
-            </Select>
-          </FormItem>
-          <FormItem
-            label="Moliyalashtirish Manbasi (Rule 5.1)"
-            field="fundingSource"
-            rules={[{ required: true, message: 'Iltimos, moliyalashtirish manbasini tanlang!' }]}
-            initialValue="BYUDJET"
-          >
-            <Select placeholder="Moliyalashtirish manbasini tanlang">
-              <Select.Option value="BYUDJET">Davlat Byudjeti mablag‘lari</Select.Option>
-              <Select.Option value="KONTRAKT_RIVOJLANTIRISH">To‘lov-kontrakt va Rivojlantirish jamg‘armasi</Select.Option>
-              <Select.Option value="GRANT">Xalqaro Grant va Ilmiy loyihalar</Select.Option>
-            </Select>
-          </FormItem>
-          <FormItem label="Seriya Raqami (SN)" field="serialNumber">
-            <Input placeholder="Zavod seriya raqami" />
-          </FormItem>
-          <FormItem label="Xarid Narxi (so‘mda)" field="purchasePrice">
-            <Input placeholder="Masalan: 8500000" type="number" />
-          </FormItem>
-          <FormItem label="Dastlabki Joylashuvi (Xona)" field="roomId">
-            <Select placeholder="Xonani tanlang (ixtiyoriy, tanlanmasa omborga o‘tadi)">
-              {rooms.map((r) => (
-                <Select.Option key={r.id} value={r.id}>
-                  {r.number}-xona: {r.name}
-                </Select.Option>
-              ))}
-            </Select>
-          </FormItem>
-        </Form>
       </Modal>
 
       {/* RASMIY AKT OS-1 MODAL */}
