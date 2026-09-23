@@ -385,22 +385,22 @@ export const AnalysisStatCard: React.FC<AnalysisStatCardProps> = ({
         )}
       </div>
 
-      {/* Right Column: Icon OR Sparkline / Donut Chart */}
+      {/* Right Column: Centered Watermark Icon OR Sparkline / Donut Chart */}
       {icon ? (
         <div
           style={{
-            width: 48,
-            height: 48,
-            borderRadius: 10,
-            backgroundColor: currentTheme.iconBg,
+            fontSize: 56,
+            color: currentTheme.accent,
+            opacity: 0.22,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: currentTheme.accent,
-            fontSize: 26,
             flexShrink: 0,
-            zIndex: 2,
-            marginLeft: 8,
+            zIndex: 1,
+            marginLeft: 12,
+            marginRight: 8,
+            lineHeight: 1,
+            pointerEvents: 'none',
           }}
         >
           {icon}
@@ -420,25 +420,6 @@ export const AnalysisStatCard: React.FC<AnalysisStatCardProps> = ({
           {renderChart()}
         </div>
       ) : null}
-
-      {/* Subtle background watermark when icon is provided */}
-      {icon && (
-        <div
-          style={{
-            position: 'absolute',
-            right: -6,
-            bottom: -8,
-            fontSize: 70,
-            color: currentTheme.accent,
-            opacity: 0.08,
-            pointerEvents: 'none',
-            zIndex: 1,
-            lineHeight: 1,
-          }}
-        >
-          {icon}
-        </div>
-      )}
     </div>
   );
 };
