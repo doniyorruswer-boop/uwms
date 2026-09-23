@@ -47,6 +47,7 @@ interface AssetHandoverWizardModalProps {
   onClose: () => void;
   selectedAssets: ItemInstance[];
   onSuccess?: (createdHandover: any) => void;
+  initialActionType?: HandoverItemActionType;
 }
 
 export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> = ({
@@ -54,6 +55,7 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
   onClose,
   selectedAssets,
   onSuccess,
+  initialActionType,
 }) => {
   const { user: currentUser } = useAuthStore();
   const queryClient = useQueryClient();
@@ -89,9 +91,10 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
   useEffect(() => {
     if (visible) {
       setCurrentStep(0);
-      setActionType('TRANSFER_TO_MOL');
+      const chosenAction = initialActionType || 'TRANSFER_TO_MOL';
+      setActionType(chosenAction);
       setTargetUserId(undefined);
-      setTargetWarehouseId(undefined);
+      setTargetWarehouseId(chosenAction === 'RETURN_TO_WAREHOUSE' && warehouses?.[0]?.id ? warehouses[0].id : undefined);
       setRepairDescription('');
       setWriteOffReason('');
       setShortageReason('');
@@ -109,7 +112,7 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
         setAutoDetectedBuildingName(undefined);
       }
     }
-  }, [visible, selectedAssets, rooms, buildings]);
+  }, [visible, selectedAssets, rooms, buildings, warehouses, initialActionType]);
 
   // Helper to auto-resolve commandant and building name
   const resolveCommandantAndBuilding = (roomId: string) => {

@@ -18,6 +18,7 @@ import {
   Tooltip,
   Badge,
   Result,
+  Message,
 } from '@arco-design/web-react';
 import {
   IconArrowLeft,
@@ -54,8 +55,10 @@ import {
   useUpdateUserPermissionsMutation,
 } from '../../hooks/useUserPermissionsQuery';
 import { useUsersQuery } from '../../hooks/useUsersQuery';
-import { RoleType, type PermissionModule, type PermissionItem } from '../../types';
+import { RoleType, type PermissionModule, type PermissionItem, type UserPermissionsData } from '../../types';
 import { ForbiddenView } from '../../components/Common/ForbiddenView';
+import { apiClient } from '../../api/client';
+import { API_ENDPOINTS } from '../../constants';
 
 const { Row, Col } = Grid;
 const { Title, Text, Paragraph } = Typography;
@@ -135,6 +138,7 @@ export const UserPermissionsPage: React.FC = () => {
   // Clone from user modal state
   const [cloneModalVisible, setCloneModalVisible] = useState(false);
   const [selectedSourceUserId, setSelectedSourceUserId] = useState<string>('');
+  const [isCloning, setIsCloning] = useState(false);
 
   // Derived data from permissionsData (safe fallbacks when loading/error)
   const user = permissionsData?.user;
@@ -247,8 +251,19 @@ export const UserPermissionsPage: React.FC = () => {
 
   // Handler: Reset to User's Role Default Presets
   const handleResetToRoleDefault = () => {
-    setSelectedCodes(new Set(defaultRolePermissions || []));
-    setHasChanges(true);
+    if (!user) return;
+    const roleName = roleLabels[user.role] || user.role;
+    Modal.confirm({
+      title: 'Standart rolga qaytarish',
+      content: `'${user.fullName}' uchun '${roleName}' rolining barcha standart tavsiya etilgan huquqlarini tiklamoqchimisiz?`,
+      okText: 'Ha, tiklash',
+      cancelText: 'Bekor qilish',
+      onOk: () => {
+        setSelectedCodes(new Set(defaultRolePermissions || []));
+        setHasChanges(true);
+        Message.success(`'${roleName}' rolining standart huquqlari tiklandi`);
+      },
+    });
   };
 
   // Handler: Apply specific Role Template Preset
@@ -259,11 +274,7 @@ export const UserPermissionsPage: React.FC = () => {
       okText: 'Qo‘llash',
       cancelText: 'Bekor qilish',
       onOk: () => {
-        if (user && presetRole === user.role) {
-          setSelectedCodes(new Set(defaultRolePermissions));
-        } else {
-          setSelectedCodes(new Set(defaultRolePermissions));
-        }
+        setSelectedCodes(new Set(defaultRolePermissions));
         setHasChanges(true);
       },
     });
@@ -271,26 +282,39 @@ export const UserPermissionsPage: React.FC = () => {
 
   // Handler: Clone permissions from another selected user
   const handleCloneFromUser = async () => {
-    if (!selectedSourceUserId) return;
+    if (!selectedSourceUserId) {
+      Message.warning('Iltimos, manba xodimni tanlang!');
+      return;
+    }
     try {
-      const source = otherUsersData?.items.find((u) => u.id === selectedSourceUserId);
-      if (source) {
-        const perms =
-          (source as any).permissions && (source as any).permissions.length > 0
-            ? (source as any).permissions
-            : defaultRolePermissions;
-        setSelectedCodes(new Set(perms));
-        setHasChanges(true);
-      }
+      setIsCloning(true);
+      const res = await apiClient.get<UserPermissionsData>(
+        API_ENDPOINTS.USERS.PERMISSIONS(selectedSourceUserId),
+      );
+      const perms = res.data?.effectivePermissions || [];
+      setSelectedCodes(new Set(perms));
+      setHasChanges(true);
       setCloneModalVisible(false);
-    } catch {
-      // Handled by modal
+      const sourceUser = otherUsersData?.items.find((u) => u.id === selectedSourceUserId);
+      Message.success(
+        `'${sourceUser?.fullName || 'Xodim'}' huquqlari muvaffaqiyatli nusxalandi (${perms.length} ta ruxsat)!`,
+      );
+    } catch (err: any) {
+      Message.error(
+        err.response?.data?.message || 'Xodim huquqlarini nusxalashda xatolik yuz berdi!',
+      );
+    } finally {
+      setIsCloning(false);
     }
   };
 
   // Handler: Save Permissions to Server
   const handleSave = () => {
-    const permsArray = Array.from(selectedCodes);
+    const isMatchingDefault =
+      selectedCodes.size === defaultRolePermissions.length &&
+      defaultRolePermissions.every((c) => selectedCodes.has(c));
+
+    const permsArray = isMatchingDefault ? [] : Array.from(selectedCodes);
     updateMutation.mutate(permsArray, {
       onSuccess: () => {
         setHasChanges(false);
@@ -385,14 +409,9 @@ export const UserPermissionsPage: React.FC = () => {
                 Xodimlar ro‘yxati
               </Button>
               <Divider type="vertical" />
-              <div>
-                <Title heading={5} style={{ margin: 0 }}>
-                  Foydalanuvchi Ruxsatlarini Boshqarish (Permissions)
-                </Title>
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  Xodimning sahifalarga kirishi va bajarishi mumkin bo‘lgan funksiyalarini (o‘chirish, tahrirlash, eksport) sozlash
-                </Text>
-              </div>
+              <Title heading={5} style={{ margin: 0 }}>
+                Foydalanuvchi Ruxsatlarini Boshqarish (Permissions)
+              </Title>
             </Space>
 
             {/* Actions: Save & Presets */}
@@ -743,7 +762,8 @@ export const UserPermissionsPage: React.FC = () => {
         onCancel={() => setCloneModalVisible(false)}
         okText="Nusxalash va Qo‘llash"
         cancelText="Bekor qilish"
-        okButtonProps={{ disabled: !selectedSourceUserId }}
+        confirmLoading={isCloning}
+        okButtonProps={{ disabled: !selectedSourceUserId, loading: isCloning }}
       >
         <Space direction="vertical" size="medium" style={{ width: '100%' }}>
           <Alert

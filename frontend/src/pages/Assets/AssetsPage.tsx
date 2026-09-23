@@ -37,7 +37,6 @@ import {
   IconClose,
   IconUpload,
   IconUndo,
-  IconUserGroup,
   IconTool,
   IconDesktop,
   IconStorage,
@@ -54,7 +53,7 @@ import {
 import { useAssetDepreciationHistoryQuery } from '../../hooks/useDepreciationQuery';
 import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
 import { useAuthStore } from '../../store/authStore';
-import type { ItemInstance, AssetStatus } from '../../types';
+import type { ItemInstance, AssetStatus, HandoverItemActionType } from '../../types';
 import { exportToExcel } from '../../utils/exportExcel';
 import { OfficialDocModal } from '../../components/OfficialDocument/OfficialDocModal';
 import { useTranslation } from 'react-i18next';
@@ -64,8 +63,6 @@ import { TableActions } from '../../components/Common/TableActions';
 import { StandardTable } from '../../components/Common/StandardTable';
 import { StatusTag } from '../../components/Common/StatusTag';
 import { ForbiddenView } from '../../components/Common/ForbiddenView';
-import { ReturnAssetModal } from '../../components/Assets/ReturnAssetModal';
-import { MassMolTransferModal } from '../../components/Assets/MassMolTransferModal';
 import { CreateRepairModal } from '../../components/Repairs/CreateRepairModal';
 import { CreateWriteOffModal } from '../../components/WriteOff/CreateWriteOffModal';
 import { AssetHandoverWizardModal } from '../../components/Assets/AssetHandoverWizardModal';
@@ -97,9 +94,7 @@ export const AssetsPage: React.FC = () => {
   const [selectedTransferDoc, setSelectedTransferDoc] = useState<TransferItem | null>(null);
   const [isDocModalVisible, setIsDocModalVisible] = useState(false);
 
-  // MOL Transfer Act Biometric Signing Modal State
-  const [molTransferDoc, setMolTransferDoc] = useState<any | null>(null);
-  const [isMolDocModalVisible, setIsMolDocModalVisible] = useState(false);
+
 
   const [searchText, setSearchText] = useState(searchParams.get('search') || '');
   const [quickCategory, setQuickCategory] = useState<string>('ALL');
@@ -107,6 +102,7 @@ export const AssetsPage: React.FC = () => {
   const [fundingSourceFilter, setFundingSourceFilter] = useState<string>('ALL');
   const [showMyAssetsOnly, setShowMyAssetsOnly] = useState<boolean>(user?.role === 'MOL');
   const [wizardAssets, setWizardAssets] = useState<ItemInstance[]>([]);
+  const [wizardInitialActionType, setWizardInitialActionType] = useState<HandoverItemActionType>('TRANSFER_TO_MOL');
 
   useEffect(() => {
     if (user?.role === 'MOL') {
@@ -120,8 +116,6 @@ export const AssetsPage: React.FC = () => {
     isError,
     error,
     createAsset,
-    transferAsset,
-    batchTransfer,
     writeOffAsset,
     refetch: refetchAssets,
   } = useAssetsQuery({
@@ -155,12 +149,8 @@ export const AssetsPage: React.FC = () => {
   const [isDetailDrawerVisible, setIsDetailDrawerVisible] = useState(false);
   const [isQrModalVisible, setIsQrModalVisible] = useState(false);
   const [isBatchPrintModalVisible, setIsBatchPrintModalVisible] = useState(false);
-  const [isTransferModalVisible, setIsTransferModalVisible] = useState(false);
-  const [isBatchTransferModalVisible, setIsBatchTransferModalVisible] = useState(false);
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [isExcelImportModalVisible, setIsExcelImportModalVisible] = useState(false);
-  const [isReturnModalVisible, setIsReturnModalVisible] = useState(false);
-  const [isMassMolModalVisible, setIsMassMolModalVisible] = useState(false);
   const [isRepairModalVisible, setIsRepairModalVisible] = useState(false);
   const [isWriteOffModalVisible, setIsWriteOffModalVisible] = useState(false);
   const [isAssetHandoverWizardVisible, setIsAssetHandoverWizardVisible] = useState(false);
@@ -211,9 +201,6 @@ export const AssetsPage: React.FC = () => {
     }
   };
 
-  const [transferForm] = Form.useForm();
-
-  const [batchTransferForm] = Form.useForm();
   const [addForm] = Form.useForm();
 
   // Filtered assets
@@ -253,6 +240,7 @@ export const AssetsPage: React.FC = () => {
       return;
     }
 
+    setWizardInitialActionType('TRANSFER_TO_MOL');
     setWizardAssets(myAssets);
     setIsAssetHandoverWizardVisible(true);
   };
@@ -266,32 +254,6 @@ export const AssetsPage: React.FC = () => {
     e?.stopPropagation?.();
     setSelectedAsset(asset);
     setIsQrModalVisible(true);
-  };
-
-  const handleOpenTransfer = (asset: ItemInstance, e?: any) => {
-    e?.stopPropagation?.();
-    setSelectedAsset(asset);
-    transferForm.setFieldsValue({
-      toRoomId: asset.roomId,
-      note: 'Rejali qayta taqsimlash',
-    });
-    setIsTransferModalVisible(true);
-  };
-
-  const handleTransferSubmit = async () => {
-    try {
-      const values = await transferForm.validate();
-      if (!selectedAsset) return;
-      await transferAsset({
-        id: selectedAsset.id,
-        toRoomId: values.toRoomId,
-        note: values.note,
-      });
-      setIsTransferModalVisible(false);
-      setActiveMainTab('TRANSFERS');
-    } catch {
-      // validation error handled by Arco
-    }
   };
 
   const handleAcceptTransfer = async (transfer: TransferItem, e?: any) => {
@@ -320,20 +282,7 @@ export const AssetsPage: React.FC = () => {
     setIsDocModalVisible(true);
   };
 
-  const handleBatchTransferSubmit = async () => {
-    try {
-      const values = await batchTransferForm.validate();
-      await batchTransfer({
-        assetIds: selectedRowKeys as string[],
-        toRoomId: values.toRoomId,
-        note: values.note,
-      });
-      setIsBatchTransferModalVisible(false);
-      setSelectedRowKeys([]);
-    } catch {
-      // validation error handled by Arco
-    }
-  };
+
 
   const handleWriteOff = async (asset: ItemInstance, e?: any) => {
     e?.stopPropagation?.();
@@ -635,25 +584,6 @@ export const AssetsPage: React.FC = () => {
                     </Button>
                     <Button
                       type="outline"
-                      icon={<IconUndo />}
-                      onClick={() => {
-                        setActionAsset(null);
-                        setIsReturnModalVisible(true);
-                      }}
-                      style={{ borderRadius: 0, color: '#165DFF', borderColor: '#165DFF' }}
-                    >
-                      Omborga Qaytarish
-                    </Button>
-                    <Button
-                      type="outline"
-                      icon={<IconUserGroup />}
-                      onClick={() => setIsMassMolModalVisible(true)}
-                      style={{ borderRadius: 0, color: '#00B42A', borderColor: '#00B42A' }}
-                    >
-                      MOL Yalpi Almashinuvi
-                    </Button>
-                    <Button
-                      type="outline"
                       icon={<IconUpload />}
                       onClick={() => setIsExcelImportModalVisible(true)}
                       style={{ borderRadius: 0 }}
@@ -705,16 +635,6 @@ export const AssetsPage: React.FC = () => {
                   <b style={{ color: '#165DFF' }}>ta uskuna belgilandi</b>
                 </Space>
                 <Space size="small">
-                  <Button
-                    type="primary"
-                    icon={<IconSwap />}
-                    onClick={() => {
-                      batchTransferForm.resetFields();
-                      setIsBatchTransferModalVisible(true);
-                    }}
-                  >
-                    Ommaviy Xonaga Ko‘chirish
-                  </Button>
                   <Button
                     type="outline"
                     icon={<IconPrinter />}
@@ -847,7 +767,7 @@ export const AssetsPage: React.FC = () => {
               },
               {
                 title: 'Amallar',
-                width: 340,
+                width: 310,
                 fixed: 'right' as const,
                 render: (_, record: ItemInstance) => (
                   <TableActions
@@ -911,6 +831,7 @@ export const AssetsPage: React.FC = () => {
                                 Message.error('Ushbu aktiv sizga biriktirilmagan! Faqat o‘zingizga tegishli vositalarni topshira olasiz.');
                                 return;
                               }
+                              setWizardInitialActionType('TRANSFER_TO_MOL');
                               setWizardAssets([record]);
                               setIsAssetHandoverWizardVisible(true);
                             }}
@@ -920,25 +841,34 @@ export const AssetsPage: React.FC = () => {
                             Topshirish
                           </Button>
                         </Tooltip>
-                        <Tooltip content="Xonaga ko‘chirish">
+                        <Tooltip
+                          content={
+                            record.responsibleUserId === user?.id
+                              ? 'Omborga qaytarish (OS-1)'
+                              : 'Faqat o‘zingizga biriktirilgan vositani omborga qaytara olasiz'
+                          }
+                        >
                           <Button
                             size="small"
                             type="secondary"
-                            icon={<IconSwap />}
-                            onClick={(e) => handleOpenTransfer(record, e)}
-                            style={{ borderRadius: 0 }}
-                          />
-                        </Tooltip>
-                        <Tooltip content="Omborga qaytarish">
-                          <Button
-                            size="small"
-                            type="secondary"
-                            icon={<IconUndo />}
+                            icon={
+                              <IconUndo
+                                style={{
+                                  color: record.responsibleUserId === user?.id ? '#165DFF' : '#C9CDD4',
+                                }}
+                              />
+                            }
                             onClick={(e) => {
                               e.stopPropagation();
-                              setActionAsset(record);
-                              setIsReturnModalVisible(true);
+                              if (record.responsibleUserId !== user?.id) {
+                                Message.error('Ushbu aktiv sizga biriktirilmagan! Faqat o‘zingizga tegishli vositani omborga qaytara olasiz.');
+                                return;
+                              }
+                              setWizardInitialActionType('RETURN_TO_WAREHOUSE');
+                              setWizardAssets([record]);
+                              setIsAssetHandoverWizardVisible(true);
                             }}
+                            disabled={record.responsibleUserId !== user?.id}
                             style={{ borderRadius: 0 }}
                           />
                         </Tooltip>
@@ -1317,70 +1247,6 @@ export const AssetsPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* BATCH TRANSFER MODAL */}
-      <Modal
-        title={`Ommaviy Xonaga Ko‘chirish: ${selectedRowKeys.length} ta uskuna`}
-        visible={isBatchTransferModalVisible}
-        onOk={handleBatchTransferSubmit}
-        onCancel={() => setIsBatchTransferModalVisible(false)}
-        okText="Ommaviy Ko‘chirishni Tasdiqlash"
-        cancelText="Bekor qilish"
-      >
-        <Form form={batchTransferForm} layout="vertical">
-          <FormItem label="Ko‘chirilayotgan vositalar soni">
-            <Input value={`${selectedRowKeys.length} dona tanlangan uskuna`} disabled />
-          </FormItem>
-          <FormItem
-            label="Yangi Xona / Laboratoriya"
-            field="toRoomId"
-            rules={[{ required: true, message: 'Iltimos, manzil xonasini tanlang!' }]}
-          >
-            <Select placeholder="Qaysi xonaga ko‘chiriladi?">
-              {rooms.map((r) => (
-                <Select.Option key={r.id} value={r.id}>
-                  {r.number}-xona: {r.name} (Mas’ul: {r.responsibleUserName})
-                </Select.Option>
-              ))}
-            </Select>
-          </FormItem>
-          <FormItem label="Asos / Izoh" field="note">
-            <Input.TextArea placeholder="Masalan: Kafedraga yangi kompyuter sinfini jihozlash uchun" />
-          </FormItem>
-        </Form>
-      </Modal>
-
-      {/* SINGLE TRANSFER MODAL */}
-      <Modal
-        title={`Uskunani Ko‘chirish: ${selectedAsset?.inventoryNumber}`}
-        visible={isTransferModalVisible}
-        onOk={handleTransferSubmit}
-        onCancel={() => setIsTransferModalVisible(false)}
-        okText="Ko‘chirish"
-        cancelText="Bekor qilish"
-      >
-        <Form form={transferForm} layout="vertical">
-          <FormItem label="Hozirgi joylashuvi">
-            <Input value={selectedAsset?.roomName || 'Omborxona'} disabled />
-          </FormItem>
-          <FormItem
-            label="Yangi Xona"
-            field="toRoomId"
-            rules={[{ required: true, message: 'Iltimos, xonani tanlang!' }]}
-          >
-            <Select placeholder="Qaysi xonaga ko‘chiriladi?">
-              {rooms.map((r) => (
-                <Select.Option key={r.id} value={r.id}>
-                  {r.number}-xona: {r.name} (Mas’ul: {r.responsibleUserName})
-                </Select.Option>
-              ))}
-            </Select>
-          </FormItem>
-          <FormItem label="Ko‘chirish asosi / Izoh" field="note">
-            <Input.TextArea placeholder="Masalan: Farmoyish yoki talabnoma asosida" />
-          </FormItem>
-        </Form>
-      </Modal>
-
       {/* ADD ASSET MODAL */}
       <Modal
         title="Yangi Asosiy Vosita Qabul Qilish (Kirim)"
@@ -1488,52 +1354,6 @@ export const AssetsPage: React.FC = () => {
         onClose={() => setIsExcelImportModalVisible(false)}
       />
 
-      {/* RETURN TO WAREHOUSE MODAL */}
-      <ReturnAssetModal
-        visible={isReturnModalVisible}
-        onClose={() => {
-          setIsReturnModalVisible(false);
-          setActionAsset(null);
-        }}
-        selectedAsset={actionAsset}
-      />
-
-      {/* MASS MOL HANDOFF MODAL */}
-      <MassMolTransferModal
-        visible={isMassMolModalVisible}
-        onClose={() => setIsMassMolModalVisible(false)}
-        onSuccess={(result) => {
-          setMolTransferDoc(result);
-          setIsMolDocModalVisible(true);
-        }}
-      />
-
-      {/* RASMIY AKT MOL-TRANSFER (WORM BIOMETRIC SIGNING) */}
-      {molTransferDoc && (
-        <OfficialDocModal
-          visible={isMolDocModalVisible}
-          onClose={() => {
-            setIsMolDocModalVisible(false);
-            setMolTransferDoc(null);
-          }}
-          docType="MOL_TRANSFER"
-          entityId={molTransferDoc.actNumber}
-          docNumber={molTransferDoc.actNumber}
-          date={new Date().toISOString().substring(0, 10)}
-          senderName={molTransferDoc.fromUser?.fullName}
-          receiverName={molTransferDoc.toUser?.fullName}
-          items={
-            molTransferDoc.assets?.map((a: any) => ({
-              inventoryNumber: a.inventoryNumber,
-              name: a.itemName || 'Asosiy vosita',
-              model: a.model,
-              quantity: 1,
-              unit: 'DONA',
-            })) || []
-          }
-          reason={molTransferDoc.note || 'Moddiy javobgar shaxslar o‘rtasida vositalarni yalpi topshirish-qabul qilish'}
-        />
-      )}
 
       {/* REPAIR REQUEST MODAL */}
       <CreateRepairModal
@@ -1563,6 +1383,7 @@ export const AssetsPage: React.FC = () => {
           setWizardAssets([]);
         }}
         selectedAssets={wizardAssets}
+        initialActionType={wizardInitialActionType}
         onSuccess={() => {
           setSelectedRowKeys([]);
           setWizardAssets([]);

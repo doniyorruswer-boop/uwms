@@ -73,7 +73,6 @@ export const API_ENDPOINTS = {
     TRANSFER_REJECT: (id: string) => `/assets/transfers/${id}/reject`,
     TRANSFER_RESPOND: (id: string) => `/assets/transfers/${id}/respond`,
     RETURN: '/assets/return',
-    MASS_MOL_HANDOFF: '/assets/mass-mol-handoff',
     REPRINT_QR: (id: string) => `/assets/${id}/reprint-qr`,
   },
 

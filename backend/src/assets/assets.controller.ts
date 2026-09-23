@@ -168,15 +168,6 @@ export class AssetsController {
     return this.assetsService.returnAsset(dto, user?.id);
   }
 
-  @Post('mass-mol-handoff')
-  @Roles(RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'MOL (Moddiy javobgar shaxs) yalpi almashinuvi dalolatnomasi' })
-  async massMolHandoff(
-    @Body() dto: MassMolHandoffDto,
-    @CurrentUser() user: any,
-  ) {
-    return this.assetsService.massMolHandoff(dto, user?.id);
-  }
 
   @Post(':id/reprint-qr')
   @Roles(RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.AUDITOR)

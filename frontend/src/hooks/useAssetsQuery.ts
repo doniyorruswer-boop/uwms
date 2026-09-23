@@ -154,20 +154,6 @@ export function useAssetsQuery(params?: {
     },
   });
 
-  const massMolHandoffMutation = useMutation({
-    mutationFn: async (data: { fromUserId: string; toUserId: string; roomId?: string; note?: string }) => {
-      const res = await apiClient.post(API_ENDPOINTS.ASSETS.MASS_MOL_HANDOFF, data);
-      return res.data;
-    },
-    onSuccess: (data) => {
-      Message.success(`MOL yalpi almashinuvi yakunlandi: ${data.transferredCount} ta jihoz o‘tkazildi (${data.actNumber})!`);
-      queryClient.invalidateQueries({ queryKey: ['assets'] });
-      queryClient.invalidateQueries({ queryKey: ['rooms'] });
-    },
-    onError: (err: any) => {
-      Message.error(err.response?.data?.message || 'MOL yalpi almashinuvida xatolik yuz berdi!');
-    },
-  });
 
   const rawData = assetsQuery.data;
   const assets: ItemInstance[] = Array.isArray(rawData) ? rawData : (rawData?.data || []);
@@ -192,8 +178,6 @@ export function useAssetsQuery(params?: {
     downloadImportTemplate,
     returnAsset: returnAssetMutation.mutateAsync,
     isReturning: returnAssetMutation.isPending,
-    massMolHandoff: massMolHandoffMutation.mutateAsync,
-    isHandoffPending: massMolHandoffMutation.isPending,
   };
 }
 
