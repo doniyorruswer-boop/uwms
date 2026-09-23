@@ -492,3 +492,33 @@ td.arco-table-cell-fixed-right {
 .login-container-no-radius .arco-alert {
   border-radius: 0 !important;
 }
+
+/* Arco Design Pro Analysis Metric Card Styling */
+.uwms-analysis-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+[arco-theme='dark'] .uwms-analysis-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+}
+
+[arco-theme='dark'] .uwms-analysis-card[data-theme='blue'] {
+  background: rgba(22, 93, 255, 0.12) !important;
+  border-color: rgba(22, 93, 255, 0.28) !important;
+}
+
+[arco-theme='dark'] .uwms-analysis-card[data-theme='green'] {
+  background: rgba(0, 180, 42, 0.12) !important;
+  border-color: rgba(0, 180, 42, 0.28) !important;
+}
+
+[arco-theme='dark'] .uwms-analysis-card[data-theme='cyan'] {
+  background: rgba(22, 93, 255, 0.09) !important;
+  border-color: rgba(22, 93, 255, 0.24) !important;
+}
+
+[arco-theme='dark'] .uwms-analysis-card[data-theme='purple'] {
+  background: rgba(114, 46, 209, 0.12) !important;
+  border-color: rgba(114, 46, 209, 0.28) !important;
+}
