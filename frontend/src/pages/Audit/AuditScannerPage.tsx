@@ -51,6 +51,13 @@ import { playScannerBeep } from '../../utils/audio';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { StockLevelGauge } from '../../components/Common/StockLevelGauge';
+import {
+  saveOfflineScan,
+  getAllOfflineScans,
+  removeOfflineScans,
+  clearOfflineQueue,
+  type OfflineScanRecord,
+} from '../../utils/offlineAuditStorage';
 
 const { Row, Col } = Grid;
 const { Title, Text } = Typography;
@@ -86,22 +93,15 @@ export const AuditScannerPage: React.FC = () => {
   const [activeAuditId, setActiveAuditId] = useState<string | null>(null);
   const [isCompleted, setIsCompleted] = useState(false);
 
-  // Phase I: Mobile Layout & Offline Queue State
-  const OFFLINE_QUEUE_KEY = 'uwms_audit_offline_queue';
-  const [offlineQueue, setOfflineQueue] = useState<Array<{
-    id: string;
-    qrCode: string;
-    roomId: string;
-    campaignId?: string;
-    timestamp: number;
-  }>>(() => {
-    try {
-      const saved = localStorage.getItem(OFFLINE_QUEUE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Phase 4: Mobile Layout & IndexedDB Offline Queue State
+  const [offlineQueue, setOfflineQueue] = useState<OfflineScanRecord[]>([]);
+
+  // Load offline queue from IndexedDB on component mount
+  useEffect(() => {
+    getAllOfflineScans()
+      .then((scans) => setOfflineQueue(scans))
+      .catch((err) => console.error('Failed to load offline scans from IndexedDB:', err));
+  }, []);
 
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -125,7 +125,7 @@ export const AuditScannerPage: React.FC = () => {
     };
     const handleOffline = () => {
       setIsOnline(false);
-      Message.warning('Internet aloqasi uzildi. Skanlar oflayn xotiraga saqlanadi.');
+      Message.warning('Internet aloqasi uzildi. Skanlar oflayn xotiraga (IndexedDB) saqlanadi.');
     };
     const handleResize = () => {
       if (window.innerWidth <= 840) {
@@ -144,23 +144,8 @@ export const AuditScannerPage: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(offlineQueue));
-    } catch (e) {
-      console.error('Failed to save offline queue', e);
-    }
-  }, [offlineQueue]);
-
   const syncOfflineQueue = async () => {
-    const currentQueue = (() => {
-      try {
-        const saved = localStorage.getItem(OFFLINE_QUEUE_KEY);
-        return saved ? JSON.parse(saved) : [];
-      } catch {
-        return [];
-      }
-    })();
+    const currentQueue = await getAllOfflineScans();
 
     if (!currentQueue || currentQueue.length === 0) {
       Message.info('Sinxronlash uchun oflayn skanlar mavjud emas.');
@@ -173,7 +158,7 @@ export const AuditScannerPage: React.FC = () => {
 
     setIsSyncing(true);
     try {
-      const itemsPayload = currentQueue.map((item: any) => ({
+      const itemsPayload = currentQueue.map((item) => ({
         roomId: item.roomId,
         qrCode: item.qrCode,
         campaignId: item.campaignId,
@@ -185,15 +170,16 @@ export const AuditScannerPage: React.FC = () => {
         setActiveAuditId(res.auditIds[0]);
       }
 
-      setOfflineQueue([]);
-      localStorage.removeItem(OFFLINE_QUEUE_KEY);
+      await removeOfflineScans(currentQueue.map((item) => item.id));
+      const remainingScans = await getAllOfflineScans();
+      setOfflineQueue(remainingScans);
 
       setRecentScans((prev) =>
         prev.map((r) => ({ ...r, isOffline: false }))
       );
 
       Message.success(
-        `Tranzaksion sinxronlandi: Jami ${res.processed} ta skandan ${res.matched} tasi o‘z xonasida topildi, ${res.relocated} tasi boshqa xonadan!`
+        `Oflayn ${currentQueue.length} ta yozuv muvaffaqiyatli sinxronlandi (${res.matched} ta o‘z xonasida, ${res.relocated} ta boshqa xonadan)!`
       );
       await refetchAuditDetail();
     } catch (err: any) {
@@ -525,17 +511,16 @@ export const AuditScannerPage: React.FC = () => {
 
       // Offline detection & queue
       if (!navigator.onLine) {
-        const offlineRecord = {
-          id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `offline-${Date.now()}-${offlineQueue.length + 1}`),
+        const savedRecord = await saveOfflineScan({
           qrCode: trimmed,
           roomId: activeRoom,
           campaignId: selectedCampaignId || undefined,
-          timestamp: Date.now(),
-        };
-        setOfflineQueue((prev) => [...prev, offlineRecord]);
+        });
+        const currentPending = await getAllOfflineScans();
+        setOfflineQueue(currentPending);
         setRecentScans((prev) => [
           {
-            id: `${Date.now()}`,
+            id: savedRecord.id,
             qrCode: trimmed,
             inventoryNumber: invNumber,
             itemName: assetName,
@@ -545,7 +530,7 @@ export const AuditScannerPage: React.FC = () => {
           },
           ...prev.slice(0, 4),
         ]);
-        Message.info('Tarmoq yo‘q. Skan offline navbatga saqlandi.');
+        Message.info('Tarmoq yo‘q. Skan offline navbatga (IndexedDB) saqlandi.');
         setManualCode('');
         return;
       }
@@ -588,18 +573,17 @@ export const AuditScannerPage: React.FC = () => {
           ...prev.slice(0, 4),
         ]);
       } catch {
-        // Network failure fallback to offline queue
-        const offlineRecord = {
-          id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `offline-${Date.now()}-${offlineQueue.length + 1}`),
+        // Network failure fallback to IndexedDB offline queue
+        const savedRecord = await saveOfflineScan({
           qrCode: trimmed,
           roomId: activeRoom,
           campaignId: selectedCampaignId || undefined,
-          timestamp: Date.now(),
-        };
-        setOfflineQueue((prev) => [...prev, offlineRecord]);
+        });
+        const currentPending = await getAllOfflineScans();
+        setOfflineQueue(currentPending);
         setRecentScans((prev) => [
           {
-            id: `${Date.now()}`,
+            id: savedRecord.id,
             qrCode: trimmed,
             inventoryNumber: invNumber,
             itemName: assetName,
@@ -609,7 +593,7 @@ export const AuditScannerPage: React.FC = () => {
           },
           ...prev.slice(0, 4),
         ]);
-        Message.info('Serverga ulanib bo‘lmadi. Skan offline navbatga saqlandi.');
+        Message.info('Serverga ulanib bo‘lmadi. Skan offline navbatga (IndexedDB) saqlandi.');
       }
       setManualCode('');
     } catch (err: any) {
@@ -826,7 +810,7 @@ export const AuditScannerPage: React.FC = () => {
           icon={<IconWifi />}
           title={
             <Space>
-              <span>Oflayn Navbat: <b>{offlineQueue.length}</b> ta skan saqlangan</span>
+              <span>Oflayn Navbat (IndexedDB): <b>{offlineQueue.length}</b> ta skan saqlangan</span>
               {isOnline ? (
                 <Tag color="green" style={{ borderRadius: 0 }}>Tarmoq mavjud (Sinxronlash mumkin)</Tag>
               ) : (
@@ -836,21 +820,35 @@ export const AuditScannerPage: React.FC = () => {
           }
           content={
             <div style={{ fontSize: 12, marginTop: 4 }}>
-              Internet aloqasi bo‘lmaganda o‘qilgan QR kodlar qurilmada xavfsiz saqlanadi. Tranzaksion sinxronlash orqali barchasi bir vaqtda bazaga yoziladi va kamomad/mavjudlik qayd etiladi.
+              Internet aloqasi bo‘lmaganda o‘qilgan QR kodlar brauzerning IndexedDB xotirasida xavfsiz saqlanadi. Tranzaksion sinxronlash orqali barchasi bir vaqtda bazaga yoziladi va kamomad/mavjudlik qayd etiladi.
             </div>
           }
           action={
-            <Button
-              type="primary"
-              status="warning"
-              size="small"
-              icon={<IconSync spin={isSyncing} />}
-              loading={isSyncing}
-              onClick={syncOfflineQueue}
-              style={{ borderRadius: 0 }}
-            >
-              Tranzaksion Sinxronlash
-            </Button>
+            <Space>
+              <Button
+                type="primary"
+                status="warning"
+                size="small"
+                icon={<IconSync spin={isSyncing} />}
+                loading={isSyncing}
+                onClick={syncOfflineQueue}
+                style={{ borderRadius: 0 }}
+              >
+                Tranzaksion Sinxronlash
+              </Button>
+              <Popconfirm
+                title="Barcha oflayn skanlarni o‘chirib yubormoqchimisiz?"
+                onOk={async () => {
+                  await clearOfflineQueue();
+                  setOfflineQueue([]);
+                  Message.info('Oflayn navbat tozalandi.');
+                }}
+              >
+                <Button size="small" type="secondary" status="danger" style={{ borderRadius: 0 }}>
+                  Tozalash
+                </Button>
+              </Popconfirm>
+            </Space>
           }
           style={{ borderRadius: 0 }}
         />

@@ -9,6 +9,9 @@ export interface BackupItem {
   backupType: 'AUTOMATIC' | 'MANUAL';
   status: 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'RESTORED';
   checksum?: string;
+  storageLocation?: 'LOCAL' | 'REMOTE_S3' | 'BOTH';
+  s3Key?: string;
+  s3Bucket?: string;
   notes?: string;
   triggeredById?: string;
   triggeredBy?: {
@@ -59,8 +62,9 @@ export const backupsApi = {
     return res.data;
   },
 
-  createBackup: async (notes?: string): Promise<BackupItem> => {
-    const res = await apiClient.post('/backups', { notes });
+  createBackup: async (payload?: { notes?: string; uploadToS3?: boolean } | string): Promise<BackupItem> => {
+    const body = typeof payload === 'string' ? { notes: payload } : payload;
+    const res = await apiClient.post('/backups', body);
     return res.data;
   },
 

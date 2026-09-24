@@ -13,6 +13,7 @@ import {
   Alert,
   Popconfirm,
   Tooltip,
+  Switch,
 } from '@arco-design/web-react';
 import {
   IconPlus,
@@ -24,6 +25,8 @@ import {
   IconDelete,
   IconUndo,
   IconLock,
+  IconCloud,
+  IconSafe,
 } from '@arco-design/web-react/icon';
 import {
   useBackupsQuery,
@@ -89,7 +92,10 @@ export const BackupsPage: React.FC = () => {
   const handleCreateSubmit = async () => {
     try {
       const values = await createForm.validate();
-      await createMutation.mutateAsync(values.notes);
+      await createMutation.mutateAsync({
+        notes: values.notes,
+        uploadToS3: values.uploadToS3,
+      });
       createForm.resetFields();
       setCreateModalVisible(false);
     } catch {
@@ -169,6 +175,39 @@ export const BackupsPage: React.FC = () => {
           {size || '0 B'}
         </Tag>
       ),
+    },
+    {
+      title: 'Saqlash Joyi',
+      dataIndex: 'storageLocation',
+      key: 'storageLocation',
+      width: 175,
+      render: (loc: string | undefined, record: BackupItem) => {
+        if (loc === 'BOTH') {
+          return (
+            <Tooltip content="Asosiy server + Universitet zaxira serveri (AES-256 shifrlangan)">
+              <Tag color="purple" size="small" icon={<IconSafe />} style={{ borderRadius: 0, fontWeight: 500 }}>
+                Asosiy + Universitet Serveri
+              </Tag>
+            </Tooltip>
+          );
+        }
+        if (loc === 'REMOTE_S3' || loc === 'REMOTE_SERVER') {
+          return (
+            <Tooltip content="Universitet zaxira serveri (AES-256 shifrlangan)">
+              <Tag color="arcoblue" size="small" icon={<IconSafe />} style={{ borderRadius: 0, fontWeight: 500 }}>
+                Universitet Serveri
+              </Tag>
+            </Tooltip>
+          );
+        }
+        return (
+          <Tooltip content="Faqat asosiy server diskida">
+            <Tag color="gray" size="small" icon={<IconStorage />} style={{ borderRadius: 0, fontWeight: 500 }}>
+              Asosiy Server
+            </Tag>
+          </Tooltip>
+        );
+      },
     },
     {
       title: 'Turi',
@@ -440,13 +479,21 @@ export const BackupsPage: React.FC = () => {
           </Space>
         }
       >
-        <Form form={createForm} layout="vertical">
+        <Form form={createForm} layout="vertical" initialValues={{ uploadToS3: true }}>
           <Form.Item label="Izoh yoki Sabab" field="notes">
             <Input.TextArea
               placeholder="Masalan: Tizim versiyasi yangilanishidan oldingi zaxira..."
-              rows={4}
+              rows={3}
               style={{ borderRadius: 0 }}
             />
+          </Form.Item>
+          <Form.Item
+            label="Universitet zaxira serveriga nusxalash"
+            field="uploadToS3"
+            triggerPropName="checked"
+            extra="Zaxira nusxasini AES-256 bilan shifrlab universitetning tashqi xavfsiz fayl serveriga yuborish (Disaster Recovery)"
+          >
+            <Switch defaultChecked />
           </Form.Item>
         </Form>
       </Modal>

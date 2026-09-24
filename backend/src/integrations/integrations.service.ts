@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import * as XLSX from 'xlsx';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -81,10 +82,10 @@ export class IntegrationsService {
   private async pingHemis(
     apiUrl: string,
     apiKey?: string,
-  ): Promise<{ ok: boolean; status: number; errorMessage?: string; pingMs: number }> {
+  ): Promise<{ ok: boolean; status: number; errorMessage?: string; pingMs: number; details?: string }> {
     const startTime = Date.now();
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3500);
+    const timeout = setTimeout(() => controller.abort(), 4000);
 
     try {
       const headers: Record<string, string> = {
@@ -105,14 +106,32 @@ export class IntegrationsService {
       clearTimeout(timeout);
       const pingMs = Date.now() - startTime;
 
-      if (response.ok || response.status === 401 || response.status === 403 || response.status === 404) {
+      if (response.ok) {
         return {
-          ok: response.ok,
+          ok: true,
           status: response.status,
-          errorMessage: response.ok
-            ? undefined
-            : `HTTP ${response.status}: ${response.statusText || 'Ruxsat xatosi'}`,
           pingMs,
+          details: 'HEMIS REST API serveri bilan aloqa muvaffaqiyatli o‘rnatildi.',
+        };
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        return {
+          ok: false,
+          status: response.status,
+          errorMessage: `HTTP ${response.status}: Avtorizatsiya xatosi (API Kalit noto‘g‘ri yoki muddati tugagan)`,
+          pingMs,
+          details: 'HEMIS serveri topildi, lekin taqdim etilgan API kalit (Bearer token) orqali ruxsat berilmadi.',
+        };
+      }
+
+      if (response.status === 404) {
+        return {
+          ok: false,
+          status: response.status,
+          errorMessage: `HTTP 404: Ko‘rsatilgan API yo‘li topilmadi`,
+          pingMs,
+          details: 'HEMIS serveri javob bermoqda, biroq kiritilgan URL manzilda API xizmati topilmadi.',
         };
       }
 
@@ -121,16 +140,24 @@ export class IntegrationsService {
         status: response.status,
         errorMessage: `HTTP ${response.status}: ${response.statusText}`,
         pingMs,
+        details: `HEMIS serveri javob berdi: status ${response.status}`,
       };
     } catch (err: any) {
       clearTimeout(timeout);
       const pingMs = Date.now() - startTime;
       const isTimeout = err.name === 'AbortError';
+      const errMsg = isTimeout
+        ? 'Ulanish vaqti tugadi (Timeout: 4.0s)'
+        : (err.message || 'Tarmoq xatosi');
+
       return {
         ok: false,
         status: 0,
-        errorMessage: isTimeout ? 'Ulanish vaqti tugadi (Timeout: 3.5s)' : (err.message || 'Tarmoq xatosi'),
+        errorMessage: errMsg,
         pingMs,
+        details: isTimeout
+          ? 'HEMIS serveri belgilangan vaqt ichida javob bermadi.'
+          : 'Serverga ulanib bo‘lmadi (DNS yoki tarmoq xatosi).',
       };
     }
   }
@@ -161,14 +188,15 @@ export class IntegrationsService {
     const envKey = this.getHemisApiKey();
     const envMode = this.getHemisMode();
 
-    // 1. Agar HEMIS_API_URL va HEMIS_API_KEY yo'q bo'lsa -> NOT_CONFIGURED yoki DEMO
+    // 1. Agar HEMIS_API_URL va HEMIS_API_KEY yo'q bo'lsa -> NOT_CONFIGURED yoki DEMO (Kalitlar kutilmoqda)
     if (!envUrl && !envKey) {
-      const isDemoMode = envMode === 'demo' || envMode === 'demo_stub';
+      const isDemoMode = envMode === 'demo' || envMode === 'demo_stub' || !envMode;
       return {
         status: isDemoMode ? 'DEMO' : 'NOT_CONFIGURED',
         isConfigured: false,
+        isWaitingForCredentials: true,
         mode: isDemoMode ? 'DEMO' : 'NOT_CONFIGURED',
-        hemisVersion: 'HEMIS REST API v2.4 (Demo Rejimi)',
+        hemisVersion: 'HEMIS REST API v2.4 (Xavfsiz Sinov Rejimi)',
         apiUrl: null,
         lastSyncAt: lastSyncLog ? lastSyncLog.createdAt : null,
         lastSyncType: lastSyncLog?.action || null,
@@ -178,7 +206,8 @@ export class IntegrationsService {
           syncedRooms: roomCount,
           syncedUsers: userCount,
         },
-        message: 'Hozircha demo rejim. HEMIS_API_URL sozlanmagan',
+        message: 'HEMIS API kalitlari hali kiritilmagan. Tizim xavfsiz sinov (DEMO) rejimida to‘liq ishlamoqda.',
+        instructions: 'Vazirlik yoki OTM ma’murlari tomonidan HEMIS_API_URL va HEMIS_API_KEY taqdim etilgach, integratsiya sozlamalari orqali faollashtiriladi.',
       };
     }
 
@@ -187,6 +216,7 @@ export class IntegrationsService {
       return {
         status: 'NOT_CONFIGURED',
         isConfigured: false,
+        isWaitingForCredentials: true,
         mode: 'NOT_CONFIGURED',
         hemisVersion: 'HEMIS REST API v2.4',
         apiUrl: envUrl ? this.maskUrl(envUrl) : null,
@@ -198,7 +228,7 @@ export class IntegrationsService {
           syncedRooms: roomCount,
           syncedUsers: userCount,
         },
-        message: 'Hozircha demo rejim. HEMIS_API_URL sozlanmagan',
+        message: 'HEMIS sozlamalari to‘liq emas: URL va API kalit ikkalasi ham kiritilishi shart.',
       };
     }
 
@@ -207,6 +237,7 @@ export class IntegrationsService {
       return {
         status: 'CONFIGURED_BUT_STUB',
         isConfigured: true,
+        isWaitingForCredentials: false,
         mode: 'DEMO',
         hemisVersion: 'HEMIS REST API v2.4 (Stub / Sinov Rejimi)',
         apiUrl: this.maskUrl(envUrl),
@@ -690,50 +721,151 @@ export class IntegrationsService {
       return this.convertToUzAsboXml(uzasboPayload);
     }
 
+    if (query.format === 'xlsx') {
+      return this.convertToUzAsboXlsx(uzasboPayload, period);
+    }
+
     return uzasboPayload;
   }
 
+  private escapeXml(unsafe: string | number | null | undefined): string {
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
   private convertToUzAsboXml(data: any): string {
+    const esc = this.escapeXml.bind(this);
     return `<?xml version="1.0" encoding="UTF-8"?>
 <UzASBOExport version="2.0">
   <Organization>
-    <Name>${data.header.organizationName}</Name>
-    <INN>${data.header.inn}</INN>
-    <Period>${data.header.period}</Period>
-    <GeneratedAt>${data.header.generatedAt}</GeneratedAt>
+    <Name>${esc(data.header.organizationName)}</Name>
+    <INN>${esc(data.header.inn)}</INN>
+    <TreasuryAccount>${esc(data.header.treasuryAccount)}</TreasuryAccount>
+    <Period>${esc(data.header.period)}</Period>
+    <Standard>${esc(data.header.exportStandard)}</Standard>
+    <GeneratedAt>${esc(data.header.generatedAt)}</GeneratedAt>
   </Organization>
+  <ChartOfAccounts>
+    ${data.chartOfAccounts
+      .map(
+        (c: any) => `
+    <Account code="${esc(c.accountCode)}" name="${esc(c.accountName)}">
+      ${c.itemCount !== undefined ? `<ItemCount>${c.itemCount}</ItemCount>` : ''}
+      ${c.totalPurchasePrice !== undefined ? `<TotalValue>${c.totalPurchasePrice}</TotalValue>` : ''}
+      ${c.totalQuantity !== undefined ? `<TotalQuantity>${c.totalQuantity}</TotalQuantity>` : ''}
+    </Account>`,
+      )
+      .join('')}
+  </ChartOfAccounts>
   <Assets total="${data.assetRegister.length}">
     ${data.assetRegister
-      .slice(0, 50)
       .map(
         (a: any) => `
     <Asset>
-      <InventoryNumber>${a.inventoryNumber}</InventoryNumber>
-      <Name>${a.assetName}</Name>
-      <InitialCost>${a.initialCost || 0}</InitialCost>
-      <FundingSource>${a.fundingSource}</FundingSource>
-      <Location>${a.room}</Location>
-      <MOL>${a.responsiblePerson}</MOL>
-      <Status>${a.status}</Status>
+      <InventoryNumber>${esc(a.inventoryNumber)}</InventoryNumber>
+      <Name>${esc(a.assetName)}</Name>
+      <Category>${esc(a.category)}</Category>
+      <FundingSource>${esc(a.fundingSource)}</FundingSource>
+      <InitialCost>${esc(a.initialCost || 0)}</InitialCost>
+      <AnnualDepreciationRate>${esc(a.annualDepreciationRate)}</AnnualDepreciationRate>
+      <Location>${esc(a.room)}</Location>
+      <MOL>${esc(a.responsiblePerson)}</MOL>
+      <Status>${esc(a.status)}</Status>
     </Asset>`,
       )
       .join('')}
   </Assets>
   <Movements total="${data.monthlyMovements.length}">
     ${data.monthlyMovements
-      .slice(0, 50)
       .map(
         (m: any) => `
     <Movement>
-      <Number>${m.movementNumber}</Number>
-      <Type>${m.type}</Type>
-      <Date>${m.date}</Date>
-      <Destination>${m.destination}</Destination>
+      <Number>${esc(m.movementNumber)}</Number>
+      <Type>${esc(m.type)}</Type>
+      <Date>${esc(m.date)}</Date>
+      <FundingSource>${esc(m.fundingSource)}</FundingSource>
+      <ReferenceDoc>${esc(m.referenceDoc)}</ReferenceDoc>
+      <Executor>${esc(m.executor)}</Executor>
+      <Destination>${esc(m.destination)}</Destination>
+      <Items>
+        ${m.items
+          .map(
+            (i: any) => `
+        <Item>
+          <Name>${esc(i.itemName)}</Name>
+          <Quantity>${esc(i.quantity)}</Quantity>
+          <Unit>${esc(i.unit)}</Unit>
+        </Item>`,
+          )
+          .join('')}
+      </Items>
     </Movement>`,
       )
       .join('')}
   </Movements>
 </UzASBOExport>`;
+  }
+
+  private convertToUzAsboXlsx(data: any, period: string) {
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Tashkilot
+    const orgRows = [
+      ['Tashkilot Nomi', data.header.organizationName],
+      ['INN (STIR)', data.header.inn],
+      ['G‘aznachilik Hisob Raqami', data.header.treasuryAccount],
+      ['Hisobot Davri', data.header.period],
+      ['Standart', data.header.exportStandard],
+      ['Shakllantirilgan Sana', data.header.generatedAt],
+    ];
+    const wsOrg = XLSX.utils.aoa_to_sheet(orgRows);
+    XLSX.utils.book_append_sheet(wb, wsOrg, 'Tashkilot');
+
+    // Sheet 2: Asosiy Vositalar (013)
+    const assetRows = data.assetRegister.map((a: any) => ({
+      'Inventar №': a.inventoryNumber,
+      'Nomi': a.assetName,
+      'Kategoriya': a.category,
+      'Moliyalashtirish Manbasi': a.fundingSource,
+      'Boshlang‘ich Qiymati (so‘m)': a.initialCost || 0,
+      'Amortizatsiya Me’yori': a.annualDepreciationRate,
+      'Joylashuvi (Xona)': a.room,
+      'Moddiy Javobgar Shaxs (MOL)': a.responsiblePerson,
+      'Holati': a.status,
+    }));
+    const wsAssets = XLSX.utils.json_to_sheet(assetRows);
+    XLSX.utils.book_append_sheet(wb, wsAssets, 'Asosiy_Vositalar_013');
+
+    // Sheet 3: Harakatlar Jurnali
+    const movementRows = data.monthlyMovements.flatMap((m: any) =>
+      m.items.map((i: any) => ({
+        'Harakat №': m.movementNumber,
+        'Turi': m.type,
+        'Sana': m.date ? new Date(m.date).toLocaleDateString('uz-UZ') : '—',
+        'Moliyalashtirish': m.fundingSource || '—',
+        'Asos Hujjat': m.referenceDoc || '—',
+        'Bajaruvchi': m.executor,
+        'Yo‘nalish (Manzil)': m.destination,
+        'Mahsulot Nomi': i.itemName,
+        'Miqdor': i.quantity,
+        'Birlik': i.unit,
+      })),
+    );
+    const wsMovements = XLSX.utils.json_to_sheet(movementRows);
+    XLSX.utils.book_append_sheet(wb, wsMovements, 'Harakatlar_Jurnali');
+
+    const buffer = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+    return {
+      format: 'xlsx',
+      fileName: `UzASBO_Hisoboti_${period}.xlsx`,
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      base64: buffer,
+    };
   }
 
   async getHemisSyncLogs(limit = 20) {

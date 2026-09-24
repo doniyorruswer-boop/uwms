@@ -28,11 +28,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     // 2. User.permissions column
     try {
       await this.$executeRawUnsafe(`
-        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "permissions" TEXT[] DEFAULT ARRAY[]::TEXT[];
+        ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "permissions" TEXT[] DEFAULT ARRAY[]::TEXT[];
       `);
-      this.logger.log('Verified database schema: "User"."permissions" column exists.');
+      this.logger.log('Verified database schema: "users"."permissions" column exists.');
     } catch (err: any) {
-      this.logger.warn(`Could not verify "User"."permissions" column: ${err?.message || err}`);
+      this.logger.warn(`Could not verify "users"."permissions" column: ${err?.message || err}`);
     }
 
     // 3. Department.buildingId column
@@ -45,7 +45,23 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       this.logger.warn(`Could not verify "departments"."buildingId" column: ${err?.message || err}`);
     }
 
-    // 4. Bootstrap: Agar hech qanday foydalanuvchi yo'q bo'lsa, asosiy admin yaratish
+    // 4. BackupRecord S3 storage columns
+    try {
+      await this.$executeRawUnsafe(`
+        ALTER TABLE "backup_records" ADD COLUMN IF NOT EXISTS "storageLocation" TEXT DEFAULT 'LOCAL';
+      `);
+      await this.$executeRawUnsafe(`
+        ALTER TABLE "backup_records" ADD COLUMN IF NOT EXISTS "s3Key" TEXT;
+      `);
+      await this.$executeRawUnsafe(`
+        ALTER TABLE "backup_records" ADD COLUMN IF NOT EXISTS "s3Bucket" TEXT;
+      `);
+      this.logger.log('Verified database schema: "backup_records" S3 columns exist.');
+    } catch (err: any) {
+      this.logger.warn(`Could not verify "backup_records" S3 columns: ${err?.message || err}`);
+    }
+
+    // 5. Bootstrap: Agar hech qanday foydalanuvchi yo'q bo'lsa, asosiy admin yaratish
     await this.bootstrapAdminIfEmpty();
   }
 

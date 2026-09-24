@@ -10,9 +10,14 @@ import { LoginDto, ChangePasswordDto, RefreshTokenDto } from './dto/auth.dto';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Throttle({
+    default: {
+      limit: process.env.NODE_ENV === 'production' ? 10 : 200,
+      ttl: 60000,
+    },
+  })
   @Post('login')
-  @ApiOperation({ summary: 'Tizimga kirish (Login - Qat’iy Rate Limited: 10 ta/min)' })
+  @ApiOperation({ summary: 'Tizimga kirish (Login - Rate Limited)' })
   async login(@Body() body: LoginDto) {
     return this.authService.login({
       username: body.username,
@@ -20,7 +25,12 @@ export class AuthController {
     });
   }
 
-  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Throttle({
+    default: {
+      limit: process.env.NODE_ENV === 'production' ? 20 : 300,
+      ttl: 60000,
+    },
+  })
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh token orqali yangi access token olish' })
   async refresh(@Body() body: RefreshTokenDto) {

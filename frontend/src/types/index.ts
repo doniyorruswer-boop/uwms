@@ -438,6 +438,8 @@ export interface HemisStatusResult {
     syncedRooms: number;
     syncedUsers: number;
   };
+  isWaitingForCredentials?: boolean;
+  instructions?: string;
   pingMs?: number;
   errorMessage?: string;
   message?: string;

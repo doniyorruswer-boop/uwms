@@ -18,4 +18,10 @@ export default defineConfig({
     video: 'off',
     trace: 'retain-on-failure',
   },
+  webServer: {
+    command: 'npm run preview -- --port 5173',
+    url: 'http://localhost:5173',
+    reuseExistingServer: !process.env.CI,
+    timeout: 60000,
+  },
 });

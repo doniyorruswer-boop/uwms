@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNotEmpty, IsEnum, IsNumber, Min } from 'class-validator';
+import { IsOptional, IsString, IsNotEmpty, IsEnum, IsNumber, IsBoolean, Min } from 'class-validator';
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { BackupType, BackupStatus } from '@prisma/client';
@@ -8,6 +8,11 @@ export class CreateBackupDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiPropertyOptional({ example: true, description: 'Nusxani S3/MinIO bulutli xotirasiga ham yuborish' })
+  @IsBoolean()
+  @IsOptional()
+  uploadToS3?: boolean;
 }
 
 export class RestoreBackupDto {

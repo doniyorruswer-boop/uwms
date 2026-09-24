@@ -59,9 +59,10 @@ export const IntegrationsPage: React.FC = () => {
     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
   );
   const [exportType, setExportType] = useState<string>('summary');
-  const [exportFormat, setExportFormat] = useState<string>('json');
+  const [exportFormat, setExportFormat] = useState<string>('xlsx');
   const [exportLoading, setExportLoading] = useState<boolean>(false);
   const [exportResult, setExportResult] = useState<string | null>(null);
+  const [xlsxDownloadData, setXlsxDownloadData] = useState<{ base64: string; fileName: string } | null>(null);
 
   // Modals & Expandable Panel
   const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
@@ -165,6 +166,7 @@ export const IntegrationsPage: React.FC = () => {
   const handleExportUzAsbo = async () => {
     setExportLoading(true);
     setExportResult(null);
+    setXlsxDownloadData(null);
     try {
       const res = await apiClient.get(API_ENDPOINTS.INTEGRATIONS.UZASBO_EXPORT, {
         params: {
@@ -173,6 +175,32 @@ export const IntegrationsPage: React.FC = () => {
           format: exportFormat,
         },
       });
+
+      if (exportFormat === 'xlsx') {
+        const fileInfo = res.data;
+        if (fileInfo?.base64) {
+          setXlsxDownloadData({ base64: fileInfo.base64, fileName: fileInfo.fileName });
+          // Auto download via blob
+          const byteCharacters = atob(fileInfo.base64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], {
+            type: fileInfo.mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileInfo.fileName || `uzasbo_export_${exportPeriod}.xlsx`;
+          a.click();
+          URL.revokeObjectURL(url);
+          setExportResult(`[Excel Fayl: ${fileInfo.fileName} muvaffaqiyatli shakllantirildi va avtomatik yuklab olindi]`);
+          Message.success('UzASBO 3-varaqli Excel hisoboti muvaffaqiyatli yuklab olindi!');
+          return;
+        }
+      }
 
       const formatted =
         exportFormat === 'json' ? JSON.stringify(res.data, null, 2) : String(res.data);
@@ -188,6 +216,25 @@ export const IntegrationsPage: React.FC = () => {
 
   const handleDownloadFile = () => {
     if (!exportResult) return;
+    if (exportFormat === 'xlsx' && xlsxDownloadData) {
+      const byteCharacters = atob(xlsxDownloadData.base64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = xlsxDownloadData.fileName || `uzasbo_export_${exportPeriod}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      Message.success('Excel fayli yuklab olindi!');
+      return;
+    }
     const blob = new Blob([exportResult], {
       type: exportFormat === 'json' ? 'application/json' : 'application/xml',
     });
@@ -224,7 +271,7 @@ export const IntegrationsPage: React.FC = () => {
       case 'DEMO_STUB':
         return (
           <Tag color="gold" icon={<IconExclamationCircle />} style={{ borderRadius: 0 }}>
-            DEMO REJIMI
+            {hemisStatus?.isWaitingForCredentials ? 'DEMO (Kalitlar kutilmoqda)' : 'DEMO REJIMI'}
           </Tag>
         );
       case 'CONNECTION_FAILED':
@@ -262,6 +309,36 @@ export const IntegrationsPage: React.FC = () => {
         />
       );
     }
+
+    if (hemisStatus?.isWaitingForCredentials) {
+      return (
+        <Alert
+          type="info"
+          title="HEMIS Jonli API Kalitlari Kutilmoqda (Xavfsiz Sinov Rejimi)"
+          content={
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div>{hemisStatus?.message || 'HEMIS API kalitlari hali kiritilmagan. Tizim xavfsiz sinov (DEMO) rejimida to‘liq ishlamoqda.'}</div>
+              <div style={{ fontSize: 13, color: 'var(--color-text-2)' }}>
+                {hemisStatus?.instructions || 'Vazirlik yoki OTM ma’murlari tomonidan HEMIS_API_URL va HEMIS_API_KEY taqdim etilgach, «HEMIS Sozlamalari & Ping» tugmasi orqali ulanishni tekshirib, jonli rejimga o‘tishingiz mumkin.'}
+              </div>
+            </div>
+          }
+          action={
+            <Button
+              size="small"
+              type="primary"
+              icon={<IconSettings />}
+              style={{ borderRadius: 0 }}
+              onClick={handleOpenConfigModal}
+            >
+              Kalitlarni Kiritish va Tekshirish
+            </Button>
+          }
+          style={{ borderRadius: 0 }}
+        />
+      );
+    }
+
     return null;
   };
 
@@ -734,8 +811,9 @@ export const IntegrationsPage: React.FC = () => {
                   value={exportFormat}
                   onChange={setExportFormat}
                 >
-                  <Select.Option value="json">JSON (1C Shlyuzi Formati)</Select.Option>
+                  <Select.Option value="xlsx">Excel (.xlsx 3-Varaqli Jadval)</Select.Option>
                   <Select.Option value="xml">XML (UzASBO Davlat Standarti)</Select.Option>
+                  <Select.Option value="json">JSON (1C Shlyuzi Formati)</Select.Option>
                 </Select>
               </Col>
               <Col xs={24} sm={12} md={6}>

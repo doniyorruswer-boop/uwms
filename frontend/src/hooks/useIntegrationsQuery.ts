@@ -18,7 +18,7 @@ export interface HemisTestConnectionPayload {
 export interface UzAsboExportParams {
   period?: string;
   type?: 'movements' | 'assets' | 'summary';
-  format?: 'json' | 'xml';
+  format?: 'json' | 'xml' | 'xlsx';
 }
 
 export const useHemisStatusQuery = () => {

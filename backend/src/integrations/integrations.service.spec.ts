@@ -49,7 +49,43 @@ describe('IntegrationsService (Unit Tests)', () => {
           },
         ]),
       },
-      itemInstance: { findMany: jest.fn().mockResolvedValue([]) },
+      organization: {
+        findFirst: jest.fn().mockResolvedValue({
+          name: 'Toshkent Axborot Texnologiyalari Universiteti',
+          inn: '123456789',
+          treasuryAccount: '23402000300100001010',
+        }),
+      },
+      asset: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            inventoryNumber: 'INV-001',
+            purchasePrice: 12000000,
+            depreciationRate: 15,
+            fundingSource: 'BYUDJET',
+            purchaseDate: new Date('2025-01-10'),
+            status: 'ACTIVE',
+            item: { name: 'HP Server & Switch <Pro>', unit: 'DONA', category: { name: 'Serverlar' } },
+            room: { number: '101' },
+            responsibleUser: { fullName: 'Aliyev Vali' },
+          },
+        ]),
+      },
+      itemInstance: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            inventoryNumber: 'INV-001',
+            purchasePrice: 12000000,
+            depreciationRate: 15,
+            fundingSource: 'BYUDJET',
+            purchaseDate: new Date('2025-01-10'),
+            status: 'ACTIVE',
+            item: { name: 'HP Server & Switch <Pro>', unit: 'DONA', category: { name: 'Serverlar' } },
+            room: { number: '101' },
+            responsibleUser: { fullName: 'Aliyev Vali' },
+          },
+        ]),
+      },
       stockMovement: { findMany: jest.fn().mockResolvedValue([]) },
       stock: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn().mockImplementation(async (callback) => {
@@ -94,8 +130,9 @@ describe('IntegrationsService (Unit Tests)', () => {
     const res = await service.getHemisStatus();
     expect(res.status).toBe('NOT_CONFIGURED');
     expect(res.isConfigured).toBe(false);
+    expect(res.isWaitingForCredentials).toBe(true);
     expect(res.mode).toBe('NOT_CONFIGURED');
-    expect(res.message).toBe('Hozircha demo rejim. HEMIS_API_URL sozlanmagan');
+    expect(res.message).toContain('HEMIS API kalitlari hali kiritilmagan');
   });
 
   it('HEMIS_MODE=demo bo‘lganda status DEMO va tegishli ogohlantirish matni qaytarishi kerak', async () => {
@@ -106,7 +143,8 @@ describe('IntegrationsService (Unit Tests)', () => {
     const res = await service.getHemisStatus();
     expect(res.status).toBe('DEMO');
     expect(res.mode).toBe('DEMO');
-    expect(res.message).toBe('Hozircha demo rejim. HEMIS_API_URL sozlanmagan');
+    expect(res.isWaitingForCredentials).toBe(true);
+    expect(res.message).toContain('HEMIS API kalitlari hali kiritilmagan');
   });
 
   it('API sozlamalari mavjud bo‘lib HEMIS_MODE=demo bo‘lganda CONFIGURED_BUT_STUB qaytarishi kerak', async () => {
@@ -302,6 +340,53 @@ describe('IntegrationsService (Unit Tests)', () => {
         syncedUsers: 20,
         mode: 'LIVE',
       });
+    });
+
+    it('exportUzAsbo XML formatida maxsus belgilarni to‘g‘ri escape qilib qaytarishi kerak', async () => {
+      const xml = await service.exportUzAsbo(
+        { period: '2026-03', format: 'xml' },
+        'admin-user-id',
+      );
+      expect(typeof xml).toBe('string');
+      expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
+      expect(xml).toContain('HP Server &amp; Switch &lt;Pro&gt;');
+      expect(xml).toContain('<UzASBOExport');
+      expect(systemAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'EXPORT',
+          entity: 'UzASBO',
+        }),
+      );
+    });
+
+    it('exportUzAsbo XLSX formatida 3-varaqli Excel kitobini to‘g‘ri shakllantirishi kerak', async () => {
+      const XLSX = require('xlsx');
+      const res = await service.exportUzAsbo(
+        { period: '2026-03', format: 'xlsx' },
+        'admin-user-id',
+      );
+
+      expect(res).toHaveProperty('format', 'xlsx');
+      expect(res).toHaveProperty('fileName', 'UzASBO_Hisoboti_2026-03.xlsx');
+      expect(res).toHaveProperty('base64');
+
+      const workbook = XLSX.read(Buffer.from((res as any).base64, 'base64'), { type: 'buffer' });
+      expect(workbook.SheetNames).toEqual([
+        'Tashkilot',
+        'Asosiy_Vositalar_013',
+        'Harakatlar_Jurnali',
+      ]);
+    });
+
+    it('exportUzAsbo JSON formatida to‘liq ob’ektni qaytarishi kerak', async () => {
+      const json = (await service.exportUzAsbo(
+        { period: '2026-03', format: 'json' },
+        'admin-user-id',
+      )) as any;
+      expect(json).toHaveProperty('header');
+      expect(json).toHaveProperty('chartOfAccounts');
+      expect(json).toHaveProperty('assetRegister');
+      expect(json.assetRegister[0].inventoryNumber).toBe('INV-001');
     });
   });
 });

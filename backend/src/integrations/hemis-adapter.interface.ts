@@ -137,77 +137,245 @@ export interface HemisAdapter {
 /**
  * Real HTTP GET so'rovlari bajaruvchi jonli adapter
  */
+/**
+ * Real HTTP GET so'rovlari bajaruvchi jonli adapter
+ * - Exponential backoff retry (tarmoq uzilishlari, 429, 502, 503, 504)
+ * - Jitter (tasodifiy kechikish) orqali server yuklamasini kamaytirish
+ * - Paginatsiya (multi-page) avtomatik yig‘ish
+ */
 export class HttpHemisAdapter implements HemisAdapter {
-  private async safeGet<T = any>(url: string, apiKey?: string, timeoutMs = 8000): Promise<T[]> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-    };
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
-      headers['api-key'] = apiKey;
-    }
+  /**
+   * Bitta HTTP so'rovni exponential backoff retry bilan bajarish
+   */
+  private async fetchWithRetry<T = any>(
+    url: string,
+    apiKey?: string,
+    timeoutMs = 8000,
+    maxRetries = 3,
+  ): Promise<T[]> {
+    let lastError: any = null;
 
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
-        signal: controller.signal,
-      });
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      clearTimeout(timeoutId);
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+      };
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+        headers['api-key'] = apiKey;
+      }
 
-      if (!response.ok) {
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        // 1. Muvaffaqiyatli javob
+        if (response.ok) {
+          const json = await response.json();
+          return this.extractItems<T>(json);
+        }
+
+        // 2. Qayta urinib bo'lmaydigan mijoz xatolari (400, 401, 403, 404)
+        if (
+          response.status === 400 ||
+          response.status === 401 ||
+          response.status === 403 ||
+          response.status === 404
+        ) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        // 3. Qayta urinilishi mumkin bo'lgan holatlar (429 Rate limit, 502, 503, 504)
+        const retryAfterHeader = response.headers.get('retry-after');
+        const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
+
+        if (attempt < maxRetries) {
+          const backoffDelay =
+            retryAfterSec && !isNaN(retryAfterSec)
+              ? retryAfterSec * 1000
+              : Math.pow(2, attempt) * 500 + Math.floor(Math.random() * 250);
+
+          await this.sleep(backoffDelay);
+          continue;
+        }
+
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
+      } catch (err: any) {
+        clearTimeout(timeoutId);
 
-      const json = await response.json();
-      if (Array.isArray(json)) return json;
-      if (json && Array.isArray(json.data)) return json.data;
-      if (json && Array.isArray(json.items)) return json.items;
-      return [];
-    } catch (err: any) {
-      clearTimeout(timeoutId);
-      if (err.name === 'AbortError') {
-        throw new Error(`HEMIS serveriga so‘rov vaqti tugadi (Timeout ${timeoutMs}ms)`);
+        const isAbort = err.name === 'AbortError';
+        const isClientHttp = err.message && err.message.startsWith('HTTP 4');
+
+        if (isClientHttp) {
+          throw err;
+        }
+
+        lastError = isAbort
+          ? new Error(`HEMIS serveriga so‘rov vaqti tugadi (Timeout ${timeoutMs}ms)`)
+          : err;
+
+        if (attempt < maxRetries) {
+          const backoffDelay = Math.pow(2, attempt) * 500 + Math.floor(Math.random() * 250);
+          await this.sleep(backoffDelay);
+          continue;
+        }
       }
-      throw err;
     }
+
+    throw lastError || new Error('HEMIS serveriga ulanishda noma’lum xatolik');
   }
 
-  async fetchDepartments(apiUrl: string, apiKey?: string, timeoutMs = 8000): Promise<HemisDepartmentRaw[]> {
-    const cleanUrl = apiUrl.replace(/\/+$/, '');
+  /**
+   * HEMIS API turli xil konvert (envelope) formatlaridan massivni ajratib olish
+   */
+  private extractItems<T>(json: any): T[] {
+    if (!json) return [];
+    if (Array.isArray(json)) return json;
+    if (json.data && Array.isArray(json.data.items)) return json.data.items;
+    if (json.data && Array.isArray(json.data)) return json.data;
+    if (Array.isArray(json.items)) return json.items;
+    if (json.result && Array.isArray(json.result)) return json.result;
+    return [];
+  }
+
+  /**
+   * Agar HEMIS da paginatsiya mavjud bo'lsa, barcha sahifalarni avtomatik tortib olish
+   */
+  private async safeGetPaginated<T = any>(
+    baseUrl: string,
+    apiKey?: string,
+    timeoutMs = 8000,
+    maxPages = 20,
+  ): Promise<T[]> {
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    // 1-sahifani limit=200 bilan so'rash
+    const firstPageUrl = `${baseUrl}${separator}page=1&limit=200`;
+    let firstPageItems: T[] = [];
+
     try {
-      return await this.safeGet<HemisDepartmentRaw>(`${cleanUrl}/rest/v1/data/department-list`, apiKey, timeoutMs);
+      firstPageItems = await this.fetchWithRetry<T>(firstPageUrl, apiKey, timeoutMs);
     } catch {
-      return await this.safeGet<HemisDepartmentRaw>(`${cleanUrl}/departments`, apiKey, timeoutMs);
+      // Fallback: parametrlarsiz to'g'ridan-to'g'ri urinish
+      return await this.fetchWithRetry<T>(baseUrl, apiKey, timeoutMs);
     }
+
+    // Agar 200 tadan kam bo'lsa yoki bitta sahifaning o'zi bo'lsa, qaytarish
+    if (firstPageItems.length < 200) {
+      return firstPageItems;
+    }
+
+    // Keyingi sahifalarni qat'iy xavfsizlik chegarasi (maxPages) bilan yuklash
+    const allItems = [...firstPageItems];
+    for (let page = 2; page <= maxPages; page++) {
+      try {
+        const nextUrl = `${baseUrl}${separator}page=${page}&limit=200`;
+        const nextItems = await this.fetchWithRetry<T>(nextUrl, apiKey, timeoutMs, 1);
+        if (!nextItems || nextItems.length === 0) break;
+        allItems.push(...nextItems);
+        if (nextItems.length < 200) break;
+      } catch {
+        // Agar keyingi sahifada xatolik bo'lsa, yig'ilganini qaytarish
+        break;
+      }
+    }
+
+    return allItems;
   }
 
-  async fetchRooms(apiUrl: string, apiKey?: string, timeoutMs = 8000): Promise<HemisRoomRaw[]> {
+  async fetchDepartments(
+    apiUrl: string,
+    apiKey?: string,
+    timeoutMs = 8000,
+  ): Promise<HemisDepartmentRaw[]> {
     const cleanUrl = apiUrl.replace(/\/+$/, '');
     try {
-      return await this.safeGet<HemisRoomRaw>(`${cleanUrl}/rest/v1/data/auditorium-list`, apiKey, timeoutMs);
+      return await this.safeGetPaginated<HemisDepartmentRaw>(
+        `${cleanUrl}/rest/v1/data/department-list`,
+        apiKey,
+        timeoutMs,
+      );
     } catch {
       try {
-        return await this.safeGet<HemisRoomRaw>(`${cleanUrl}/auditoriums`, apiKey, timeoutMs);
+        return await this.safeGetPaginated<HemisDepartmentRaw>(
+          `${cleanUrl}/rest/v1/departments`,
+          apiKey,
+          timeoutMs,
+        );
       } catch {
-        return await this.safeGet<HemisRoomRaw>(`${cleanUrl}/rooms`, apiKey, timeoutMs);
+        return await this.safeGetPaginated<HemisDepartmentRaw>(
+          `${cleanUrl}/departments`,
+          apiKey,
+          timeoutMs,
+        );
       }
     }
   }
 
-  async fetchUsers(apiUrl: string, apiKey?: string, timeoutMs = 8000): Promise<HemisUserRaw[]> {
+  async fetchRooms(
+    apiUrl: string,
+    apiKey?: string,
+    timeoutMs = 8000,
+  ): Promise<HemisRoomRaw[]> {
     const cleanUrl = apiUrl.replace(/\/+$/, '');
     try {
-      return await this.safeGet<HemisUserRaw>(`${cleanUrl}/rest/v1/data/employee-list`, apiKey, timeoutMs);
+      return await this.safeGetPaginated<HemisRoomRaw>(
+        `${cleanUrl}/rest/v1/data/auditorium-list`,
+        apiKey,
+        timeoutMs,
+      );
     } catch {
       try {
-        return await this.safeGet<HemisUserRaw>(`${cleanUrl}/employees`, apiKey, timeoutMs);
+        return await this.safeGetPaginated<HemisRoomRaw>(
+          `${cleanUrl}/rest/v1/auditoriums`,
+          apiKey,
+          timeoutMs,
+        );
       } catch {
-        return await this.safeGet<HemisUserRaw>(`${cleanUrl}/users`, apiKey, timeoutMs);
+        return await this.safeGetPaginated<HemisRoomRaw>(
+          `${cleanUrl}/rooms`,
+          apiKey,
+          timeoutMs,
+        );
+      }
+    }
+  }
+
+  async fetchUsers(
+    apiUrl: string,
+    apiKey?: string,
+    timeoutMs = 8000,
+  ): Promise<HemisUserRaw[]> {
+    const cleanUrl = apiUrl.replace(/\/+$/, '');
+    try {
+      return await this.safeGetPaginated<HemisUserRaw>(
+        `${cleanUrl}/rest/v1/data/employee-list`,
+        apiKey,
+        timeoutMs,
+      );
+    } catch {
+      try {
+        return await this.safeGetPaginated<HemisUserRaw>(
+          `${cleanUrl}/rest/v1/employees`,
+          apiKey,
+          timeoutMs,
+        );
+      } catch {
+        return await this.safeGetPaginated<HemisUserRaw>(
+          `${cleanUrl}/employees`,
+          apiKey,
+          timeoutMs,
+        );
       }
     }
   }

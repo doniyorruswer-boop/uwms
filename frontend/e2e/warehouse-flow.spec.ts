@@ -4,10 +4,12 @@ test.describe('Ombor Qoldiqlari (Warehouse) E2E Testlari', () => {
   test('Ombor inventarizatsiyasi to‘liq oqimi: login, statistika kartalari, jadval, qidiruv va filtrlash', async ({ page }) => {
     // 1. Super Admin sifatida tizimga kirish
     await page.goto('/login');
-    await page.locator('input[placeholder*="omborchi"]').fill('admin');
-    await page.locator('input[placeholder="Parol"]').fill('admin123');
-    await page.locator('button:has-text("Tizimga Kirish")').click();
-
+    const loginInput = page.locator('input[placeholder*="omborchi"]');
+    if (await loginInput.isVisible()) {
+      await loginInput.fill('admin');
+      await page.locator('input[placeholder="Parol"]').fill('admin123');
+      await page.locator('button:has-text("Tizimga Kirish")').click();
+    }
     await page.waitForURL('**/dashboard', { timeout: 15000 });
     await expect(page.locator('.uwms-header')).toBeVisible();
 
@@ -18,7 +20,7 @@ test.describe('Ombor Qoldiqlari (Warehouse) E2E Testlari', () => {
 
     // 3. Ombor menyusi faolligini tekshirish
     await expect(
-      page.locator('.arco-menu-item.arco-menu-selected:has-text("Ombor")'),
+      page.locator('.arco-menu-item.arco-menu-selected:has-text("Sarf Tovarlari"), .arco-menu-item.arco-menu-selected:has-text("Ombor")'),
     ).toBeVisible();
 
     // 4. Jadval ustunlari mavjudligini tekshirish
@@ -26,7 +28,7 @@ test.describe('Ombor Qoldiqlari (Warehouse) E2E Testlari', () => {
     await expect(page.locator('.arco-table-th:has-text("Qoldiq")')).toBeVisible();
 
     // 5. Qidiruv maydonini tekshirish
-    const searchInput = page.locator('input[placeholder*="Qidirish"], input[placeholder*="qidirish"]');
+    const searchInput = page.locator('input[placeholder*="Sarf"], input[placeholder*="qidirish"]').first();
     if (await searchInput.isVisible()) {
       await searchInput.fill('Qog‘oz');
       await page.waitForTimeout(300);

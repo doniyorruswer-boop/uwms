@@ -9,12 +9,12 @@
     "requests": "Requests (Zayavka)",
     "repairs": "Repairs & Service",
     "writeOffs": "Write-Off (OS-4)",
-    "organization": "Faculties & Rooms",
-    "quotas": "Department Quotas",
-    "audit": "Audit & Scanner",
+    "organization": "Structure & Rooms",
+    "quotas": "Department & Chair Quotas",
     "systemAudit": "System Audit",
     "integrations": "Integrations",
     "scanner": "QR Inventory Audit",
+    "audit": "Audit & Scanner",
     "auditCampaigns": "Audit Campaigns",
     "backups": "Database Backups",
     "users": "Staff & Roles",
@@ -74,38 +74,38 @@
   "header": {
     "darkMode": "Dark mode",
     "lightMode": "Light mode",
-    "logout": "Log out",
+    "logout": "Logout",
     "notifications": "Notifications",
     "language": "Language"
   },
   "dashboard": {
     "stats": {
       "totalAssets": "Total Fixed Assets",
-      "totalStock": "Consumables in Stock",
+      "totalStock": "Total Stock Items",
       "activeRequests": "Active Requests",
-      "totalValue": "Total Balance Value"
+      "totalValue": "Total Asset Value"
     },
-    "recentMovements": "Recent Stock Movements",
+    "recentMovements": "Recent Warehouse Movements",
     "pendingRequests": "Pending Requests"
   },
   "assets": {
-    "inventoryNumber": "Inventory #",
-    "itemName": "Equipment Name & Model",
+    "inventoryNumber": "Inventory No",
+    "itemName": "Item Name & Model",
     "location": "Location",
     "balancePrice": "Balance Price",
     "amortization": "Depreciation",
     "fundingSource": "Funding Source",
     "qrPassport": "Passport",
     "qrSticker": "QR Sticker",
-    "transfer": "Internal Transfer"
+    "transfer": "Transfer"
   },
   "warehouse": {
     "itemName": "Item Name",
     "warehouseName": "Warehouse",
-    "currentStock": "Current Stock",
-    "replenish": "Ingest / Stock In",
+    "currentStock": "Current Balance",
+    "replenish": "Replenish",
     "lowStock": "Low Stock",
-    "normalStock": "Normal Stock"
+    "normalStock": "Sufficient Stock"
   },
   "requests": {
     "requestNumber": "Request No",
@@ -132,5 +132,29 @@
     "retry": "Retry",
     "backToHome": "Back to Dashboard",
     "reloadPage": "Reload Page"
+  },
+  "inbox": {
+    "title": "Pending Action Center",
+    "empty": "All tasks completed"
+  },
+  "quotas": {
+    "title": "Monthly Quotas & Limits",
+    "monthlyLimit": "Monthly Limit",
+    "spentAmount": "Spent",
+    "remaining": "Remaining"
+  },
+  "depreciation": {
+    "title": "Depreciation & Book Value Engine",
+    "bookValue": "Book Value",
+    "accumulated": "Accumulated Depreciation"
+  },
+  "fundingReports": {
+    "title": "Funding Sources Reports",
+    "budget": "State Budget",
+    "contract": "Development Fund (Contract)",
+    "grant": "Grants & Foreign Projects"
+  },
+  "chiefAccountantLedger": {
+    "title": "Chief Accountant Ledger & Official Registries"
   }
 }

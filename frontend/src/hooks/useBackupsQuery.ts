@@ -19,7 +19,8 @@ export const useBackupStatsQuery = () => {
 export const useCreateBackupMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (notes?: string) => backupsApi.createBackup(notes),
+    mutationFn: (payload?: { notes?: string; uploadToS3?: boolean } | string) =>
+      backupsApi.createBackup(payload),
     onSuccess: () => {
       Message.success('Yangi zaxira nusxasi muvaffaqiyatli yaratildi!');
       queryClient.invalidateQueries({ queryKey: ['backups'] });

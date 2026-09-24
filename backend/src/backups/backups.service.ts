@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
 import { CreateBackupDto, QueryBackupDto } from './dto/backup.dto';
+import { S3StorageService } from './s3-storage.service';
 import { BackupType, BackupStatus } from '@prisma/client';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -20,6 +21,7 @@ export class BackupsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: SystemAuditService,
+    private readonly s3Service: S3StorageService,
   ) {
     if (!fs.existsSync(this.backupDir)) {
       fs.mkdirSync(this.backupDir, { recursive: true });
@@ -45,6 +47,9 @@ export class BackupsService {
       backupType: item.backupType,
       status: item.status,
       checksum: item.checksum,
+      storageLocation: item.storageLocation || 'LOCAL',
+      s3Key: item.s3Key || undefined,
+      s3Bucket: item.s3Bucket || undefined,
       notes: item.notes,
       triggeredById: item.triggeredById,
       triggeredBy: item.triggeredBy,
@@ -146,6 +151,26 @@ export class BackupsService {
     }
   }
 
+  private getPostgresBinary(binaryName: 'pg_dump' | 'pg_restore'): string {
+    const envKey = binaryName === 'pg_dump' ? 'PG_DUMP_PATH' : 'PG_RESTORE_PATH';
+    if (process.env[envKey] && fs.existsSync(process.env[envKey]!)) {
+      return process.env[envKey]!;
+    }
+
+    const winPaths = [
+      `C:\\Program Files\\PostgreSQL\\18\\bin\\${binaryName}.exe`,
+      `C:\\Program Files\\PostgreSQL\\17\\bin\\${binaryName}.exe`,
+      `C:\\Program Files\\PostgreSQL\\16\\bin\\${binaryName}.exe`,
+      `C:\\Program Files\\PostgreSQL\\15\\bin\\${binaryName}.exe`,
+      `C:\\Program Files (x86)\\PostgreSQL\\18\\bin\\${binaryName}.exe`,
+    ];
+    for (const p of winPaths) {
+      if (fs.existsSync(p)) return p;
+    }
+
+    return binaryName;
+  }
+
   /**
    * Har kuni soat 02:00 da (UTC+5) avtomatik zaxira nusxasi olish (Task 6.3 Cron Scheduler)
    */
@@ -187,9 +212,10 @@ export class BackupsService {
 
     try {
       const { cleanUrl, env } = this.getCleanDbConnection();
+      const pgDumpBin = this.getPostgresBinary('pg_dump');
       
       // Execute genuine pg_dump with custom compressed format (-Fc) using parameterized execFile
-      await execFileAsync('pg_dump', ['-Fc', cleanUrl, '-f', filePath], { env });
+      await execFileAsync(pgDumpBin, ['-Fc', cleanUrl, '-f', filePath], { env });
 
       if (!fs.existsSync(filePath)) {
         throw new Error('pg_dump yakunlandi, lekin zaxira fayli yaratilmadi!');
@@ -203,11 +229,40 @@ export class BackupsService {
       const fileBuffer = fs.readFileSync(filePath);
       const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
+      // S3 / MinIO Cloud Replication check
+      const shouldUploadToS3 = dto.uploadToS3 !== undefined
+        ? Boolean(dto.uploadToS3)
+        : (this.s3Service.isConfigured() || backupType === BackupType.AUTOMATIC);
+
+      let s3UploadInfo: { bucket: string; key: string; checksum: string } | null = null;
+      if (shouldUploadToS3) {
+        this.logger.log(`Zaxira nusxasini tashqi S3/MinIO saqlagichiga shifrlangan holda yuklash boshlanmoqda: ${filename}`);
+        try {
+          s3UploadInfo = await this.s3Service.uploadBackup(filename, fileBuffer, {
+            backupId: record.id,
+            backupType,
+            checksum,
+            createdAt: new Date().toISOString(),
+          });
+          this.logger.log(`S3/MinIO ga muvaffaqiyatli yuklandi. Bucket: ${s3UploadInfo.bucket}, Key: ${s3UploadInfo.key}`);
+        } catch (s3Err: any) {
+          this.logger.error(`S3/MinIO saqlagichiga nusxalashda xatolik yuz berdi: ${s3Err.message}`);
+          if (dto.uploadToS3 === true && this.s3Service.isConfigured()) {
+            throw new BadRequestException(`S3 saqlagichiga nusxalash amalga oshmadi: ${s3Err.message}`);
+          }
+        }
+      }
+
+      const storageLocation = s3UploadInfo ? 'BOTH' : 'LOCAL';
+
       const updated = await this.prisma.backupRecord.update({
         where: { id: record.id },
         data: {
           fileSizeBytes: BigInt(stat.size),
           checksum,
+          storageLocation,
+          s3Key: s3UploadInfo?.key || null,
+          s3Bucket: s3UploadInfo?.bucket || null,
           status: BackupStatus.COMPLETED,
           completedAt: new Date(),
         },
@@ -227,7 +282,14 @@ export class BackupsService {
         action: 'CREATE',
         entity: 'BackupRecord',
         entityId: updated.id,
-        details: { filename, size: stat.size, checksum },
+        details: {
+          filename,
+          size: stat.size,
+          checksum,
+          storageLocation,
+          s3Key: s3UploadInfo?.key,
+          s3Bucket: s3UploadInfo?.bucket,
+        },
         userId,
       });
 
@@ -283,7 +345,18 @@ export class BackupsService {
     }
 
     if (!fs.existsSync(backup.filePath)) {
-      throw new BadRequestException(`Zaxira nusxasi fayli diskda topilmadi: ${backup.filename}`);
+      if (backup.s3Key) {
+        this.logger.log(`Tiklash uchun lokal fayl topilmadi. S3/MinIO dan yuklab olinmoqda va tiklanmoqda... (Key: ${backup.s3Key})`);
+        try {
+          const downloadedBuffer = await this.s3Service.downloadBackup(backup.s3Key);
+          fs.writeFileSync(backup.filePath, downloadedBuffer);
+          this.logger.log(`S3/MinIO dan tiklangan fayl lokal diskka yozildi: ${backup.filePath}`);
+        } catch (downloadErr: any) {
+          throw new BadRequestException(`S3/MinIO dan zaxira nusxasini yuklab olishda xatolik: ${downloadErr.message}`);
+        }
+      } else {
+        throw new BadRequestException(`Zaxira nusxasi fayli diskda topilmadi: ${backup.filename}`);
+      }
     }
 
     // Verify integrity before restoring
@@ -301,8 +374,9 @@ export class BackupsService {
       // --if-exists: do not report errors if objects do not exist when dropping
       // --no-owner: skip restoration of object ownership
       // --no-privileges: skip restoration of access privileges
+      const pgRestoreBin = this.getPostgresBinary('pg_restore');
       await execFileAsync(
-        'pg_restore',
+        pgRestoreBin,
         ['--clean', '--if-exists', '--no-owner', '--no-privileges', '-d', cleanUrl, backup.filePath],
         { env }
       );
@@ -360,6 +434,15 @@ export class BackupsService {
       }
     }
 
+    if (backup.s3Key) {
+      try {
+        await this.s3Service.deleteBackup(backup.s3Key);
+        this.logger.log(`S3/MinIO dagi zaxira fayli o‘chirildi: ${backup.s3Key}`);
+      } catch (s3DelErr: any) {
+        this.logger.warn(`S3/MinIO dan o‘chirishda ogohlantirish: ${s3DelErr.message}`);
+      }
+    }
+
     await this.prisma.backupRecord.delete({ where: { id } });
 
     await this.auditService.log({
@@ -383,7 +466,18 @@ export class BackupsService {
     }
 
     if (!fs.existsSync(backup.filePath)) {
-      throw new NotFoundException('Zaxira fayli diskdan topilmadi!');
+      if (backup.s3Key) {
+        this.logger.log(`Lokal fayl diskda yo‘q. S3/MinIO dan yuklab olinmoqda va tiklanmoqda: ${backup.filename}`);
+        try {
+          const downloadedBuffer = await this.s3Service.downloadBackup(backup.s3Key);
+          fs.writeFileSync(backup.filePath, downloadedBuffer);
+        } catch (err: any) {
+          this.logger.error(`S3 dan yuklab olishda xatolik: ${err.message}`);
+          throw new NotFoundException(`Zaxira fayli na lokal diskda, na S3 da mavjud emas: ${err.message}`);
+        }
+      } else {
+        throw new NotFoundException('Zaxira fayli diskdan topilmadi!');
+      }
     }
 
     return {

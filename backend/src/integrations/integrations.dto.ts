@@ -58,9 +58,9 @@ export class UzAsboExportQueryDto {
   @IsIn(['movements', 'assets', 'summary'], { message: 'type faqat movements, assets yoki summary bo\'lishi mumkin!' })
   type?: 'movements' | 'assets' | 'summary';
 
-  @ApiPropertyOptional({ description: 'Eksport formati', enum: ['json', 'xml'], default: 'json' })
+  @ApiPropertyOptional({ description: 'Eksport formati', enum: ['json', 'xml', 'xlsx'], default: 'json' })
   @IsOptional()
-  @IsIn(['json', 'xml'], { message: 'format faqat json yoki xml bo\'lishi mumkin!' })
-  format?: 'json' | 'xml';
+  @IsIn(['json', 'xml', 'xlsx'], { message: "format faqat json, xml yoki xlsx bo'lishi mumkin!" })
+  format?: 'json' | 'xml' | 'xlsx';
 }
 

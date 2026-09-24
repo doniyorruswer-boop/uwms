@@ -48,6 +48,17 @@ export class AuditsController {
     return this.auditsService.batchScan(dto.items, user?.id);
   }
 
+  @Post(':id/batch-scan')
+  @Roles(RoleType.AUDITOR, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Audit sessiyasi bo‘yicha oflayn QR-kodlar navbatini tranzaksiya bilan bir vaqtda sinxronlash' })
+  async batchScanForAudit(
+    @Param('id') auditId: string,
+    @Body() dto: BatchScanDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.auditsService.batchScanByAudit(auditId, dto.items, user?.id);
+  }
+
   @Post(':id/complete')
   @Roles(RoleType.AUDITOR, RoleType.SUPER_ADMIN, RoleType.HEAD_WAREHOUSE)
   @ApiOperation({ summary: 'Audit sessiyasini yakunlash, kamomadlarni (MISSING) qayd etish va INV-19 shakllantirish' })

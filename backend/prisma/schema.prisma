@@ -1012,6 +1012,9 @@ model BackupRecord {
   status        BackupStatus @default(COMPLETED)
   checksum      String?      // SHA-256 xesh
   notes         String?
+  storageLocation String     @default("LOCAL") // LOCAL | REMOTE_S3 | BOTH
+  s3Key         String?      // Masalan: "backups/uwms_backup_2026_09_24.dump.enc"
+  s3Bucket      String?      // Masalan: "uwms-backups"
   triggeredById String?
   triggeredBy   User?        @relation("UserBackups", fields: [triggeredById], references: [id], onDelete: SetNull)
   createdAt     DateTime     @default(now())

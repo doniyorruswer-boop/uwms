@@ -1,5 +1,6 @@
 key,uz,ru,en
 menu.dashboard,Boshqaruv Paneli,Панель управления,Dashboard
+menu.inbox,Vazifalarim,Мои задачи,My Tasks
 menu.assets,Asosiy Vositalar (QR),Основные средства (QR),Fixed Assets (QR)
 menu.warehouse,Sarf Tovarlari & Qoldiq,Складские запасы,Warehouse & Stock
 menu.suppliers,Ta’minot & Shartnomalar,Поставщики и договоры,Suppliers & Contracts
@@ -9,11 +10,16 @@ menu.repairs,Ta’mirlash & Servis,Ремонт и сервис,Repairs & Servic
 menu.writeOffs,Spisanie (OS-4),Списание (ОС-4),Write-Off (OS-4)
 menu.organization,Tuzilma & Xonalar,Структура и помещения,Structure & Rooms
 menu.quotas,Kafedralar va Bo‘limlar Kvotasi,Квоты кафедр и отделов,Department & Chair Quotas
-menu.audit,Tizim Auditi,Аудит системы,System Audit
+menu.systemAudit,Tizim Auditi,Аудит системы,System Audit
 menu.integrations,Integratsiyalar,Интеграции,Integrations
 menu.scanner,QR Inventarizatsiya,QR Инвентаризация,QR Inventory Audit
+menu.audit,Audit & Skaner,Аудит и сканер,Audit & Scanner
+menu.auditCampaigns,Audit Rejalari,Планы аудита,Audit Campaigns
 menu.backups,Zaxira Nusxalari (Backup),Резервные копии (Backup),Database Backups
 menu.users,Xodimlar & Rollar,Сотрудники и роли,Staff & Roles
+menu.depreciation,Amortizatsiya,Амортизация,Depreciation
+menu.fundingReports,Manbalar Hisoboti,Отчет по источникам,Funding Reports
+menu.chiefAccountantLedger,Bosh Hisobchi Daftari,Книга Главного Бухгалтера,Chief Accountant Ledger
 
 common.appTitle,UWMS Tizimi,Система UWMS,UWMS System
 common.appSubtitle,Universitet Ombori,Склад Университета,University Warehouse
@@ -43,8 +49,13 @@ common.quantity,Miqdor,Количество,Quantity
 common.unit,Birligi,Ед. изм.,Unit
 common.price,Narxi,Цена,Price
 common.total,Jami,Итого,Total
-common.totalCount,Jami: {{count}} ta,Всего: {{count}},Total: {{count}}
+common.totalCount,"Jami: {{count}} ta",Всего: {{count}},"Total: {{count}}"
 common.notes,Izoh,Примечание,Notes
+common.forbidden,Ruxsat yo‘q,Доступ запрещен,Access Denied
+common.errorOccurred,Xatolik yuz berdi,Произошла ошибка,An error occurred
+common.retry,Qayta urinish,Повторить попытку,Retry
+common.backToHome,Bosh sahifaga qaytish,Вернуться на главную,Back to Dashboard
+common.reloadPage,Sahifani yangilash,Обновить страницу,Reload Page
 
 status.new,Yangi,Новый,New
 status.pending,Kutilmoqda,В ожидании,Pending
@@ -101,3 +112,30 @@ backups.fileSize,Hajmi,Размер,File Size
 backups.checksum,SHA-256 Xesh (Butunlik),SHA-256 Хэш (Целостность),SHA-256 Hash
 backups.restore,Tiklash,Восстановить,Restore
 backups.download,Yuklash,Скачать,Download
+
+errors.forbiddenTitle,Ruxsat yo‘q,Доступ запрещен,Access Denied
+errors.forbiddenDesc,Ushbu sahifaga kirish uchun sizda yetarli ruxsat mavjud emas.,У вас нет необходимых прав для доступа к этой странице.,You do not have permission to access this page.
+errors.somethingWentWrong,Xatolik yuz berdi,Произошла ошибка,An error occurred
+errors.unexpectedErrorDesc,"Tizimda kutilmagan xatolik yuz berdi. Iltimos, sahifani yangilang yoki administratorga murojaat qiling.","Произошла непредвиденная ошибка. Пожалуйста, обновите страницу или обратитесь к администратору.","An unexpected error occurred. Please refresh the page or contact the administrator."
+errors.retry,Qayta urinish,Повторить попытку,Retry
+errors.backToHome,Bosh sahifaga qaytish,Вернуться на главную,Back to Dashboard
+errors.reloadPage,Sahifani yangilash,Обновить страницу,Reload Page
+
+inbox.title,Kutilayotgan Vazifalar Markazi (Action Center),Центр ожидающих задач (Action Center),Pending Action Center
+inbox.empty,Barcha vazifalar bajarilgan,Все задачи выполнены,All tasks completed
+
+quotas.title,Kafedralar va Bo‘limlar Oylik Limitlari,Ежемесячные лимиты кафедр и отделов,Monthly Quotas & Limits
+quotas.monthlyLimit,Oylik limit,Ежемесячный лимит,Monthly Limit
+quotas.spentAmount,Sarflangan,Израсходовано,Spent
+quotas.remaining,Qolgan limit,Остаток лимита,Remaining
+
+depreciation.title,Amortizatsiya va Qoldiq Qiymat Dvigateli,Двигатель амортизации и остаточной стоимости,Depreciation & Book Value Engine
+depreciation.bookValue,Balans qiymati,Балансовая стоимость,Book Value
+depreciation.accumulated,Hisoblangan eskirish,Накопленная амортизация,Accumulated Depreciation
+
+fundingReports.title,Moliyalashtirish Manbalari Kesimidagi Hisobotlar,Отчеты по источникам финансирования,Funding Sources Reports
+fundingReports.budget,Davlat byudjeti,Государственный бюджет,State Budget
+fundingReports.contract,To‘lov-kontrakt rivojlantirish,Фонд развития (контракт),Development Fund (Contract)
+fundingReports.grant,Grant va xalqaro loyihalar,Гранты и международные проекты,Grants & Foreign Projects
+
+chiefAccountantLedger.title,Bosh Hisobchi Daftari va Davlat Reestrlari,Книга Главного Бухгалтера и государственные реестры,Chief Accountant Ledger & Official Registries

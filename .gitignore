@@ -30,16 +30,18 @@ build/
 !.env.docker.example
 
 # Database Backups & Dumps
-backups/
 /backups/
-*/backups/
-backend/backups/
 /backend/backups/
+!backend/src/backups/
+!backend/src/backups/**
 *.dump
 *.sql
 *.sqlite
 *.sqlite3
 *.db
+
+# User & Generated Uploads
+/backend/uploads/
 
 # Archives & Distribution Bundles (Zip yoki repoga yuklanmasligi shart)
 *.zip

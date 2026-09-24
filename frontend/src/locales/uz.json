@@ -11,10 +11,10 @@
     "writeOffs": "Spisanie (OS-4)",
     "organization": "Tuzilma & Xonalar",
     "quotas": "Kafedralar va Bo‘limlar Kvotasi",
-    "audit": "Audit & Skaner",
     "systemAudit": "Tizim Auditi",
     "integrations": "Integratsiyalar",
     "scanner": "QR Inventarizatsiya",
+    "audit": "Audit & Skaner",
     "auditCampaigns": "Audit Rejalari",
     "backups": "Zaxira Nusxalari (Backup)",
     "users": "Xodimlar & Rollar",
@@ -132,5 +132,29 @@
     "retry": "Qayta urinish",
     "backToHome": "Bosh sahifaga qaytish",
     "reloadPage": "Sahifani yangilash"
+  },
+  "inbox": {
+    "title": "Kutilayotgan Vazifalar Markazi (Action Center)",
+    "empty": "Barcha vazifalar bajarilgan"
+  },
+  "quotas": {
+    "title": "Kafedralar va Bo‘limlar Oylik Limitlari",
+    "monthlyLimit": "Oylik limit",
+    "spentAmount": "Sarflangan",
+    "remaining": "Qolgan limit"
+  },
+  "depreciation": {
+    "title": "Amortizatsiya va Qoldiq Qiymat Dvigateli",
+    "bookValue": "Balans qiymati",
+    "accumulated": "Hisoblangan eskirish"
+  },
+  "fundingReports": {
+    "title": "Moliyalashtirish Manbalari Kesimidagi Hisobotlar",
+    "budget": "Davlat byudjeti",
+    "contract": "To‘lov-kontrakt rivojlantirish",
+    "grant": "Grant va xalqaro loyihalar"
+  },
+  "chiefAccountantLedger": {
+    "title": "Bosh Hisobchi Daftari va Davlat Reestrlari"
   }
 }

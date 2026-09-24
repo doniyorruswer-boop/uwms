@@ -88,6 +88,7 @@ export const AppRoutes: React.FC = () => {
                     <Route path="backups" element={<ProtectedRoute allowedRoles={getRoles('backups')}><DesktopOnlyGuard pageTitle="Zaxira Nusxalari (Backups)"><BackupsPage /></DesktopOnlyGuard></ProtectedRoute>} />
                     <Route path="organization" element={<ProtectedRoute allowedRoles={getRoles('organization')}><DesktopOnlyGuard pageTitle="Tashkiliy Tuzilma va Xonalar"><OrganizationPage /></DesktopOnlyGuard></ProtectedRoute>} />
                     <Route path="audit" element={<ProtectedRoute allowedRoles={getRoles('audit')}><AuditScannerPage /></ProtectedRoute>} />
+                    <Route path="audit/scanner" element={<ProtectedRoute allowedRoles={getRoles('audit')}><AuditScannerPage /></ProtectedRoute>} />
                     <Route path="audit-campaigns" element={<ProtectedRoute allowedRoles={getRoles('auditCampaigns')}><AuditCampaignsPage /></ProtectedRoute>} />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                   </Routes>

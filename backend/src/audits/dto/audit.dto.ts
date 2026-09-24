@@ -1,4 +1,4 @@
-import { IsArray, IsNotEmpty, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -9,6 +9,7 @@ export class StartAuditDto {
   roomId: string;
 
   @ApiProperty({ description: 'Bog‘langan kampaniya ID si (ixtiyoriy)', required: false })
+  @IsOptional()
   @IsString()
   campaignId?: string;
 }
@@ -25,16 +26,34 @@ export class ScanCodeDto {
   qrCode: string;
 
   @ApiProperty({ description: 'Bog‘langan kampaniya ID si (ixtiyoriy)', required: false })
+  @IsOptional()
+  @IsString()
+  campaignId?: string;
+}
+
+export class BatchScanItemDto {
+  @ApiProperty({ description: 'Xona ID si (ixtiyoriy, agar audit sessiyasi ko‘rsatilgan bo‘lsa)', required: false })
+  @IsOptional()
+  @IsString()
+  roomId?: string;
+
+  @ApiProperty({ example: 'UWMS:INV-2026-001:SN-LN-88123', description: 'Skaner qilingan QR-kod matni' })
+  @IsString()
+  @IsNotEmpty({ message: 'QR-kod bo‘sh bo‘lishi mumkin emas!' })
+  qrCode: string;
+
+  @ApiProperty({ description: 'Bog‘langan kampaniya ID si (ixtiyoriy)', required: false })
+  @IsOptional()
   @IsString()
   campaignId?: string;
 }
 
 export class BatchScanDto {
-  @ApiProperty({ type: [ScanCodeDto], description: 'Oflayn navbatdan yuborilgan skanlar ro‘yxati' })
+  @ApiProperty({ type: [BatchScanItemDto], description: 'Oflayn navbatdan yuborilgan skanlar ro‘yxati' })
   @IsArray({ message: 'Skanlar ro‘yxati massiv bo‘lishi shart!' })
   @ValidateNested({ each: true })
-  @Type(() => ScanCodeDto)
-  items: ScanCodeDto[];
+  @Type(() => BatchScanItemDto)
+  items: BatchScanItemDto[];
 }
 
 export class CompleteAuditDto {
