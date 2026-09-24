@@ -296,11 +296,6 @@ export const QuotasPage: React.FC = () => {
           >
             {record.department.name}
           </div>
-          {record.department.code && (
-            <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2 }}>
-              Kod: <b style={{ color: 'var(--color-text-2)' }}>{record.department.code}</b>
-            </div>
-          )}
         </div>
       ),
     },
@@ -492,22 +487,20 @@ export const QuotasPage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Real-time Status Indicator (Rule 4.2 & Faza 4) */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: -6 }}>
-        <Space size="small">
-          <Tag color={isConnected ? 'green' : 'orange'} icon={<IconRefresh spin={!isConnected} />}>
-            {isConnected ? 'Real-Time Quota & Stock Sync (Faol)' : 'Sinxronizatsiya kutilmoqda'}
-          </Tag>
-          <Tag color="cyan">
-            Jonli Qoldiqlar (0ms)
-          </Tag>
-        </Space>
-      </div>
-
-      {/* Tabs Filter */}
+      {/* Tabs Filter with Real-time Status Indicator */}
       <PageTabs
         activeTab={statusFilter}
         onChange={setStatusFilter}
+        extra={
+          <Space size="small" style={{ marginBottom: 4 }}>
+            <Tag color={isConnected ? 'green' : 'orange'} icon={<IconRefresh spin={!isConnected} />}>
+              {isConnected ? 'Real-Time Quota & Stock Sync (Faol)' : 'Sinxronizatsiya kutilmoqda'}
+            </Tag>
+            <Tag color="cyan">
+              Jonli Qoldiqlar (0ms)
+            </Tag>
+          </Space>
+        }
         tabs={[
           { key: 'ALL', title: 'Barcha Kvotalar', count: totalQuotas },
           { key: 'NORMAL', title: 'Me’yorda', count: normalQuotas },
@@ -622,27 +615,6 @@ export const QuotasPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Exceeded Quotas Alert Banner (University Rule 5.4) */}
-      {exceededQuotas > 0 && (
-        <Alert
-          type="warning"
-          title={`${exceededQuotas} ta kafedra va bo‘limda oylik sarf limiti oshib ketgan!`}
-          content="Universitet Nizomi 5.4-bandiga muvofiq, oylik limitdan ortiqcha berilgan talabnomalar uchun Moliya-iqtisodiyot bo‘yicha prorektor yoki Rektoratning maxsus ruxsati (rezolyutsiyasi) talab qilinadi."
-          action={
-            statusFilter !== 'RECTOR_APPROVAL' ? (
-              <Button
-                size="small"
-                type="primary"
-                status="warning"
-                style={{ borderRadius: 0 }}
-                onClick={() => setStatusFilter('RECTOR_APPROVAL')}
-              >
-                Rektorat ruxsati talab qilinuvchilarni ko‘rish
-              </Button>
-            ) : undefined
-          }
-        />
-      )}
 
       {/* Error State */}
       {isError && (

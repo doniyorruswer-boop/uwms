@@ -818,11 +818,6 @@ export const AuditScannerPage: React.FC = () => {
               )}
             </Space>
           }
-          content={
-            <div style={{ fontSize: 12, marginTop: 4 }}>
-              Internet aloqasi bo‘lmaganda o‘qilgan QR kodlar brauzerning IndexedDB xotirasida xavfsiz saqlanadi. Tranzaksion sinxronlash orqali barchasi bir vaqtda bazaga yoziladi va kamomad/mavjudlik qayd etiladi.
-            </div>
-          }
           action={
             <Space>
               <Button

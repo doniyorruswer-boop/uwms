@@ -815,7 +815,7 @@ export const RequestsPage: React.FC = () => {
         rowKey="id"
         loading={isLoading || isFetching}
         data={filteredRequests}
-        scrollX={1350}
+        scrollX={1300}
         onRowClick={(record) => handleOpenDetail(record)}
         emptyText={
           isError
@@ -828,17 +828,26 @@ export const RequestsPage: React.FC = () => {
           {
             title: 'Talabgor & Zayavka №',
             dataIndex: 'requesterName',
-            width: 220,
+            width: 200,
             render: (name: string, record: RequestRecord) => (
               <div style={{ paddingLeft: 8 }}>
                 <CategoryThumbnail
                   icon={<IconUserGroup />}
                   name={name}
-                  subtitle={record.departmentName || undefined}
                   tag={record.requestNumber}
                   color="#165DFF"
                   bg="#E8F3FF"
                 />
+              </div>
+            ),
+          },
+          {
+            title: 'Bo‘lim / Kafedra',
+            dataIndex: 'departmentName',
+            width: 200,
+            render: (deptName: string) => (
+              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-1)', lineHeight: 1.4 }}>
+                {deptName || '—'}
               </div>
             ),
           },
@@ -926,7 +935,7 @@ export const RequestsPage: React.FC = () => {
           },
           {
             title: 'Amallar',
-            width: 330,
+            width: 140,
             fixed: 'right' as const,
             render: (_, record: RequestRecord) => {
               const canProrektorApprove =

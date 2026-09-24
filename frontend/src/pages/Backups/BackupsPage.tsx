@@ -153,17 +153,20 @@ export const BackupsPage: React.FC = () => {
       dataIndex: 'filename',
       key: 'filename',
       minWidth: 320,
-      render: (filename: string, record: BackupItem) => (
-        <div style={{ paddingLeft: 8 }}>
-          <CategoryThumbnail
-            icon={<IconStorage />}
-            name={filename}
-            subtitle={record.notes || undefined}
-            color="var(--color-primary-6)"
-            bg="var(--color-fill-2)"
-          />
-        </div>
-      ),
+      render: (filename: string, record: BackupItem) => {
+        const isTestNote = record.notes && (record.notes.includes('Playwright') || record.notes.includes('E2E') || record.notes.includes('Test'));
+        return (
+          <div style={{ paddingLeft: 8 }}>
+            <CategoryThumbnail
+              icon={<IconStorage />}
+              name={filename}
+              subtitle={isTestNote ? undefined : (record.notes || undefined)}
+              color="var(--color-primary-6)"
+              bg="var(--color-fill-2)"
+            />
+          </div>
+        );
+      },
     },
     {
       title: 'Hajmi',
@@ -298,7 +301,7 @@ export const BackupsPage: React.FC = () => {
     {
       title: 'Amallar',
       key: 'actions',
-      width: 122,
+      width: 125,
       fixed: 'right' as const,
       render: (_: unknown, record: BackupItem) => (
         <TableActions
@@ -309,6 +312,7 @@ export const BackupsPage: React.FC = () => {
           deleteTooltip="O‘chirish"
           rightPadding={0}
           gap={6}
+          maxVisible={10}
         >
           <Tooltip content="Yuklab olish">
             <Button

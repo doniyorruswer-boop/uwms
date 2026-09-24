@@ -6,7 +6,7 @@ import {
   Space,
   Input,
   Tag,
-  Checkbox,
+  Switch,
   Grid,
   Typography,
   Divider,
@@ -197,20 +197,22 @@ export const UserPermissionsPage: React.FC = () => {
   }, [catalog, searchQuery]);
 
   // Handler: Toggle single permission
-  const handleToggleCode = (code: string, mod: PermissionModule) => {
+  // Handler: Toggle single permission code
+  const handleToggleCode = (code: string, mod: PermissionModule, forceState?: boolean) => {
     setSelectedCodes((prev) => {
       const next = new Set(prev);
       const isCurrentlySelected = next.has(code);
+      const shouldSelect = forceState !== undefined ? forceState : !isCurrentlySelected;
 
-      if (isCurrentlySelected) {
-        next.delete(code);
-        if (code === mod.pageCode) {
-          mod.permissions.forEach((p) => next.delete(p.code));
-        }
-      } else {
+      if (shouldSelect) {
         next.add(code);
         if (mod.pageCode && !next.has(mod.pageCode)) {
           next.add(mod.pageCode);
+        }
+      } else {
+        next.delete(code);
+        if (code === mod.pageCode) {
+          mod.permissions.forEach((p) => next.delete(p.code));
         }
       }
 
@@ -220,16 +222,20 @@ export const UserPermissionsPage: React.FC = () => {
   };
 
   // Handler: Master toggle for a whole module
-  const handleToggleModule = (mod: PermissionModule) => {
+  const handleToggleModule = (mod: PermissionModule, forceState?: boolean) => {
     setSelectedCodes((prev) => {
       const next = new Set(prev);
       const modCodes = mod.permissions.map((p) => p.code);
-      const allSelected = modCodes.every((c) => next.has(c));
+      const allSelected = modCodes.length > 0 && modCodes.every((c) => next.has(c));
+      const shouldSelectAll = forceState !== undefined ? forceState : !allSelected;
 
-      if (allSelected) {
-        modCodes.forEach((c) => next.delete(c));
-      } else {
+      if (shouldSelectAll) {
         modCodes.forEach((c) => next.add(c));
+        if (mod.pageCode) {
+          next.add(mod.pageCode);
+        }
+      } else {
+        modCodes.forEach((c) => next.delete(c));
       }
 
       setHasChanges(true);
@@ -605,7 +611,8 @@ export const UserPermissionsPage: React.FC = () => {
                     height: '100%',
                     borderRadius: 8,
                     border: isPageActive ? '1px solid var(--color-border-2)' : '1px solid var(--color-border-1)',
-                    background: isPageActive ? 'var(--color-bg-2)' : 'var(--color-fill-1)',
+                    background: 'var(--color-bg-2)',
+                    boxShadow: isPageActive ? '0 1px 4px rgba(0, 0, 0, 0.03)' : 'none',
                     transition: 'all 0.2s ease',
                   }}
                   headerStyle={{
@@ -613,139 +620,127 @@ export const UserPermissionsPage: React.FC = () => {
                     borderBottom: '1px solid var(--color-border-1)',
                     background: isPageActive ? 'var(--color-fill-1)' : 'var(--color-fill-2)',
                   }}
+                  bodyStyle={{
+                    padding: '14px 16px',
+                  }}
                   title={
                     <Space size="small" align="center">
-                      {moduleIcons[mod.id] || <IconApps />}
-                      <span style={{ fontWeight: 600, fontSize: 15 }}>{mod.name}</span>
-                      <Tag size="small" color={activeCountInMod > 0 ? 'arcoblue' : 'gray'}>
-                        {activeCountInMod} / {modCodes.length}
+                      <span style={{ fontSize: 16, color: isPageActive ? 'var(--color-primary-6)' : 'var(--color-text-3)', display: 'inline-flex' }}>
+                        {moduleIcons[mod.id] || <IconApps />}
+                      </span>
+                      <span style={{ fontWeight: 600, fontSize: 14 }}>{mod.name}</span>
+                      <Tag size="small" color={activeCountInMod > 0 ? 'arcoblue' : 'gray'} style={{ borderRadius: 4, fontWeight: 600 }}>
+                        {activeCountInMod}/{modCodes.length}
                       </Tag>
                     </Space>
                   }
                   extra={
-                    <Checkbox
-                      checked={isModFullySelected}
-                      indeterminate={isModIndeterminate}
-                      onChange={() => handleToggleModule(mod)}
-                    >
-                      <span style={{ fontSize: 12 }}>To‘liq ruxsat</span>
-                    </Checkbox>
+                    <Space size="small" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      <span
+                        style={{ fontSize: 12, color: 'var(--color-text-3)', fontWeight: 500, cursor: 'pointer' }}
+                        onClick={() => handleToggleModule(mod, !isModFullySelected)}
+                      >
+                        To‘liq ruxsat
+                      </span>
+                      <Switch
+                        size="small"
+                        checked={isModFullySelected}
+                        onChange={(checked) => handleToggleModule(mod, checked)}
+                      />
+                    </Space>
                   }
                 >
-                  <Paragraph
-                    style={{
-                      fontSize: 12,
-                      color: 'var(--color-text-3)',
-                      marginBottom: 12,
-                      marginTop: -4,
-                    }}
-                  >
-                    {mod.description}
-                  </Paragraph>
-
                   {/* 1. Page Access Master Toggle */}
                   {pagePerm && (
                     <div
                       style={{
-                        padding: '10px 12px',
-                        background: isPageActive
-                          ? 'var(--color-primary-light-1)'
-                          : 'var(--color-fill-2)',
+                        padding: '9px 12px',
+                        background: isPageActive ? 'var(--color-primary-light-1)' : 'var(--color-fill-2)',
                         borderRadius: 6,
-                        marginBottom: 12,
+                        marginBottom: actionPerms.length > 0 ? 12 : 0,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
                       }}
+                      onClick={() => handleToggleCode(pagePerm.code, mod, !isPageActive)}
                     >
-                      <div>
-                        <Checkbox
-                          checked={isPageActive}
-                          onChange={() => handleToggleCode(pagePerm.code, mod)}
-                        >
-                          <span style={{ fontWeight: 600, color: isPageActive ? 'var(--color-primary-6)' : 'inherit' }}>
-                            {pagePerm.name}
-                          </span>
-                        </Checkbox>
-                        <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginLeft: 22 }}>
-                          {pagePerm.description}
-                        </div>
-                      </div>
-                      <Tag size="small" color={isPageActive ? 'green' : 'gray'}>
-                        {isPageActive ? 'Ochiq' : 'Yopiq'}
-                      </Tag>
+                      <span style={{ fontWeight: 600, fontSize: 13, color: isPageActive ? 'var(--color-primary-6)' : 'var(--color-text-2)' }}>
+                        Sahifaga kirish
+                      </span>
+                      <Switch
+                        size="small"
+                        checked={isPageActive}
+                        onChange={(checked, e) => {
+                          e?.stopPropagation?.();
+                          handleToggleCode(pagePerm.code, mod, checked);
+                        }}
+                      />
                     </div>
                   )}
 
                   {/* 2. Granular Action Perms */}
                   {actionPerms.length > 0 && (
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 600,
-                          color: 'var(--color-text-3)',
-                          marginBottom: 8,
-                          textTransform: 'uppercase',
-                          letterSpacing: 0.5,
-                        }}
-                      >
-                        Bajariladigan Funksional Amallar:
-                      </div>
+                    <Row gutter={[8, 8]}>
+                      {actionPerms.map((perm) => {
+                        const isChecked = selectedCodes.has(perm.code);
+                        const isDisabled = !isPageActive;
 
-                      <Row gutter={[8, 8]}>
-                        {actionPerms.map((perm) => {
-                          const isChecked = selectedCodes.has(perm.code);
-                          const isDisabled = !isPageActive;
-
-                          const checkboxElement = (
-                            <div
-                              style={{
-                                padding: '8px 10px',
-                                borderRadius: 6,
-                                background: isChecked
-                                  ? 'var(--color-fill-2)'
-                                  : 'transparent',
-                                border: isChecked
-                                  ? '1px solid var(--color-primary-light-2)'
-                                  : '1px solid var(--color-border-1)',
-                                opacity: isDisabled ? 0.5 : 1,
-                                height: '100%',
-                                transition: 'all 0.15s ease',
-                              }}
+                        return (
+                          <Col xs={24} sm={12} key={perm.code}>
+                            <Tooltip
+                              content={perm.description || perm.name}
+                              position="top"
                             >
-                              <Checkbox
-                                disabled={isDisabled}
-                                checked={isChecked}
-                                onChange={() => handleToggleCode(perm.code, mod)}
-                                style={{ width: '100%', alignItems: 'flex-start' }}
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: 8,
+                                  padding: '7px 10px',
+                                  borderRadius: 6,
+                                  background: isChecked ? 'var(--color-fill-2)' : 'var(--color-fill-1)',
+                                  border: `1px solid ${isChecked ? 'var(--color-primary-light-2)' : 'var(--color-border-1)'}`,
+                                  cursor: isDisabled ? 'not-allowed' : 'pointer',
+                                  opacity: isDisabled ? 0.45 : 1,
+                                  height: 38,
+                                  transition: 'all 0.15s ease',
+                                }}
+                                onClick={() => {
+                                  if (!isDisabled) {
+                                    handleToggleCode(perm.code, mod, !isChecked);
+                                  }
+                                }}
                               >
-                                <div>
-                                  <div style={{ fontWeight: 500, fontSize: 13 }}>
-                                    {perm.name}
-                                  </div>
-                                  <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2 }}>
-                                    {perm.description}
-                                  </div>
-                                </div>
-                              </Checkbox>
-                            </div>
-                          );
-
-                          return (
-                            <Col xs={24} sm={12} key={perm.code}>
-                              {isDisabled ? (
-                                <Tooltip content="Avval ushbu modul sahifasiga kirish huquqini yoqing">
-                                  {checkboxElement}
-                                </Tooltip>
-                              ) : (
-                                checkboxElement
-                              )}
-                            </Col>
-                          );
-                        })}
-                      </Row>
-                    </div>
+                                <span
+                                  style={{
+                                    fontSize: 13,
+                                    fontWeight: isChecked ? 500 : 400,
+                                    color: isChecked ? 'var(--color-text-1)' : 'var(--color-text-2)',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {perm.name}
+                                </span>
+                                <Switch
+                                  size="small"
+                                  disabled={isDisabled}
+                                  checked={isChecked}
+                                  onChange={(checked, e) => {
+                                    e?.stopPropagation?.();
+                                    handleToggleCode(perm.code, mod, checked);
+                                  }}
+                                />
+                              </div>
+                            </Tooltip>
+                          </Col>
+                        );
+                      })}
+                    </Row>
                   )}
                 </Card>
               </Col>

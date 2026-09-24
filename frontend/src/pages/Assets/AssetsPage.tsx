@@ -650,7 +650,7 @@ export const AssetsPage: React.FC = () => {
             rowKey="id"
             loading={isLoading}
             data={filteredAssets}
-            scrollX={1360}
+            scrollX={1170}
             emptyText="Qidiruv bo‘yicha asosiy vosita topilmadi"
             rowSelection={{
               type: 'checkbox',
@@ -759,10 +759,11 @@ export const AssetsPage: React.FC = () => {
               },
               {
                 title: 'Amallar',
-                width: 310,
+                width: 125,
                 fixed: 'right' as const,
                 render: (_, record: ItemInstance) => (
                   <TableActions
+                    maxVisible={2}
                     onDelete={
                       canManageAssets && record.status !== 'WRITTEN_OFF'
                         ? () => {
@@ -774,30 +775,32 @@ export const AssetsPage: React.FC = () => {
                     deleteTooltip="Hisobdan chiqarish (OS-4)"
                     deleteConfirmTitle="Ushbu vositani hisobdan chiqarish (OS-4) komissiyasiga yuborilsinmi?"
                     deleteOkText="Ha, yuborilsin"
-                    rightPadding={16}
+                    rightPadding={4}
                     gap={6}
                   >
-                    <Button
-                      size="small"
-                      type="outline"
-                      icon={<IconEye />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenDetail(record);
-                      }}
-                      style={{ borderRadius: 0 }}
-                    >
-                      Pasport
-                    </Button>
-                    <Button
-                      size="small"
-                      type="outline"
-                      icon={<IconQrcode />}
-                      onClick={(e) => handleOpenQr(record, e)}
-                      style={{ borderRadius: 0 }}
-                    >
-                      QR
-                    </Button>
+                    <Tooltip content="Vosita pasporti (ko‘rish)">
+                      <Button
+                        size="small"
+                        type="outline"
+                        icon={<IconEye />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenDetail(record);
+                        }}
+                        style={{ borderRadius: 0 }}
+                      />
+                    </Tooltip>
+                    <Tooltip content="QR Pasport va stiker chop etish">
+                      <Button
+                        size="small"
+                        type="outline"
+                        icon={<IconQrcode />}
+                        onClick={(e) => handleOpenQr(record, e)}
+                        style={{ borderRadius: 0 }}
+                      >
+                        QR
+                      </Button>
+                    </Tooltip>
                     {canManageAssets && record.status !== 'WRITTEN_OFF' && (
                       <>
                         <Tooltip
@@ -828,10 +831,8 @@ export const AssetsPage: React.FC = () => {
                               setIsAssetHandoverWizardVisible(true);
                             }}
                             disabled={record.responsibleUserId !== user?.id}
-                            style={{ borderRadius: 0, fontWeight: 500 }}
-                          >
-                            Topshirish
-                          </Button>
+                            style={{ borderRadius: 0 }}
+                          />
                         </Tooltip>
                         <Tooltip
                           content={
@@ -868,7 +869,7 @@ export const AssetsPage: React.FC = () => {
                           <Button
                             size="small"
                             type="secondary"
-                            icon={<IconTool />}
+                            icon={<IconTool style={{ color: '#FF7D00' }} />}
                             onClick={(e) => {
                               e.stopPropagation();
                               setActionAsset(record);

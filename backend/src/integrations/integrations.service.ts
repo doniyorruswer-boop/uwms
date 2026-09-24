@@ -207,7 +207,7 @@ export class IntegrationsService {
           syncedUsers: userCount,
         },
         message: 'HEMIS API kalitlari hali kiritilmagan. Tizim xavfsiz sinov (DEMO) rejimida to‘liq ishlamoqda.',
-        instructions: 'Vazirlik yoki OTM ma’murlari tomonidan HEMIS_API_URL va HEMIS_API_KEY taqdim etilgach, integratsiya sozlamalari orqali faollashtiriladi.',
+        instructions: '',
       };
     }
 

@@ -4,7 +4,8 @@ import {
   Form,
   Input,
   Select,
-  Checkbox,
+  Switch,
+  Space,
   Grid,
 } from '@arco-design/web-react';
 import { useUpdateWarehouseMutation, type WarehouseItem } from '../../hooks/useWarehouseQuery';
@@ -166,10 +167,13 @@ export const EditWarehouseModal: React.FC<EditWarehouseModalProps> = ({
           </Col>
 
           <Col span={24}>
-            <FormItem field="isMain">
-              <Checkbox>
-                Universitetning Bosh Markaziy Ombori sifatida belgilash
-              </Checkbox>
+            <FormItem field="isMain" triggerPropName="checked" style={{ marginBottom: 8 }}>
+              <Space size="medium">
+                <Switch size="small" />
+                <span style={{ fontSize: 13 }}>
+                  Universitetning Bosh Markaziy Ombori sifatida belgilash
+                </span>
+              </Space>
             </FormItem>
           </Col>
         </Row>

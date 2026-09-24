@@ -4,7 +4,7 @@ import {
   Form,
   Input,
   Typography,
-  Checkbox,
+  Switch,
   Space,
   Message,
   Alert,
@@ -206,12 +206,19 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
         </FormItem>
 
         <FormItem style={{ marginBottom: 0 }}>
-          <Checkbox
-            checked={mustChangePassword}
-            onChange={(checked) => setMustChangePassword(checked)}
-          >
-            Foydalanuvchi birinchi marta kirganda parolni yangilashi shart bo‘lsin
-          </Checkbox>
+          <Space size="medium">
+            <Switch
+              size="small"
+              checked={mustChangePassword}
+              onChange={(checked) => setMustChangePassword(checked)}
+            />
+            <span
+              style={{ fontSize: 13, cursor: 'pointer' }}
+              onClick={() => setMustChangePassword(!mustChangePassword)}
+            >
+              Foydalanuvchi birinchi marta kirganda parolni yangilashi shart bo‘lsin
+            </span>
+          </Space>
         </FormItem>
       </Form>
     </Modal>

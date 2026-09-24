@@ -348,6 +348,23 @@ body {
   min-width: 100% !important;
 }
 
+/* Compact, dense cell content: ensures columns sit comfortably close without dead voids */
+.arco-table-size-small .arco-table-th {
+  padding: 9px 12px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+.arco-table-size-small .arco-table-td {
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+}
+
+.uwms-col-actions {
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
 /* Table Fixed Right Column & Sticky Actions Styling */
 
 /* 1. Header (th) of fixed columns: always matches standard table header background */
@@ -359,7 +376,8 @@ th.arco-table-cell-fixed-right {
   background-color: var(--color-neutral-2) !important;
   color: var(--text-main) !important;
   z-index: 4 !important;
-  padding-right: 16px !important;
+  padding-right: 8px !important;
+  text-align: right !important;
 }
 
 /* 2. Body cell (td) of fixed columns: normal state has solid card background */
@@ -369,8 +387,10 @@ td.arco-table-col-fixed-right,
 td.arco-table-cell-fixed-right {
   background-color: var(--card-bg) !important;
   z-index: 3 !important;
-  padding-right: 16px !important;
+  padding-right: 8px !important;
+  text-align: right !important;
 }
+
 
 /* 3. Row Hover State: fixed column cell MUST take hover background color across the entire row! */
 .arco-table-tr:hover>td.arco-table-col-fixed-right,

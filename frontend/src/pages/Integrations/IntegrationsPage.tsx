@@ -316,12 +316,7 @@ export const IntegrationsPage: React.FC = () => {
           type="info"
           title="HEMIS Jonli API Kalitlari Kutilmoqda (Xavfsiz Sinov Rejimi)"
           content={
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div>{hemisStatus?.message || 'HEMIS API kalitlari hali kiritilmagan. Tizim xavfsiz sinov (DEMO) rejimida to‘liq ishlamoqda.'}</div>
-              <div style={{ fontSize: 13, color: 'var(--color-text-2)' }}>
-                {hemisStatus?.instructions || 'Vazirlik yoki OTM ma’murlari tomonidan HEMIS_API_URL va HEMIS_API_KEY taqdim etilgach, «HEMIS Sozlamalari & Ping» tugmasi orqali ulanishni tekshirib, jonli rejimga o‘tishingiz mumkin.'}
-              </div>
-            </div>
+            <div>{hemisStatus?.message || 'HEMIS API kalitlari hali kiritilmagan. Tizim xavfsiz sinov (DEMO) rejimida to‘liq ishlamoqda.'}</div>
           }
           action={
             <Button

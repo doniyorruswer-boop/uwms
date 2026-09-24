@@ -661,7 +661,6 @@ export const OrganizationPage: React.FC = () => {
         <CategoryThumbnail
           icon={<IconHome />}
           name={record.name}
-          subtitle={record.code ? `Kod: ${record.code}` : undefined}
           tag={`${record.floorsCount} qavatli bino`}
           color="#00B42A"
           bg="#E8FFEA"
@@ -822,7 +821,6 @@ export const OrganizationPage: React.FC = () => {
         <CategoryThumbnail
           icon={<IconBranch />}
           name={record.name}
-          subtitle={record.code ? `Kodi: ${record.code}` : undefined}
           tag={departmentTypeLabels[record.type] || record.type}
           color="#165DFF"
           bg="#E8F3FF"

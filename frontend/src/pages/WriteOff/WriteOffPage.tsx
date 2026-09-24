@@ -581,22 +581,20 @@ export const WriteOffPage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Real-time Status Indicator (Rule 4.2 & Faza 5) */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: -6 }}>
-        <Space size="small">
-          <Tag color={isConnected ? 'green' : 'orange'} icon={<IconRefresh spin={!isConnected} />}>
-            {isConnected ? 'Live Quorum Sync (Faol)' : 'Sinxronizatsiya kutilmoqda'}
-          </Tag>
-          <Tag color="arcoblue">
-            5-A’zoli OS-4 Kvorum (0ms)
-          </Tag>
-        </Space>
-      </div>
-
-      {/* Tabs Filter */}
+      {/* Tabs Filter with Real-time Status Indicator */}
       <PageTabs
         activeTab={statusFilter}
         onChange={setStatusFilter}
+        extra={
+          <Space size="small" style={{ marginBottom: 4 }}>
+            <Tag color={isConnected ? 'green' : 'orange'} icon={<IconRefresh spin={!isConnected} />}>
+              {isConnected ? 'Live Quorum Sync (Faol)' : 'Sinxronizatsiya kutilmoqda'}
+            </Tag>
+            <Tag color="arcoblue">
+              5-A’zoli OS-4 Kvorum (0ms)
+            </Tag>
+          </Space>
+        }
         tabs={[
           { key: 'ALL', title: 'Barcha Holatlar', count: totalCount },
           {

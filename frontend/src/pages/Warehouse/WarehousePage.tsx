@@ -345,26 +345,24 @@ export const WarehousePage: React.FC = () => {
         />
       )}
 
-      {/* Real-time Status Indicator (Rule 4.2 & Faza 4) */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: -6 }}>
-        <Space size="small">
-          <Tooltip content="Ombor kirim va chiqimlari barcha foydalanuvchilar ekranida sahifani yangilamasdan real vaqtda (jonli) aks etadi">
-            <Tag color={isConnected ? 'green' : 'orange'} icon={<IconSync spin={!isConnected} />} style={{ cursor: 'pointer' }}>
-              {isConnected ? 'Live Stock Sync (Faol)' : 'Sinxronizatsiya kutilmoqda'}
-            </Tag>
-          </Tooltip>
-          <Tooltip content="Bir vaqtning o‘zida bir nechta chiqim talabnomasi tushganda ombor qoldig‘i manfiyga tushib ketishidan 100% himoyalangan">
-            <Tag color="arcoblue" icon={<IconSafe />} style={{ cursor: 'pointer' }}>
-              Qoldiq xavfsizligi
-            </Tag>
-          </Tooltip>
-        </Space>
-      </div>
-
-      {/* Main Tabs Navigation */}
+      {/* Main Tabs Navigation with Real-time Status Indicator */}
       <PageTabs
         activeTab={activeMainTab}
         onChange={(t: any) => setActiveMainTab(t)}
+        extra={
+          <Space size="small" style={{ marginBottom: 4 }}>
+            <Tooltip content="Ombor kirim va chiqimlari barcha foydalanuvchilar ekranida sahifani yangilamasdan real vaqtda (jonli) aks etadi">
+              <Tag color={isConnected ? 'green' : 'orange'} icon={<IconSync spin={!isConnected} />} style={{ cursor: 'pointer' }}>
+                {isConnected ? 'Live Stock Sync (Faol)' : 'Sinxronizatsiya kutilmoqda'}
+              </Tag>
+            </Tooltip>
+            <Tooltip content="Bir vaqtning o‘zida bir nechta chiqim talabnomasi tushganda ombor qoldig‘i manfiyga tushib ketishidan 100% himoyalangan">
+              <Tag color="arcoblue" icon={<IconSafe />} style={{ cursor: 'pointer' }}>
+                Qoldiq xavfsizligi
+              </Tag>
+            </Tooltip>
+          </Space>
+        }
         tabs={[
           { key: 'STOCKS', title: 'Sarf Tovarlari Qoldiqlari (Registry)', count: stocks.length },
           { key: 'LOW_STOCK', title: 'Minimal Qoldiqdan Past (Kamomad)', count: lowStockItems.length },

@@ -314,11 +314,11 @@ export const UsersPage: React.FC = () => {
     {
       title: 'Amallar',
       key: 'actions',
-      width: roleTab === 'DELETED' ? 140 : 220,
+      width: roleTab === 'DELETED' ? 140 : 230,
       fixed: 'right' as const,
       render: (_: any, record: UserItem) => (
         <div onClick={(e) => e.stopPropagation()}>
-          <TableActions rightPadding={0} gap={6}>
+          <TableActions rightPadding={0} gap={6} maxVisible={10}>
             {record.deletedAt ? (
               <Popconfirm
                 title="Ushbu foydalanuvchini qayta tiklashni (Restore) tasdiqlaysizmi?"
@@ -586,7 +586,7 @@ export const UsersPage: React.FC = () => {
         columns={columns}
         data={data?.items || []}
         loading={isLoading}
-        scrollX={950}
+        scrollX={960}
         onRowClick={(record) => setDrawerUser(record)}
         emptyText={
           search || deptFilter !== 'ALL' || statusFilter !== 'ALL'

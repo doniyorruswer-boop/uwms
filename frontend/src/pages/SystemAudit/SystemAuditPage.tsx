@@ -236,7 +236,6 @@ export const SystemAuditPage: React.FC = () => {
           <CategoryThumbnail
             icon={<IconUser />}
             name={record.user.fullName}
-            subtitle={`@${record.user.username} • ${record.user.role}`}
             tag={record.user.department?.name || undefined}
             color="#165DFF"
             bg="var(--color-fill-2)"
