@@ -310,18 +310,223 @@ body {
   }
 }
 
-/* Table Pagination Modern Spacing & 0-border-radius */
+/* ==========================================================================
+   ARCO PRO ENTERPRISE DATA GRID STYLING
+   ========================================================================== */
+
+/* 1. Table Wrapper & Card Container */
+.uwms-standard-table-wrapper {
+  width: 100%;
+  transition: all 0.25s ease;
+}
+
+.uwms-standard-table-card {
+  border-radius: 8px !important;
+  border: 1px solid var(--color-border-2) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+  overflow: hidden;
+  background-color: var(--card-bg) !important;
+  transition: box-shadow 0.2s ease;
+}
+
+.uwms-standard-table-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* 2. Fullscreen Mode */
+.uwms-table-fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 1050 !important;
+  background: var(--color-bg-1, #ffffff) !important;
+  padding: 16px !important;
+  overflow: auto !important;
+  box-sizing: border-box !important;
+}
+
+.uwms-table-fullscreen .uwms-standard-table-card {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border-radius: 6px !important;
+}
+
+.uwms-table-fullscreen .arco-table {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.uwms-table-fullscreen .arco-table-container {
+  flex: 1 !important;
+}
+
+/* 3. Table Integrated Toolbar */
+.uwms-table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border-1);
+  background-color: var(--card-bg);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.uwms-table-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.uwms-table-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.uwms-table-count-tag {
+  font-size: 12px !important;
+  padding: 1px 8px !important;
+  border-radius: 4px !important;
+  font-weight: 500 !important;
+}
+
+.uwms-table-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.uwms-table-tool-btn {
+  color: var(--color-text-2) !important;
+  border-radius: 4px !important;
+  padding: 0 6px !important;
+  height: 28px !important;
+  width: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+}
+
+.uwms-table-tool-btn:hover {
+  color: var(--color-primary-6) !important;
+  background-color: var(--color-fill-2) !important;
+}
+
+/* 4. Table Headers & Body Cells (Arco Pro Soft Theme) */
+.uwms-standard-table .arco-table-th {
+  background-color: var(--color-fill-2) !important;
+  color: var(--color-text-1) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  border-bottom: 1px solid var(--color-border-2) !important;
+  padding: 10px 14px !important;
+  transition: background-color 0.2s ease;
+}
+
+.uwms-standard-table .arco-table-td {
+  border-bottom: 1px solid var(--color-border-1) !important;
+  padding: 9px 14px !important;
+  font-size: 13px !important;
+  transition: background-color 0.15s ease;
+}
+
+.uwms-standard-table .arco-table-tr:hover .arco-table-td {
+  background-color: var(--color-fill-1) !important;
+}
+
+[arco-theme='dark'] .uwms-standard-table .arco-table-th {
+  background-color: #232324 !important;
+  border-bottom-color: #333335 !important;
+}
+
+[arco-theme='dark'] .uwms-standard-table .arco-table-td {
+  border-bottom-color: #2a2a2b !important;
+}
+
+[arco-theme='dark'] .uwms-standard-table .arco-table-tr:hover .arco-table-td {
+  background-color: #282829 !important;
+}
+
+/* Zebra striping for table rows */
+.uwms-standard-table-striped .arco-table-tr:nth-child(even) .arco-table-td {
+  background-color: var(--color-fill-1, rgba(0, 0, 0, 0.02)) !important;
+}
+
+.uwms-standard-table-striped .arco-table-tr:nth-child(even):hover .arco-table-td {
+  background-color: var(--color-fill-2, #f2f3f5) !important;
+}
+
+[arco-theme='dark'] .uwms-standard-table-striped .arco-table-tr:nth-child(even) .arco-table-td {
+  background-color: rgba(255, 255, 255, 0.025) !important;
+}
+
+[arco-theme='dark'] .uwms-standard-table-striped .arco-table-tr:nth-child(even):hover .arco-table-td {
+  background-color: #2c2c2e !important;
+}
+
+/* Zebra striping for fixed right column in striped rows */
+.uwms-standard-table-striped .arco-table-tr:nth-child(even) > td.arco-table-col-fixed-right,
+.uwms-standard-table-striped .arco-table-tr:nth-child(even) > td.arco-table-cell-fixed-right {
+  background-color: var(--color-fill-1, rgba(0, 0, 0, 0.02)) !important;
+}
+
+[arco-theme='dark'] .uwms-standard-table-striped .arco-table-tr:nth-child(even) > td.arco-table-col-fixed-right,
+[arco-theme='dark'] .uwms-standard-table-striped .arco-table-tr:nth-child(even) > td.arco-table-cell-fixed-right {
+  background-color: #222224 !important;
+}
+
+/* Status accent left border: driven directly by status.constants.ts and Arco design tokens */
+.uwms-standard-table .arco-table-tr[data-status-type="success"] .arco-table-td:first-child,
+.uwms-standard-table .arco-table-tr[data-status-color="green"] .arco-table-td:first-child {
+  border-left: 3px solid var(--color-success-6, #00B42A) !important;
+}
+
+.uwms-standard-table .arco-table-tr[data-status-type="processing"] .arco-table-td:first-child,
+.uwms-standard-table .arco-table-tr[data-status-color="blue"] .arco-table-td:first-child,
+.uwms-standard-table .arco-table-tr[data-status-color="arcoblue"] .arco-table-td:first-child {
+  border-left: 3px solid var(--color-primary-6, #165DFF) !important;
+}
+
+.uwms-standard-table .arco-table-tr[data-status-type="warning"] .arco-table-td:first-child,
+.uwms-standard-table .arco-table-tr[data-status-color="orange"] .arco-table-td:first-child {
+  border-left: 3px solid var(--color-warning-6, #FF7D00) !important;
+}
+
+.uwms-standard-table .arco-table-tr[data-status-type="error"] .arco-table-td:first-child,
+.uwms-standard-table .arco-table-tr[data-status-color="red"] .arco-table-td:first-child {
+  border-left: 3px solid var(--color-danger-6, #F53F3F) !important;
+}
+
+.uwms-standard-table .arco-table-tr[data-status-color="purple"] .arco-table-td:first-child {
+  border-left: 3px solid #722ED1 !important;
+}
+
+.uwms-standard-table .arco-table-tr[data-status-color="cyan"] .arco-table-td:first-child {
+  border-left: 3px solid #14C9C9 !important;
+}
+
+/* 5. Table Pagination (Modern Rounded Spacing) */
 .arco-table-pagination {
-  padding: 16px 20px 24px 20px !important;
+  padding: 12px 18px 14px 18px !important;
   margin-top: 0 !important;
   display: flex !important;
   align-items: center !important;
+  border-top: 1px solid var(--color-border-1) !important;
 }
 
 .arco-pagination-total-text {
-  font-weight: 600 !important;
-  color: var(--text-main) !important;
-  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--text-muted) !important;
+  font-size: 12px !important;
   margin-right: 16px !important;
 }
 
@@ -331,105 +536,71 @@ body {
 .arco-pagination-jumper input,
 .arco-pagination-options .arco-select,
 .arco-pagination-options .arco-select-view {
-  border-radius: 0 !important;
+  border-radius: 4px !important;
+  font-size: 12.5px !important;
 }
 
-/* Ensure all tables always expand to fill 100% width of the card container with zero right gap */
-.arco-table,
-.arco-table-container,
-.arco-table-content,
-.arco-table-content-scroll,
-.arco-table-content-inner {
-  width: 100%;
-}
-
-.arco-table-element,
-.arco-table table {
-  min-width: 100% !important;
-}
-
-/* Compact, dense cell content: ensures columns sit comfortably close without dead voids */
-.arco-table-size-small .arco-table-th {
-  padding: 9px 12px !important;
-  font-size: 13px !important;
+.arco-pagination-item-active {
   font-weight: 600 !important;
 }
 
-.arco-table-size-small .arco-table-td {
-  padding: 8px 12px !important;
-  font-size: 13px !important;
-}
-
+/* 6. Action Column & Sticky Right Positioning */
 .uwms-col-actions {
   text-align: right !important;
   white-space: nowrap !important;
 }
 
-/* Table Fixed Right Column & Sticky Actions Styling */
-
-/* 1. Header (th) of fixed columns: always matches standard table header background */
 .arco-table-th.arco-table-col-fixed-right,
 .arco-table-th.arco-table-cell-fixed-right,
-.arco-table-header-cell-fixed-right,
-th.arco-table-col-fixed-right,
-th.arco-table-cell-fixed-right {
-  background-color: var(--color-neutral-2) !important;
-  color: var(--text-main) !important;
+.arco-table-header-cell-fixed-right {
+  background-color: var(--color-fill-2) !important;
+  color: var(--color-text-1) !important;
   z-index: 4 !important;
-  padding-right: 8px !important;
+  padding-right: 12px !important;
   text-align: right !important;
 }
 
-/* 2. Body cell (td) of fixed columns: normal state has solid card background */
+[arco-theme='dark'] .arco-table-th.arco-table-col-fixed-right,
+[arco-theme='dark'] .arco-table-th.arco-table-cell-fixed-right,
+[arco-theme='dark'] .arco-table-header-cell-fixed-right {
+  background-color: #232324 !important;
+}
+
 .arco-table-tbody .arco-table-td.arco-table-col-fixed-right,
-.arco-table-tbody .arco-table-td.arco-table-cell-fixed-right,
-td.arco-table-col-fixed-right,
-td.arco-table-cell-fixed-right {
+.arco-table-tbody .arco-table-td.arco-table-cell-fixed-right {
   background-color: var(--card-bg) !important;
   z-index: 3 !important;
-  padding-right: 8px !important;
+  padding-right: 12px !important;
   text-align: right !important;
 }
 
-
-/* 3. Row Hover State: fixed column cell MUST take hover background color across the entire row! */
-.arco-table-tr:hover>td.arco-table-col-fixed-right,
-.arco-table-tr:hover>td.arco-table-cell-fixed-right,
-.arco-table-tr-hover>td.arco-table-col-fixed-right,
-.arco-table-tr-hover>td.arco-table-cell-fixed-right,
-.arco-table-row:hover>td.arco-table-col-fixed-right,
-.arco-table-row:hover>td.arco-table-cell-fixed-right,
-.arco-table-tr-checked>td.arco-table-col-fixed-right,
-.arco-table-tr-checked>td.arco-table-cell-fixed-right {
-  background-color: var(--color-fill-2) !important;
+.arco-table-tr:hover > td.arco-table-col-fixed-right,
+.arco-table-tr:hover > td.arco-table-cell-fixed-right,
+.arco-table-tr-hover > td.arco-table-col-fixed-right,
+.arco-table-tr-hover > td.arco-table-cell-fixed-right {
+  background-color: var(--color-fill-1) !important;
 }
 
-[arco-theme='dark'] .arco-table-tr:hover>td.arco-table-col-fixed-right,
-[arco-theme='dark'] .arco-table-tr:hover>td.arco-table-cell-fixed-right,
-[arco-theme='dark'] .arco-table-tr-hover>td.arco-table-col-fixed-right,
-[arco-theme='dark'] .arco-table-tr-hover>td.arco-table-cell-fixed-right,
-[arco-theme='dark'] .arco-table-row:hover>td.arco-table-col-fixed-right,
-[arco-theme='dark'] .arco-table-row:hover>td.arco-table-cell-fixed-right,
-[arco-theme='dark'] .arco-table-tr-checked>td.arco-table-col-fixed-right,
-[arco-theme='dark'] .arco-table-tr-checked>td.arco-table-cell-fixed-right {
-  background-color: var(--color-fill-3) !important;
+[arco-theme='dark'] .arco-table-tr:hover > td.arco-table-col-fixed-right,
+[arco-theme='dark'] .arco-table-tr:hover > td.arco-table-cell-fixed-right,
+[arco-theme='dark'] .arco-table-tr-hover > td.arco-table-col-fixed-right,
+[arco-theme='dark'] .arco-table-tr-hover > td.arco-table-cell-fixed-right {
+  background-color: #282829 !important;
 }
 
 /* Fixed column shadow to demarcate sticky edge when scrolling horizontally */
 .arco-table-cell-fixed-right-first::before,
 .arco-table-header-cell-fixed-right-first::before {
-  box-shadow: -6px 0 12px rgba(0, 0, 0, 0.08) !important;
+  box-shadow: -4px 0 10px rgba(0, 0, 0, 0.05) !important;
 }
 
 [arco-theme='dark'] .arco-table-cell-fixed-right-first::before,
 [arco-theme='dark'] .arco-table-header-cell-fixed-right-first::before {
-  box-shadow: -6px 0 12px rgba(0, 0, 0, 0.4) !important;
+  box-shadow: -4px 0 10px rgba(0, 0, 0, 0.35) !important;
 }
 
-/* 4. Responsive Mobile Table Optimization (Screen width <= 768px) */
+/* 7. Responsive Mobile Table Optimization (Screen width <= 768px) */
 @media (max-width: 768px) {
-
-  /* On mobile phones, unpin sticky fixed columns so they do NOT take over 70% of the screen */
   .arco-table-cell-fixed-right,
   .arco-table-header-cell-fixed-right,
   .arco-table-col-fixed-right {
@@ -445,13 +616,11 @@ td.arco-table-cell-fixed-right {
     display: none !important;
   }
 
-  /* Table horizontal scroll container */
   .arco-table-container {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
   }
 
-  /* Compact buttons in action columns on mobile */
   .arco-table-cell .arco-btn-size-small,
   .arco-table-cell .arco-btn-size-default {
     padding: 0 8px !important;
@@ -511,4 +680,71 @@ td.arco-table-cell-fixed-right {
 .login-container-no-radius .arco-tag,
 .login-container-no-radius .arco-alert {
   border-radius: 0 !important;
+}
+
+/* ==========================================================================
+   DROPDOWN & ACTION MENU VERTICAL CENTERING (Zero Offset)
+   Amallar ustunidagi (...) va barcha Dropdown menyulardagi ikonka va matnlarni
+   vertikal o'qda aniq markazlashtirish (center)
+   ========================================================================== */
+
+.arco-dropdown-menu {
+  border-radius: 0 !important;
+  padding: 4px 0 !important;
+}
+
+.arco-dropdown-menu-item,
+.arco-dropdown-menu-pop-header {
+  display: flex !important;
+  align-items: center !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  line-height: normal !important;
+  padding: 0 12px !important;
+  box-sizing: border-box !important;
+}
+
+.arco-dropdown-menu-item .arco-menu-item-inner,
+.arco-dropdown-menu-item .arco-dropdown-menu-item-inner {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  line-height: normal !important;
+}
+
+.arco-dropdown-menu-item > span,
+.arco-dropdown-menu-item > div,
+.arco-dropdown-menu-item .arco-space {
+  display: inline-flex !important;
+  align-items: center !important;
+  line-height: normal !important;
+  height: 100% !important;
+}
+
+.arco-dropdown-menu-item .arco-icon,
+.arco-dropdown-menu-item svg {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  vertical-align: middle !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+}
+
+/* Jadval amallar ustunidagi tugmalar (TableActions) vertikal markazlashuvi */
+.uwms-col-actions .arco-btn,
+.arco-table-td .arco-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  vertical-align: middle !important;
+}
+
+.uwms-col-actions .arco-btn .arco-btn-icon,
+.arco-table-td .arco-btn .arco-btn-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
 }

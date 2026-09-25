@@ -1131,7 +1131,7 @@ export const InboxPage: React.FC = () => {
           <div>
             <Space align="center" size="small">
               <Title heading={5} style={{ margin: 0 }}>
-                {t('inbox.title', 'Kutilayotgan Vazifalar Markazi (Action Center)')}
+                {t('inbox.title', 'Kutilayotgan Vazifalar')}
               </Title>
               {totalCount > 0 ? (
                 <Badge count={totalCount} maxCount={99} />
@@ -1268,7 +1268,7 @@ export const InboxPage: React.FC = () => {
                 key="handovers"
                 title={
                   <span>
-                    Moddiy javobgarlik arizalari (Handover Requests){' '}
+                    Moddiy javobgarlik arizalari{' '}
                     <Badge count={summary?.pendingHandoversCount} style={{ marginLeft: 6 }} />
                   </span>
                 }

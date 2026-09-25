@@ -245,9 +245,26 @@ export const TableActions: React.FC<TableActionsProps> = ({
 
   const renderMenuItem = (item: React.ReactNode, idx: number) => {
     const parsed = parseActionElement(item, idx);
+
+    const menuItemCommonStyle: React.CSSProperties = {
+      display: 'flex',
+      alignItems: 'center',
+      height: 36,
+      minHeight: 36,
+      padding: '0 12px',
+      lineHeight: 'normal',
+      boxSizing: 'border-box',
+    };
+
     if (!parsed) {
       return (
-        <Menu.Item key={`more-${idx}`} style={{ padding: '6px 12px' }}>
+        <Menu.Item
+          key={`more-${idx}`}
+          style={{
+            ...menuItemCommonStyle,
+            cursor: 'pointer',
+          }}
+        >
           {item}
         </Menu.Item>
       );
@@ -256,20 +273,41 @@ export const TableActions: React.FC<TableActionsProps> = ({
     const content = (
       <div
         style={{
-          display: 'flex',
+          display: 'inline-flex',
           alignItems: 'center',
           gap: 9,
           fontSize: 13,
+          lineHeight: 'normal',
           fontWeight: 450,
+          width: '100%',
+          height: '100%',
           color: parsed.disabled ? 'var(--color-text-4)' : parsed.isDanger ? '#F53F3F' : 'var(--color-text-1)',
         }}
       >
         {parsed.icon && (
-          <span style={{ display: 'inline-flex', fontSize: 14, flexShrink: 0 }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 14,
+              lineHeight: 1,
+              flexShrink: 0,
+            }}
+          >
             {parsed.icon}
           </span>
         )}
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            lineHeight: 'normal',
+          }}
+        >
           {parsed.label}
         </span>
       </div>
@@ -286,7 +324,10 @@ export const TableActions: React.FC<TableActionsProps> = ({
         >
           <Menu.Item
             key={parsed.key || `more-${idx}`}
-            style={{ padding: '8px 12px', cursor: 'pointer' }}
+            style={{
+              ...menuItemCommonStyle,
+              cursor: 'pointer',
+            }}
             onClick={(e) => {
               if (stopPropagation) e?.stopPropagation?.();
             }}
@@ -308,7 +349,7 @@ export const TableActions: React.FC<TableActionsProps> = ({
           }
         }}
         style={{
-          padding: '8px 12px',
+          ...menuItemCommonStyle,
           cursor: parsed.disabled ? 'not-allowed' : 'pointer',
         }}
       >

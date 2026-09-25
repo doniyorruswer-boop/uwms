@@ -121,7 +121,7 @@ errors.retry,Qayta urinish,Повторить попытку,Retry
 errors.backToHome,Bosh sahifaga qaytish,Вернуться на главную,Back to Dashboard
 errors.reloadPage,Sahifani yangilash,Обновить страницу,Reload Page
 
-inbox.title,Kutilayotgan Vazifalar Markazi (Action Center),Центр ожидающих задач (Action Center),Pending Action Center
+inbox.title,Kutilayotgan Vazifalar,Ожидающие задачи,Pending Tasks
 inbox.empty,Barcha vazifalar bajarilgan,Все задачи выполнены,All tasks completed
 
 quotas.title,Kafedralar va Bo‘limlar Oylik Limitlari,Ежемесячные лимиты кафедр и отделов,Monthly Quotas & Limits

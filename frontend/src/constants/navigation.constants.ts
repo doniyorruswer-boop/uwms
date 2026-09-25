@@ -23,7 +23,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     key: 'inbox',
     path: '/inbox',
     label: 'Vazifalarim',
-    pageTitle: 'Mening Vazifalarim (Action Center)',
+    pageTitle: 'Mening Vazifalarim',
   },
   {
     key: 'assets',
