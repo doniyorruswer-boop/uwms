@@ -27,6 +27,7 @@ export class SigningSessionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.HEAD_WAREHOUSE,
     RoleType.MOL,
     RoleType.AUDITOR,
@@ -49,6 +50,7 @@ export class SigningSessionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.HEAD_WAREHOUSE,
     RoleType.MOL,
     RoleType.AUDITOR,

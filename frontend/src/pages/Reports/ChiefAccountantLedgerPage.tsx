@@ -54,6 +54,7 @@ export const ChiefAccountantLedgerPage: React.FC = () => {
   const allowedRoles = [
     'CHIEF_ACCOUNTANT',
     'SUPER_ADMIN',
+    'ADMIN',
     'VICE_RECTOR_FINANCE',
     'RECTOR',
     'HEAD_WAREHOUSE',

@@ -9,6 +9,7 @@ generator client {
 
 enum RoleType {
   SUPER_ADMIN
+  ADMIN
   HEAD_WAREHOUSE
   MOL
   EMPLOYEE

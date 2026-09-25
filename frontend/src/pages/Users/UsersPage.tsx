@@ -48,21 +48,24 @@ import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { TableActions } from '../../components/Common/TableActions';
 import { exportToExcel } from '../../utils/exportExcel';
+import { formatUzbekPhone } from '../../utils/formatters';
 
 const roleTagColors: Record<RoleType, string> = {
   [RoleType.SUPER_ADMIN]: 'red',
-  [RoleType.HEAD_WAREHOUSE]: 'blue',
+  [RoleType.ADMIN]: 'blue',
+  [RoleType.HEAD_WAREHOUSE]: 'cyan',
   [RoleType.MOL]: 'gold',
   [RoleType.AUDITOR]: 'purple',
   [RoleType.EMPLOYEE]: 'gray',
-  [RoleType.CHIEF_ACCOUNTANT]: 'cyan',
+  [RoleType.CHIEF_ACCOUNTANT]: 'arcoblue',
   [RoleType.COMMENDANT]: 'orange',
   [RoleType.RECTOR]: 'magenta',
-  [RoleType.VICE_RECTOR_FINANCE]: 'arcoblue',
+  [RoleType.VICE_RECTOR_FINANCE]: 'green',
 };
 
 const roleLabels: Record<RoleType, string> = {
   [RoleType.SUPER_ADMIN]: 'Bosh Administrator',
+  [RoleType.ADMIN]: 'Universitet Administratori',
   [RoleType.HEAD_WAREHOUSE]: 'Bosh Ombor Mudiri',
   [RoleType.MOL]: 'Moddiy Javobgar Shaxs (MOL)',
   [RoleType.AUDITOR]: 'Ichki Auditor',
@@ -97,46 +100,65 @@ export const UsersPage: React.FC = () => {
   // Map role tab to query param
   const activeRoleQuery = useMemo(() => {
     if (roleTab === 'MOL') return RoleType.MOL;
-    if (roleTab === 'ADMIN') return RoleType.SUPER_ADMIN;
     if (roleTab === 'EMPLOYEE') return RoleType.EMPLOYEE;
     return undefined;
   }, [roleTab]);
+
+  const activeRolesQuery = useMemo(() => {
+    if (roleTab === 'ADMIN') {
+      return currentUser?.role === RoleType.ADMIN ? [RoleType.ADMIN] : [RoleType.SUPER_ADMIN, RoleType.ADMIN];
+    }
+    return undefined;
+  }, [roleTab, currentUser?.role]);
 
   const toggleStatusMutation = useToggleUserStatusMutation();
   const deleteUserMutation = useDeleteUserMutation();
   const restoreUserMutation = useRestoreUserMutation();
 
   const isSuperAdmin = currentUser?.role === RoleType.SUPER_ADMIN;
+  const canManageUsers = currentUser?.role === RoleType.SUPER_ADMIN || currentUser?.role === RoleType.ADMIN;
 
   // Queries & Mutations
   const { data, isLoading, isError, refetch } = useUsersQuery(
     {
       search: search.trim() || undefined,
       role: roleTab === 'DELETED' ? undefined : activeRoleQuery,
+      roles: roleTab === 'DELETED' ? undefined : activeRolesQuery,
       departmentId: deptFilter !== 'ALL' ? deptFilter : undefined,
       isActive: statusFilter === 'ALL' ? undefined : statusFilter === 'ACTIVE',
       showDeleted: roleTab === 'DELETED',
       page,
       pageSize,
     },
-    { enabled: isSuperAdmin }
+    { enabled: canManageUsers }
   );
+
+  const displayedUsers = useMemo(() => {
+    const items = data?.items || [];
+    if (currentUser?.role === RoleType.ADMIN) {
+      return items.filter((u) => u.role !== RoleType.SUPER_ADMIN);
+    }
+    return items;
+  }, [data?.items, currentUser?.role]);
 
   // Summary statistics calculation
   const totalUsers = data?.total || 0;
-  const activeUsers = data?.items.filter((u) => u.isActive).length || 0;
-  const molCount = data?.items.filter((u) => u.role === RoleType.MOL).length || 0;
-  const adminCount =
-    data?.items.filter((u) => u.role === RoleType.SUPER_ADMIN || u.role === RoleType.HEAD_WAREHOUSE)
-      .length || 0;
+  const activeUsers = displayedUsers.filter((u) => u.isActive).length;
+  const molCount = displayedUsers.filter((u) => u.role === RoleType.MOL).length;
+  const adminCount = displayedUsers.filter(
+    (u) =>
+      (currentUser?.role === RoleType.ADMIN ? false : u.role === RoleType.SUPER_ADMIN) ||
+      u.role === RoleType.ADMIN ||
+      u.role === RoleType.HEAD_WAREHOUSE
+  ).length;
 
-  // Permission Check: Only SUPER_ADMIN has full control
-  if (!isSuperAdmin) {
+  // Permission Check: SUPER_ADMIN and ADMIN have access
+  if (!canManageUsers) {
     return (
       <ForbiddenView
-        requiredRoles={['SUPER_ADMIN']}
+        requiredRoles={['SUPER_ADMIN', 'ADMIN']}
         title="Ruxsat Cheklangan"
-        subTitle="Foydalanuvchilar va xodimlarni boshqarish reestri faqat Tizim Bosh Administratori (SUPER_ADMIN) uchun ochiq."
+        subTitle="Foydalanuvchilar va xodimlarni boshqarish reestri faqat Tizim Administratorlari uchun ochiq."
       />
     );
   }
@@ -149,13 +171,13 @@ export const UsersPage: React.FC = () => {
   };
 
   const handleExportUsersExcel = () => {
-    const exportData = (data?.items || []).map((u) => ({
+    const exportData = displayedUsers.map((u) => ({
       'F.I.Sh.': u.fullName,
       'Login (Username)': u.username,
       'Roli': roleLabels[u.role] || u.role,
       'Bo‘lim / Kafedra': u.department?.name || '-',
       'Lavozim': u.position || '-',
-      'Telefon': u.phone || '-',
+      'Telefon': u.phone ? formatUzbekPhone(u.phone) : '-',
       'Email': u.email || '-',
       'Holati': u.isActive ? 'FAOL' : 'NOFAOL',
       'Biriktirilgan Ashyolar': u._count?.responsibleInstances || 0,
@@ -196,10 +218,10 @@ export const UsersPage: React.FC = () => {
     {
       title: 'Aloqa',
       key: 'contact',
-      width: 140,
+      width: 170,
       render: (_: any, record: UserItem) => (
-        <div style={{ fontSize: 13, color: 'var(--color-text-1)' }}>
-          {record.phone || '—'}
+        <div style={{ fontSize: 13, color: 'var(--color-text-1)', fontWeight: 500 }}>
+          {record.phone ? formatUzbekPhone(record.phone) : '—'}
         </div>
       ),
     },
@@ -254,6 +276,29 @@ export const UsersPage: React.FC = () => {
       key: 'isActive',
       width: 105,
       render: (isActive: boolean, record: UserItem) => {
+        const isSuperAdminTarget =
+          record.role === RoleType.SUPER_ADMIN && currentUser?.role === RoleType.ADMIN;
+
+        if (isSuperAdminTarget) {
+          return (
+            <div onClick={(e) => e.stopPropagation()}>
+              <Tooltip content="Bosh Administrator (SUPER_ADMIN) faollik holatini o‘zgartirish taqiqlanadi">
+                <Tag
+                  color={isActive ? 'green' : 'red'}
+                  size="small"
+                  style={{
+                    borderRadius: 0,
+                    cursor: 'not-allowed',
+                    fontWeight: 600,
+                  }}
+                >
+                  {isActive ? 'FAOL' : 'NOFAOL'}
+                </Tag>
+              </Tooltip>
+            </div>
+          );
+        }
+
         const hasObligations =
           isActive &&
           ((record._count?.responsibleInstances || 0) > 0 ||
@@ -274,7 +319,7 @@ export const UsersPage: React.FC = () => {
                     fontWeight: 600,
                   }}
                 >
-                  FAOL
+                  {isActive ? 'FAOL' : 'NOFAOL'}
                 </Tag>
               </Tooltip>
             </div>
@@ -316,158 +361,217 @@ export const UsersPage: React.FC = () => {
       key: 'actions',
       width: roleTab === 'DELETED' ? 140 : 230,
       fixed: 'right' as const,
-      render: (_: any, record: UserItem) => (
-        <div onClick={(e) => e.stopPropagation()}>
-          <TableActions rightPadding={0} gap={6} maxVisible={10}>
-            {record.deletedAt ? (
-              <Popconfirm
-                title="Ushbu foydalanuvchini qayta tiklashni (Restore) tasdiqlaysizmi?"
-                onOk={() => restoreUserMutation.mutate(record.id)}
-              >
-                <Button
-                  size="small"
-                  type="primary"
-                  status="success"
-                  icon={<IconRefresh />}
-                  style={{ borderRadius: 0 }}
-                >
-                  Tiklash
-                </Button>
-              </Popconfirm>
-            ) : (
-              <>
-                {(() => {
-                  const hasObligations =
-                    (record._count?.responsibleInstances || 0) > 0 ||
-                    (record._count?.responsibleRooms || 0) > 0;
-                  const isFullyCleared = !hasObligations;
+      render: (_: any, record: UserItem) => {
+        const isSuperAdminTarget =
+          record.role === RoleType.SUPER_ADMIN && currentUser?.role === RoleType.ADMIN;
 
-                  return (
-                    <>
-                      {/* 1. Javobgarlik Holati (Audit) tugmasi */}
-                      <Tooltip
-                        content={
-                          hasObligations
-                            ? `Javobgarlik Holati (Audit) — xodim zimmasidagi ${record._count?.responsibleInstances || 0} ta aktiv va ${record._count?.responsibleRooms || 0} ta xona balansi ko‘rigi hamda topshirish jarayoni`
-                            : "Javobgarlik Holati (Audit) — xodim zimmasida topshirilishi lozim bo‘lgan aktivlar yo‘q"
-                        }
-                      >
-                        <Button
-                          size="small"
-                          type={hasObligations ? "outline" : "secondary"}
-                          icon={<IconSwap />}
-                          style={{
-                            borderRadius: 0,
-                            color: hasObligations ? 'var(--color-primary-6)' : undefined,
-                            borderColor: hasObligations ? 'var(--color-primary-6)' : undefined,
-                          }}
-                          onClick={() => setHandoverUser(record)}
-                        />
-                      </Tooltip>
-
-                      {/* 2. Agar xodimning aktivlari 0 ta bo‘lsa va majburiyatlari bo‘lmasa: Aylanma Varaqa (Clearance) tugmasi */}
-                      <Tooltip
-                        content={
-                          isFullyCleared
-                            ? "Aylanma Varaqa (Clearance) — barcha moddiy majburiyatlardan ozod qilinganlik rasmiy ma’lumotnomasi va QR-shtamp"
-                            : `Aylanma Varaqa berilmaydi: avval zimmasidagi ${record._count?.responsibleInstances || 0} ta aktiv va ${record._count?.responsibleRooms || 0} ta xona topshirilishi shart`
-                        }
-                      >
-                        <Button
-                          size="small"
-                          type={isFullyCleared ? "outline" : "secondary"}
-                          status={isFullyCleared ? "success" : "default"}
-                          disabled={!isFullyCleared}
-                          icon={<IconFile />}
-                          style={{
-                            borderRadius: 0,
-                            color: isFullyCleared ? '#00B42A' : undefined,
-                            borderColor: isFullyCleared ? '#00B42A' : undefined,
-                          }}
-                          onClick={() => setCertUser(record)}
-                        />
-                      </Tooltip>
-                    </>
-                  );
-                })()}
-
-                {currentUser?.role === RoleType.SUPER_ADMIN && (
-                  <Tooltip content="Foydalanuvchi huquqlari va ruxsatlarini sozlash (Permissions)">
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <TableActions rightPadding={0} gap={6} maxVisible={10}>
+              {record.deletedAt ? (
+                isSuperAdminTarget ? (
+                  <Tooltip content="Bosh Administrator hisobini tiklash huquqi faqat Super Adminga tegishli">
                     <Button
                       size="small"
-                      type="secondary"
-                      icon={<IconSafe />}
-                      style={{ borderRadius: 0, color: 'var(--color-primary-6)' }}
-                      onClick={() => navigate(`/users/${record.id}/permissions`)}
-                    />
+                      type="primary"
+                      status="success"
+                      disabled
+                      icon={<IconRefresh />}
+                      style={{ borderRadius: 0 }}
+                    >
+                      Tiklash
+                    </Button>
                   </Tooltip>
-                )}
-
-                <Tooltip content="Ma’lumotlarni tahrirlash">
-                  <Button
-                    size="small"
-                    type="secondary"
-                    icon={<IconEdit />}
-                    style={{ borderRadius: 0 }}
-                    onClick={() => setEditingUser(record)}
-                  />
-                </Tooltip>
-
-                <Tooltip content="Parolni yangilash">
-                  <Button
-                    size="small"
-                    type="secondary"
-                    icon={<IconLock />}
-                    style={{ borderRadius: 0 }}
-                    onClick={() => setResettingUser(record)}
-                  />
-                </Tooltip>
-
-                {currentUser?.role === RoleType.SUPER_ADMIN && record.id !== currentUser?.id && (
-                  (() => {
-                    const hasActiveAssets =
+                ) : (
+                  <Popconfirm
+                    title="Ushbu foydalanuvchini qayta tiklashni (Restore) tasdiqlaysizmi?"
+                    onOk={() => restoreUserMutation.mutate(record.id)}
+                  >
+                    <Button
+                      size="small"
+                      type="primary"
+                      status="success"
+                      icon={<IconRefresh />}
+                      style={{ borderRadius: 0 }}
+                    >
+                      Tiklash
+                    </Button>
+                  </Popconfirm>
+                )
+              ) : (
+                <>
+                  {(() => {
+                    const hasObligations =
                       (record._count?.responsibleInstances || 0) > 0 ||
                       (record._count?.responsibleRooms || 0) > 0;
+                    const isFullyCleared = !hasObligations;
 
-                    if (hasActiveAssets) {
-                      return (
+                    return (
+                      <>
+                        {/* 1. Javobgarlik Holati (Audit) tugmasi */}
                         <Tooltip
-                          content={`Xodimni o‘chirish / arxivlash taqiqlanadi! Zimmasida ${record._count?.responsibleInstances || 0} ta aktiv yoki ${record._count?.responsibleRooms || 0} ta xona mas’ulligi mavjud. Avval to‘liq topshirish dalolatnomasi tuzilishi va aylanma varaqa olinishi shart.`}
+                          content={
+                            hasObligations
+                              ? `Javobgarlik Holati (Audit) — xodim zimmasidagi ${record._count?.responsibleInstances || 0} ta aktiv va ${record._count?.responsibleRooms || 0} ta xona balansi ko‘rigi hamda topshirish jarayoni`
+                              : "Javobgarlik Holati (Audit) — xodim zimmasida topshirilishi lozim bo‘lgan aktivlar yo‘q"
+                          }
                         >
                           <Button
                             size="small"
-                            status="danger"
-                            disabled
-                            icon={<IconDelete />}
-                            style={{ borderRadius: 0 }}
+                            type={hasObligations ? "outline" : "secondary"}
+                            icon={<IconSwap />}
+                            style={{
+                              borderRadius: 0,
+                              color: hasObligations ? 'var(--color-primary-6)' : undefined,
+                              borderColor: hasObligations ? 'var(--color-primary-6)' : undefined,
+                            }}
+                            onClick={() => setHandoverUser(record)}
                           />
                         </Tooltip>
-                      );
-                    }
 
-                    return (
-                      <Popconfirm
-                        title="Ushbu xodimni arxivlashni (Soft-delete) tasdiqlaysizmi?"
-                        onOk={() => deleteUserMutation.mutate(record.id)}
-                        okButtonProps={{ status: 'danger' }}
-                      >
-                        <Tooltip content="Xodimni arxivlash (Soft delete)">
+                        {/* 2. Agar xodimning aktivlari 0 ta bo‘lsa va majburiyatlari bo‘lmasa: Aylanma Varaqa (Clearance) tugmasi */}
+                        <Tooltip
+                          content={
+                            isFullyCleared
+                              ? "Aylanma Varaqa (Clearance) — barcha moddiy majburiyatlardan ozod qilinganlik rasmiy ma’lumotnomasi va QR-shtamp"
+                              : `Aylanma Varaqa berilmaydi: avval zimmasidagi ${record._count?.responsibleInstances || 0} ta aktiv va ${record._count?.responsibleRooms || 0} ta xona topshirilishi shart`
+                          }
+                        >
                           <Button
                             size="small"
-                            status="danger"
-                            icon={<IconDelete />}
-                            style={{ borderRadius: 0 }}
+                            type={isFullyCleared ? "outline" : "secondary"}
+                            status={isFullyCleared ? "success" : "default"}
+                            disabled={!isFullyCleared}
+                            icon={<IconFile />}
+                            style={{
+                              borderRadius: 0,
+                              color: isFullyCleared ? '#00B42A' : undefined,
+                              borderColor: isFullyCleared ? '#00B42A' : undefined,
+                            }}
+                            onClick={() => setCertUser(record)}
                           />
                         </Tooltip>
-                      </Popconfirm>
+                      </>
                     );
-                  })()
-                )}
-              </>
-            )}
-          </TableActions>
-        </div>
-      ),
+                  })()}
+
+                  {(currentUser?.role === RoleType.SUPER_ADMIN ||
+                    (currentUser?.role === RoleType.ADMIN && record.role !== RoleType.SUPER_ADMIN)) && (
+                    <Tooltip content="Foydalanuvchi huquqlari va ruxsatlarini sozlash (Permissions)">
+                      <Button
+                        size="small"
+                        type="secondary"
+                        icon={<IconSafe />}
+                        style={{ borderRadius: 0, color: 'var(--color-primary-6)' }}
+                        onClick={() => navigate(`/users/${record.id}/permissions`)}
+                      />
+                    </Tooltip>
+                  )}
+
+                  {isSuperAdminTarget ? (
+                    <Tooltip content="Bosh Administrator hisobini tahrirlash taqiqlanadi">
+                      <Button
+                        size="small"
+                        type="secondary"
+                        disabled
+                        icon={<IconEdit />}
+                        style={{ borderRadius: 0 }}
+                      />
+                    </Tooltip>
+                  ) : (
+                    <Tooltip content="Ma’lumotlarni tahrirlash">
+                      <Button
+                        size="small"
+                        type="secondary"
+                        icon={<IconEdit />}
+                        style={{ borderRadius: 0 }}
+                        onClick={() => setEditingUser(record)}
+                      />
+                    </Tooltip>
+                  )}
+
+                  {isSuperAdminTarget ? (
+                    <Tooltip content="Bosh Administrator parolini yangilash taqiqlanadi">
+                      <Button
+                        size="small"
+                        type="secondary"
+                        disabled
+                        icon={<IconLock />}
+                        style={{ borderRadius: 0 }}
+                      />
+                    </Tooltip>
+                  ) : (
+                    <Tooltip content="Parolni yangilash">
+                      <Button
+                        size="small"
+                        type="secondary"
+                        icon={<IconLock />}
+                        style={{ borderRadius: 0 }}
+                        onClick={() => setResettingUser(record)}
+                      />
+                    </Tooltip>
+                  )}
+
+                  {canManageUsers && record.id !== currentUser?.id && (
+                    (() => {
+                      if (isSuperAdminTarget) {
+                        return (
+                          <Tooltip content="Bosh Administratorni arxivlash taqiqlanadi">
+                            <Button
+                              size="small"
+                              status="danger"
+                              disabled
+                              icon={<IconDelete />}
+                              style={{ borderRadius: 0 }}
+                            />
+                          </Tooltip>
+                        );
+                      }
+
+                      const hasActiveAssets =
+                        (record._count?.responsibleInstances || 0) > 0 ||
+                        (record._count?.responsibleRooms || 0) > 0;
+
+                      if (hasActiveAssets) {
+                        return (
+                          <Tooltip
+                            content={`Xodimni o‘chirish / arxivlash taqiqlanadi! Zimmasida ${record._count?.responsibleInstances || 0} ta aktiv yoki ${record._count?.responsibleRooms || 0} ta xona mas’ulligi mavjud. Avval to‘liq topshirish dalolatnomasi tuzilishi va aylanma varaqa olinishi shart.`}
+                          >
+                            <Button
+                              size="small"
+                              status="danger"
+                              disabled
+                              icon={<IconDelete />}
+                              style={{ borderRadius: 0 }}
+                            />
+                          </Tooltip>
+                        );
+                      }
+
+                      return (
+                        <Popconfirm
+                          title="Ushbu xodimni arxivlashni (Soft-delete) tasdiqlaysizmi?"
+                          onOk={() => deleteUserMutation.mutate(record.id)}
+                          okButtonProps={{ status: 'danger' }}
+                        >
+                          <Tooltip content="Xodimni arxivlash (Soft delete)">
+                            <Button
+                              size="small"
+                              status="danger"
+                              icon={<IconDelete />}
+                              style={{ borderRadius: 0 }}
+                            />
+                          </Tooltip>
+                        </Popconfirm>
+                      );
+                    })()
+                  )}
+                </>
+              )}
+            </TableActions>
+          </div>
+        );
+      },
     },
   ];
 
@@ -482,7 +586,7 @@ export const UsersPage: React.FC = () => {
           { key: 'MOL', title: 'Moddiy Javobgarlar (MOL)', count: molCount },
           { key: 'ADMIN', title: 'Administratorlar', count: adminCount },
           { key: 'EMPLOYEE', title: 'Oddiy Xodimlar' },
-          ...(currentUser?.role === RoleType.SUPER_ADMIN
+          ...(canManageUsers
             ? [{ key: 'DELETED', title: 'O‘chirilganlar' }]
             : []),
         ]}
@@ -584,7 +688,7 @@ export const UsersPage: React.FC = () => {
       <StandardTable<UserItem>
         rowKey="id"
         columns={columns}
-        data={data?.items || []}
+        data={displayedUsers}
         loading={isLoading}
         scrollX={960}
         onRowClick={(record) => setDrawerUser(record)}

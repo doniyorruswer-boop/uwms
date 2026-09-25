@@ -72,6 +72,7 @@ import { EditWarehouseModal } from './EditWarehouseModal';
 
 const ALLOWED_WAREHOUSE_VIEW_ROLES = [
   'SUPER_ADMIN',
+  'ADMIN',
   'HEAD_WAREHOUSE',
   'CHIEF_ACCOUNTANT',
   'AUDITOR',
@@ -121,7 +122,7 @@ export const WarehousePage: React.FC = () => {
   // Track item IDs for which request has been submitted (tugma rangini o'zgartirish uchun)
   const [submittedItemIds, setSubmittedItemIds] = useState<Set<string>>(new Set());
 
-  const canManageWarehouse = user?.role === 'SUPER_ADMIN' || user?.role === 'HEAD_WAREHOUSE';
+  const canManageWarehouse = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'HEAD_WAREHOUSE';
   // Moddiy javobgarlik va davlat auditi qoidasi bo'yicha talabnomani faqat rasmiy Ombor Mudiri shakllantiradi
   const canRequestReplenishment = user?.role === 'HEAD_WAREHOUSE';
 
@@ -204,7 +205,7 @@ export const WarehousePage: React.FC = () => {
 
   // Permission Denied View (Rule 3 & 6.3)
   if (user && !ALLOWED_WAREHOUSE_VIEW_ROLES.includes(user.role)) {
-    return <ForbiddenView requiredRoles={['HEAD_WAREHOUSE', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'AUDITOR']} />;
+    return <ForbiddenView requiredRoles={['HEAD_WAREHOUSE', 'SUPER_ADMIN', 'ADMIN', 'CHIEF_ACCOUNTANT', 'AUDITOR']} />;
   }
 
   const handleCreateDraftRequest = (
@@ -1083,7 +1084,7 @@ export const WarehousePage: React.FC = () => {
                             Tahrirlash
                           </Button>
                         )}
-                        {user?.role === 'SUPER_ADMIN' && (
+                        {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
                           <Popconfirm
                             title="Omborni o‘chirish"
                             content="Haqiqatan ham ushbu omborni o‘chirmoqchimisiz? (Eslatma: Qoldig‘i bor omborni o‘chirish taqiqlanadi)"
@@ -1104,7 +1105,7 @@ export const WarehousePage: React.FC = () => {
                         )}
                       </>
                     ) : (
-                      user?.role === 'SUPER_ADMIN' && (
+                      (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
                         <Button
                           size="small"
                           type="text"

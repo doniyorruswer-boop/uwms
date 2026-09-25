@@ -28,14 +28,14 @@ export class RepairsController {
   }
 
   @Post()
-  @Roles(RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.COMMENDANT)
+  @Roles(RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.COMMENDANT)
   @ApiOperation({ summary: 'Yangi ta’mirlash talabnomasi yuborish' })
   async createRepair(@Body() dto: CreateRepairDto, @CurrentUser() user: any) {
     return this.repairsService.createRepair(dto, user?.id);
   }
 
   @Patch(':id/status')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.COMMENDANT, RoleType.MOL)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.COMMENDANT, RoleType.MOL)
   @ApiOperation({ summary: 'Ta’mirlash holatini yangilash (Qabul qilish / Yakunlash / Yaroqsiz deb topish)' })
   async updateRepairStatus(
     @Param('id') id: string,

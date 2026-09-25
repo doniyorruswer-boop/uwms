@@ -18,7 +18,7 @@ export class DashboardService {
 
     // Multi-tenant / Role Data Isolation (RequestsService bilan 1:1 mos holda)
     const baseRequestWhere: Prisma.RequestWhereInput = {};
-    if (user && user.role !== RoleType.SUPER_ADMIN) {
+    if (user && user.role !== RoleType.SUPER_ADMIN && user.role !== RoleType.ADMIN) {
       if (user.role === RoleType.EMPLOYEE) {
         baseRequestWhere.requesterId = user.id;
       } else if (user.role === RoleType.MOL && user.departmentId) {

@@ -55,7 +55,7 @@ export const FundingReportsPage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuthStore();
   const isMol = user?.role === 'MOL';
-  const allowedRoles = ['SUPER_ADMIN', 'HEAD_WAREHOUSE', 'MOL', 'CHIEF_ACCOUNTANT', 'VICE_RECTOR_FINANCE', 'RECTOR'];
+  const allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'HEAD_WAREHOUSE', 'MOL', 'CHIEF_ACCOUNTANT', 'VICE_RECTOR_FINANCE', 'RECTOR'];
   const hasAccess = user?.role && allowedRoles.includes(user.role);
 
   // Filters state
@@ -156,7 +156,7 @@ export const FundingReportsPage: React.FC = () => {
   if (!hasAccess) {
     return (
       <ForbiddenView
-        requiredRoles={['SUPER_ADMIN', 'HEAD_WAREHOUSE', 'MOL']}
+        requiredRoles={['SUPER_ADMIN', 'ADMIN', 'HEAD_WAREHOUSE', 'MOL']}
         title="Ushbu sahifaga kirish taqiqlangan"
         subTitle="Moliyalashtirish manbalari hisoboti faqat Bosh Omborchi, Rahbariyat yoki Mas’ul shaxs (MOL) uchun mo‘ljallangan."
       />

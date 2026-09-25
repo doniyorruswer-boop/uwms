@@ -9,7 +9,9 @@ import {
 } from '@arco-design/web-react';
 import { useCreateUserMutation, type CreateUserData } from '../../hooks/useUsersQuery';
 import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
+import { useAuthStore } from '../../store/authStore';
 import { RoleType } from '../../types';
+import { formatUzbekPhoneInput, isUzbekPhoneValid } from '../../utils/formatters';
 
 const FormItem = Form.Item;
 const { Row, Col } = Grid;
@@ -23,16 +25,21 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ visible, onClo
   const [form] = Form.useForm();
   const createMutation = useCreateUserMutation();
   const { departments } = useOrganizationQuery();
+  const { user: currentUser } = useAuthStore();
 
   const handleSubmit = async () => {
     try {
       const values = await form.validate();
+      const rawPhone = values.phone ? values.phone.trim() : '';
+      const digits = rawPhone.replace(/\D/g, '');
+      const normalizedPhone = digits.startsWith('998') ? `+${digits}` : `+998${digits}`;
+
       await createMutation.mutateAsync({
         fullName: values.fullName,
         username: values.username,
         password: values.password,
         email: values.email || undefined,
-        phone: values.phone || undefined,
+        phone: normalizedPhone,
         position: values.position || undefined,
         role: values.role as RoleType,
         departmentId: values.departmentId || undefined,
@@ -111,8 +118,32 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ visible, onClo
           </Col>
 
           <Col span={12}>
-            <FormItem label="Telefon Raqami" field="phone">
-              <Input placeholder="+998 90 123 45 67" style={{ borderRadius: 0 }} />
+            <FormItem
+              label="Telefon Raqami (O‘zbekiston)"
+              field="phone"
+              rules={[
+                { required: true, message: 'Telefon raqami kiritilishi shart!' },
+                {
+                  validator: (value, callback) => {
+                    if (!value) {
+                      return callback('Telefon raqami kiritilishi shart!');
+                    }
+                    if (!isUzbekPhoneValid(value)) {
+                      return callback('Telefon raqami O‘zbekiston shabloniga to‘liq mos kelishi shart (+998 XX XXX-XX-XX)!');
+                    }
+                    callback();
+                  },
+                },
+              ]}
+            >
+              <Input
+                placeholder="+998 (90) 123-45-67"
+                style={{ borderRadius: 0 }}
+                onChange={(val) => {
+                  const formatted = formatUzbekPhoneInput(val);
+                  form.setFieldValue('phone', formatted);
+                }}
+              />
             </FormItem>
           </Col>
 
@@ -123,7 +154,10 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ visible, onClo
               rules={[{ required: true, message: 'Rol tanlanishi shart!' }]}
             >
               <Select placeholder="Rolni tanlang" style={{ borderRadius: 0 }}>
-                <Select.Option value={RoleType.SUPER_ADMIN}>Super Admin (Tizim Boshqaruvchisi)</Select.Option>
+                {currentUser?.role === RoleType.SUPER_ADMIN && (
+                  <Select.Option value={RoleType.SUPER_ADMIN}>Super Admin (Tizim Boshqaruvchisi)</Select.Option>
+                )}
+                <Select.Option value={RoleType.ADMIN}>Universitet Administratori</Select.Option>
                 <Select.Option value={RoleType.HEAD_WAREHOUSE}>Bosh Omborchi</Select.Option>
                 <Select.Option value={RoleType.MOL}>MOL (Moddiy Javobgar Shaxs / Mudir)</Select.Option>
                 <Select.Option value={RoleType.AUDITOR}>Auditor / Nazoratchi</Select.Option>

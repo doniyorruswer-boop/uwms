@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
-import { ConflictException, BadRequestException } from '@nestjs/common';
+import { ConflictException, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { RoleType } from '@prisma/client';
 
 describe('UsersService', () => {
@@ -69,6 +69,7 @@ describe('UsersService', () => {
             fullName: 'Test User',
             username: 'existing_user',
             password: 'password123',
+            phone: '+998901234567',
             role: RoleType.EMPLOYEE,
           },
           'admin-id',
@@ -83,6 +84,7 @@ describe('UsersService', () => {
         fullName: 'Aliyev Vali',
         username: 'v_aliyev',
         password: 'hashed-password',
+        phone: '+998901234567',
         role: RoleType.EMPLOYEE,
         isActive: true,
         department: null,
@@ -93,6 +95,7 @@ describe('UsersService', () => {
           fullName: 'Aliyev Vali',
           username: 'v_aliyev',
           password: 'plainPassword123',
+          phone: '+998901234567',
           role: RoleType.EMPLOYEE,
         },
         'admin-id',
@@ -254,6 +257,215 @@ describe('UsersService', () => {
       mockPrisma.room.count.mockResolvedValueOnce(0);
 
       await expect(service.toggleStatus('user-pending', false, 'admin-1')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('ADMIN Hierarchy Protection (Enterprise Security)', () => {
+    const adminExecutor = { id: 'admin-user-id', role: RoleType.ADMIN };
+
+    it('ADMIN executor cannot create a user with SUPER_ADMIN role', async () => {
+      await expect(
+        service.create(
+          {
+            fullName: 'Fake Super Admin',
+            username: 'fake_sa',
+            password: 'password123',
+            phone: '+998901234567',
+            role: RoleType.SUPER_ADMIN,
+          },
+          adminExecutor,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('ADMIN executor cannot update a user who has SUPER_ADMIN role', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'real-sa-id',
+        role: RoleType.SUPER_ADMIN,
+        username: 'superadmin',
+      });
+
+      await expect(
+        service.update('real-sa-id', { fullName: 'Hacked Super Admin' }, adminExecutor),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('ADMIN executor cannot elevate an existing user to SUPER_ADMIN', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'employee-id',
+        role: RoleType.EMPLOYEE,
+        username: 'normal_emp',
+      });
+
+      await expect(
+        service.update('employee-id', { role: RoleType.SUPER_ADMIN }, adminExecutor),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('ADMIN executor cannot toggle status of a SUPER_ADMIN', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'real-sa-id',
+        role: RoleType.SUPER_ADMIN,
+        isActive: true,
+      });
+
+      await expect(
+        service.toggleStatus('real-sa-id', false, adminExecutor),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('ADMIN executor cannot reset password of a SUPER_ADMIN', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'real-sa-id',
+        role: RoleType.SUPER_ADMIN,
+        username: 'superadmin',
+      });
+
+      await expect(
+        service.resetPassword('real-sa-id', { newPassword: 'newPass123!' }, adminExecutor),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('ADMIN executor cannot delete a SUPER_ADMIN user', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'real-sa-id',
+        role: RoleType.SUPER_ADMIN,
+        deletedAt: null,
+      });
+
+      await expect(
+        service.remove('real-sa-id', adminExecutor),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('ADMIN executor cannot restore a deleted SUPER_ADMIN user', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'real-sa-id',
+        role: RoleType.SUPER_ADMIN,
+        deletedAt: new Date(),
+      });
+
+      await expect(
+        service.restore('real-sa-id', adminExecutor),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('PBAC Permissions Management & ADMIN Filtering', () => {
+    const adminExecutor = { id: 'admin-id', role: RoleType.ADMIN };
+    const superAdminExecutor = { id: 'sa-id', role: RoleType.SUPER_ADMIN };
+
+    it('getPermissionsCatalog returns all modules for SUPER_ADMIN', async () => {
+      const result = await service.getPermissionsCatalog(superAdminExecutor);
+      const moduleIds = result.modules.map((m) => m.id);
+      expect(moduleIds).toContain('system_audit');
+      expect(moduleIds).toContain('integrations');
+      expect(moduleIds).toContain('backups');
+    });
+
+    it('getPermissionsCatalog hides system_audit, integrations, backups for ADMIN', async () => {
+      const result = await service.getPermissionsCatalog(adminExecutor);
+      const moduleIds = result.modules.map((m) => m.id);
+      expect(moduleIds).not.toContain('system_audit');
+      expect(moduleIds).not.toContain('integrations');
+      expect(moduleIds).not.toContain('backups');
+      expect(moduleIds).toContain('assets');
+      expect(moduleIds).toContain('warehouse');
+      expect(moduleIds).toContain('users');
+    });
+
+    it('getUserPermissions hides system modules and codes for ADMIN executor', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'staff-id',
+        fullName: 'Test Staff',
+        username: 'test_staff',
+        role: RoleType.EMPLOYEE,
+        permissions: ['page:assets', 'assets:read', 'page:system_audit', 'system_audit:read'],
+        position: 'O‘qituvchi',
+        department: { id: 'dep-1', name: 'Kafedra' },
+      });
+
+      const result = await service.getUserPermissions('staff-id', adminExecutor);
+      const moduleIds = result.catalog.map((m) => m.id);
+      expect(moduleIds).not.toContain('system_audit');
+      expect(moduleIds).not.toContain('integrations');
+      expect(moduleIds).not.toContain('backups');
+      expect(result.permissions).not.toContain('page:system_audit');
+      expect(result.permissions).not.toContain('system_audit:read');
+      expect(result.permissions).toContain('page:assets');
+      expect(result.permissions).toContain('assets:read');
+    });
+
+    it('getUserPermissions throws NotFoundException when ADMIN tries to view SUPER_ADMIN permissions', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'sa-target-id',
+        role: RoleType.SUPER_ADMIN,
+        deletedAt: null,
+      });
+
+      await expect(
+        service.getUserPermissions('sa-target-id', adminExecutor),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('updateUserPermissions throws ForbiddenException when ADMIN tries to update SUPER_ADMIN', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'sa-target-id',
+        fullName: 'Super Admin',
+        username: 'superadmin',
+        role: RoleType.SUPER_ADMIN,
+        permissions: [],
+        deletedAt: null,
+      });
+
+      await expect(
+        service.updateUserPermissions('sa-target-id', { permissions: ['page:assets'] }, adminExecutor),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('updateUserPermissions strips super-admin-only permissions when ADMIN updates a user', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'staff-id',
+        fullName: 'Test Staff',
+        username: 'test_staff',
+        role: RoleType.EMPLOYEE,
+        permissions: [],
+        deletedAt: null,
+      });
+
+      mockPrisma.user.update.mockResolvedValueOnce({
+        id: 'staff-id',
+        fullName: 'Test Staff',
+        username: 'test_staff',
+        role: RoleType.EMPLOYEE,
+        permissions: ['page:assets', 'assets:read'],
+        position: 'Xodim',
+        updatedAt: new Date(),
+      });
+
+      await service.updateUserPermissions(
+        'staff-id',
+        {
+          permissions: [
+            'page:assets',
+            'assets:read',
+            'page:system_audit',
+            'system_audit:read',
+            'page:backups',
+            'backups:create',
+          ],
+        },
+        adminExecutor,
+      );
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'staff-id' },
+          data: {
+            permissions: ['page:assets', 'assets:read'],
+          },
+        }),
+      );
     });
   });
 });

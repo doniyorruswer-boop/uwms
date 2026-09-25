@@ -72,6 +72,7 @@ import { API_ENDPOINTS } from '../../constants';
 
 const ALLOWED_ASSET_ROLES = [
   'SUPER_ADMIN',
+  'ADMIN',
   'HEAD_WAREHOUSE',
   'MOL',
   'AUDITOR',
@@ -226,7 +227,7 @@ export const AssetsPage: React.FC = () => {
 
   const selectedAssetsList = assets.filter((a) => selectedRowKeys.includes(a.id));
 
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
   const handleOpenMyHandoverWizard = () => {
     // Foydalanuvchining o'z nomidagi (bo'ynidagi) faol aktivlari
@@ -335,6 +336,7 @@ export const AssetsPage: React.FC = () => {
 
   const canManageAssets =
     user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'ADMIN' ||
     user?.role === 'HEAD_WAREHOUSE' ||
     user?.role === 'MOL';
 
@@ -455,7 +457,7 @@ export const AssetsPage: React.FC = () => {
               render: (_, r: TransferItem) => {
                 const canAccept =
                   r.status === 'PENDING' &&
-                  (user?.role === 'MOL' || user?.role === 'SUPER_ADMIN' || user?.id === r.receiverId);
+                  (user?.role === 'MOL' || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.id === r.receiverId);
 
                 return (
                   <TableActions rightPadding={24} gap={8}>

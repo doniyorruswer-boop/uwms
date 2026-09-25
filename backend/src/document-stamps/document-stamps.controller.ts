@@ -45,7 +45,7 @@ export class DocumentStampsController {
   @Post('document-stamps')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(RoleType.SUPER_ADMIN, RoleType.HEAD_WAREHOUSE, RoleType.MOL, RoleType.AUDITOR)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.HEAD_WAREHOUSE, RoleType.MOL, RoleType.AUDITOR)
   @ApiOperation({ summary: 'Hujjatga raqamli muhr qo‘yish (Stamp document)' })
   async stampDocument(@Body() dto: CreateDocumentStampDto) {
     return this.documentStampsService.stampDocument(dto);
@@ -54,7 +54,7 @@ export class DocumentStampsController {
   @Post('document-stamps/revoke')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(RoleType.SUPER_ADMIN, RoleType.HEAD_WAREHOUSE, RoleType.AUDITOR)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.HEAD_WAREHOUSE, RoleType.AUDITOR)
   @ApiOperation({ summary: 'Muhrlangan hujjatni bekor qilish (Revoke Document Stamp)' })
   async revokeStamp(
     @Body() dto: RevokeDocumentStampDto,
@@ -68,6 +68,7 @@ export class DocumentStampsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.HEAD_WAREHOUSE,
     RoleType.MOL,
     RoleType.AUDITOR,

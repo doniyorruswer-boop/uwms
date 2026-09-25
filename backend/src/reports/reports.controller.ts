@@ -36,6 +36,7 @@ export class ReportsController {
   @Get('funding-summary')
   @Roles(
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.HEAD_WAREHOUSE,
     RoleType.MOL,
     RoleType.CHIEF_ACCOUNTANT,
@@ -56,6 +57,7 @@ export class ReportsController {
   @Get('funding-movements')
   @Roles(
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.HEAD_WAREHOUSE,
     RoleType.MOL,
     RoleType.CHIEF_ACCOUNTANT,
@@ -75,6 +77,7 @@ export class ReportsController {
   @Get('funding-export')
   @Roles(
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.HEAD_WAREHOUSE,
     RoleType.MOL,
     RoleType.CHIEF_ACCOUNTANT,
@@ -105,6 +108,7 @@ export class ReportsController {
   @Roles(
     RoleType.CHIEF_ACCOUNTANT,
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.VICE_RECTOR_FINANCE,
     RoleType.RECTOR,
     RoleType.HEAD_WAREHOUSE,
@@ -123,6 +127,7 @@ export class ReportsController {
   @Roles(
     RoleType.CHIEF_ACCOUNTANT,
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.VICE_RECTOR_FINANCE,
     RoleType.RECTOR,
     RoleType.HEAD_WAREHOUSE,
@@ -141,6 +146,7 @@ export class ReportsController {
   @Roles(
     RoleType.CHIEF_ACCOUNTANT,
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.VICE_RECTOR_FINANCE,
     RoleType.RECTOR,
     RoleType.HEAD_WAREHOUSE,
@@ -156,6 +162,7 @@ export class ReportsController {
   @Roles(
     RoleType.CHIEF_ACCOUNTANT,
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.VICE_RECTOR_FINANCE,
     RoleType.RECTOR,
     RoleType.HEAD_WAREHOUSE,
@@ -178,6 +185,7 @@ export class ReportsController {
   @Get('clearance-certificate/:userId')
   @Roles(
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.CHIEF_ACCOUNTANT,
     RoleType.VICE_RECTOR_FINANCE,
     RoleType.RECTOR,
@@ -200,6 +208,7 @@ export class ReportsController {
   @Get('clearance-certificate/:userId/download')
   @Roles(
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.CHIEF_ACCOUNTANT,
     RoleType.VICE_RECTOR_FINANCE,
     RoleType.RECTOR,

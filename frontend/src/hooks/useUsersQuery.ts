@@ -33,6 +33,7 @@ export interface UserItem {
 export interface QueryUsersParams {
   search?: string;
   role?: string;
+  roles?: string[];
   departmentId?: string;
   isActive?: boolean;
   page?: number;
@@ -53,7 +54,7 @@ export interface CreateUserData {
   username: string;
   password: string;
   email?: string;
-  phone?: string;
+  phone: string;
   position?: string;
   role: RoleType;
   departmentId?: string;

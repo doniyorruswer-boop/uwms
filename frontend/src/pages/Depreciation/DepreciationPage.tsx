@@ -56,6 +56,7 @@ export const DepreciationPage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const canExecute =
     user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'ADMIN' ||
     user?.role === 'CHIEF_ACCOUNTANT' ||
     user?.role === 'VICE_RECTOR_FINANCE';
   const canView = canExecute || user?.role === 'AUDITOR';
@@ -103,7 +104,7 @@ export const DepreciationPage: React.FC = () => {
       <ForbiddenView
         title="403 — Kirish Cheklangan"
         subTitle="Amortizatsiya hisobi va qoldiq qiymat moduliga kirish faqat Bosh hisobchi, Moliya prorektori va Tizim administratori uchun ruxsat etilgan."
-        requiredRoles={['CHIEF_ACCOUNTANT', 'VICE_RECTOR_FINANCE', 'SUPER_ADMIN']}
+        requiredRoles={['CHIEF_ACCOUNTANT', 'VICE_RECTOR_FINANCE', 'SUPER_ADMIN', 'ADMIN']}
       />
     );
   }

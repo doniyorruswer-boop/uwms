@@ -93,6 +93,7 @@ export class RequestsController {
           user.role !== RoleType.MOL &&
           user.role !== RoleType.EMPLOYEE &&
           user.role !== RoleType.SUPER_ADMIN &&
+          user.role !== RoleType.ADMIN &&
           user.role !== RoleType.HEAD_WAREHOUSE
         ) {
           throw new ForbiddenException(

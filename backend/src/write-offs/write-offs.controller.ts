@@ -28,7 +28,7 @@ export class WriteOffsController {
   }
 
   @Post()
-  @Roles(RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.COMMENDANT, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.COMMENDANT, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Yangi hisobdan chiqarish jarayonini boshlash va komissiya tuzish (OS-4)' })
   async createWriteOff(@Body() dto: CreateWriteOffDto, @CurrentUser() user: any) {
     return this.writeOffsService.createWriteOff(dto, user?.id);
@@ -39,6 +39,7 @@ export class WriteOffsController {
     RoleType.MOL,
     RoleType.HEAD_WAREHOUSE,
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.CHIEF_ACCOUNTANT,
     RoleType.COMMENDANT,
     RoleType.VICE_RECTOR_FINANCE,

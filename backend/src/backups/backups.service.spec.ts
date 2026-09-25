@@ -3,6 +3,7 @@ import { BackupsService } from './backups.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { S3StorageService } from './s3-storage.service';
 import { BackupType } from '@prisma/client';
 
 describe('BackupsService (Unit Tests)', () => {
@@ -27,6 +28,14 @@ describe('BackupsService (Unit Tests)', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: SystemAuditService, useValue: { log: jest.fn() } },
         { provide: NotificationsService, useValue: { notifyRole: jest.fn() } },
+        {
+          provide: S3StorageService,
+          useValue: {
+            uploadBackup: jest.fn(),
+            downloadBackup: jest.fn(),
+            deleteBackup: jest.fn(),
+          },
+        },
       ],
     }).compile();
 

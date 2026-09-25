@@ -251,10 +251,100 @@ export const ALL_PERMISSION_CODES: string[] = PERMISSION_MODULES.flatMap((mod) =
 );
 
 /**
+ * Universitet administratori (ADMIN) ko'ra olmaydigan va boshqara olmaydigan
+ * faqat SUPER_ADMIN ga tegishli tizim modullari va ruxsat kodlari
+ */
+export const SUPER_ADMIN_ONLY_MODULE_IDS: string[] = [
+  'system_audit',
+  'integrations',
+  'backups',
+];
+
+export const SUPER_ADMIN_ONLY_PERMISSION_CODES: string[] = PERMISSION_MODULES
+  .filter((mod) => SUPER_ADMIN_ONLY_MODULE_IDS.includes(mod.id))
+  .flatMap((mod) => mod.permissions.map((p) => p.code));
+
+/**
  * Har bir rol uchun tavsiya etiladigan standart ruxsatlar matritsasi (Presets)
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, string[]> = {
   [RoleType.SUPER_ADMIN]: ALL_PERMISSION_CODES,
+
+  [RoleType.ADMIN]: [
+    'page:dashboard',
+    'dashboard:view_stats',
+    'dashboard:view_financials',
+    'page:inbox',
+    'inbox:sign',
+    'inbox:reject',
+    'page:assets',
+    'assets:read',
+    'assets:create',
+    'assets:update',
+    'assets:delete',
+    'assets:export',
+    'assets:print_qr',
+    'assets:import',
+    'page:warehouse',
+    'warehouse:read',
+    'warehouse:create',
+    'warehouse:update',
+    'warehouse:delete',
+    'warehouse:issue',
+    'warehouse:export',
+    'page:suppliers',
+    'suppliers:read',
+    'suppliers:create',
+    'suppliers:update',
+    'suppliers:delete',
+    'page:movements',
+    'movements:read',
+    'movements:print_doc',
+    'movements:export',
+    'page:requests',
+    'requests:read',
+    'requests:create',
+    'requests:update',
+    'requests:approve',
+    'requests:fulfill',
+    'page:repairs',
+    'repairs:read',
+    'repairs:create',
+    'repairs:update',
+    'repairs:approve',
+    'page:write_offs',
+    'write_offs:read',
+    'write_offs:create',
+    'write_offs:vote',
+    'write_offs:print',
+    'page:depreciation',
+    'depreciation:read',
+    'depreciation:execute',
+    'depreciation:export',
+    'page:chief_accountant',
+    'page:funding_reports',
+    'reports:read',
+    'reports:stamp',
+    'reports:export',
+    'page:audit',
+    'page:audit_campaigns',
+    'audit:scan',
+    'audit:read',
+    'audit:campaign_manage',
+    'page:organization',
+    'organization:read',
+    'organization:manage',
+    'organization:assign_mol',
+    'page:quotas',
+    'quotas:read',
+    'quotas:manage',
+    'page:users',
+    'users:read',
+    'users:create',
+    'users:update',
+    'users:reset_password',
+    'users:delete',
+  ],
 
   [RoleType.HEAD_WAREHOUSE]: [
     'page:dashboard',

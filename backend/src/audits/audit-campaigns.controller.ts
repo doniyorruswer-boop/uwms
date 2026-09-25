@@ -32,7 +32,7 @@ export class AuditCampaignsController {
   }
 
   @Post()
-  @Roles(RoleType.AUDITOR, RoleType.SUPER_ADMIN, RoleType.HEAD_WAREHOUSE, RoleType.RECTOR, RoleType.VICE_RECTOR_FINANCE)
+  @Roles(RoleType.AUDITOR, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.HEAD_WAREHOUSE, RoleType.RECTOR, RoleType.VICE_RECTOR_FINANCE)
   @ApiOperation({ summary: 'Yangi rejali inventarizatsiya kampaniyasi yaratish' })
   async create(@Body() dto: CreateCampaignDto, @CurrentUser() user: any) {
     return this.campaignsService.create(dto, user?.id);
@@ -56,7 +56,7 @@ export class AuditCampaignsController {
   }
 
   @Post(':id/complete')
-  @Roles(RoleType.AUDITOR, RoleType.SUPER_ADMIN, RoleType.HEAD_WAREHOUSE)
+  @Roles(RoleType.AUDITOR, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.HEAD_WAREHOUSE)
   @ApiOperation({ summary: 'Kampaniyani tekshiruvchi imzosi bilan yakunlash, kamomadlarni hisoblash, xabarnoma yuborish va INV-19 muhrlash' })
   async complete(
     @Param('id') id: string,
@@ -67,7 +67,7 @@ export class AuditCampaignsController {
   }
 
   @Get(':id/export/excel')
-  @Roles(RoleType.AUDITOR, RoleType.SUPER_ADMIN, RoleType.HEAD_WAREHOUSE, RoleType.CHIEF_ACCOUNTANT, RoleType.RECTOR, RoleType.VICE_RECTOR_FINANCE)
+  @Roles(RoleType.AUDITOR, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.HEAD_WAREHOUSE, RoleType.CHIEF_ACCOUNTANT, RoleType.RECTOR, RoleType.VICE_RECTOR_FINANCE)
   @ApiOperation({ summary: 'Kampaniya bo‘yicha INV-19 rasmiy 3-varaqli Excel (.xlsx) hisobotini yuklab olish' })
   async exportExcel(
     @Param('id') id: string,
@@ -82,7 +82,7 @@ export class AuditCampaignsController {
 
 
   @Post(':id/cancel')
-  @Roles(RoleType.AUDITOR, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.AUDITOR, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Kampaniyani bekor qilish' })
   async cancel(
     @Param('id') id: string,

@@ -19,6 +19,7 @@ import {
 } from '@arco-design/web-react/icon';
 import { useUserAssetsQuery, type UserItem } from '../../hooks/useUsersQuery';
 import { RoleType } from '../../types';
+import { formatUzbekPhone } from '../../utils/formatters';
 
 const { Title, Text } = Typography;
 const { Row, Col } = Grid;
@@ -31,18 +32,20 @@ interface UserAssetsDrawerProps {
 
 const roleTagColors: Record<RoleType, string> = {
   [RoleType.SUPER_ADMIN]: 'red',
-  [RoleType.HEAD_WAREHOUSE]: 'blue',
+  [RoleType.ADMIN]: 'blue',
+  [RoleType.HEAD_WAREHOUSE]: 'cyan',
   [RoleType.MOL]: 'gold',
   [RoleType.AUDITOR]: 'purple',
   [RoleType.EMPLOYEE]: 'gray',
-  [RoleType.CHIEF_ACCOUNTANT]: 'cyan',
+  [RoleType.CHIEF_ACCOUNTANT]: 'arcoblue',
   [RoleType.COMMENDANT]: 'orange',
   [RoleType.RECTOR]: 'magenta',
-  [RoleType.VICE_RECTOR_FINANCE]: 'arcoblue',
+  [RoleType.VICE_RECTOR_FINANCE]: 'green',
 };
 
 const roleLabels: Record<RoleType, string> = {
   [RoleType.SUPER_ADMIN]: 'Super Admin',
+  [RoleType.ADMIN]: 'Universitet Administratori',
   [RoleType.HEAD_WAREHOUSE]: 'Bosh Omborchi',
   [RoleType.MOL]: 'MOL (Moddiy Javobgar)',
   [RoleType.AUDITOR]: 'Auditor',
@@ -169,7 +172,7 @@ export const UserAssetsDrawer: React.FC<UserAssetsDrawerProps> = ({
               },
               { label: 'Bo‘lim / Kafedra', value: user.department?.name || '—' },
               { label: 'Lavozim', value: user.position || '—' },
-              { label: 'Telefon', value: user.phone || '—' },
+              { label: 'Telefon', value: user.phone ? formatUzbekPhone(user.phone) : '—' },
               { label: 'Email', value: user.email || '—' },
               {
                 label: 'Holati',

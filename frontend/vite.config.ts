@@ -1,3 +1,11 @@
+import nodeCrypto from 'node:crypto';
+if (!globalThis.crypto) {
+  (globalThis as any).crypto = nodeCrypto;
+}
+if (typeof (global as any).crypto === 'undefined') {
+  (global as any).crypto = (globalThis as any).crypto || nodeCrypto;
+}
+
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';

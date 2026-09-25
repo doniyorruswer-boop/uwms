@@ -30,7 +30,7 @@ export class DocumentArchivesController {
   constructor(private readonly documentArchivesService: DocumentArchivesService) {}
 
   @Post('generate')
-  @Roles(RoleType.SUPER_ADMIN, RoleType.HEAD_WAREHOUSE, RoleType.MOL, RoleType.AUDITOR)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.HEAD_WAREHOUSE, RoleType.MOL, RoleType.AUDITOR)
   @ApiOperation({ summary: 'Rasmiy hujjatni versiyalash va elektron arxivlash' })
   async generateArchive(
     @Body() dto: GenerateArchiveDto,
@@ -42,6 +42,7 @@ export class DocumentArchivesController {
   @Get()
   @Roles(
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.HEAD_WAREHOUSE,
     RoleType.MOL,
     RoleType.AUDITOR,
@@ -55,6 +56,7 @@ export class DocumentArchivesController {
   @Get('handover/:handoverId')
   @Roles(
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.HEAD_WAREHOUSE,
     RoleType.MOL,
     RoleType.AUDITOR,
@@ -71,6 +73,7 @@ export class DocumentArchivesController {
   @Get(':id')
   @Roles(
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.HEAD_WAREHOUSE,
     RoleType.MOL,
     RoleType.AUDITOR,
@@ -84,6 +87,7 @@ export class DocumentArchivesController {
   @Get(':id/download')
   @Roles(
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.HEAD_WAREHOUSE,
     RoleType.MOL,
     RoleType.AUDITOR,
@@ -101,7 +105,7 @@ export class DocumentArchivesController {
   }
 
   @Post(':id/cancel')
-  @Roles(RoleType.SUPER_ADMIN, RoleType.HEAD_WAREHOUSE, RoleType.AUDITOR)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.HEAD_WAREHOUSE, RoleType.AUDITOR)
   @ApiOperation({ summary: 'Arxivlangan hujjatni bekor qilish (sababi bilan)' })
   async cancelArchive(
     @Param('id') id: string,

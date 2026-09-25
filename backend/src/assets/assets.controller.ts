@@ -38,7 +38,7 @@ export class AssetsController {
   }
 
   @Patch('transfers/:id/respond')
-  @Roles(RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Topshirish-qabul qilish dalolatnomasini tasdiqlash yoki rad etish (OS-1)' })
   async respondTransfer(
     @Param('id') id: string,
@@ -71,7 +71,7 @@ export class AssetsController {
   }
 
   @Post()
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Yangi asosiy vosita kirim qilish (faqat Bosh Omborchi va Admin)' })
   async createAsset(@Body() dto: CreateAssetDto, @CurrentUser() user: any) {
     return this.assetsService.createAsset({
@@ -81,7 +81,7 @@ export class AssetsController {
   }
 
   @Patch(':id/transfer')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.MOL, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.MOL, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Uskunani boshqa xonaga ko‘chirish' })
   async transferAsset(
     @Param('id') id: string,
@@ -95,7 +95,7 @@ export class AssetsController {
   }
 
   @Post('batch-transfer')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Bir nechta uskunani bir vaqtda ko‘chirish (Ommaviy)' })
   async transferBatch(
     @Body() dto: BatchTransferAssetDto,
@@ -108,7 +108,7 @@ export class AssetsController {
   }
 
   @Get('import-template')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.MOL)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.MOL)
   @ApiOperation({ summary: 'Asosiy vositalarni Excel orqali import qilish uchun andoza (shablon) fayl' })
   async downloadImportTemplate(@Res() res: Response) {
     const result = await this.assetsService.generateImportTemplate();
@@ -118,14 +118,14 @@ export class AssetsController {
   }
 
   @Post('import-preview')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Excel import qatorlarini dastlabki tekshirish (Dry-Run, bazaga yozilmaydi)' })
   async previewImportExcel(@Body() dto: ImportExcelAssetsDto) {
     return this.assetsService.previewImportExcelAssets(dto);
   }
 
   @Post('import')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Asosiy vositalarni tasdiqlangan qatorlar bo‘yicha import qilish' })
   async importAssets(
     @Body() dto: ImportExcelAssetsDto,
@@ -135,7 +135,7 @@ export class AssetsController {
   }
 
   @Post('import-excel')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Mavjud asosiy vositalarni Excel orqali ommaviy yuklash (Legacy endpoint)' })
   async importExcel(
     @Body() dto: ImportExcelAssetsDto,
@@ -145,7 +145,7 @@ export class AssetsController {
   }
 
   @Patch(':id/write-off')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Uskunani hisobdan chiqarish (Spisanie)' })
   async writeOffAsset(
     @Param('id') id: string,
@@ -159,7 +159,7 @@ export class AssetsController {
   }
 
   @Post('return')
-  @Roles(RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Asosiy vositani kafedradan markaziy omborga qaytarish arizasi' })
   async returnAsset(
     @Body() dto: ReturnAssetDto,
@@ -170,7 +170,7 @@ export class AssetsController {
 
 
   @Post(':id/reprint-qr')
-  @Roles(RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.AUDITOR)
+  @Roles(RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.AUDITOR)
   @ApiOperation({ summary: 'QR-stikerni qayta chop etish sababini audit jurnaliga yozish' })
   async reprintQr(
     @Param('id') id: string,

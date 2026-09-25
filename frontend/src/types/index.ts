@@ -1,5 +1,6 @@
 export const RoleType = {
   SUPER_ADMIN: 'SUPER_ADMIN',
+  ADMIN: 'ADMIN',
   HEAD_WAREHOUSE: 'HEAD_WAREHOUSE',
   MOL: 'MOL',
   EMPLOYEE: 'EMPLOYEE',

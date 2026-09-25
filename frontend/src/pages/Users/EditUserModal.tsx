@@ -13,7 +13,9 @@ import {
   type UpdateUserData,
 } from '../../hooks/useUsersQuery';
 import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
+import { useAuthStore } from '../../store/authStore';
 import { RoleType } from '../../types';
+import { formatUzbekPhoneInput, isUzbekPhoneValid } from '../../utils/formatters';
 
 const FormItem = Form.Item;
 const { Row, Col } = Grid;
@@ -32,13 +34,14 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
   const [form] = Form.useForm();
   const updateMutation = useUpdateUserMutation();
   const { departments } = useOrganizationQuery();
+  const { user: currentUser } = useAuthStore();
 
   useEffect(() => {
     if (visible && user) {
       form.setFieldsValue({
         fullName: user.fullName,
         email: user.email || '',
-        phone: user.phone || '',
+        phone: user.phone ? formatUzbekPhoneInput(user.phone) : '',
         position: user.position || '',
         role: user.role,
         departmentId: user.departmentId || undefined,
@@ -53,10 +56,17 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
     if (!user) return;
     try {
       const values = await form.validate();
+      const rawPhone = values.phone ? values.phone.trim() : '';
+      let normalizedPhone: string | undefined = undefined;
+      if (rawPhone) {
+        const digits = rawPhone.replace(/\D/g, '');
+        normalizedPhone = digits.startsWith('998') ? `+${digits}` : `+998${digits}`;
+      }
+
       const updateData: UpdateUserData = {
         fullName: values.fullName,
         email: values.email || undefined,
-        phone: values.phone || undefined,
+        phone: normalizedPhone,
         position: values.position || undefined,
         role: values.role as RoleType,
         departmentId: values.departmentId || null,
@@ -110,8 +120,32 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
           </Col>
 
           <Col span={12}>
-            <FormItem label="Telefon Raqami" field="phone">
-              <Input placeholder="+998 90 123 45 67" style={{ borderRadius: 0 }} />
+            <FormItem
+              label="Telefon Raqami (O‘zbekiston)"
+              field="phone"
+              rules={[
+                { required: true, message: 'Telefon raqami kiritilishi shart!' },
+                {
+                  validator: (value, callback) => {
+                    if (!value) {
+                      return callback('Telefon raqami kiritilishi shart!');
+                    }
+                    if (!isUzbekPhoneValid(value)) {
+                      return callback('Telefon raqami O‘zbekiston shabloniga to‘liq mos kelishi shart (+998 XX XXX-XX-XX)!');
+                    }
+                    callback();
+                  },
+                },
+              ]}
+            >
+              <Input
+                placeholder="+998 (90) 123-45-67"
+                style={{ borderRadius: 0 }}
+                onChange={(val) => {
+                  const formatted = formatUzbekPhoneInput(val);
+                  form.setFieldValue('phone', formatted);
+                }}
+              />
             </FormItem>
           </Col>
 
@@ -122,8 +156,13 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
               rules={[{ required: true, message: 'Rol tanlanishi shart!' }]}
             >
               <Select placeholder="Rolni tanlang" style={{ borderRadius: 0 }}>
-                <Select.Option value={RoleType.SUPER_ADMIN}>
-                  Super Admin (Tizim Boshqaruvchisi)
+                {currentUser?.role === RoleType.SUPER_ADMIN && (
+                  <Select.Option value={RoleType.SUPER_ADMIN}>
+                    Super Admin (Tizim Boshqaruvchisi)
+                  </Select.Option>
+                )}
+                <Select.Option value={RoleType.ADMIN}>
+                  Universitet Administratori
                 </Select.Option>
                 <Select.Option value={RoleType.HEAD_WAREHOUSE}>
                   Bosh Omborchi

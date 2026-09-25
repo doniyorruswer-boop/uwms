@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
   Logger,
   Optional,
 } from '@nestjs/common';
@@ -18,6 +19,8 @@ import * as bcrypt from 'bcrypt';
 import {
   PERMISSION_MODULES,
   DEFAULT_ROLE_PERMISSIONS,
+  SUPER_ADMIN_ONLY_MODULE_IDS,
+  SUPER_ADMIN_ONLY_PERMISSION_CODES,
 } from '../auth/constants/permissions.constants';
 import { UpdatePermissionsDto } from './dto/update-permissions.dto';
 
@@ -31,7 +34,14 @@ export class UsersService {
     @Optional() private readonly eventsGateway?: EventsGateway,
   ) {}
 
-  async findAll(query: QueryUsersDto) {
+  private extractExecutor(executor: string | { id: string; role?: RoleType }): { id: string; role?: RoleType } {
+    if (typeof executor === 'string') {
+      return { id: executor, role: undefined };
+    }
+    return { id: executor.id, role: executor.role };
+  }
+
+  async findAll(query: QueryUsersDto, executor?: string | { id: string; role?: RoleType }) {
     const { search, role, departmentId, isActive, page = 1, pageSize = 10 } = query;
     const skip = (page - 1) * pageSize;
 
@@ -43,8 +53,26 @@ export class UsersService {
       where.deletedAt = null;
     }
 
-    if (role) {
-      where.role = role;
+    const { role: executorRole } = executor ? this.extractExecutor(executor) : { role: undefined };
+
+    if (executorRole === RoleType.ADMIN) {
+      if (query.roles && query.roles.length > 0) {
+        const safeRoles = query.roles.filter((r) => r !== RoleType.SUPER_ADMIN);
+        where.role = { in: safeRoles };
+      } else if (role) {
+        if (role === RoleType.SUPER_ADMIN) {
+          return { items: [], total: 0, page, pageSize, totalPages: 0 };
+        }
+        where.role = role;
+      } else {
+        where.role = { not: RoleType.SUPER_ADMIN };
+      }
+    } else {
+      if (query.roles && query.roles.length > 0) {
+        where.role = { in: query.roles };
+      } else if (role) {
+        where.role = role;
+      }
     }
 
     if (departmentId) {
@@ -101,7 +129,7 @@ export class UsersService {
     };
   }
 
-  async findById(id: string) {
+  async findById(id: string, executor?: string | { id: string; role?: RoleType }) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: {
@@ -123,12 +151,19 @@ export class UsersService {
       throw new NotFoundException(`ID '${id}' ga ega foydalanuvchi topilmadi`);
     }
 
+    if (executor) {
+      const { role: executorRole } = this.extractExecutor(executor);
+      if (executorRole === RoleType.ADMIN && user.role === RoleType.SUPER_ADMIN) {
+        throw new NotFoundException(`ID '${id}' ga ega foydalanuvchi topilmadi`);
+      }
+    }
+
     const { password, ...rest } = user;
     return rest;
   }
 
-  async getUserAssets(id: string) {
-    await this.findById(id);
+  async getUserAssets(id: string, executor?: string | { id: string; role?: RoleType }) {
+    await this.findById(id, executor);
 
     const [rooms, assets] = await Promise.all([
       this.prisma.room.findMany({
@@ -156,7 +191,14 @@ export class UsersService {
     };
   }
 
-  async create(dto: CreateUserDto, executorId: string) {
+  async create(dto: CreateUserDto, executor: string | { id: string; role?: RoleType }) {
+    const { id: executorId, role: executorRole } = this.extractExecutor(executor);
+
+    // Hierarchy protection: ADMIN cannot create SUPER_ADMIN
+    if (executorRole === RoleType.ADMIN && dto.role === RoleType.SUPER_ADMIN) {
+      throw new ForbiddenException('Administrator Super Admin rolidagi foydalanuvchi yarata olmaydi!');
+    }
+
     // 1. Check unique username
     const existingUsername = await this.prisma.user.findUnique({
       where: { username: dto.username },
@@ -229,10 +271,22 @@ export class UsersService {
     return sanitized;
   }
 
-  async update(id: string, dto: UpdateUserDto, executorId: string) {
+  async update(id: string, dto: UpdateUserDto, executor: string | { id: string; role?: RoleType }) {
+    const { id: executorId, role: executorRole } = this.extractExecutor(executor);
+
     const existing = await this.prisma.user.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException(`Foydalanuvchi topilmadi`);
+    }
+
+    // Hierarchy protection: ADMIN cannot edit SUPER_ADMIN or promote any user to SUPER_ADMIN
+    if (executorRole === RoleType.ADMIN) {
+      if (existing.role === RoleType.SUPER_ADMIN) {
+        throw new ForbiddenException('Administrator Super Admin hisobini tahrirlay olmaydi!');
+      }
+      if (dto.role === RoleType.SUPER_ADMIN) {
+        throw new ForbiddenException('Administrator foydalanuvchi rolini Super Admin roliga ko‘tara olmaydi!');
+      }
     }
 
     // Check unique email if changed
@@ -306,10 +360,17 @@ export class UsersService {
     return sanitized;
   }
 
-  async toggleStatus(id: string, isActive: boolean, executorId: string) {
+  async toggleStatus(id: string, isActive: boolean, executor: string | { id: string; role?: RoleType }) {
+    const { id: executorId, role: executorRole } = this.extractExecutor(executor);
+
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) {
       throw new NotFoundException(`Foydalanuvchi topilmadi`);
+    }
+
+    // Hierarchy protection: ADMIN cannot deactivate SUPER_ADMIN
+    if (executorRole === RoleType.ADMIN && user.role === RoleType.SUPER_ADMIN) {
+      throw new ForbiddenException('Administrator Super Admin foydalanuvchisi faolligini o‘zgartira olmaydi!');
     }
 
     // Safety check: cannot deactivate the last active super admin
@@ -359,10 +420,17 @@ export class UsersService {
     return sanitized;
   }
 
-  async resetPassword(id: string, dto: ResetPasswordDto, executorId: string) {
+  async resetPassword(id: string, dto: ResetPasswordDto, executor: string | { id: string; role?: RoleType }) {
+    const { id: executorId, role: executorRole } = this.extractExecutor(executor);
+
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) {
       throw new NotFoundException(`Foydalanuvchi topilmadi`);
+    }
+
+    // Hierarchy protection: ADMIN cannot reset password of SUPER_ADMIN
+    if (executorRole === RoleType.ADMIN && user.role === RoleType.SUPER_ADMIN) {
+      throw new ForbiddenException('Administrator Super Admin hisobi parolini yangilay olmaydi!');
     }
 
     const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
@@ -391,7 +459,9 @@ export class UsersService {
     };
   }
 
-  async remove(id: string, executorId: string) {
+  async remove(id: string, executor: string | { id: string; role?: RoleType }) {
+    const { id: executorId, role: executorRole } = this.extractExecutor(executor);
+
     if (id === executorId) {
       throw new BadRequestException('Foydalanuvchi o‘z hisobini o‘chira olmaydi!');
     }
@@ -403,6 +473,11 @@ export class UsersService {
 
     if (existing.deletedAt) {
       throw new BadRequestException('Ushbu foydalanuvchi allaqachon o‘chirilgan!');
+    }
+
+    // Hierarchy protection: ADMIN cannot delete SUPER_ADMIN
+    if (executorRole === RoleType.ADMIN && existing.role === RoleType.SUPER_ADMIN) {
+      throw new ForbiddenException('Administrator Super Admin hisobini o‘chira olmaydi!');
     }
 
     // Safety check: cannot delete user with active assets or pending handovers
@@ -441,7 +516,9 @@ export class UsersService {
     return rest;
   }
 
-  async restore(id: string, executorId: string) {
+  async restore(id: string, executor: string | { id: string; role?: RoleType }) {
+    const { id: executorId, role: executorRole } = this.extractExecutor(executor);
+
     const existing = await this.prisma.user.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException(`Foydalanuvchi (ID: ${id}) topilmadi`);
@@ -449,6 +526,11 @@ export class UsersService {
 
     if (!existing.deletedAt) {
       throw new BadRequestException('Ushbu foydalanuvchi o‘chirilmagan!');
+    }
+
+    // Hierarchy protection: ADMIN cannot restore SUPER_ADMIN
+    if (executorRole === RoleType.ADMIN && existing.role === RoleType.SUPER_ADMIN) {
+      throw new ForbiddenException('Administrator Super Admin hisobini qayta tiklay olmaydi!');
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -482,7 +564,7 @@ export class UsersService {
   /**
    * Xodimning moddiy javobgarlikdan ozodlik / aylanma varaqa (Clearance) holatini tekshirish
    */
-  async checkUserClearanceEligibility(userId: string) {
+  async checkUserClearanceEligibility(userId: string, executor?: string | { id: string; role?: RoleType }) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, fullName: true, role: true, isActive: true },
@@ -490,6 +572,13 @@ export class UsersService {
 
     if (!user) {
       throw new NotFoundException('Foydalanuvchi topilmadi');
+    }
+
+    if (executor) {
+      const { role: executorRole } = this.extractExecutor(executor);
+      if (executorRole === RoleType.ADMIN && user.role === RoleType.SUPER_ADMIN) {
+        throw new NotFoundException('Foydalanuvchi topilmadi');
+      }
     }
 
     // 1. Faol asosiy vositalar (hisobdan chiqarilmaganlar)
@@ -548,17 +637,34 @@ export class UsersService {
   /**
    * Tizimdagi barcha ruxsatlar katalogi va standart rol shablonlarini olish
    */
-  async getPermissionsCatalog() {
+  async getPermissionsCatalog(executor?: string | { id: string; role?: RoleType }) {
+    let modules = PERMISSION_MODULES;
+    let defaultPresets = { ...DEFAULT_ROLE_PERMISSIONS };
+
+    if (executor) {
+      const { role: executorRole } = this.extractExecutor(executor);
+      if (executorRole === RoleType.ADMIN) {
+        modules = modules.filter((m) => !SUPER_ADMIN_ONLY_MODULE_IDS.includes(m.id));
+        const filteredPresets: Record<string, string[]> = {};
+        for (const [r, perms] of Object.entries(defaultPresets)) {
+          filteredPresets[r] = perms.filter(
+            (p) => !SUPER_ADMIN_ONLY_PERMISSION_CODES.includes(p),
+          );
+        }
+        defaultPresets = filteredPresets as Record<RoleType, string[]>;
+      }
+    }
+
     return {
-      modules: PERMISSION_MODULES,
-      defaultPresets: DEFAULT_ROLE_PERMISSIONS,
+      modules,
+      defaultPresets,
     };
   }
 
   /**
    * Bitta foydalanuvchining shaxsiy huquqlari va samarali huquqlarini olish
    */
-  async getUserPermissions(userId: string) {
+  async getUserPermissions(userId: string, executor?: string | { id: string; role?: RoleType }) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId, deletedAt: null },
       select: {
@@ -578,10 +684,35 @@ export class UsersService {
       throw new NotFoundException(`Foydalanuvchi (ID: ${userId}) topilmadi!`);
     }
 
+    let executorRole: RoleType | undefined;
+    if (executor) {
+      const extracted = this.extractExecutor(executor);
+      executorRole = extracted.role;
+      if (executorRole === RoleType.ADMIN && user.role === RoleType.SUPER_ADMIN) {
+        throw new NotFoundException(`Foydalanuvchi (ID: ${userId}) topilmadi!`);
+      }
+    }
+
     const defaultRolePerms = DEFAULT_ROLE_PERMISSIONS[user.role] || [];
     // Agar foydalanuvchining shaxsiy permissions massivi bo'sh bo'lsa, u rolining standart huquqlaridan foydalanadi
     const isCustom = user.permissions && user.permissions.length > 0;
-    const effectivePermissions = isCustom ? user.permissions : defaultRolePerms;
+    let effectivePermissions = isCustom ? user.permissions : defaultRolePerms;
+    let userPermissions = user.permissions || [];
+    let catalog = PERMISSION_MODULES;
+    let returnDefaultRolePerms = defaultRolePerms;
+
+    if (executorRole === RoleType.ADMIN) {
+      catalog = catalog.filter((m) => !SUPER_ADMIN_ONLY_MODULE_IDS.includes(m.id));
+      returnDefaultRolePerms = returnDefaultRolePerms.filter(
+        (p) => !SUPER_ADMIN_ONLY_PERMISSION_CODES.includes(p),
+      );
+      effectivePermissions = effectivePermissions.filter(
+        (p) => !SUPER_ADMIN_ONLY_PERMISSION_CODES.includes(p),
+      );
+      userPermissions = userPermissions.filter(
+        (p) => !SUPER_ADMIN_ONLY_PERMISSION_CODES.includes(p),
+      );
+    }
 
     return {
       user: {
@@ -592,11 +723,11 @@ export class UsersService {
         position: user.position,
         departmentName: user.department?.name,
       },
-      permissions: user.permissions || [],
+      permissions: userPermissions,
       effectivePermissions,
-      defaultRolePermissions: defaultRolePerms,
+      defaultRolePermissions: returnDefaultRolePerms,
       isCustom,
-      catalog: PERMISSION_MODULES,
+      catalog,
     };
   }
 
@@ -606,14 +737,34 @@ export class UsersService {
   async updateUserPermissions(
     userId: string,
     dto: UpdatePermissionsDto,
-    adminId: string,
+    executor: string | { id: string; role?: RoleType },
   ) {
+    const { id: executorId, role: executorRole } = this.extractExecutor(executor);
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId, deletedAt: null },
     });
 
     if (!user) {
       throw new NotFoundException(`Foydalanuvchi (ID: ${userId}) topilmadi!`);
+    }
+
+    // Hierarchy protection: ADMIN cannot edit SUPER_ADMIN permissions
+    if (executorRole === RoleType.ADMIN && user.role === RoleType.SUPER_ADMIN) {
+      throw new ForbiddenException('Administrator Super Admin huquqlarini o‘zgartira olmaydi!');
+    }
+
+    let finalPermissions = dto.permissions;
+    if (executorRole === RoleType.ADMIN) {
+      // ADMIN cannot grant or revoke SUPER_ADMIN_ONLY permissions
+      // Keep any pre-existing SUPER_ADMIN_ONLY permissions the target user might have had
+      const preservedSuperAdminCodes = user.permissions.filter((p) =>
+        SUPER_ADMIN_ONLY_PERMISSION_CODES.includes(p),
+      );
+      const cleaned = dto.permissions.filter(
+        (p) => !SUPER_ADMIN_ONLY_PERMISSION_CODES.includes(p),
+      );
+      finalPermissions = [...cleaned, ...preservedSuperAdminCodes];
     }
 
     // Xavfsizlik: SUPER_ADMIN o'zidan SUPER_ADMIN yoki asosiy boshqaruv huquqlarini xatolik bilan olib tashlamasligi uchun ogohlantirish
@@ -623,7 +774,7 @@ export class UsersService {
       const updated = await tx.user.update({
         where: { id: userId },
         data: {
-          permissions: dto.permissions,
+          permissions: finalPermissions,
         },
         select: {
           id: true,
@@ -637,11 +788,11 @@ export class UsersService {
       });
 
       await this.systemAuditService.log({
-        userId: adminId,
+        userId: executorId,
         action: 'USER_PERMISSIONS_UPDATED',
         entity: 'User',
         entityId: userId,
-        details: `Foydalanuvchi '${user.fullName}' (@${user.username}) ning tizim huquqlari yangilandi. Oldingi ruxsatlar soni: ${previousPermissionsCount}, Yangi ruxsatlar soni: ${dto.permissions.length}`,
+        details: `Foydalanuvchi '${user.fullName}' (@${user.username}) ning tizim huquqlari yangilandi. Oldingi ruxsatlar soni: ${previousPermissionsCount}, Yangi ruxsatlar soni: ${finalPermissions.length}`,
         ipAddress: 'internal',
         userAgent: 'UWMS Core PBAC Module',
       });
@@ -650,7 +801,7 @@ export class UsersService {
     });
 
     this.logger.log(
-      `Foydalanuvchi (${userId}) huquqlari yangilandi: ${dto.permissions.length} ta ruxsat berildi. Admin: ${adminId}`,
+      `Foydalanuvchi (${userId}) huquqlari yangilandi: ${finalPermissions.length} ta ruxsat berildi. Admin: ${executorId}`,
     );
 
     if (this.eventsGateway) {

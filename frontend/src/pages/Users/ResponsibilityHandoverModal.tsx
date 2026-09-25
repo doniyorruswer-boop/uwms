@@ -1005,7 +1005,8 @@ export const ResponsibilityHandoverModal: React.FC<ResponsibilityHandoverModalPr
                           (u) =>
                             u.role === RoleType.CHIEF_ACCOUNTANT ||
                             u.role === RoleType.VICE_RECTOR_FINANCE ||
-                            u.role === RoleType.SUPER_ADMIN
+                            (currentUser?.role !== RoleType.ADMIN && u.role === RoleType.SUPER_ADMIN) ||
+                            u.role === RoleType.ADMIN
                         )
                         ?.map((u) => (
                           <Select.Option key={u.id} value={u.id}>

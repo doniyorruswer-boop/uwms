@@ -43,7 +43,7 @@ const { TextArea } = Input;
 
 export const RepairsPage: React.FC = () => {
   const { user } = useAuthStore();
-  const canManageRepairs = ['COMMENDANT', 'HEAD_WAREHOUSE', 'MOL', 'SUPER_ADMIN'].includes(
+  const canManageRepairs = ['COMMENDANT', 'HEAD_WAREHOUSE', 'MOL', 'SUPER_ADMIN', 'ADMIN'].includes(
     user?.role || '',
   );
 

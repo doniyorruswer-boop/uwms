@@ -28,7 +28,7 @@ export class DepreciationController {
   constructor(private readonly depreciationService: DepreciationService) {}
 
   @Get('preview')
-  @Roles(RoleType.SUPER_ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.VICE_RECTOR_FINANCE, RoleType.AUDITOR)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.VICE_RECTOR_FINANCE, RoleType.AUDITOR)
   @ApiOperation({
     summary: 'Oylik amortizatsiyani oldindan hisoblash (Dry-run / Preview)',
     description:
@@ -39,7 +39,7 @@ export class DepreciationController {
   }
 
   @Post('run')
-  @Roles(RoleType.SUPER_ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.VICE_RECTOR_FINANCE)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.VICE_RECTOR_FINANCE)
   @ApiOperation({
     summary: 'Oylik amortizatsiyani rasmiy hisoblash va tasdiqlash',
     description:
@@ -50,7 +50,7 @@ export class DepreciationController {
   }
 
   @Get('runs')
-  @Roles(RoleType.SUPER_ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.VICE_RECTOR_FINANCE, RoleType.AUDITOR)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.VICE_RECTOR_FINANCE, RoleType.AUDITOR)
   @ApiOperation({
     summary: 'O‘tkazilgan amortizatsiya partiyalari ro‘yxati (Paginatsiya bilan)',
   })
@@ -59,7 +59,7 @@ export class DepreciationController {
   }
 
   @Get('runs/:id')
-  @Roles(RoleType.SUPER_ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.VICE_RECTOR_FINANCE, RoleType.AUDITOR)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.VICE_RECTOR_FINANCE, RoleType.AUDITOR)
   @ApiOperation({
     summary: 'Bitta amortizatsiya partiyasi tafsilotlari va unga kiritilgan barcha aktivlar',
   })
@@ -68,7 +68,7 @@ export class DepreciationController {
   }
 
   @Get('asset/:id')
-  @Roles(RoleType.SUPER_ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.VICE_RECTOR_FINANCE, RoleType.AUDITOR, RoleType.MOL)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.VICE_RECTOR_FINANCE, RoleType.AUDITOR, RoleType.MOL)
   @ApiOperation({
     summary: 'Alohida asosiy vosita bo‘yicha oylar kesimidagi amortizatsiya daftari (Asset Ledger)',
   })
@@ -77,7 +77,7 @@ export class DepreciationController {
   }
 
   @Get('statement/:period')
-  @Roles(RoleType.SUPER_ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.VICE_RECTOR_FINANCE, RoleType.AUDITOR)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.VICE_RECTOR_FINANCE, RoleType.AUDITOR)
   @ApiOperation({
     summary: 'Davlat OTM rasmiy Amortizatsiya Qaydnomasi shakli (Kategoriya va moliyalashtirish kesimida)',
   })

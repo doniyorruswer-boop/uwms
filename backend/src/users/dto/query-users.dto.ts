@@ -14,6 +14,21 @@ export class QueryUsersDto {
   @IsEnum(RoleType)
   role?: RoleType;
 
+  @ApiPropertyOptional({ enum: RoleType, isArray: true })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (!value) return undefined;
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      if (value.includes(',')) {
+        return value.split(',').map((s) => s.trim());
+      }
+      return [value];
+    }
+    return [value];
+  })
+  roles?: RoleType[];
+
   @ApiPropertyOptional({ description: 'Fakultet yoki kafedra ID si' })
   @IsOptional()
   @IsString()

@@ -39,6 +39,7 @@ export class TransfersController {
   @Post('handovers')
   @Roles(
     RoleType.SUPER_ADMIN,
+    RoleType.ADMIN,
     RoleType.CHIEF_ACCOUNTANT,
     RoleType.MOL,
     RoleType.COMMENDANT,

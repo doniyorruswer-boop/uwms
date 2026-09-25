@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, MinLength, IsOptional, IsEmail, IsEnum, IsBoolean, Matches } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { RoleType } from '@prisma/client';
 
 export class CreateUserDto {
@@ -27,10 +28,21 @@ export class CreateUserDto {
   @IsEmail({}, { message: 'Elektron pochta formati noto‘g‘ri' })
   email?: string;
 
-  @ApiPropertyOptional({ example: '+998901234567' })
-  @IsOptional()
+  @ApiProperty({ example: '+998901234567', description: 'O‘zbekiston telefon raqami (+998XXXXXXXXX)' })
+  @IsNotEmpty({ message: 'Telefon raqami kiritilishi shart' })
   @IsString()
-  phone?: string;
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    let cleaned = value.replace(/[\s\-\(\)]/g, '');
+    if (cleaned.startsWith('998') && !cleaned.startsWith('+998')) {
+      cleaned = '+' + cleaned;
+    }
+    return cleaned;
+  })
+  @Matches(/^\+998[0-9]{9}$/, {
+    message: 'Telefon raqami faqat O‘zbekiston shablonida bo‘lishi shart (masalan: +998 90 123 45 67 yoki +998901234567)',
+  })
+  phone: string;
 
   @ApiPropertyOptional({ example: 'Kafedra mudiri' })
   @IsOptional()

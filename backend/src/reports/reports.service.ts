@@ -705,8 +705,13 @@ export class ReportsService {
    * 2-IZ: Qayerga ketdi va kimning bo‘ynida? (Chiqim va MOL Balansi — OS-2)
    */
   async getChiefAccountantHandoverBalance(query: ChiefAccountantHandoverQueryDto, user: any) {
+    const allowedBalanceRoles =
+      user?.role === RoleType.ADMIN
+        ? [RoleType.MOL, RoleType.HEAD_WAREHOUSE]
+        : [RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN];
+
     const userWhere: any = {
-      role: { in: [RoleType.MOL, RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN] },
+      role: { in: allowedBalanceRoles },
     };
 
     if (query.departmentId && query.departmentId !== 'ALL') {

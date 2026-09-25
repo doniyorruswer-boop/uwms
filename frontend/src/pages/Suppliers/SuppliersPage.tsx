@@ -43,8 +43,8 @@ const { Row, Col } = Grid;
 
 export const SuppliersPage: React.FC = () => {
   const { user } = useAuthStore();
-  const canManage = user?.role === 'SUPER_ADMIN' || user?.role === 'HEAD_WAREHOUSE';
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const canManage = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'HEAD_WAREHOUSE';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
   const canView = canManage || user?.role === 'CHIEF_ACCOUNTANT' || user?.role === 'AUDITOR';
 
   const [search, setSearch] = useState('');
@@ -98,7 +98,7 @@ export const SuppliersPage: React.FC = () => {
       <ForbiddenView
         title="403 — Kirish Cheklangan"
         subTitle="Ta’minotchilar va shartnomalar reestrini ko‘rish uchun sizda yetarli ruxsat mavjud emas."
-        requiredRoles={['HEAD_WAREHOUSE', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'AUDITOR']}
+        requiredRoles={['HEAD_WAREHOUSE', 'SUPER_ADMIN', 'ADMIN', 'CHIEF_ACCOUNTANT', 'AUDITOR']}
       />
     );
   }

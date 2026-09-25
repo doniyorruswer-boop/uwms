@@ -52,7 +52,7 @@ const TabPane = Tabs.TabPane;
 
 export const WriteOffPage: React.FC = () => {
   const { user } = useAuthStore();
-  const canCreateWriteOff = ['MOL', 'HEAD_WAREHOUSE', 'COMMENDANT', 'SUPER_ADMIN'].includes(
+  const canCreateWriteOff = ['MOL', 'HEAD_WAREHOUSE', 'COMMENDANT', 'SUPER_ADMIN', 'ADMIN'].includes(
     user?.role || '',
   );
 

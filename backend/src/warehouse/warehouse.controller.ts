@@ -37,7 +37,7 @@ export class WarehouseController {
   }
 
   @Post('stocks/:id/replenish')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Omborga kirim qilish (faqat Bosh Omborchi va Admin)' })
   async replenishStock(
     @Param('id') id: string,
@@ -48,14 +48,14 @@ export class WarehouseController {
   }
 
   @Post('ingest')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Ta’minotchi va faktura orqali omborga to‘liq kirim qilish (OS-1 shakli bilan)' })
   async ingestStock(@Body() dto: IngestStockDto, @CurrentUser() user: any) {
     return this.warehouseService.ingestStock({ ...dto, executedById: user?.id });
   }
 
   @Post('transfer')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
   @ApiOperation({ summary: 'Omborlararo mahsulot ko‘chirish (Inter-Warehouse Transfer)' })
   async transferStock(
     @Body() dto: InterWarehouseTransferDto,
@@ -73,7 +73,7 @@ export class WarehouseController {
   }
 
   @Post()
-  @Roles(RoleType.SUPER_ADMIN, RoleType.HEAD_WAREHOUSE)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.HEAD_WAREHOUSE)
   @ApiOperation({ summary: 'Yangi omborxona yaratish (Super Admin va Bosh omborchi)' })
   async createWarehouse(
     @Body() dto: CreateWarehouseDto,
@@ -83,7 +83,7 @@ export class WarehouseController {
   }
 
   @Put(':id')
-  @Roles(RoleType.SUPER_ADMIN, RoleType.HEAD_WAREHOUSE)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.HEAD_WAREHOUSE)
   @ApiOperation({ summary: 'Omborxona ma’lumotlarini tahrirlash' })
   async updateWarehouse(
     @Param('id') id: string,
@@ -94,8 +94,8 @@ export class WarehouseController {
   }
 
   @Delete(':id')
-  @Roles(RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Omborxonani o‘chirish (Faqat Super Admin)' })
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @ApiOperation({ summary: 'Omborxonani o‘chirish' })
   async deleteWarehouse(
     @Param('id') id: string,
     @CurrentUser() user: any,
@@ -104,8 +104,8 @@ export class WarehouseController {
   }
 
   @Post(':id/restore')
-  @Roles(RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'O‘chirilgan omborni qayta tiklash (Faqat Super Admin)' })
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @ApiOperation({ summary: 'O‘chirilgan omborni qayta tiklash' })
   async restoreWarehouse(
     @Param('id') id: string,
     @CurrentUser() user: any,

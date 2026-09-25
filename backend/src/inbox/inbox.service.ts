@@ -24,7 +24,7 @@ export class InboxService {
     const role: RoleType = user.role;
     const departmentId = user.departmentId;
 
-    const isAdmin = role === RoleType.SUPER_ADMIN;
+    const isAdmin = role === RoleType.SUPER_ADMIN || role === RoleType.ADMIN;
     const isProrector = role === RoleType.VICE_RECTOR_FINANCE;
     const isRector = role === RoleType.RECTOR;
     const isAccountant = role === RoleType.CHIEF_ACCOUNTANT;

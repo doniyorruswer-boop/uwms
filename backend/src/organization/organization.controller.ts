@@ -45,15 +45,15 @@ export class OrganizationController {
   }
 
   @Post('buildings')
-  @Roles(RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Yangi bino yoki korpus qo‘shish (Faqat Super Admin)' })
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @ApiOperation({ summary: 'Yangi bino yoki korpus qo‘shish' })
   async createBuilding(@Body() dto: CreateBuildingDto, @Req() req: any) {
     return this.orgService.createBuilding(dto, req.user?.id || req.user?.sub);
   }
 
   @Put('buildings/:id')
-  @Roles(RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Bino ma’lumotlarini tahrirlash (Faqat Super Admin)' })
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @ApiOperation({ summary: 'Bino ma’lumotlarini tahrirlash' })
   async updateBuilding(
     @Param('id') id: string,
     @Body() dto: UpdateBuildingDto,
@@ -63,15 +63,15 @@ export class OrganizationController {
   }
 
   @Delete('buildings/:id')
-  @Roles(RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Binoni o‘chirish (Faqat Super Admin)' })
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @ApiOperation({ summary: 'Binoni o‘chirish' })
   async deleteBuilding(@Param('id') id: string, @Req() req: any) {
     return this.orgService.deleteBuilding(id, req.user?.id || req.user?.sub);
   }
 
   @Post('buildings/:id/restore')
-  @Roles(RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'O‘chirilgan binoni qayta tiklash (Faqat Super Admin)' })
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @ApiOperation({ summary: 'O‘chirilgan binoni qayta tiklash' })
   async restoreBuilding(@Param('id') id: string, @Req() req: any) {
     return this.orgService.restoreBuilding(id, req.user?.id || req.user?.sub);
   }
@@ -91,14 +91,14 @@ export class OrganizationController {
   }
 
   @Post('departments')
-  @Roles(RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Yangi fakultet yoki kafedra yaratish (Faqat Super Admin)' })
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @ApiOperation({ summary: 'Yangi fakultet yoki kafedra yaratish' })
   async createDepartment(@Body() dto: CreateDepartmentDto, @Req() req: any) {
     return this.orgService.createDepartment(dto, req.user?.id || req.user?.sub);
   }
 
   @Put('departments/:id')
-  @Roles(RoleType.SUPER_ADMIN, RoleType.HEAD_WAREHOUSE)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.HEAD_WAREHOUSE)
   @ApiOperation({ summary: 'Fakultet yoki kafedra ma’lumotlarini yangilash' })
   async updateDepartment(
     @Param('id') id: string,
@@ -109,15 +109,15 @@ export class OrganizationController {
   }
 
   @Delete('departments/:id')
-  @Roles(RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Bo‘lim yoki kafedrani o‘chirish (Faqat Super Admin)' })
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @ApiOperation({ summary: 'Bo‘lim yoki kafedrani o‘chirish' })
   async deleteDepartment(@Param('id') id: string, @Req() req: any) {
     return this.orgService.deleteDepartment(id, req.user?.id || req.user?.sub);
   }
 
   @Post('departments/:id/restore')
-  @Roles(RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'O‘chirilgan bo‘limni qayta tiklash (Faqat Super Admin)' })
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @ApiOperation({ summary: 'O‘chirilgan bo‘limni qayta tiklash' })
   async restoreDepartment(@Param('id') id: string, @Req() req: any) {
     return this.orgService.restoreDepartment(id, req.user?.id || req.user?.sub);
   }
@@ -135,14 +135,14 @@ export class OrganizationController {
   }
 
   @Post('rooms')
-  @Roles(RoleType.SUPER_ADMIN, RoleType.HEAD_WAREHOUSE)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.HEAD_WAREHOUSE)
   @ApiOperation({ summary: 'Yangi auditoriya yoki xona qo‘shish' })
   async createRoom(@Body() dto: CreateRoomDto, @Req() req: any) {
     return this.orgService.createRoom(dto, req.user?.id || req.user?.sub);
   }
 
   @Put('rooms/:id')
-  @Roles(RoleType.SUPER_ADMIN, RoleType.HEAD_WAREHOUSE)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.HEAD_WAREHOUSE)
   @ApiOperation({ summary: 'Xona ma’lumotlarini yoki mas’ul shaxsini (MOL) yangilash' })
   async updateRoom(
     @Param('id') id: string,
@@ -153,15 +153,15 @@ export class OrganizationController {
   }
 
   @Delete('rooms/:id')
-  @Roles(RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Xonani o‘chirish (Faqat Super Admin)' })
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @ApiOperation({ summary: 'Xonani o‘chirish' })
   async deleteRoom(@Param('id') id: string, @Req() req: any) {
     return this.orgService.deleteRoom(id, req.user?.id || req.user?.sub);
   }
 
   @Post('rooms/:id/restore')
-  @Roles(RoleType.SUPER_ADMIN)
-  @ApiOperation({ summary: 'O‘chirilgan xonani qayta tiklash (Faqat Super Admin)' })
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @ApiOperation({ summary: 'O‘chirilgan xonani qayta tiklash' })
   async restoreRoom(@Param('id') id: string, @Req() req: any) {
     return this.orgService.restoreRoom(id, req.user?.id || req.user?.sub);
   }

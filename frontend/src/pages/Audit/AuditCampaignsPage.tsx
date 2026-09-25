@@ -79,7 +79,7 @@ export const AuditCampaignsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const isAuditorOrAdmin =
-    user?.role === 'AUDITOR' || user?.role === 'SUPER_ADMIN' || user?.role === 'HEAD_WAREHOUSE';
+    user?.role === 'AUDITOR' || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'HEAD_WAREHOUSE';
   const isRectorOrProrector =
     user?.role === 'RECTOR' || user?.role === 'VICE_RECTOR_FINANCE';
   const canViewCampaigns =
@@ -382,7 +382,7 @@ export const AuditCampaignsPage: React.FC = () => {
       <ForbiddenView
         title="Audit Kampaniyalariga Kirish Cheklangan"
         subTitle="Yalpi inventarizatsiya kampaniyalarini ko‘rish, rejalashtirish, tasdiqlash va yakunlash faqat Rektorat, Auditor, Bosh omborchi va Super Admin huquqiga ega foydalanuvchilar uchun ruxsat etilgan."
-        requiredRoles={['RECTOR', 'VICE_RECTOR_FINANCE', 'AUDITOR', 'SUPER_ADMIN', 'HEAD_WAREHOUSE', 'CHIEF_ACCOUNTANT']}
+        requiredRoles={['RECTOR', 'VICE_RECTOR_FINANCE', 'AUDITOR', 'SUPER_ADMIN', 'ADMIN', 'HEAD_WAREHOUSE', 'CHIEF_ACCOUNTANT']}
       />
     );
   }

@@ -44,7 +44,7 @@ export class RequestsService {
     const where: any = {};
 
     // Multi-tenant / Role Data Isolation:
-    if (user && user.role !== RoleType.SUPER_ADMIN) {
+    if (user && user.role !== RoleType.SUPER_ADMIN && user.role !== RoleType.ADMIN) {
       if (user.role === RoleType.EMPLOYEE) {
         where.requesterId = user.id;
       } else if (user.role === RoleType.MOL && user.departmentId) {
@@ -392,7 +392,8 @@ export class RequestsService {
       const isAuthorized =
         user.id === req?.requesterId ||
         (user.role === RoleType.MOL && (!user.departmentId || user.departmentId === req?.departmentId)) ||
-        user.role === RoleType.SUPER_ADMIN;
+        user.role === RoleType.SUPER_ADMIN ||
+        user.role === RoleType.ADMIN;
       if (!isAuthorized) {
         throw new ForbiddenException(
           'Yakuniy qabul va topshirish dalolatnomasini faqat talabnoma kiritgan xodim yoki kafedra mas’uli (MOL) imzolashi mumkin!',
@@ -482,7 +483,7 @@ export class RequestsService {
 
       if (status === RequestStatus.CANCELLED) {
         const executor = dto?.currentUser;
-        if (executor && executor.role !== RoleType.SUPER_ADMIN && executor.id !== request.requesterId) {
+        if (executor && executor.role !== RoleType.SUPER_ADMIN && executor.role !== RoleType.ADMIN && executor.id !== request.requesterId) {
           throw new ForbiddenException('Talabnomani faqat uni kiritgan muallif yoki Super Admin bekor qila oladi!');
         }
       }
@@ -498,7 +499,8 @@ export class RequestsService {
           const isAllowed =
             executor.id === request.requesterId ||
             (executor.role === RoleType.MOL && (!executor.departmentId || executor.departmentId === request.departmentId)) ||
-            executor.role === RoleType.SUPER_ADMIN;
+            executor.role === RoleType.SUPER_ADMIN ||
+            executor.role === RoleType.ADMIN;
           if (!isAllowed) {
             throw new ForbiddenException(
               'Talabnomani faqat uni kiritgan talabgor xodim (yoki kafedra MOLi) qabul qilib yakunlashi mumkin!',

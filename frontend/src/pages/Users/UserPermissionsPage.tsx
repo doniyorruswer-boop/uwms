@@ -65,18 +65,20 @@ const { Title, Text, Paragraph } = Typography;
 
 const roleTagColors: Record<RoleType, string> = {
   [RoleType.SUPER_ADMIN]: 'red',
-  [RoleType.HEAD_WAREHOUSE]: 'blue',
+  [RoleType.ADMIN]: 'blue',
+  [RoleType.HEAD_WAREHOUSE]: 'cyan',
   [RoleType.MOL]: 'gold',
   [RoleType.AUDITOR]: 'purple',
   [RoleType.EMPLOYEE]: 'gray',
-  [RoleType.CHIEF_ACCOUNTANT]: 'cyan',
+  [RoleType.CHIEF_ACCOUNTANT]: 'arcoblue',
   [RoleType.COMMENDANT]: 'orange',
   [RoleType.RECTOR]: 'magenta',
-  [RoleType.VICE_RECTOR_FINANCE]: 'arcoblue',
+  [RoleType.VICE_RECTOR_FINANCE]: 'green',
 };
 
 const roleLabels: Record<RoleType, string> = {
   [RoleType.SUPER_ADMIN]: 'Bosh Administrator',
+  [RoleType.ADMIN]: 'Universitet Administratori',
   [RoleType.HEAD_WAREHOUSE]: 'Bosh Ombor Mudiri',
   [RoleType.MOL]: 'Moddiy Javobgar Shaxs (MOL)',
   [RoleType.AUDITOR]: 'Ichki Auditor',
@@ -108,10 +110,25 @@ const moduleIcons: Record<string, React.ReactNode> = {
   backups: <IconCloudDownload style={{ color: '#00B42A' }} />,
 };
 
+const SUPER_ADMIN_ONLY_MODULE_IDS = new Set(['system_audit', 'integrations', 'backups']);
+const SUPER_ADMIN_ONLY_PERMISSION_CODES = new Set([
+  'page:system_audit',
+  'system_audit:read',
+  'system_audit:export',
+  'page:integrations',
+  'integrations:read',
+  'integrations:sync',
+  'page:backups',
+  'backups:read',
+  'backups:create',
+  'backups:restore',
+]);
+
 export const UserPermissionsPage: React.FC = () => {
   const { id: userId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user: currentUser } = useAuthStore();
+  const isCurrentAdmin = currentUser?.role === RoleType.ADMIN;
 
   // Queries & Mutations
   const {
@@ -142,20 +159,34 @@ export const UserPermissionsPage: React.FC = () => {
 
   // Derived data from permissionsData (safe fallbacks when loading/error)
   const user = permissionsData?.user;
-  const catalog = useMemo(() => permissionsData?.catalog || [], [permissionsData]);
-  const defaultRolePermissions = useMemo(
-    () => permissionsData?.defaultRolePermissions || [],
-    [permissionsData],
-  );
+  const catalog = useMemo(() => {
+    const raw = permissionsData?.catalog || [];
+    if (isCurrentAdmin) {
+      return raw.filter((mod) => !SUPER_ADMIN_ONLY_MODULE_IDS.has(mod.id));
+    }
+    return raw;
+  }, [permissionsData, isCurrentAdmin]);
+
+  const defaultRolePermissions = useMemo(() => {
+    const raw = permissionsData?.defaultRolePermissions || [];
+    if (isCurrentAdmin) {
+      return raw.filter((c) => !SUPER_ADMIN_ONLY_PERMISSION_CODES.has(c));
+    }
+    return raw;
+  }, [permissionsData, isCurrentAdmin]);
 
   // Initialize selected permissions from query data
   useEffect(() => {
     if (permissionsData) {
-      const initial = new Set(permissionsData.effectivePermissions || []);
+      let perms = permissionsData.effectivePermissions || [];
+      if (isCurrentAdmin) {
+        perms = perms.filter((c) => !SUPER_ADMIN_ONLY_PERMISSION_CODES.has(c));
+      }
+      const initial = new Set(perms);
       setSelectedCodes(initial);
       setHasChanges(false);
     }
-  }, [permissionsData]);
+  }, [permissionsData, isCurrentAdmin]);
 
   // Calculate all available codes
   const allAvailableCodes = useMemo(() => {
@@ -297,7 +328,10 @@ export const UserPermissionsPage: React.FC = () => {
       const res = await apiClient.get<UserPermissionsData>(
         API_ENDPOINTS.USERS.PERMISSIONS(selectedSourceUserId),
       );
-      const perms = res.data?.effectivePermissions || [];
+      let perms = res.data?.effectivePermissions || [];
+      if (isCurrentAdmin) {
+        perms = perms.filter((c) => !SUPER_ADMIN_ONLY_PERMISSION_CODES.has(c));
+      }
       setSelectedCodes(new Set(perms));
       setHasChanges(true);
       setCloneModalVisible(false);
@@ -320,7 +354,10 @@ export const UserPermissionsPage: React.FC = () => {
       selectedCodes.size === defaultRolePermissions.length &&
       defaultRolePermissions.every((c) => selectedCodes.has(c));
 
-    const permsArray = isMatchingDefault ? [] : Array.from(selectedCodes);
+    let permsArray = isMatchingDefault ? [] : Array.from(selectedCodes);
+    if (isCurrentAdmin) {
+      permsArray = permsArray.filter((c) => !SUPER_ADMIN_ONLY_PERMISSION_CODES.has(c));
+    }
     updateMutation.mutate(permsArray, {
       onSuccess: () => {
         setHasChanges(false);
@@ -340,9 +377,9 @@ export const UserPermissionsPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedCodes, hasChanges, updateMutation.isPending]);
 
-  // RBAC protection: Only SUPER_ADMIN can configure permissions
-  if (currentUser?.role !== RoleType.SUPER_ADMIN) {
-    return <ForbiddenView requiredRoles={[RoleType.SUPER_ADMIN]} />;
+  // RBAC protection: SUPER_ADMIN and ADMIN can configure permissions
+  if (currentUser?.role !== RoleType.SUPER_ADMIN && currentUser?.role !== RoleType.ADMIN) {
+    return <ForbiddenView requiredRoles={[RoleType.SUPER_ADMIN, RoleType.ADMIN]} />;
   }
 
   // 1. LOADING STATE
@@ -377,6 +414,16 @@ export const UserPermissionsPage: React.FC = () => {
           ]}
         />
       </Card>
+    );
+  }
+
+  if (user?.role === RoleType.SUPER_ADMIN && currentUser?.role === RoleType.ADMIN) {
+    return (
+      <ForbiddenView
+        title="Ruxsat Berilmagan"
+        subTitle="Super Admin huquqlarini tahrirlash universitet administratori uchun taqiqlangan."
+        requiredRoles={[RoleType.SUPER_ADMIN]}
+      />
     );
   }
 
@@ -782,7 +829,11 @@ export const UserPermissionsPage: React.FC = () => {
               }
             >
               {otherUsersData?.items
-                .filter((u) => u.id !== userId)
+                .filter(
+                  (u) =>
+                    u.id !== userId &&
+                    (!isCurrentAdmin || u.role !== RoleType.SUPER_ADMIN),
+                )
                 .map((u) => (
                   <Select.Option key={u.id} value={u.id}>
                     {u.fullName} (@{u.username}) — {roleLabels[u.role] || u.role}
