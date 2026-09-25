@@ -117,12 +117,30 @@ export class SystemAuditService {
       }),
     ]);
 
+    const items = logs.map((log) => {
+      let ip = log.ipAddress;
+      if (!ip && log.details) {
+        try {
+          const parsed = JSON.parse(log.details);
+          if (parsed && typeof parsed === 'object' && parsed.ipAddress) {
+            ip = parsed.ipAddress;
+          }
+        } catch {
+          // ignore
+        }
+      }
+      return {
+        ...log,
+        ipAddress: ip,
+      };
+    });
+
     return {
       total,
       page: Number(page),
       limit: Number(limit),
       totalPages: Math.ceil(total / take),
-      items: logs,
+      items,
     };
   }
 }

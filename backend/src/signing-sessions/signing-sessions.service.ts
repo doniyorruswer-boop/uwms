@@ -11,6 +11,7 @@ import { DocumentStampsService } from '../document-stamps/document-stamps.servic
 import { EventsGateway } from '../events/events.gateway';
 import { InitSigningSessionDto, ConfirmBiometricSignDto, InitHandoverSigningSessionDto } from './signing-session.dto';
 import { DOCUMENT_VERIFICATION, SYSTEM_AUDIT_ACTIONS } from '../common/constants';
+import { RequestContext } from '../common/context/request-context';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -366,6 +367,16 @@ export class SigningSessionsService {
         }
       }
 
+      const resolvedIp =
+        (ipAddress && ipAddress !== '::1' ? ipAddress : null) ||
+        RequestContext.getClientIp() ||
+        (ipAddress || null);
+
+      const resolvedUserAgent =
+        dto.deviceInfo ||
+        RequestContext.getUserAgent() ||
+        'Mobile Device';
+
       const dynamicSignature = {
         role: finalSignerRole,
         name: finalSignerName,
@@ -373,8 +384,8 @@ export class SigningSessionsService {
         signedAt: now.toISOString(),
         method: 'Dinamik QR-Pairing (Biometrik Tasdiq)',
         biometricType: dto.biometricType || 'TOUCH_ID',
-        deviceInfo: dto.deviceInfo || 'Mobile Device',
-        ipAddress: ipAddress || null,
+        deviceInfo: resolvedUserAgent,
+        ipAddress: resolvedIp,
         location: dto.location || null,
         credentialId: dto.credentialId || null,
       };
@@ -428,8 +439,8 @@ export class SigningSessionsService {
           signerName: finalSignerName,
           signerRole: finalSignerRole,
           biometricType: dto.biometricType || 'TOUCH_ID',
-          deviceInfo: dto.deviceInfo || null,
-          ipAddress: ipAddress || null,
+          deviceInfo: resolvedUserAgent,
+          ipAddress: resolvedIp,
           stampId: stamp.id,
           metadataJson: JSON.stringify(parsedMetadata),
         },
@@ -441,18 +452,20 @@ export class SigningSessionsService {
       // 3. Record Audit Log with full IP, location and cryptographic credential
       await tx.systemAuditLog.create({
         data: {
-          userId: session.createdById,
+          userId: session.signedById || session.createdById,
           action: SYSTEM_AUDIT_ACTIONS.BIOMETRIC_SIGNED,
           entity: 'SigningSession',
           entityId: session.id,
+          ipAddress: resolvedIp,
+          userAgent: resolvedUserAgent,
           details: JSON.stringify({
             docNumber: session.docNumber,
             docType: session.docType,
             signerName: finalSignerName,
             signerRole: finalSignerRole,
             biometricType: dto.biometricType || 'TOUCH_ID',
-            deviceInfo: dto.deviceInfo,
-            ipAddress: ipAddress || null,
+            deviceInfo: resolvedUserAgent,
+            ipAddress: resolvedIp,
             location: dto.location || null,
             credentialId: dto.credentialId || null,
             stampHash: stamp.verificationHash,
@@ -481,6 +494,8 @@ export class SigningSessionsService {
               action: 'HANDOVER_PARTY_SIGNED',
               entity: 'ResponsibilityHandover',
               entityId: handover.id,
+              ipAddress: resolvedIp,
+              userAgent: resolvedUserAgent,
               details: JSON.stringify({
                 handoverNumber: handover.handoverNumber,
                 partyRole: parsedMetadata.signatoryRole,
@@ -488,13 +503,14 @@ export class SigningSessionsService {
                 signerRole: finalSignerRole,
                 signedAt: now.toISOString(),
                 biometricType: dto.biometricType || 'TOUCH_ID',
+                ipAddress: resolvedIp,
               }),
             },
           });
         }
       }
 
-      this.logger.log(`Document ${session.docNumber} successfully signed via ${dto.biometricType || 'TOUCH_ID'} by ${finalSignerName} (IP: ${ipAddress || 'unknown'})`);
+      this.logger.log(`Document ${session.docNumber} successfully signed via ${dto.biometricType || 'TOUCH_ID'} by ${finalSignerName} (IP: ${resolvedIp || 'unknown'})`);
 
       const signResult = {
         success: true,

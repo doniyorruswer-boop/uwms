@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDocumentStampDto, RevokeDocumentStampDto } from './document-stamp.dto';
 import { DOCUMENT_VERIFICATION, SYSTEM_AUDIT_ACTIONS } from '../common/constants';
+import { RequestContext } from '../common/context/request-context';
 import * as crypto from 'crypto';
 
 export interface PublicDocumentVerification {
@@ -120,7 +121,7 @@ export class DocumentStampsService {
    * Stamping documents adheres strictly to the "Write-Once" (WORM) policy.
    * If a document is already stamped, it cannot be modified, replaced, or overwritten.
    */
-  async stampDocument(dto: CreateDocumentStampDto) {
+  async stampDocument(dto: CreateDocumentStampDto, executorId?: string) {
     const existing = await this.prisma.documentStamp.findUnique({
       where: { docNumber: dto.docNumber },
     });
@@ -154,11 +155,22 @@ export class DocumentStampsService {
 
     // Record SystemAuditLog for WORM stamp generation
     try {
+      const clientIp = RequestContext.getClientIp() || 'internal';
+      const userAgent = RequestContext.getUserAgent() || 'UWMS WORM Kriptografik Xizmati';
+      const actorUserId =
+        executorId ||
+        (dto as any).userId ||
+        RequestContext.get()?.userId ||
+        null;
+
       await this.prisma.systemAuditLog.create({
         data: {
           action: SYSTEM_AUDIT_ACTIONS.WORM_STAMP_GENERATE,
           entity: 'DocumentStamp',
           entityId: stamp.id,
+          userId: actorUserId,
+          ipAddress: clientIp,
+          userAgent,
           details: JSON.stringify({
             docNumber: stamp.docNumber,
             docType: stamp.docType,
@@ -166,6 +178,7 @@ export class DocumentStampsService {
             signerName: stamp.signerName,
             signerRole: stamp.signerRole,
             verificationHash: stamp.verificationHash,
+            ipAddress: clientIp,
           }),
         },
       });
@@ -218,18 +231,25 @@ export class DocumentStampsService {
       },
     });
 
+    const clientIp = RequestContext.getClientIp() || 'internal';
+    const userAgent = RequestContext.getUserAgent() || 'UWMS WORM Kriptografik Xizmati';
+    const actorUserId = userId || RequestContext.get()?.userId || null;
+
     // Record SystemAuditLog
     await this.prisma.systemAuditLog.create({
       data: {
-        userId: userId || null,
+        userId: actorUserId,
         action: SYSTEM_AUDIT_ACTIONS.DOCUMENT_REVOKED,
         entity: 'DocumentStamp',
         entityId: stamp.id,
+        ipAddress: clientIp,
+        userAgent,
         details: JSON.stringify({
           docNumber: stamp.docNumber,
           docType: stamp.docType,
           revokedAt: revokedAt.toISOString(),
           reason: dto.reason.trim(),
+          ipAddress: clientIp,
         }),
       },
     });

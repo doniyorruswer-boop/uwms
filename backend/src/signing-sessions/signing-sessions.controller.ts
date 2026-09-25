@@ -83,8 +83,25 @@ export class SigningSessionsController {
     @Body() dto: ConfirmBiometricSignDto,
     @Req() req: Request,
   ) {
-    const ip = req.ip || (req.headers['x-forwarded-for'] as string);
-    return this.signingSessionsService.confirmBiometricSign(token, dto, ip);
+    const forwarded = req.headers['x-forwarded-for'];
+    const realIp = req.headers['x-real-ip'];
+    let clientIp: string | undefined = undefined;
+
+    if (typeof forwarded === 'string') {
+      clientIp = forwarded.split(',')[0].trim();
+    } else if (Array.isArray(forwarded) && forwarded.length > 0) {
+      clientIp = forwarded[0].trim();
+    } else if (typeof realIp === 'string') {
+      clientIp = realIp.trim();
+    } else {
+      clientIp = (req.ip || req.socket?.remoteAddress || '').replace('::ffff:', '');
+    }
+
+    if (clientIp === '::1') {
+      clientIp = '127.0.0.1';
+    }
+
+    return this.signingSessionsService.confirmBiometricSign(token, dto, clientIp);
   }
 
   @Get('signing-sessions/:sessionId/status')

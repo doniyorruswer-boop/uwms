@@ -170,6 +170,35 @@ export const SystemAuditPage: React.FC = () => {
     setDetailDrawerVisible(true);
   };
 
+  const resolveLogIp = (record: { ipAddress?: string | null; details?: string | null }): string => {
+    if (record.ipAddress && record.ipAddress !== '—') return record.ipAddress;
+    if (record.details) {
+      try {
+        const parsed = JSON.parse(record.details);
+        if (parsed?.ipAddress) return parsed.ipAddress;
+      } catch {
+        // ignore
+      }
+    }
+    return 'internal';
+  };
+
+  const resolveLogUserAgent = (record: { userAgent?: string | null; details?: string | null; action?: string }): string => {
+    if (record.userAgent && record.userAgent !== '—') return record.userAgent;
+    if (record.details) {
+      try {
+        const parsed = JSON.parse(record.details);
+        if (parsed?.deviceInfo) return parsed.deviceInfo;
+      } catch {
+        // ignore
+      }
+    }
+    if (record.action === 'WORM_STAMP_GENERATE') {
+      return 'UWMS WORM Kriptografik Xizmati';
+    }
+    return 'Web Brauzer / API';
+  };
+
   const handleExportExcel = () => {
     const exportData = logs.map((l) => ({
       'Vaqt': new Date(l.createdAt).toLocaleString('uz-UZ'),
@@ -182,7 +211,7 @@ export const SystemAuditPage: React.FC = () => {
       'Ob’yekt (Modul)': l.entity,
       'Ob’yekt ID': l.entityId || '-',
       'Tafsilotlar': l.details || '-',
-      'IP Manzil': l.ipAddress || '—',
+      'IP Manzil': resolveLogIp(l),
     }));
     exportToExcel(exportData, 'Tizim_Xavfsizlik_Audit_Jurnali');
   };
@@ -287,11 +316,14 @@ export const SystemAuditPage: React.FC = () => {
       title: 'IP Manzil',
       dataIndex: 'ipAddress',
       width: 110,
-      render: (ip: string) => (
-        <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--color-text-3)', whiteSpace: 'nowrap' }}>
-          {ip || '—'}
-        </span>
-      ),
+      render: (_: string, record: SystemAuditLogItem) => {
+        const ip = resolveLogIp(record);
+        return (
+          <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--color-text-3)', whiteSpace: 'nowrap' }}>
+            {ip}
+          </span>
+        );
+      },
     },
     {
       title: 'Amallar',
@@ -569,46 +601,67 @@ export const SystemAuditPage: React.FC = () => {
           </div>
         }
       >
-        {selectedLog && (
-          <Tabs defaultActiveTab="info">
-            <TabPane key="info" title="Asosiy Ma’lumotlar">
-              <div style={{ padding: '8px 0' }}>
-                <Descriptions
-                  column={1}
-                  border
-                  data={[
-                    {
-                      label: 'Audit ID',
-                      value: <span style={{ fontFamily: 'monospace' }}>{selectedLog.id}</span>,
-                    },
-                    {
-                      label: 'Amal (Harakat)',
-                      value: renderActionTag(selectedLog.action),
-                    },
-                    {
-                      label: 'Modul / Ob’yekt',
-                      value: <b style={{ color: 'var(--color-text-1)' }}>{selectedLog.entity}</b>,
-                    },
-                    {
-                      label: 'Ob’yekt ID',
-                      value: selectedLog.entityId ? (
-                        <span style={{ fontFamily: 'monospace' }}>{selectedLog.entityId}</span>
-                      ) : (
-                        '—'
-                      ),
-                    },
-                    {
-                      label: 'Mas’ul Foydalanuvchi',
-                      value: selectedLog.user ? selectedLog.user.fullName : 'Tizim Servisi (Avtomatik)',
-                    },
-                    {
-                      label: 'Username / Login',
-                      value: selectedLog.user?.username ? `@${selectedLog.user.username}` : '—',
-                    },
-                    {
-                      label: 'Foydalanuvchi Roli',
-                      value: selectedLog.user?.role || '—',
-                    },
+        {selectedLog && (() => {
+          let parsedDetails: any = null;
+          if (selectedLog.details) {
+            try {
+              parsedDetails = JSON.parse(selectedLog.details);
+            } catch {
+              parsedDetails = null;
+            }
+          }
+
+          return (
+            <Tabs defaultActiveTab="info">
+              <TabPane key="info" title="Asosiy Ma’lumotlar">
+                <div style={{ padding: '8px 0' }}>
+                  <Descriptions
+                    column={1}
+                    border
+                    data={[
+                      {
+                        label: 'Audit ID',
+                        value: <span style={{ fontFamily: 'monospace' }}>{selectedLog.id}</span>,
+                      },
+                      {
+                        label: 'Amal (Harakat)',
+                        value: renderActionTag(selectedLog.action),
+                      },
+                      {
+                        label: 'Modul / Ob’yekt',
+                        value: <b style={{ color: 'var(--color-text-1)' }}>{selectedLog.entity}</b>,
+                      },
+                      {
+                        label: 'Ob’yekt ID',
+                        value: selectedLog.entityId ? (
+                          <span style={{ fontFamily: 'monospace' }}>{selectedLog.entityId}</span>
+                        ) : (
+                          '—'
+                        ),
+                      },
+                      {
+                        label: 'Mas’ul Foydalanuvchi',
+                        value: selectedLog.user ? (
+                          selectedLog.user.fullName
+                        ) : parsedDetails?.signerName ? (
+                          <span>
+                            <b>{parsedDetails.signerName}</b>{' '}
+                            <Tag size="small" color="arcoblue" style={{ marginLeft: 6 }}>
+                              Hujjat Imzolovchisi
+                            </Tag>
+                          </span>
+                        ) : (
+                          'Tizim Servisi (Avtomatik Jarayon)'
+                        ),
+                      },
+                      {
+                        label: 'Username / Login',
+                        value: selectedLog.user?.username ? `@${selectedLog.user.username}` : (parsedDetails?.signerName ? '—' : '—'),
+                      },
+                      {
+                        label: 'Foydalanuvchi Roli',
+                        value: selectedLog.user?.role || parsedDetails?.signerRole || (selectedLog.user ? '—' : 'Avtomatik Tizim Xizmati'),
+                      },
                     {
                       label: 'Kafedra / Bo‘lim',
                       value: selectedLog.user?.department?.name || '—',
@@ -621,13 +674,13 @@ export const SystemAuditPage: React.FC = () => {
                       label: 'IP Manzil',
                       value: (
                         <span style={{ fontFamily: 'monospace' }}>
-                          {selectedLog.ipAddress || '—'}
+                          {resolveLogIp(selectedLog)}
                         </span>
                       ),
                     },
                     {
                       label: 'Mijoz Qurilmasi',
-                      value: selectedLog.userAgent || 'Web Brauzer / API',
+                      value: resolveLogUserAgent(selectedLog),
                     },
                   ]}
                 />
@@ -712,7 +765,8 @@ export const SystemAuditPage: React.FC = () => {
               </div>
             </TabPane>
           </Tabs>
-        )}
+        );
+        })()}
       </Drawer>
     </div>
   );
