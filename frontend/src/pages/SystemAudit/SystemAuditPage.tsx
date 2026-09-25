@@ -159,7 +159,7 @@ export const SystemAuditPage: React.FC = () => {
     return (
       <ForbiddenView
         title="403 — Kirish Cheklangan"
-        subTitle="Tizim auditi va xavfsizlik jurnallarini ko‘rish faqat Tizim Bosh Administratori (SUPER_ADMIN) uchun ruxsat etilgan."
+        subTitle="Tizim auditi va xavfsizlik jurnallarini ko‘rish faqat Tizim Bosh Administratori uchun ruxsat etilgan."
         requiredRoles={['SUPER_ADMIN']}
       />
     );

@@ -11,6 +11,8 @@ export interface DashboardSummary {
   totalStockUnits: number;
   lowStockCount: number;
   pendingRequestsCount: number;
+  inProgressRequestsCount?: number;
+  myActionRequestsCount?: number;
   pendingTransfersCount?: number;
   activeRepairsCount?: number;
   pendingWriteOffsCount?: number;
@@ -31,6 +33,8 @@ export interface DashboardSummary {
 export interface NeedsAttentionData {
   lowStockCount: number;
   pendingRequestsCount: number;
+  inProgressRequestsCount?: number;
+  myActionRequestsCount?: number;
   pendingTransfersCount: number;
   activeRepairsCount: number;
   pendingWriteOffsCount: number;

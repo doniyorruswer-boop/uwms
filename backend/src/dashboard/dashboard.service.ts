@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AssetStatus, FundingSource } from '@prisma/client';
+import {
+  AssetStatus,
+  FundingSource,
+  Prisma,
+  RequestStatus,
+  RoleType,
+  TransferStatus,
+} from '@prisma/client';
 
 @Injectable()
 export class DashboardService {
@@ -9,40 +16,68 @@ export class DashboardService {
   async getAnalytics(user?: any) {
     const now = new Date();
 
-    const isDepartmentStaff = user?.role === 'MOL' || user?.role === 'EMPLOYEE';
-    const isWarehouse = user?.role === 'HEAD_WAREHOUSE';
-    const isCommendant = user?.role === 'COMMENDANT';
-
-    const requestWhere: any = {};
-    if (isDepartmentStaff && user) {
-      if (user.departmentId) {
-        requestWhere.OR = [{ departmentId: user.departmentId }, { requesterId: user.id }];
-      } else {
-        requestWhere.requesterId = user.id;
+    // Multi-tenant / Role Data Isolation (RequestsService bilan 1:1 mos holda)
+    const baseRequestWhere: Prisma.RequestWhereInput = {};
+    if (user && user.role !== RoleType.SUPER_ADMIN) {
+      if (user.role === RoleType.EMPLOYEE) {
+        baseRequestWhere.requesterId = user.id;
+      } else if (user.role === RoleType.MOL && user.departmentId) {
+        baseRequestWhere.OR = [
+          { requesterId: user.id },
+          { departmentId: user.departmentId },
+        ];
       }
-    } else if (isWarehouse) {
-      requestWhere.status = {
-        in: [
-          'FINANCED_BY_ACCOUNTANT',
-          'RECEIVED_AT_WAREHOUSE',
-          'APPROVED_BY_WAREHOUSE',
-          'HANDED_TO_COMMENDANT',
-          'FULFILLED',
-        ],
-      };
-    } else if (isCommendant) {
-      requestWhere.status = {
-        in: ['RECEIVED_AT_WAREHOUSE', 'HANDED_TO_COMMENDANT', 'FULFILLED'],
-      };
     }
 
-    const pendingCountWhere: any = { status: 'PENDING' };
-    if (isDepartmentStaff && user) {
-      if (user.departmentId) {
-        pendingCountWhere.OR = [{ departmentId: user.departmentId }, { requesterId: user.id }];
-      } else {
-        pendingCountWhere.requesterId = user.id;
-      }
+    // Jarayondagi (in-progress) barcha talabnomalar — 7 bosqichli ijro zanjiridagi barcha talabnomalar
+    const inProgressRequestsWhere: Prisma.RequestWhereInput = {
+      ...baseRequestWhere,
+      status: {
+        notIn: [RequestStatus.FULFILLED, RequestStatus.REJECTED, RequestStatus.CANCELLED],
+      },
+    };
+
+    // Shaxsiy viza/tasdiq kutilayotgan talabnomalar (Rolga xos navbatdagi qadam)
+    const myActionWhere: Prisma.RequestWhereInput = { ...baseRequestWhere };
+    let hasRoleAction = true;
+    if (user?.role === RoleType.VICE_RECTOR_FINANCE) {
+      myActionWhere.status = { in: [RequestStatus.SUBMITTED, RequestStatus.PENDING, RequestStatus.APPROVED_BY_HEAD] };
+    } else if (user?.role === RoleType.RECTOR) {
+      myActionWhere.status = RequestStatus.APPROVED_BY_PRORECTOR;
+    } else if (user?.role === RoleType.CHIEF_ACCOUNTANT) {
+      myActionWhere.status = RequestStatus.APPROVED_BY_RECTOR;
+    } else if (user?.role === RoleType.HEAD_WAREHOUSE) {
+      myActionWhere.status = RequestStatus.FINANCED_BY_ACCOUNTANT;
+    } else if (user?.role === RoleType.COMMENDANT) {
+      myActionWhere.status = RequestStatus.RECEIVED_AT_WAREHOUSE;
+    } else if (user?.role === RoleType.MOL) {
+      myActionWhere.status = RequestStatus.HANDED_TO_COMMENDANT;
+    } else {
+      hasRoleAction = false;
+    }
+
+    // Transfer (Akt OS-1) bo‘yicha kutilayotgan topshirishlar
+    const transferWhere: Prisma.TransferAcceptanceWhereInput = { status: TransferStatus.PENDING };
+    if (user?.role === RoleType.MOL && user?.departmentId) {
+      transferWhere.OR = [
+        { receiverId: user.id },
+        { toRoom: { departmentId: user.departmentId } },
+        { toRoom: { responsibleUserId: user.id } },
+      ];
+    } else if (user?.role === RoleType.HEAD_WAREHOUSE) {
+      transferWhere.OR = [{ isReturn: true }, { toWarehouseId: { not: null } }];
+    }
+
+    // Ta’mirlash (RepairRecord) bo‘yicha faol holatlar
+    const repairWhere: Prisma.RepairRecordWhereInput = {
+      status: { in: ['PENDING', 'IN_REPAIR'] },
+    };
+    if (user?.role === RoleType.MOL && user?.departmentId) {
+      repairWhere.asset = {
+        room: { departmentId: user.departmentId },
+      };
+    } else if (user?.role === RoleType.EMPLOYEE) {
+      repairWhere.requestedById = user.id;
     }
 
     // 1. Fetch assets, stocks, requests, movements, suppliers, transfers, repairs, write-offs, and MOL counts
@@ -50,6 +85,7 @@ export class DashboardService {
       assets,
       stocks,
       pendingRequestsCount,
+      myActionRequestsCount,
       suppliersCount,
       recentMovements,
       recentRequests,
@@ -103,8 +139,11 @@ export class DashboardService {
         },
       }),
       this.prisma.request.count({
-        where: pendingCountWhere,
+        where: inProgressRequestsWhere,
       }),
+      hasRoleAction
+        ? this.prisma.request.count({ where: myActionWhere })
+        : Promise.resolve(0),
       this.prisma.supplier.count(),
       this.prisma.stockMovement.findMany({
         take: 6,
@@ -120,7 +159,7 @@ export class DashboardService {
         },
       }),
       this.prisma.request.findMany({
-        where: requestWhere,
+        where: baseRequestWhere,
         take: 6,
         orderBy: { createdAt: 'desc' },
         include: {
@@ -130,10 +169,10 @@ export class DashboardService {
         },
       }),
       this.prisma.transferAcceptance.count({
-        where: { status: 'PENDING' },
+        where: transferWhere,
       }),
       this.prisma.repairRecord.count({
-        where: { status: { in: ['PENDING', 'IN_REPAIR'] } },
+        where: repairWhere,
       }),
       this.prisma.writeOffRequest.count({
         where: { status: 'IN_REVIEW' },
@@ -299,6 +338,8 @@ export class DashboardService {
         totalStockUnits,
         lowStockCount: lowStockItems.length,
         pendingRequestsCount,
+        inProgressRequestsCount: pendingRequestsCount,
+        myActionRequestsCount,
         pendingTransfersCount,
         activeRepairsCount,
         pendingWriteOffsCount,
@@ -317,6 +358,8 @@ export class DashboardService {
       needsAttention: {
         lowStockCount: lowStockItems.length,
         pendingRequestsCount,
+        inProgressRequestsCount: pendingRequestsCount,
+        myActionRequestsCount,
         pendingTransfersCount,
         activeRepairsCount,
         pendingWriteOffsCount,

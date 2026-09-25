@@ -174,9 +174,9 @@ export const DashboardPage: React.FC = () => {
       { 'Ko‘rsatkich': 'Eskirish Foizi', 'Qiymat': `${summary?.depreciationPercentage || 0}%` },
       { 'Ko‘rsatkich': 'Ombordagi Sarf Tovarlar Zaxirasi', 'Qiymat': `${summary?.totalStockUnits || 0} birlik` },
       { 'Ko‘rsatkich': 'Zaxirasi Kam Qolgan Mahsulotlar', 'Qiymat': `${summary?.lowStockCount || 0} ta` },
-      { 'Ko‘rsatkich': 'Kutilayotgan Talabnomalar', 'Qiymat': `${summary?.pendingRequestsCount || 0} ta` },
+      { 'Ko‘rsatkich': 'Jarayondagi Talabnomalar', 'Qiymat': `${summary?.pendingRequestsCount || 0} ta` },
       { 'Ko‘rsatkich': 'Kutilayotgan Ko‘chirish Dalolatnomalari', 'Qiymat': `${summary?.pendingTransfersCount || 0} ta` },
-      { 'Ko‘rsatkich': 'Ta’mirdagi Texnikalar Soni', 'Qiymat': `${summary?.statusCounts?.IN_REPAIR || 0} ta` },
+      { 'Ko‘rsatkich': 'Ta’mirdagi Texnikalar Soni', 'Qiymat': `${summary?.activeRepairsCount ?? summary?.statusCounts?.IN_REPAIR ?? 0} ta` },
       { 'Ko‘rsatkich': 'Hamkor Ta’minotchilar Soni', 'Qiymat': `${summary?.suppliersCount || 0} ta` },
       { 'Ko‘rsatkich': 'Kafedralar Kvotasidan Oshgan Holatlar', 'Qiymat': `${exceededQuotas.length} ta` },
     ];
@@ -284,10 +284,10 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14, color: '#D46B08' }}>
-                  {summary?.pendingRequestsCount} ta kutilayotgan ariza
+                  {summary?.pendingRequestsCount} ta jarayondagi ariza
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
-                  Tasdiqlashingiz yoki imzoingiz kutilmoqda
+                  Ijro va tasdiqlash jarayonida
                 </div>
               </div>
             </div>
@@ -348,7 +348,7 @@ export const DashboardPage: React.FC = () => {
           <StatHeroCard
             title="Asosiy Vositalar"
             value={isLoading ? '—' : `${summary?.totalAssets || 0}`}
-            subtext="100% QR hisobga olingan"
+            subtext={(summary?.pendingTransfersCount || 0) > 0 ? `${summary?.pendingTransfersCount} ta topshirish jarayonda` : '100% QR hisobga olingan'}
             icon={<IconDesktop />}
             bgColor="#165DFF"
             footerBgColor="#0E42D2"
@@ -371,12 +371,18 @@ export const DashboardPage: React.FC = () => {
           />
         </Col>
 
-        {/* Card 3: Pending Requests */}
+        {/* Card 3: Pending / In-progress Requests */}
         <Col xs={24} sm={12} md={8} lg={4}>
           <StatHeroCard
-            title="Kutilayotgan Zayavkalar"
+            title="Jarayondagi Talabnomalar"
             value={isLoading ? '—' : `${summary?.pendingRequestsCount || 0}`}
-            subtext={(summary?.pendingRequestsCount || 0) > 0 ? 'Tasdiqlash kutilmoqda' : 'Hammasi bajarilgan'}
+            subtext={
+              (summary?.myActionRequestsCount || 0) > 0
+                ? `${summary?.myActionRequestsCount} ta vizangiz kutilmoqda`
+                : (summary?.pendingRequestsCount || 0) > 0
+                ? `${summary?.pendingRequestsCount} ta ijro jarayonida`
+                : 'Barcha arizalar yakunlangan'
+            }
             icon={<IconFile />}
             bgColor="#FF7D00"
             footerBgColor="#D25F00"
@@ -403,8 +409,12 @@ export const DashboardPage: React.FC = () => {
         <Col xs={24} sm={12} md={8} lg={4}>
           <StatHeroCard
             title="Ta’mirdagi Texnikalar"
-            value={isLoading ? '—' : `${summary?.statusCounts?.IN_REPAIR || 0}`}
-            subtext="Servis va ustaxona"
+            value={isLoading ? '—' : `${summary?.activeRepairsCount ?? summary?.statusCounts?.IN_REPAIR ?? 0}`}
+            subtext={
+              (summary?.activeRepairsCount || 0) > 0
+                ? `${summary?.activeRepairsCount} ta servis jarayonida`
+                : 'Servis va ustaxona'
+            }
             icon={<IconTool />}
             bgColor="#F53F3F"
             footerBgColor="#CB272D"

@@ -95,25 +95,31 @@ export const hasRoutePermission = (role: RoleType | undefined, path: string): bo
 export const formatRoleName = (role?: string): string => {
   if (!role) return '';
   const trimmed = role.trim();
-  if (ROLE_CONFIG[trimmed as RoleType]) {
-    return ROLE_CONFIG[trimmed as RoleType].label;
+  const upper = trimmed.toUpperCase();
+  if (ROLE_CONFIG[upper as RoleType]) {
+    return ROLE_CONFIG[upper as RoleType].label;
   }
   const customMap: Record<string, string> = {
     CHIEF_ACCOUNTANT: 'Bosh hisobchi',
+    CHIEF_ACCOUNT: 'Bosh hisobchi',
+    ACCOUNTANT: 'Bosh hisobchi',
     RECTOR: 'Universitet rektori',
     VICE_RECTOR_FINANCE: 'Moliya prorektori',
+    VICE_RECTOR: 'Moliya prorektori',
     HEAD_WAREHOUSE: 'Bosh omborchi',
-    COMMENDANT: 'Bino komendanti',
-    MOL: 'Moddiy javobgar shaxs',
-    AUDITOR: 'Ichki auditor',
-    EMPLOYEE: 'Xodim',
-    SUPER_ADMIN: 'Bosh administrator',
-    DEPARTMENT_HEAD: 'Kafedra mudiri',
-    ACCOUNTANT: 'Hisobchi',
+    WAREHOUSE: 'Bosh omborchi',
     WAREHOUSEMAN: 'Omborchi',
+    COMMENDANT: 'Bino komendanti',
+    MOL: 'Moddiy javobgar shaxs (MOL)',
+    AUDITOR: 'Ichki auditor',
+    EMPLOYEE: 'Xodim / O‘qituvchi',
+    TEACHER: 'O‘qituvchi',
+    SUPER_ADMIN: 'Bosh administrator',
+    ADMIN: 'Bosh administrator',
+    DEPARTMENT_HEAD: 'Kafedra mudiri',
   };
-  if (customMap[trimmed]) {
-    return customMap[trimmed];
+  if (customMap[upper]) {
+    return customMap[upper];
   }
   return trimmed.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 };
