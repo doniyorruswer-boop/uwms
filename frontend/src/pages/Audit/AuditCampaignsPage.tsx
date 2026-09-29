@@ -23,6 +23,8 @@ import {
   Tooltip,
   Message,
   Notification,
+  Dropdown,
+  Menu,
 } from '@arco-design/web-react';
 import {
   IconPlus,
@@ -41,6 +43,7 @@ import {
   IconRefresh,
   IconQrcode,
   IconWifi,
+  IconDown,
 } from '@arco-design/web-react/icon';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -66,7 +69,6 @@ import { DocType } from '../../constants';
 import { StockLevelGauge } from '../../components/Common/StockLevelGauge';
 import { QRPairingModal } from '../../components/Common/QRPairingModal';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
-import { TableActions } from '../../components/Common/TableActions';
 import { StandardTable } from '../../components/Common/StandardTable';
 import { ForbiddenView } from '../../components/Common/ForbiddenView';
 import { StatusTag } from '../../components/Common/StatusTag';
@@ -475,7 +477,7 @@ export const AuditCampaignsPage: React.FC = () => {
         rowKey="id"
         loading={isLoading}
         data={campaigns}
-        scrollX={1420}
+        scrollX={1560}
         onRowClick={(record) => handleOpenProgress(record)}
         emptyText={search ? 'Qidiruv bo‘yicha kampaniya topilmadi' : 'Hali rejali kampaniyalar yaratilmagan'}
         columns={[
@@ -598,8 +600,8 @@ export const AuditCampaignsPage: React.FC = () => {
             ),
           },
           {
-            title: 'WORM Imzo & INV-19',
-            width: 175,
+            title: 'WORM Imzo',
+            width: 155,
             render: (_, record: AuditCampaignItem) => {
               if (record.hasWormStamp) {
                 return (
@@ -632,75 +634,161 @@ export const AuditCampaignsPage: React.FC = () => {
             },
           },
           {
-            title: 'Amallar',
-            width: 270,
-            fixed: 'right' as const,
-            render: (_, record: AuditCampaignItem) => (
-              <TableActions rightPadding={16}>
-                <Tooltip content="Xonalar va Progress">
-                  <Button
-                    size="small"
-                    type="outline"
-                    icon={<IconEye />}
-                    onClick={(e) => handleOpenProgress(record, e)}
-                    style={{ borderRadius: 0 }}
-                  >
-                    Progress
-                  </Button>
-                </Tooltip>
+            title: 'Hujjatlar',
+            width: 140,
+            render: (_, record: AuditCampaignItem) => {
+              const hasDecree =
+                Boolean(record.orderNumber) ||
+                record.status !== 'PLANNED' ||
+                Boolean(record.approvedBy);
+              const hasInv19 =
+                record.status === 'COMPLETED' ||
+                record.hasWormStamp ||
+                record.completedRooms > 0;
+              const hasMissing = record.missingCount > 0;
+              const hasExcel =
+                record.status === 'COMPLETED' || record.completedRooms > 0;
 
-                {record.missingCount > 0 && (
-                  <Tooltip content="Kamomadlar hisoboti">
-                    <Button
-                      size="small"
-                      type="outline"
-                      status="danger"
-                      icon={<IconExclamationCircle />}
-                      onClick={(e) => handleOpenMissing(record, e)}
-                      style={{ borderRadius: 0 }}
+              const hasAnyDoc = hasDecree || hasInv19 || hasMissing || hasExcel;
+
+              if (!hasAnyDoc) {
+                return (
+                  <span style={{ color: 'var(--color-text-4)', fontSize: 13, paddingLeft: 6 }}>
+                    —
+                  </span>
+                );
+              }
+
+              const docMenuList = (
+                <Menu onClickMenuItem={(_, e) => e?.stopPropagation?.()}>
+                  {hasDecree && (
+                    <Menu.Item
+                      key="doc-decree"
+                      onClick={(e) => {
+                        e?.stopPropagation?.();
+                        handleOpenDecreeModal(record, e);
+                      }}
                     >
-                      Kamomad ({record.missingCount})
-                    </Button>
-                  </Tooltip>
-                )}
-
-                {record.status === 'PLANNED' && (
-                  isRectorOrProrector ? (
-                    <Button
-                      size="small"
-                      type="primary"
-                      icon={<IconQrcode />}
-                      loading={startCampaignMutation.isPending && signingCampaign?.id === record.id}
-                      onClick={(e) => handleOpenStartQrModal(record, e)}
-                      style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
+                      <Space size={8}>
+                        <IconFile style={{ color: '#165DFF' }} />
+                        <span>Rektor Farmoyishi {record.orderNumber ? `(${record.orderNumber})` : ''}</span>
+                      </Space>
+                    </Menu.Item>
+                  )}
+                  {hasInv19 && (
+                    <Menu.Item
+                      key="doc-inv19"
+                      onClick={(e) => {
+                        e?.stopPropagation?.();
+                        handleOpenDocModal(record, e);
+                      }}
                     >
-                      Rektor Farmoyishi (QR Imzo)
-                    </Button>
-                  ) : (
-                    <Tooltip content="Inventarizatsiyani boshlash faqat Rektor yoki Moliya prorektori raqamli imzosi orqali amalga oshiriladi">
-                      <Tag
-                        color="gold"
-                        icon={<IconExclamationCircle />}
-                        style={{ borderRadius: 0, fontWeight: 600 }}
-                      >
-                        Rektor Farmoyishi Kutilmoqda
-                      </Tag>
-                    </Tooltip>
-                  )
-                )}
+                      <Space size={8}>
+                        <IconFile style={{ color: '#00B42A' }} />
+                        <span>
+                          INV-19 Inventarizatsiya Akti{' '}
+                          {record.hasWormStamp ? '(WORM Muhrli)' : ''}
+                        </span>
+                      </Space>
+                    </Menu.Item>
+                  )}
+                  {hasMissing && (
+                    <Menu.Item
+                      key="doc-missing"
+                      onClick={(e) => {
+                        e?.stopPropagation?.();
+                        handleOpenMissing(record, e);
+                      }}
+                    >
+                      <Space size={8}>
+                        <IconExclamationCircle style={{ color: '#F53F3F' }} />
+                        <span style={{ color: '#F53F3F' }}>
+                          Kamomadlar Qaydnomasi ({record.missingCount})
+                        </span>
+                      </Space>
+                    </Menu.Item>
+                  )}
+                  {hasExcel && (
+                    <Menu.Item
+                      key="doc-excel"
+                      onClick={(e) => {
+                        e?.stopPropagation?.();
+                        downloadCampaignExcel(record.id, record.campaignNumber);
+                      }}
+                    >
+                      <Space size={8}>
+                        <IconDownload style={{ color: '#00B42A' }} />
+                        <span>INV-19 Excel (.xlsx)</span>
+                      </Space>
+                    </Menu.Item>
+                  )}
+                </Menu>
+              );
 
-                {record.status === 'IN_PROGRESS' && (
-                  <>
+              return (
+                <div onClick={(e) => e?.stopPropagation?.()}>
+                  <Dropdown droplist={docMenuList} trigger="click" position="bl">
                     <Button
                       size="small"
                       type="outline"
                       icon={<IconFile />}
-                      onClick={(e) => handleOpenDecreeModal(record, e)}
-                      style={{ borderRadius: 0 }}
+                      style={{
+                        borderRadius: 0,
+                        padding: '0 8px',
+                        color: '#165DFF',
+                        borderColor: '#94BFFF',
+                      }}
                     >
-                      Farmoyish
+                      Hujjatlar <IconDown style={{ fontSize: 10, marginLeft: 2 }} />
                     </Button>
-                    {(user?.role === 'AUDITOR' || user?.role === 'SUPER_ADMIN') && (
+                  </Dropdown>
+                </div>
+              );
+            },
+          },
+          {
+            title: 'Amallar',
+            width: 180,
+            fixed: 'right' as const,
+            render: (_, record: AuditCampaignItem) => {
+              const actionElement = (() => {
+                if (record.status === 'PLANNED') {
+                  if (isRectorOrProrector) {
+                    return (
+                      <Button
+                        size="small"
+                        type="primary"
+                        icon={<IconQrcode />}
+                        loading={startCampaignMutation.isPending && signingCampaign?.id === record.id}
+                        onClick={(e) => handleOpenStartQrModal(record, e)}
+                        style={{
+                          borderRadius: 0,
+                          backgroundColor: '#165DFF',
+                          padding: '0 8px',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Rektor Farmoyishi (QR)
+                      </Button>
+                    );
+                  }
+                  return (
+                    <Tooltip content="Inventarizatsiyani boshlash faqat Rektor yoki Moliya prorektori raqamli imzosi orqali amalga oshiriladi">
+                      <Tag
+                        color="gold"
+                        size="small"
+                        icon={<IconExclamationCircle />}
+                        style={{ borderRadius: 0, fontSize: 11, padding: '0 6px', whiteSpace: 'nowrap' }}
+                      >
+                        Farmoyish Kutilmoqda
+                      </Tag>
+                    </Tooltip>
+                  );
+                }
+
+                if (record.status === 'IN_PROGRESS') {
+                  if (user?.role === 'AUDITOR' || user?.role === 'SUPER_ADMIN') {
+                    return (
                       <Button
                         size="small"
                         type="primary"
@@ -708,53 +796,64 @@ export const AuditCampaignsPage: React.FC = () => {
                         icon={<IconQrcode />}
                         loading={completeCampaignMutation.isPending && signingCampaign?.id === record.id}
                         onClick={(e) => handleOpenCompleteQrModal(record, e)}
-                        style={{ borderRadius: 0 }}
+                        style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
                       >
                         QR-Yakunlash
                       </Button>
-                    )}
-                  </>
-                )}
-
-                {record.status === 'COMPLETED' && (
-                  <>
-                    <Button
+                    );
+                  }
+                  return (
+                    <Tag
+                      color="arcoblue"
                       size="small"
-                      type="outline"
-                      icon={<IconFile />}
-                      onClick={(e) => handleOpenDecreeModal(record, e)}
-                      style={{ borderRadius: 0 }}
+                      style={{ borderRadius: 0, fontSize: 11, padding: '0 6px', whiteSpace: 'nowrap' }}
                     >
-                      Farmoyish
-                    </Button>
-                    <Tooltip content="3-varaqli rasmiy INV-19 Excel (.xlsx) hisobotini yuklab olish">
+                      Tekshiruv Jarayonda
+                    </Tag>
+                  );
+                }
+
+                return null;
+              })();
+
+              return (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    flexWrap: 'nowrap',
+                    justifyContent: 'flex-start',
+                  }}
+                  onClick={(e) => e?.stopPropagation?.()}
+                >
+                  {actionElement ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                      {actionElement}
                       <Button
                         size="small"
                         type="outline"
-                        status="success"
-                        icon={<IconDownload />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          downloadCampaignExcel(record.id, record.campaignNumber);
-                        }}
-                        style={{ borderRadius: 0 }}
+                        icon={<IconEye />}
+                        style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+                        onClick={(e) => handleOpenProgress(record, e)}
                       >
-                        Excel
+                        Batafsil
                       </Button>
-                    </Tooltip>
+                    </div>
+                  ) : (
                     <Button
                       size="small"
                       type="outline"
-                      icon={<IconFile />}
-                      onClick={(e) => handleOpenDocModal(record, e)}
-                      style={{ borderRadius: 0 }}
+                      icon={<IconEye />}
+                      style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+                      onClick={(e) => handleOpenProgress(record, e)}
                     >
-                      INV-19 Akt
+                      Batafsil
                     </Button>
-                  </>
-                )}
-              </TableActions>
-            ),
+                  )}
+                </div>
+              );
+            },
           },
         ]}
       />
@@ -1037,7 +1136,7 @@ export const AuditCampaignsPage: React.FC = () => {
                 style={{ borderRadius: 0 }}
                 onClick={handleExportMissingExcel}
               >
-                Excelga Yuklab Olish
+                Export
               </Button>
             </div>
 

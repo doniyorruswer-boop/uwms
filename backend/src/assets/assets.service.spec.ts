@@ -41,6 +41,7 @@ describe('AssetsService - Import Template & Dry-Run Preview (Unit Tests)', () =>
       },
       category: {
         upsert: jest.fn().mockResolvedValue({ id: 'cat-1', name: 'Kompyuter va IT uskunalari' }),
+        findMany: jest.fn().mockResolvedValue([{ id: 'cat-1', name: 'Kompyuter va IT uskunalari' }]),
       },
       item: {
         findFirst: jest.fn().mockResolvedValue(null),

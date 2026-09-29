@@ -65,6 +65,7 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
   const [actionType, setActionType] = useState<HandoverItemActionType>('TRANSFER_TO_MOL');
   const [targetUserId, setTargetUserId] = useState<string | undefined>(undefined);
   const [targetWarehouseId, setTargetWarehouseId] = useState<string | undefined>(undefined);
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | undefined>(undefined);
   const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>(undefined);
   const [repairDescription, setRepairDescription] = useState<string>('');
   const [writeOffReason, setWriteOffReason] = useState<string>('');
@@ -77,7 +78,7 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
   const [note, setNote] = useState<string>('');
 
   // Queries
-  const { buildings, rooms } = useOrganizationQuery();
+  const { buildings, rooms, allDepartments } = useOrganizationQuery();
   const { warehouses } = useWarehousesQuery();
   const { data: usersData, isLoading: isLoadingUsers } = useUsersQuery({
     page: 1,
@@ -108,6 +109,7 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
       if (initialRoomId) {
         resolveCommandantAndBuilding(initialRoomId);
       } else {
+        setSelectedBuildingId(undefined);
         setCommandantUserId(undefined);
         setAutoDetectedBuildingName(undefined);
       }
@@ -122,6 +124,7 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
         (b) => b.name === r.building || b.id === (r as any).buildingId || b.id === (r as any).building?.id
       );
       if (bld) {
+        setSelectedBuildingId(bld.id);
         setAutoDetectedBuildingName(bld.name);
         if (bld.commendantId) {
           setCommandantUserId(bld.commendantId);
@@ -129,12 +132,46 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
         }
       } else if (r.building) {
         setAutoDetectedBuildingName(r.building);
+        const bldByName = buildings.find((b) => b.name === r.building);
+        if (bldByName) {
+          setSelectedBuildingId(bldByName.id);
+          if (bldByName.commendantId) {
+            setCommandantUserId(bldByName.commendantId);
+          }
+        }
       }
     }
   };
 
-  // When room changes in Transfer to MOL, update commandant if possible
-  const handleRoomChange = (roomId: string) => {
+  // When building changes in Transfer to MOL, filter rooms and update commandant
+  const handleBuildingChange = (buildingId?: string) => {
+    setSelectedBuildingId(buildingId);
+    if (buildingId) {
+      const bld = buildings.find((b) => b.id === buildingId);
+      if (bld) {
+        setAutoDetectedBuildingName(bld.name);
+        if (bld.commendantId) {
+          setCommandantUserId(bld.commendantId);
+        }
+      }
+      // If currently selected room is not in this building, clear selected room
+      if (selectedRoomId) {
+        const curRoom = rooms.find((rm) => rm.id === selectedRoomId);
+        const curRoomBldId =
+          (curRoom as any)?.buildingId ||
+          (curRoom as any)?.building?.id ||
+          buildings.find((b) => b.name === curRoom?.building)?.id;
+        if (curRoom && curRoomBldId && curRoomBldId !== buildingId) {
+          setSelectedRoomId(undefined);
+        }
+      }
+    } else {
+      setAutoDetectedBuildingName(undefined);
+    }
+  };
+
+  // When room changes in Transfer to MOL, update building and commandant if possible
+  const handleRoomChange = (roomId?: string) => {
     setSelectedRoomId(roomId);
     if (roomId) {
       resolveCommandantAndBuilding(roomId);
@@ -162,10 +199,104 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
     return selectedAssets.filter((a) => selectedAssetKeys.includes(a.id));
   }, [selectedAssets, selectedAssetKeys]);
 
+  const EXCLUDED_RECIPIENT_ROLES = [
+    'RECTOR',
+    'VICE_RECTOR_FINANCE',
+    'CHIEF_ACCOUNTANT',
+    'AUDITOR',
+    'SUPER_ADMIN',
+    'ADMIN',
+  ];
+
   const availableUsers = useMemo(() => {
     if (!usersData?.items) return [];
-    return usersData.items.filter((u) => u.id !== departingUserId && u.isActive);
-  }, [usersData, departingUserId]);
+    const filtered = usersData.items.filter(
+      (u) =>
+        u.id !== departingUserId &&
+        u.isActive &&
+        !EXCLUDED_RECIPIENT_ROLES.includes(u.role)
+    );
+
+    return filtered.sort((a, b) => {
+      const aIsOwn = Boolean(
+        currentUser?.departmentId && a.departmentId && a.departmentId === currentUser.departmentId
+      );
+      const bIsOwn = Boolean(
+        currentUser?.departmentId && b.departmentId && b.departmentId === currentUser.departmentId
+      );
+      if (aIsOwn !== bIsOwn) {
+        return aIsOwn ? -1 : 1; // Own department comes first!
+      }
+      return (a.fullName || '').localeCompare(b.fullName || '');
+    });
+  }, [usersData, departingUserId, currentUser?.departmentId]);
+
+  const ownDeptUsers = useMemo(() => {
+    return availableUsers.filter(
+      (u) => Boolean(currentUser?.departmentId && u.departmentId === currentUser.departmentId)
+    );
+  }, [availableUsers, currentUser?.departmentId]);
+
+  const otherDeptUsers = useMemo(() => {
+    return availableUsers.filter(
+      (u) => !currentUser?.departmentId || u.departmentId !== currentUser.departmentId
+    );
+  }, [availableUsers, currentUser?.departmentId]);
+
+  // Determine user's primary/associated buildings (department building, asset rooms building)
+  const userBuildingIds = useMemo(() => {
+    const ids = new Set<string>();
+
+    // 1. User's department building
+    if (currentUser?.departmentId && allDepartments) {
+      const userDept = allDepartments.find((d) => d.id === currentUser.departmentId);
+      if (userDept?.buildingId) ids.add(userDept.buildingId);
+      if (userDept?.building?.id) ids.add(userDept.building.id);
+    }
+
+    // 2. Buildings containing user's department
+    if (currentUser?.departmentId && buildings) {
+      buildings.forEach((b) => {
+        if (b.departments?.some((d) => d.id === currentUser.departmentId)) {
+          ids.add(b.id);
+        }
+      });
+    }
+
+    // 3. User's rooms or current selected assets' building
+    selectedAssets.forEach((a) => {
+      if (a.roomId) {
+        const rm = rooms.find((r) => r.id === a.roomId);
+        if (rm) {
+          if ((rm as any).buildingId) ids.add((rm as any).buildingId);
+          const bld = buildings.find((b) => b.name === rm.building);
+          if (bld) ids.add(bld.id);
+        }
+      }
+    });
+
+    return Array.from(ids);
+  }, [currentUser?.departmentId, allDepartments, buildings, selectedAssets, rooms]);
+
+  const sortedBuildings = useMemo(() => {
+    if (!buildings) return [];
+    return [...buildings].sort((a, b) => {
+      const aIsOwn = userBuildingIds.includes(a.id);
+      const bIsOwn = userBuildingIds.includes(b.id);
+      if (aIsOwn !== bIsOwn) {
+        return aIsOwn ? -1 : 1; // User's own building comes first!
+      }
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }, [buildings, userBuildingIds]);
+
+  const ownBuildings = useMemo(() => {
+    return sortedBuildings.filter((b) => userBuildingIds.includes(b.id));
+  }, [sortedBuildings, userBuildingIds]);
+
+  const otherBuildings = useMemo(() => {
+    return sortedBuildings.filter((b) => !userBuildingIds.includes(b.id));
+  }, [sortedBuildings, userBuildingIds]);
 
   // Potential Accountants
   const accountantUsers = useMemo(() => {
@@ -183,13 +314,26 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
     );
   }, [usersData]);
 
-  // Set default accountant
+  const targetUserObj = useMemo(() => {
+    return usersData?.items?.find((u) => u.id === targetUserId);
+  }, [usersData, targetUserId]);
+
+  const isSameDepartment = useMemo(() => {
+    if (!currentUser?.departmentId || !targetUserObj?.departmentId) return false;
+    return currentUser.departmentId === targetUserObj.departmentId;
+  }, [currentUser?.departmentId, targetUserObj?.departmentId]);
+
+  const isInterDepartment = actionType === 'TRANSFER_TO_MOL' && !!targetUserId && !isSameDepartment;
+
+  // Set default accountant ONLY for inter-departmental transfers
   useEffect(() => {
-    if (accountantUsers.length > 0 && !accountantUserId) {
+    if (isInterDepartment && accountantUsers.length > 0 && !accountantUserId) {
       const chief = accountantUsers.find((u) => u.role === 'CHIEF_ACCOUNTANT');
       setAccountantUserId(chief?.id || accountantUsers[0].id);
+    } else if (isSameDepartment && actionType === 'TRANSFER_TO_MOL') {
+      setAccountantUserId(undefined);
     }
-  }, [accountantUsers, accountantUserId]);
+  }, [isInterDepartment, isSameDepartment, actionType, accountantUsers, accountantUserId]);
 
   // Step 0 validation before proceeding to Step 1
   const handleProceedToStep2 = () => {
@@ -198,9 +342,15 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
       return;
     }
 
-    if (actionType === 'TRANSFER_TO_MOL' && !targetUserId) {
-      Message.warning('Iltimos, yangi moddiy javobgar shaxsni (MOL) tanlang!');
-      return;
+    if (actionType === 'TRANSFER_TO_MOL') {
+      if (!targetUserId) {
+        Message.warning('Iltimos, yangi moddiy javobgar shaxsni (Yangi MOL) tanlang!');
+        return;
+      }
+      if (!selectedRoomId) {
+        Message.warning('Iltimos, ashyolar joylashadigan bino va aniq xonani tanlang!');
+        return;
+      }
     }
 
     if (actionType === 'RETURN_TO_WAREHOUSE' && !targetWarehouseId) {
@@ -264,15 +414,27 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
       };
     });
 
+    if (actionType === 'TRANSFER_TO_MOL' && isInterDepartment) {
+      if (!commandantUserId) {
+        Message.warning('Kafedralararo o‘tkazishda Bino Komendantini tanlash shart!');
+        return;
+      }
+      if (!accountantUserId) {
+        Message.warning('Kafedralararo o‘tkazishda Moddiy Hisobchini (Buxgalteriya) tanlash shart!');
+        return;
+      }
+    }
+
     try {
       const payload = {
         type: handoverType,
         departingUserId,
         targetUserId: actionType === 'TRANSFER_TO_MOL' ? targetUserId : undefined,
         targetWarehouseId: actionType === 'RETURN_TO_WAREHOUSE' ? targetWarehouseId : undefined,
+        buildingId: selectedBuildingId,
         roomId: selectedRoomId || effectiveAssets[0]?.roomId,
-        commandantUserId,
-        accountantUserId,
+        commandantUserId: isInterDepartment ? commandantUserId : (commandantUserId || undefined),
+        accountantUserId: isInterDepartment ? accountantUserId : (accountantUserId || undefined),
         note: note.trim() || undefined,
         isDraft: false,
         items,
@@ -304,10 +466,6 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
     }, 0);
   }, [effectiveAssets]);
 
-  const targetUserObj = useMemo(() => {
-    return usersData?.items?.find((u) => u.id === targetUserId);
-  }, [usersData, targetUserId]);
-
   const targetWarehouseObj = useMemo(() => {
     return warehouses?.find((w) => w.id === targetWarehouseId);
   }, [warehouses, targetWarehouseId]);
@@ -315,6 +473,36 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
   const selectedRoomObj = useMemo(() => {
     return rooms.find((r) => r.id === selectedRoomId);
   }, [rooms, selectedRoomId]);
+
+  const selectedBuildingObj = useMemo(() => {
+    return buildings.find((b) => b.id === selectedBuildingId || b.name === autoDetectedBuildingName);
+  }, [buildings, selectedBuildingId, autoDetectedBuildingName]);
+
+  const availableRooms = useMemo(() => {
+    let list = rooms;
+    if (selectedBuildingId) {
+      list = list.filter((rm) => {
+        const bldId =
+          (rm as any).buildingId ||
+          (rm as any).building?.id ||
+          buildings.find((b) => b.name === rm.building)?.id;
+        return bldId === selectedBuildingId;
+      });
+    }
+
+    return [...list].sort((a, b) => {
+      const aIsOwnDept = Boolean(
+        currentUser?.departmentId && a.departmentId && a.departmentId === currentUser.departmentId
+      );
+      const bIsOwnDept = Boolean(
+        currentUser?.departmentId && b.departmentId && b.departmentId === currentUser.departmentId
+      );
+      if (aIsOwnDept !== bIsOwnDept) {
+        return aIsOwnDept ? -1 : 1; // Own department's rooms first!
+      }
+      return (a.number || '').localeCompare(b.number || '', undefined, { numeric: true });
+    });
+  }, [rooms, selectedBuildingId, buildings, currentUser?.departmentId]);
 
   // Asset Table Columns for Step 1
   const assetColumns = [
@@ -496,53 +684,348 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
                   </Space>
                 </Radio>
                 {actionType === 'TRANSFER_TO_MOL' && (
-                  <div style={{ marginLeft: 28, marginTop: 12, padding: 12, background: 'var(--color-fill-1)', borderRadius: 4 }}>
-                    <Row gutter={16}>
-                      <Col span={12}>
-                        <Form.Item label="Yangi Moddiy Javobgar Shaxs (Yangi MOL)" required style={{ marginBottom: 0 }}>
-                          <Select
-                            placeholder="Yangi mas’ul xodimni tanlang..."
-                            value={targetUserId}
-                            onChange={setTargetUserId}
-                            loading={isLoadingUsers}
-                            showSearch
-                            filterOption={(input, option) =>
-                              String(option.props.children || '')
-                                .toLowerCase()
-                                .includes(input.toLowerCase())
+                  <div style={{ marginLeft: 28, marginTop: 12, padding: 14, background: 'var(--color-fill-1)', borderRadius: 6, border: '1px solid var(--color-border-2)' }}>
+                    <Form layout="vertical">
+                      <Row gutter={[16, 12]}>
+                        <Col span={12}>
+                          <Form.Item label="Yangi Moddiy Javobgar Shaxs (MOL)" required style={{ marginBottom: 0 }}>
+                            <Select
+                              placeholder="Yangi mas’ul xodimni tanlang..."
+                              value={targetUserId}
+                              onChange={setTargetUserId}
+                              loading={isLoadingUsers}
+                              showSearch
+                              triggerProps={{
+                                autoAlignPopupWidth: false,
+                                position: 'bl',
+                              }}
+                              dropdownMenuStyle={{
+                                maxHeight: 280,
+                                overflowX: 'auto',
+                                overflowY: 'auto',
+                                minWidth: 460,
+                              }}
+                              renderFormat={(option) => {
+                                const u = availableUsers.find((user) => user.id === option?.value);
+                                if (!u) return option?.children;
+                                return `${u.fullName}${u.position ? ` (${u.position})` : ''}`;
+                              }}
+                              filterOption={(input, option) => {
+                                const u = availableUsers.find((user) => user.id === option.props.value);
+                                if (!u) return false;
+                                const q = input.toLowerCase().trim();
+                                return (
+                                  u.fullName?.toLowerCase().includes(q) ||
+                                  u.username?.toLowerCase().includes(q) ||
+                                  (u.position && u.position.toLowerCase().includes(q)) ||
+                                  (u.department?.name && u.department.name.toLowerCase().includes(q))
+                                );
+                              }}
+                            >
+                              {ownDeptUsers.length > 0 && (
+                                <Select.OptGroup label={`🏢 Kafedrangiz / Bo‘limingiz xodimlari (${ownDeptUsers.length})`}>
+                                  {ownDeptUsers.map((u) => (
+                                    <Select.Option key={u.id} value={u.id}>
+                                      <div
+                                        style={{
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
+                                          alignItems: 'center',
+                                          gap: 16,
+                                          whiteSpace: 'nowrap',
+                                          minWidth: 'max-content',
+                                        }}
+                                      >
+                                        <span style={{ whiteSpace: 'nowrap' }}>
+                                          <b>{u.fullName}</b>
+                                          {u.position && (
+                                            <span style={{ color: 'var(--color-text-3)', marginLeft: 6, fontSize: 12 }}>
+                                              ({u.position})
+                                            </span>
+                                          )}
+                                        </span>
+                                        <Tag size="small" color="green" style={{ flexShrink: 0 }}>
+                                          Kafedrangiz xodimi
+                                        </Tag>
+                                      </div>
+                                    </Select.Option>
+                                  ))}
+                                </Select.OptGroup>
+                              )}
+                              {otherDeptUsers.length > 0 && (
+                                <Select.OptGroup label={`🏛 Boshqa kafedra va bo‘limlar (${otherDeptUsers.length})`}>
+                                  {otherDeptUsers.map((u) => {
+                                    const deptName = u.department?.name || (u as any).departmentName;
+                                    return (
+                                      <Select.Option key={u.id} value={u.id}>
+                                        <div
+                                          style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            gap: 16,
+                                            whiteSpace: 'nowrap',
+                                            minWidth: 'max-content',
+                                          }}
+                                        >
+                                          <span style={{ whiteSpace: 'nowrap' }}>
+                                            <b>{u.fullName}</b>
+                                            {u.position && (
+                                              <span style={{ color: 'var(--color-text-3)', marginLeft: 6, fontSize: 12 }}>
+                                                ({u.position})
+                                              </span>
+                                            )}
+                                          </span>
+                                          <Tag size="small" color="orange" style={{ flexShrink: 0 }}>
+                                            {deptName || 'Boshqa bo‘lim'}
+                                          </Tag>
+                                        </div>
+                                      </Select.Option>
+                                    );
+                                  })}
+                                </Select.OptGroup>
+                              )}
+                            </Select>
+                          </Form.Item>
+                        </Col>
+
+                        <Col span={12}>
+                          <Form.Item
+                            label="Joylashuv: Bino / Korpus (Filtr)"
+                            style={{ marginBottom: 0 }}
+                            extra={selectedBuildingId ? `Tanlandi: ${autoDetectedBuildingName || 'Bino'}` : undefined}
+                          >
+                            <Select
+                              placeholder="Binoni tanlang (filtrlash)..."
+                              value={selectedBuildingId}
+                              onChange={handleBuildingChange}
+                              showSearch
+                              allowClear
+                              triggerProps={{
+                                autoAlignPopupWidth: false,
+                                position: 'bl',
+                              }}
+                              dropdownMenuStyle={{
+                                maxHeight: 280,
+                                overflowX: 'auto',
+                                overflowY: 'auto',
+                                minWidth: 440,
+                              }}
+                              filterOption={(input, option) => {
+                                const bld = buildings.find((b) => b.id === option.props.value);
+                                if (!bld) return false;
+                                const q = input.toLowerCase().trim();
+                                return (
+                                  bld.name?.toLowerCase().includes(q) ||
+                                  (bld.code && bld.code.toLowerCase().includes(q)) ||
+                                  (bld.address && bld.address.toLowerCase().includes(q))
+                                );
+                              }}
+                            >
+                              {ownBuildings.length > 0 && (
+                                <Select.OptGroup label={`🏢 Kafedrangiz joylashgan asosiy bino (${ownBuildings.length})`}>
+                                  {ownBuildings.map((b) => (
+                                    <Select.Option key={b.id} value={b.id}>
+                                      <div
+                                        style={{
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
+                                          alignItems: 'center',
+                                          gap: 16,
+                                          whiteSpace: 'nowrap',
+                                          minWidth: 'max-content',
+                                        }}
+                                      >
+                                        <span>
+                                          <b>{b.name}</b> ({b.floorsCount} qavatli{b._count?.rooms ? `, ${b._count.rooms} ta xona` : ''})
+                                        </span>
+                                        <Tag size="small" color="green" style={{ flexShrink: 0 }}>
+                                          Asosiy binongiz
+                                        </Tag>
+                                      </div>
+                                    </Select.Option>
+                                  ))}
+                                </Select.OptGroup>
+                              )}
+                              {otherBuildings.length > 0 && (
+                                <Select.OptGroup label={`🏛 Universitetning boshqa binolari (${otherBuildings.length})`}>
+                                  {otherBuildings.map((b) => (
+                                    <Select.Option key={b.id} value={b.id}>
+                                      <div
+                                        style={{
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
+                                          alignItems: 'center',
+                                          gap: 16,
+                                          whiteSpace: 'nowrap',
+                                          minWidth: 'max-content',
+                                        }}
+                                      >
+                                        <span>
+                                          <b>{b.name}</b> ({b.floorsCount} qavatli{b._count?.rooms ? `, ${b._count.rooms} ta xona` : ''})
+                                        </span>
+                                        <Tag size="small" color="gray" style={{ flexShrink: 0 }}>
+                                          Boshqa bino
+                                        </Tag>
+                                      </div>
+                                    </Select.Option>
+                                  ))}
+                                </Select.OptGroup>
+                              )}
+                            </Select>
+                          </Form.Item>
+                        </Col>
+
+                        <Col span={24}>
+                          <Form.Item
+                            label="Ashyolar joylashadigan Aniq Xona / Auditoriya"
+                            required
+                            style={{ marginBottom: 0 }}
+                            extra={
+                              selectedBuildingId
+                                ? `"${autoDetectedBuildingName || 'Bino'}" dagi mavjud ${availableRooms.length} ta xona ko‘rsatilmoqda`
+                                : 'Universitet bo‘yicha barcha xonalar. Xona tanlanganda uning binosi va komendanti avtomatik aniqlanadi.'
                             }
                           >
-                            {availableUsers.map((u) => (
-                              <Select.Option key={u.id} value={u.id}>
-                                {u.fullName} ({u.role} • {u.position || 'Xodim'})
-                              </Select.Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-                      <Col span={12}>
-                        <Form.Item label="Ashyolar joylashadigan Xona" style={{ marginBottom: 0 }}>
-                          <Select
-                            placeholder="Xonani tanlang..."
-                            value={selectedRoomId}
-                            onChange={handleRoomChange}
-                            showSearch
-                            allowClear
-                            filterOption={(input, option) =>
-                              String(option.props.children || '')
-                                .toLowerCase()
-                                .includes(input.toLowerCase())
-                            }
-                          >
-                            {rooms.map((rm) => (
-                              <Select.Option key={rm.id} value={rm.id}>
-                                {rm.number} - {rm.name} ({rm.building || 'Bino'})
-                              </Select.Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-                    </Row>
+                            <Select
+                              placeholder={
+                                selectedBuildingId
+                                  ? `${autoDetectedBuildingName || 'Bino'} bo‘yicha xonani tanlang...`
+                                  : 'Xona yoki auditoriyani tanlang...'
+                              }
+                              value={selectedRoomId}
+                              onChange={handleRoomChange}
+                              showSearch
+                              allowClear
+                              triggerProps={{
+                                autoAlignPopupWidth: false,
+                                position: 'bl',
+                              }}
+                              dropdownMenuStyle={{
+                                maxHeight: 280,
+                                overflowX: 'auto',
+                                overflowY: 'auto',
+                                minWidth: 460,
+                              }}
+                              filterOption={(input, option) => {
+                                const rm = rooms.find((r) => r.id === option.props.value);
+                                if (!rm) return false;
+                                const q = input.toLowerCase().trim();
+                                return (
+                                  rm.number?.toLowerCase().includes(q) ||
+                                  rm.name?.toLowerCase().includes(q) ||
+                                  (rm.building && rm.building.toLowerCase().includes(q)) ||
+                                  `${rm.floor}`.includes(q)
+                                );
+                              }}
+                            >
+                              {availableRooms.map((rm) => {
+                                const isOwnDeptRoom = Boolean(
+                                  currentUser?.departmentId && rm.departmentId === currentUser.departmentId
+                                );
+                                return (
+                                  <Select.Option key={rm.id} value={rm.id}>
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        gap: 16,
+                                        whiteSpace: 'nowrap',
+                                        minWidth: 'max-content',
+                                      }}
+                                    >
+                                      <span style={{ whiteSpace: 'nowrap' }}>
+                                        <b style={{ color: '#165DFF', marginRight: 6 }}>{rm.number}-xona:</b>
+                                        <span>{rm.name}</span>
+                                      </span>
+                                      <Space size={4} style={{ flexShrink: 0 }}>
+                                        {isOwnDeptRoom && <Tag size="small" color="green">Kafedrangiz xonasi</Tag>}
+                                        <Tag size="small" color="blue">{rm.floor}-qavat</Tag>
+                                        {!selectedBuildingId && (
+                                          <Tag size="small" color="gray">{rm.building || 'Bino'}</Tag>
+                                        )}
+                                      </Space>
+                                    </div>
+                                  </Select.Option>
+                                );
+                              })}
+                            </Select>
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    </Form>
+
+                    {selectedRoomObj && (
+                      <div
+                        style={{
+                          marginTop: 14,
+                          padding: '12px 16px',
+                          background: 'var(--color-bg-2)',
+                          borderRadius: 4,
+                          border: '1px solid var(--color-border-2)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                          <Space>
+                            <Tag color="arcoblue" style={{ fontWeight: 600 }}>
+                              Aniq Joylashuv
+                            </Tag>
+                            <Text bold style={{ fontSize: 13, color: 'var(--color-text-1)' }}>
+                              🏢 {selectedRoomObj.building || autoDetectedBuildingName || 'Bino'} • {selectedRoomObj.number}-xona
+                            </Text>
+                          </Space>
+                          <Tag color="green" size="small" style={{ fontWeight: 600 }}>
+                            {selectedRoomObj.floor}-qavat
+                          </Tag>
+                        </div>
+                        <Row gutter={[16, 6]}>
+                          <Col span={12}>
+                            <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                              Xona nomi va vazifasi:
+                            </Text>
+                            <Text style={{ fontSize: 12, fontWeight: 500 }}>
+                              {selectedRoomObj.name}
+                            </Text>
+                          </Col>
+                          <Col span={12}>
+                            <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                              Mas’ul bino komendanti:
+                            </Text>
+                            <Text style={{ fontSize: 12, fontWeight: 500, color: '#165DFF' }}>
+                              {commandantUsers.find((c) => c.id === commandantUserId)?.fullName || 'Avtomatik biriktiriladi (2-bosqichda)'}
+                            </Text>
+                          </Col>
+                        </Row>
+                      </div>
+                    )}
+                    {targetUserObj && isSameDepartment && (
+                      <Alert
+                        type="success"
+                        showIcon
+                        style={{ marginTop: 12, borderRadius: 6 }}
+                        title="Kafedra ichki biriktiruvi (Audit izi to‘liq muhrlanadi)"
+                        content={
+                          <span>
+                            Tanlangan xodim <b>{targetUserObj.fullName}</b> sizning kafedrangiz/bo‘limingiz tarkibida. Asosiy vosita kafedra balansida qoladi. Buxgalteriya va bino komendanti vizasini kutish talab etilmaydi — rasmiy ichki dalolatnoma tuziladi va aktiv tarixiga yoziladi.
+                          </span>
+                        }
+                      />
+                    )}
+
+                    {targetUserObj && isInterDepartment && (
+                      <Alert
+                        type="warning"
+                        showIcon
+                        style={{ marginTop: 12, borderRadius: 6 }}
+                        title="Kafedralararo rasmiy o‘tkazish (MOL Almashinuvi)"
+                        content={
+                          <span>
+                            Tanlangan xodim boshqa kafedra/bo‘limga <b>({targetUserObj.department?.name || (targetUserObj as any).departmentName || 'Boshqa bo‘lim'})</b> mansub. Moddiy javobgarlik boshqa kafedraga o‘tayotganligi sababli, 2-bosqichda <b>Bino Komendanti</b> (joyida tekshirish uchun) va <b>Moddiy Hisobchi</b> (balans o‘tkazmasi uchun) ishtirok etishi shart!
+                          </span>
+                        }
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -561,20 +1044,22 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
                   </Space>
                 </Radio>
                 {actionType === 'RETURN_TO_WAREHOUSE' && (
-                  <div style={{ marginLeft: 28, marginTop: 12, padding: 12, background: 'var(--color-fill-1)', borderRadius: 4 }}>
-                    <Form.Item label="Qabul qiluvchi Universitet Omborxonasi" required style={{ marginBottom: 0 }}>
-                      <Select
-                        placeholder="Omborxonani tanlang..."
-                        value={targetWarehouseId}
-                        onChange={setTargetWarehouseId}
-                      >
-                        {warehouses?.map((wh) => (
-                          <Select.Option key={wh.id} value={wh.id}>
-                            {wh.name} {wh.code ? `(${wh.code})` : ''} {wh.isMain ? '• Bosh omborxona' : ''}
-                          </Select.Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
+                  <div style={{ marginLeft: 28, marginTop: 12, padding: 14, background: 'var(--color-fill-1)', borderRadius: 6, border: '1px solid var(--color-border-2)' }}>
+                    <Form layout="vertical">
+                      <Form.Item label="Qabul qiluvchi Universitet Omborxonasi" required style={{ marginBottom: 0 }}>
+                        <Select
+                          placeholder="Omborxonani tanlang..."
+                          value={targetWarehouseId}
+                          onChange={setTargetWarehouseId}
+                        >
+                          {warehouses?.map((wh) => (
+                            <Select.Option key={wh.id} value={wh.id}>
+                              {wh.name} {wh.code ? `(${wh.code})` : ''} {wh.isMain ? '• Bosh omborxona' : ''}
+                            </Select.Option>
+                          ))}
+                        </Select>
+                      </Form.Item>
+                    </Form>
                   </div>
                 )}
               </div>
@@ -593,15 +1078,17 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
                   </Space>
                 </Radio>
                 {actionType === 'SEND_TO_REPAIR' && (
-                  <div style={{ marginLeft: 28, marginTop: 12, padding: 12, background: 'var(--color-fill-1)', borderRadius: 4 }}>
-                    <Form.Item label="Nosozlik tavsifi (Defect description)" required style={{ marginBottom: 0 }}>
-                      <Input.TextArea
-                        placeholder="Jihozda qanday nuqson yoki nosozlik aniqlandi? (Masalan: quvvat blokida nosozlik, ekran darz ketgan, operatsion tizim yuklanmaydi...)"
-                        value={repairDescription}
-                        onChange={setRepairDescription}
-                        rows={2}
-                      />
-                    </Form.Item>
+                  <div style={{ marginLeft: 28, marginTop: 12, padding: 14, background: 'var(--color-fill-1)', borderRadius: 6, border: '1px solid var(--color-border-2)' }}>
+                    <Form layout="vertical">
+                      <Form.Item label="Nosozlik tavsifi (Defect description)" required style={{ marginBottom: 0 }}>
+                        <Input.TextArea
+                          placeholder="Jihozda qanday nuqson yoki nosozlik aniqlandi? (Masalan: quvvat blokida nosozlik, ekran darz ketgan, operatsion tizim yuklanmaydi...)"
+                          value={repairDescription}
+                          onChange={setRepairDescription}
+                          rows={2}
+                        />
+                      </Form.Item>
+                    </Form>
                   </div>
                 )}
               </div>
@@ -620,15 +1107,17 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
                   </Space>
                 </Radio>
                 {actionType === 'WRITE_OFF' && (
-                  <div style={{ marginLeft: 28, marginTop: 12, padding: 12, background: 'var(--color-fill-1)', borderRadius: 4 }}>
-                    <Form.Item label="Yaroqsizlik sababi va asosi" required style={{ marginBottom: 0 }}>
-                      <Input.TextArea
-                        placeholder="Jihozning texnik yaroqsizligi, foydalanish muddati o‘tganligi yoki tiklash iqtisodiy jihatdan maqsadga muvofiq emasligi..."
-                        value={writeOffReason}
-                        onChange={setWriteOffReason}
-                        rows={2}
-                      />
-                    </Form.Item>
+                  <div style={{ marginLeft: 28, marginTop: 12, padding: 14, background: 'var(--color-fill-1)', borderRadius: 6, border: '1px solid var(--color-border-2)' }}>
+                    <Form layout="vertical">
+                      <Form.Item label="Yaroqsizlik sababi va asosi" required style={{ marginBottom: 0 }}>
+                        <Input.TextArea
+                          placeholder="Jihozning texnik yaroqsizligi, foydalanish muddati o‘tganligi yoki tiklash iqtisodiy jihatdan maqsadga muvofiq emasligi..."
+                          value={writeOffReason}
+                          onChange={setWriteOffReason}
+                          rows={2}
+                        />
+                      </Form.Item>
+                    </Form>
                   </div>
                 )}
               </div>
@@ -647,15 +1136,17 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
                   </Space>
                 </Radio>
                 {actionType === 'SHORTAGE' && (
-                  <div style={{ marginLeft: 28, marginTop: 12, padding: 12, background: 'var(--color-fill-1)', borderRadius: 4 }}>
-                    <Form.Item label="Yo‘qolganlik / topilmaganlik sababi" required style={{ marginBottom: 0 }}>
-                      <Input.TextArea
-                        placeholder="Ashyo qachondan buyon mavjud emas? Oxirgi inventarizatsiya natijasi va sabablari..."
-                        value={shortageReason}
-                        onChange={setShortageReason}
-                        rows={2}
-                      />
-                    </Form.Item>
+                  <div style={{ marginLeft: 28, marginTop: 12, padding: 14, background: 'var(--color-fill-1)', borderRadius: 6, border: '1px solid var(--color-border-2)' }}>
+                    <Form layout="vertical">
+                      <Form.Item label="Yo‘qolganlik / topilmaganlik sababi" required style={{ marginBottom: 0 }}>
+                        <Input.TextArea
+                          placeholder="Ashyo qachondan buyon mavjud emas? Oxirgi inventarizatsiya natijasi va sabablari..."
+                          value={shortageReason}
+                          onChange={setShortageReason}
+                          rows={2}
+                        />
+                      </Form.Item>
+                    </Form>
                   </div>
                 )}
               </div>
@@ -701,8 +1192,20 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
                 ...(selectedRoomObj
                   ? [
                       {
-                        label: 'Tegishli xona',
-                        value: `${selectedRoomObj.number} - ${selectedRoomObj.name} (${selectedRoomObj.building || 'Bino'})`,
+                        label: 'Bino / Korpus',
+                        value: (
+                          <Tag color="arcoblue" style={{ fontWeight: 600 }}>
+                            {selectedRoomObj.building || autoDetectedBuildingName || 'Bino'}
+                          </Tag>
+                        ),
+                      },
+                      {
+                        label: 'Ashyolar joylashadigan Xona',
+                        value: (
+                          <span>
+                            <b style={{ color: '#165DFF' }}>{selectedRoomObj.number}-xona</b> ({selectedRoomObj.name}, {selectedRoomObj.floor}-qavat)
+                          </span>
+                        ),
                       },
                     ]
                   : []),
@@ -710,61 +1213,131 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
             />
           </Card>
 
-          {/* Form: Commandant, Accountant, Note */}
-          <Card className="uwms-card" title="Ishtirokchi mas’ullar va Tasdiqlash zanjiri">
-            <Form layout="vertical">
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    label={
-                      <Space>
-                        <span>Bino Komendanti</span>
-                        {autoDetectedBuildingName && (
-                          <Tag size="small" color="arcoblue">
-                            {autoDetectedBuildingName}
-                          </Tag>
-                        )}
-                      </Space>
-                    }
-                    extra="Xona va ashyolar butunligini joyida tekshiruvchi mas’ul shaxs."
-                  >
-                    <Select
-                      placeholder="Bino komendantini tanlang..."
-                      value={commandantUserId}
-                      onChange={setCommandantUserId}
-                      allowClear
-                      loading={isLoadingUsers}
-                    >
-                      {commandantUsers.map((u) => (
-                        <Select.Option key={u.id} value={u.id}>
-                          {u.fullName} ({u.position || 'Komendant'})
-                        </Select.Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
+          {/* Contextual Alert for Step 2 based on Intra vs Inter department */}
+          {actionType === 'TRANSFER_TO_MOL' && isSameDepartment && (
+            <Alert
+              type="success"
+              showIcon
+              style={{ borderRadius: 6 }}
+              title="Kafedra ichki qabul qilish-topshirish dalolatnomasi (Audit izi to‘liq saqlanadi)"
+              content={
+                <div>
+                  Ushbu o‘tkazma kafedra ichki ekspluatatsiyasi hisoblanadi. Topshiruvchi (<b>{currentUser?.fullName}</b>) va Qabul qiluvchi (<b>{targetUserObj?.fullName}</b>) o‘rtasida rasmiy <b>AKT</b> tuziladi va aktiv tarixiga (audit registriga) muhrlanadi. Buxgalteriya va bino komendanti vizasi talab etilmaydi.
+                </div>
+              }
+            />
+          )}
 
-                <Col span={12}>
-                  <Form.Item
-                    label="Moddiy Hisobchi (Buxgalteriya)"
-                    extra="Buxgalteriya balansi va moliyaviy o‘tkazmani nazorat qiluvchi hisobchi."
-                  >
-                    <Select
-                      placeholder="Hisobchini tanlang..."
-                      value={accountantUserId}
-                      onChange={setAccountantUserId}
-                      allowClear
-                      loading={isLoadingUsers}
+          {actionType === 'TRANSFER_TO_MOL' && isInterDepartment && (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ borderRadius: 6 }}
+              title="Kafedralararo Rasmiy Tasdiqlash Zanjiri (Majburiy)"
+              content={
+                <div>
+                  Ashyolar boshqa kafedra (<b>{targetUserObj?.department?.name || (targetUserObj as any)?.departmentName || 'Boshqa bo‘lim'}</b>) balansiga o‘tkazilayotganligi sababli, <b>Bino Komendanti</b> (ashyolarni xatlovdan o‘tkazish uchun) va <b>Moddiy Hisobchi</b> (balans va sub-hisob o‘zgarishi uchun) ishtirok etishi va imzolashi <b>shart</b>!
+                </div>
+              }
+            />
+          )}
+
+          {/* Form: Commandant, Accountant, Note */}
+          <Card
+            className="uwms-card"
+            title={
+              actionType === 'TRANSFER_TO_MOL' && isSameDepartment
+                ? 'Qo‘shimcha Ma’lumotlar va Izoh'
+                : 'Ishtirokchi mas’ullar va Tasdiqlash zanjiri'
+            }
+          >
+            <Form layout="vertical">
+              {!(actionType === 'TRANSFER_TO_MOL' && isSameDepartment) ? (
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item
+                      label={
+                        <Space>
+                          <span>Bino Komendanti</span>
+                          {isInterDepartment && <Tag size="small" color="red">Majburiy</Tag>}
+                          {autoDetectedBuildingName && (
+                            <Tag size="small" color="arcoblue">
+                              {autoDetectedBuildingName}
+                            </Tag>
+                          )}
+                        </Space>
+                      }
+                      required={isInterDepartment}
+                      extra="Binolararo xatlov va ashyolar butunligini joyida tekshiruvchi mas’ul shaxs."
                     >
-                      {accountantUsers.map((u) => (
-                        <Select.Option key={u.id} value={u.id}>
-                          {u.fullName} ({u.role === 'CHIEF_ACCOUNTANT' ? 'Bosh hisobchi' : u.position || 'Hisobchi'})
-                        </Select.Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
-              </Row>
+                      <Select
+                        placeholder="Bino komendantini tanlang..."
+                        value={commandantUserId}
+                        onChange={setCommandantUserId}
+                        allowClear
+                        loading={isLoadingUsers}
+                        triggerProps={{
+                          autoAlignPopupWidth: false,
+                          position: 'bl',
+                        }}
+                        dropdownMenuStyle={{
+                          maxHeight: 280,
+                          overflowX: 'auto',
+                          overflowY: 'auto',
+                          minWidth: 380,
+                        }}
+                      >
+                        {commandantUsers.map((u) => (
+                          <Select.Option key={u.id} value={u.id}>
+                            <div style={{ whiteSpace: 'nowrap' }}>
+                              {u.fullName} ({u.position || 'Komendant'})
+                            </div>
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    </Form.Item>
+                  </Col>
+
+                  <Col span={12}>
+                    <Form.Item
+                      label={
+                        <Space>
+                          <span>Moddiy Hisobchi (Buxgalteriya)</span>
+                          {isInterDepartment && <Tag size="small" color="red">Majburiy</Tag>}
+                        </Space>
+                      }
+                      required={isInterDepartment}
+                      extra="Buxgalteriya balansi va moliyaviy o‘tkazmani nazorat qiluvchi hisobchi."
+                    >
+                      <Select
+                        placeholder="Hisobchini tanlang..."
+                        value={accountantUserId}
+                        onChange={setAccountantUserId}
+                        allowClear
+                        loading={isLoadingUsers}
+                        triggerProps={{
+                          autoAlignPopupWidth: false,
+                          position: 'bl',
+                        }}
+                        dropdownMenuStyle={{
+                          maxHeight: 280,
+                          overflowX: 'auto',
+                          overflowY: 'auto',
+                          minWidth: 380,
+                        }}
+                      >
+                        {accountantUsers.map((u) => (
+                          <Select.Option key={u.id} value={u.id}>
+                            <div style={{ whiteSpace: 'nowrap' }}>
+                              {u.fullName} ({u.role === 'CHIEF_ACCOUNTANT' ? 'Bosh hisobchi' : u.position || 'Hisobchi'})
+                            </div>
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    </Form.Item>
+                  </Col>
+                </Row>
+              ) : null}
 
               <Form.Item
                 label="Topshirish Asosi va Izoh (Ixtiyoriy)"
@@ -781,11 +1354,20 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
           </Card>
 
           <Alert
-            type="warning"
+            type={actionType === 'TRANSFER_TO_MOL' && isSameDepartment ? 'success' : 'warning'}
             showIcon
             content={
               <div>
-                <strong>Tasdiqlash tartibi:</strong> Topshirish arizasi yuborilgach, barcha mas’ullarning (Yangi MOL, Bino komendanti, Buxgalter) <code>/inbox</code> bo‘limida harakat vazifalari shakllanadi. Barcha tomonlar to‘liq imzolagandan so‘nggina asosiy vosita egasi serverda rasman yangilanadi.
+                <strong>Tasdiqlash tartibi:</strong> Topshirish arizasi yuborilgach,{' '}
+                {actionType === 'TRANSFER_TO_MOL' && isSameDepartment ? (
+                  <span>
+                    Qabul qiluvchi xodim o‘z kabinetida dalolatnomani tasdiqlashi bilan aktiv uning xonasiga rasman biriktiriladi va audit tarixi muhrlanadi.
+                  </span>
+                ) : (
+                  <span>
+                    barcha tomonlar (Yangi MOL, Bino komendanti, Buxgalter) <code>/inbox</code> bo‘limida to‘liq imzolagandan so‘nggina mulk huquqi serverda rasman yangilanadi.
+                  </span>
+                )}
               </div>
             }
           />

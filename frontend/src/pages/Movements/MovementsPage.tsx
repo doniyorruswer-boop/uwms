@@ -263,7 +263,7 @@ export const MovementsPage: React.FC = () => {
       />
 
       {/* Toolbar */}
-      <Card className="uwms-card" bodyStyle={{ padding: '16px 20px' }}>
+      <Card className="uwms-card" bodyStyle={{ padding: '12px 16px' }}>
         <div
           style={{
             display: 'flex',
@@ -273,7 +273,7 @@ export const MovementsPage: React.FC = () => {
             gap: 12,
           }}
         >
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Input
               prefix={<IconSearch />}
               placeholder={activeTab === 'HANDOVERS' ? 'Dalolatnoma №, F.I.Sh., izoh...' : 'Hujjat raqami, vosita, ijrochi...'}
@@ -331,14 +331,13 @@ export const MovementsPage: React.FC = () => {
             )}
           </Space>
 
-          <Space size="small">
+          <Space size="small" wrap>
             <Button
-              type="outline"
               icon={<IconDownload />}
               onClick={handleExportExcel}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
             >
-              Excel Eksport
+              Export
             </Button>
             <Button
               icon={<IconRefresh />}
@@ -347,7 +346,7 @@ export const MovementsPage: React.FC = () => {
                 refetchHandovers();
               }}
               loading={isFetching || isHandoversFetching}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
             >
               Yangilash
             </Button>

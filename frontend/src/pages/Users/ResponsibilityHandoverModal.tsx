@@ -909,10 +909,22 @@ export const ResponsibilityHandoverModal: React.FC<ResponsibilityHandoverModalPr
                         }
                       >
                         {allUsersData?.items
-                          ?.filter((u) => u.id !== user?.id && u.isActive)
+                          ?.filter(
+                            (u) =>
+                              u.id !== user?.id &&
+                              u.isActive &&
+                              !([
+                                RoleType.RECTOR,
+                                RoleType.VICE_RECTOR_FINANCE,
+                                RoleType.CHIEF_ACCOUNTANT,
+                                RoleType.AUDITOR,
+                                RoleType.SUPER_ADMIN,
+                                RoleType.ADMIN,
+                              ] as RoleType[]).includes(u.role as RoleType)
+                          )
                           ?.map((u) => (
                             <Select.Option key={u.id} value={u.id}>
-                              {u.fullName} ({u.role} • {u.position || 'Xodim'})
+                              {u.fullName} {u.position ? `(${u.position})` : ''}
                             </Select.Option>
                           ))}
                       </Select>
@@ -981,7 +993,7 @@ export const ResponsibilityHandoverModal: React.FC<ResponsibilityHandoverModalPr
                           ?.filter((u) => u.role === RoleType.COMMENDANT || u.role === RoleType.HEAD_WAREHOUSE)
                           ?.map((u) => (
                             <Select.Option key={u.id} value={u.id}>
-                              {u.fullName} ({u.role})
+                              {u.fullName} ({u.position || (u.role === RoleType.COMMENDANT ? 'Bino komendanti' : 'Ombor mudiri')})
                             </Select.Option>
                           ))}
                       </Select>
@@ -1010,7 +1022,7 @@ export const ResponsibilityHandoverModal: React.FC<ResponsibilityHandoverModalPr
                         )
                         ?.map((u) => (
                           <Select.Option key={u.id} value={u.id}>
-                            {u.fullName} ({u.role})
+                            {u.fullName} ({u.position || (u.role === RoleType.CHIEF_ACCOUNTANT ? 'Bosh hisobchi' : 'Mas’ul vakil')})
                           </Select.Option>
                         ))}
                     </Select>

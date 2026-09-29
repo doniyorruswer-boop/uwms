@@ -81,6 +81,12 @@ export const AuditScannerPage: React.FC = () => {
     if (campaignIdParam) setSelectedCampaignId(campaignIdParam);
   }, [roomIdParam, campaignIdParam]);
 
+  useEffect(() => {
+    if (!selectedRoomId && rooms.length > 0) {
+      setSelectedRoomId(rooms[0].id);
+    }
+  }, [rooms, selectedRoomId]);
+
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
   const [manualCode, setManualCode] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -870,7 +876,7 @@ export const AuditScannerPage: React.FC = () => {
       )}
 
       {/* Room Selection and Options Header */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '16px 20px' }}>
+      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '12px 16px' }}>
         <div
           style={{
             display: 'flex',
@@ -881,50 +887,50 @@ export const AuditScannerPage: React.FC = () => {
           }}
         >
           <div>
-            <Space align="center">
-              <Title heading={5} style={{ margin: 0 }}>
+            <Space align="center" wrap>
+              <Title heading={5} style={{ margin: 0, whiteSpace: 'nowrap' }}>
                 {currentRoom ? `${currentRoom.number}-xona: ${currentRoom.name}` : 'Mobil QR Audit va Inventarizatsiya'}
               </Title>
               {isSocketConnected ? (
-                <Tag color="green" icon={<IconWifi />} style={{ borderRadius: 0, fontWeight: 600 }}>
+                <Tag color="green" icon={<IconWifi />} style={{ borderRadius: 0, fontWeight: 600, whiteSpace: 'nowrap' }}>
                   Real-Time Sync (Faol)
                 </Tag>
               ) : (
-                <Tag color="gray" style={{ borderRadius: 0 }}>
+                <Tag color="gray" style={{ borderRadius: 0, whiteSpace: 'nowrap' }}>
                   Offline
                 </Tag>
               )}
             </Space>
             <div style={{ marginTop: 4 }}>
-              <Text type="secondary" style={{ fontSize: 13 }}>
+              <Text type="secondary" style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
                 Moddiy javobgar: <b>{currentRoom?.responsibleUserName || 'Belgilanmagan'}</b> | Bino: {currentRoom?.building || 'Bosh bino'}
               </Text>
             </div>
           </div>
 
-          <Space size="medium" wrap>
+          <Space size="small" wrap style={{ justifyContent: 'flex-start' }}>
             <Button
               size="small"
               type={isMobileView ? 'primary' : 'outline'}
               icon={isMobileView ? <IconDesktop /> : <IconMobile />}
               onClick={() => handleToggleView(!isMobileView)}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
             >
               {isMobileView ? 'Keng Ko‘rinish (Jadval)' : 'Mobil Rejim'}
             </Button>
 
-            <Space size="small">
+            <Space size="small" wrap>
               <IconSound style={{ color: soundEnabled ? '#165DFF' : '#86909C' }} />
-              <span style={{ fontSize: 13 }}>Ovoz:</span>
+              <span style={{ fontSize: 13, whiteSpace: 'nowrap' }}>Ovoz:</span>
               <Switch checked={soundEnabled} onChange={setSoundEnabled} size="small" />
             </Space>
 
-            <span style={{ fontWeight: 600, fontSize: 13 }}>Reja / Kampaniya:</span>
+            <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>Reja / Kampaniya:</span>
             <Select
               placeholder="Kampaniyasiz (yakka audit)"
               value={selectedCampaignId || undefined}
               onChange={(val) => setSelectedCampaignId(val || '')}
-              style={{ width: 200, borderRadius: 0 }}
+              style={{ width: 190, borderRadius: 0 }}
               allowClear
             >
               {campaigns.map((c) => (
@@ -934,9 +940,10 @@ export const AuditScannerPage: React.FC = () => {
               ))}
             </Select>
 
-            <span style={{ fontWeight: 600, fontSize: 13 }}>Xonani tanlash:</span>
+            <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>Xonani tanlash:</span>
             <Select
-              value={selectedRoomId}
+              placeholder="Xonani tanlang"
+              value={selectedRoomId || activeRoom}
               onChange={(val) => {
                 setSelectedRoomId(val);
                 setScannedCodes([]);
@@ -957,7 +964,7 @@ export const AuditScannerPage: React.FC = () => {
               okText="Ha"
               cancelText="Yo‘q"
             >
-              <Button icon={<IconRefresh />} style={{ borderRadius: 0 }}>
+              <Button icon={<IconRefresh />} style={{ borderRadius: 0, whiteSpace: 'nowrap' }}>
                 Qayta Boshlash
               </Button>
             </Popconfirm>
@@ -1224,7 +1231,7 @@ export const AuditScannerPage: React.FC = () => {
                 onClick={handleExportAuditExcel}
                 style={{ borderRadius: 0 }}
               >
-                Excelga eksport
+                Export
               </Button>
             </Space>
           </Card>
@@ -1445,7 +1452,7 @@ export const AuditScannerPage: React.FC = () => {
                       onClick={handleExportAuditExcel}
                       style={{ borderRadius: 0 }}
                     >
-                      Excelga
+                      Export
                     </Button>
                     <Popconfirm
                       title="Auditni yakunlash va Kamomadlarni (MISSING) qayd etish"

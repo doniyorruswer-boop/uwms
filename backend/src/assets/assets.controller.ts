@@ -64,6 +64,16 @@ export class AssetsController {
     return this.assetsService.getCategories();
   }
 
+  @Get('import-template')
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.MOL, RoleType.EMPLOYEE)
+  @ApiOperation({ summary: 'Asosiy vositalarni Excel orqali import qilish uchun andoza (shablon) fayl' })
+  async downloadImportTemplate(@Res() res: Response) {
+    const result = await this.assetsService.generateImportTemplate();
+    res.setHeader('Content-Type', result.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    return res.send(result.buffer);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Bitta vositaning to‘liq pasporti va harakatlar tarixi' })
   async getAssetById(@Param('id') id: string) {
@@ -105,16 +115,6 @@ export class AssetsController {
       ...dto,
       executedById: user?.id,
     });
-  }
-
-  @Get('import-template')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.MOL)
-  @ApiOperation({ summary: 'Asosiy vositalarni Excel orqali import qilish uchun andoza (shablon) fayl' })
-  async downloadImportTemplate(@Res() res: Response) {
-    const result = await this.assetsService.generateImportTemplate();
-    res.setHeader('Content-Type', result.contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
-    return res.send(result.buffer);
   }
 
   @Post('import-preview')

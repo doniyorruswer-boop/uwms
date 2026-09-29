@@ -101,7 +101,7 @@ export default defineConfig({
             if (id.includes('dayjs')) {
               return 'vendor-dayjs';
             }
-            if (id.includes('xlsx')) {
+            if (id.includes('xlsx') || id.includes('exceljs')) {
               return 'vendor-excel';
             }
             if (id.includes('qrcode') || id.includes('html5-qrcode')) {

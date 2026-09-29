@@ -204,7 +204,7 @@ export const FundingReportsPage: React.FC = () => {
               onClick={() => setExportModalVisible(true)}
               style={{ backgroundColor: '#00B42A' }}
             >
-              Excel / CSV Eksport
+              Export
             </Button>
           </Space>
         </div>

@@ -511,7 +511,7 @@ export const QuotasPage: React.FC = () => {
       />
 
       {/* Actions Toolbar */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '16px 20px' }}>
+      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '12px 16px' }}>
         <div
           style={{
             display: 'flex',
@@ -521,35 +521,35 @@ export const QuotasPage: React.FC = () => {
             gap: 12,
           }}
         >
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Input
               prefix={<IconSearch />}
               placeholder="Kafedra / bo‘lim yoki mahsulot nomi..."
-              style={{ width: 260, borderRadius: 0 }}
+              style={{ width: 280, borderRadius: 0 }}
               value={search}
               onChange={setSearch}
               allowClear
             />
 
             {isDepartmentStaff ? (
-              <Space size="small">
+              <Space size="small" wrap>
                 <Tag
                   color="arcoblue"
                   icon={<IconLock />}
-                  style={{ borderRadius: 0, padding: '4px 10px', fontSize: 13, height: 32, display: 'inline-flex', alignItems: 'center' }}
+                  style={{ borderRadius: 0, padding: '4px 10px', fontSize: 13, height: 32, display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}
                 >
                   {user?.departmentName || (user as any)?.department?.name || 'Kafedra yoki bo‘limingiz'}
                 </Tag>
                 <Tag
                   color="gray"
-                  style={{ borderRadius: 0, padding: '4px 8px', fontSize: 12, height: 32, display: 'inline-flex', alignItems: 'center' }}
+                  style={{ borderRadius: 0, padding: '4px 8px', fontSize: 12, height: 32, display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}
                 >
                   Faqat o‘qish (Read-Only)
                 </Tag>
               </Space>
             ) : (
               <Select
-                style={{ width: 220, borderRadius: 0 }}
+                style={{ width: 240, borderRadius: 0 }}
                 value={selectedDept}
                 onChange={setSelectedDept}
               >
@@ -564,7 +564,7 @@ export const QuotasPage: React.FC = () => {
 
             <DatePicker.MonthPicker
               format="YYYY-MM"
-              style={{ width: 160, borderRadius: 0 }}
+              style={{ width: 150, borderRadius: 0 }}
               value={currentPeriod}
               onChange={(val) => {
                 if (val) setCurrentPeriod(val);
@@ -573,10 +573,10 @@ export const QuotasPage: React.FC = () => {
             />
           </Space>
 
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Button
               icon={<IconRefresh />}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
               onClick={() => refetch()}
             >
               Yangilash
@@ -584,17 +584,17 @@ export const QuotasPage: React.FC = () => {
 
             <Button
               icon={<IconDownload />}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
               onClick={handleExportExcel}
             >
-              Excel
+              Export
             </Button>
 
             {canManageQuotas ? (
               <Button
                 type="primary"
                 icon={<IconPlus />}
-                style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
+                style={{ borderRadius: 0, backgroundColor: '#165DFF', whiteSpace: 'nowrap' }}
                 onClick={() => setCreateModalVisible(true)}
               >
                 Yangi Kvota Belgilash
@@ -605,7 +605,7 @@ export const QuotasPage: React.FC = () => {
                   type="primary"
                   disabled
                   icon={<IconPlus />}
-                  style={{ borderRadius: 0 }}
+                  style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
                 >
                   Yangi Kvota Belgilash
                 </Button>

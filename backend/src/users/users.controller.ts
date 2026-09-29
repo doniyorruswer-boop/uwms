@@ -64,6 +64,9 @@ export class UsersController {
     RoleType.CHIEF_ACCOUNTANT,
     RoleType.HEAD_WAREHOUSE,
     RoleType.AUDITOR,
+    RoleType.MOL,
+    RoleType.COMMENDANT,
+    RoleType.EMPLOYEE,
   )
   @ApiOperation({ summary: 'Foydalanuvchilar va xodimlar ro‘yxatini olish (Qidiruv, filtrlar va paginatsiya)' })
   async findAll(@Query() query: QueryUsersDto, @Request() req: any) {
@@ -79,6 +82,9 @@ export class UsersController {
     RoleType.CHIEF_ACCOUNTANT,
     RoleType.HEAD_WAREHOUSE,
     RoleType.AUDITOR,
+    RoleType.MOL,
+    RoleType.COMMENDANT,
+    RoleType.EMPLOYEE,
   )
   @ApiOperation({ summary: 'Bitta foydalanuvchi to‘liq tafsilotlari' })
   async findById(@Param('id') id: string, @Request() req: any) {

@@ -45,6 +45,8 @@ export class TransfersController {
     RoleType.COMMENDANT,
     RoleType.HEAD_WAREHOUSE,
     RoleType.VICE_RECTOR_FINANCE,
+    RoleType.RECTOR,
+    RoleType.EMPLOYEE,
   )
   @ApiOperation({ summary: 'Yangi Moddiy Javobgarlikni Topshirish (Handover) arizasini yaratish' })
   async createHandover(

@@ -387,7 +387,7 @@ export const WarehousePage: React.FC = () => {
                   onChange={setSearchText}
                   allowClear
                 />
-                <Space size="small">
+                <Space size="small" wrap>
                   <Button
                     type={stockFilterTab === 'ALL' ? 'primary' : 'secondary'}
                     size="small"
@@ -506,7 +506,7 @@ export const WarehousePage: React.FC = () => {
                   onClick={handleExportExcel}
                   style={{ borderRadius: 0 }}
                 >
-                  Eksport
+                  Export
                 </Button>
               </Space>
             </div>
@@ -734,7 +734,7 @@ export const WarehousePage: React.FC = () => {
                   onClick={handleExportLowStockExcel}
                   style={{ borderRadius: 0 }}
                 >
-                  Excelga
+                  Export
                 </Button>
                 <Button
                   icon={<IconSync />}

@@ -345,31 +345,7 @@ export const BackupsPage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Action Bar */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          alignItems: 'center',
-        }}
-      >
-        <Space>
-          <Button icon={<IconRefresh />} style={{ borderRadius: 0 }} onClick={handleRefresh}>
-            Yangilash
-          </Button>
-          <Button
-            type="primary"
-            icon={<IconPlus />}
-            style={{ borderRadius: 0 }}
-            onClick={() => {
-              createForm.resetFields();
-              setCreateModalVisible(true);
-            }}
-          >
-            Yangi Zaxira Yaratish
-          </Button>
-        </Space>
-      </div>
+
 
       {/* KPI Stats Hero Cards */}
       <Row gutter={[16, 16]}>
@@ -403,7 +379,7 @@ export const BackupsPage: React.FC = () => {
       </Row>
 
       {/* Search & Filter Toolbar */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '16px 20px' }}>
+      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '12px 16px' }}>
         <div
           style={{
             display: 'flex',
@@ -413,12 +389,12 @@ export const BackupsPage: React.FC = () => {
             gap: 12,
           }}
         >
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Input
               allowClear
               prefix={<IconSearch />}
               placeholder="Fayl nomi yoki izoh bo‘yicha qidiruv..."
-              style={{ width: 320, borderRadius: 0 }}
+              style={{ width: 340, borderRadius: 0 }}
               value={search}
               onChange={(val) => {
                 setSearch(val);
@@ -437,6 +413,23 @@ export const BackupsPage: React.FC = () => {
               <Select.Option value="AUTOMATIC">Faqat Avtomatik</Select.Option>
               <Select.Option value="MANUAL">Faqat Qo‘lda</Select.Option>
             </Select>
+          </Space>
+
+          <Space size="small" wrap>
+            <Button icon={<IconRefresh />} style={{ borderRadius: 0, whiteSpace: 'nowrap' }} onClick={handleRefresh}>
+              Yangilash
+            </Button>
+            <Button
+              type="primary"
+              icon={<IconPlus />}
+              style={{ borderRadius: 0, backgroundColor: '#165DFF', whiteSpace: 'nowrap' }}
+              onClick={() => {
+                createForm.resetFields();
+                setCreateModalVisible(true);
+              }}
+            >
+              Yangi Zaxira Yaratish
+            </Button>
           </Space>
         </div>
       </Card>

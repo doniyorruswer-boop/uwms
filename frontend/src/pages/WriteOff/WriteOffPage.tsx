@@ -19,6 +19,8 @@ import {
   Progress,
   Tooltip,
   Notification,
+  Dropdown,
+  Menu,
 } from '@arco-design/web-react';
 import { useSocket } from '../../hooks/useSocket';
 import {
@@ -31,6 +33,7 @@ import {
   IconPrinter,
   IconEye,
   IconQrcode,
+  IconDown,
 } from '@arco-design/web-react/icon';
 import { useWriteOffQuery, type WriteOffItem, type WriteOffMember } from '../../hooks/useWriteOffQuery';
 import { CreateWriteOffModal } from '../../components/WriteOff/CreateWriteOffModal';
@@ -497,83 +500,162 @@ export const WriteOffPage: React.FC = () => {
       ),
     },
     {
+      title: 'Hujjatlar',
+      width: 140,
+      render: (_: any, record: WriteOffItem) => {
+        const hasOS4 =
+          record.status === 'APPROVED' ||
+          record.status === 'REJECTED' ||
+          record.hasWormStamp ||
+          Boolean(record.actNumber);
+
+        if (!hasOS4) {
+          return (
+            <span style={{ color: 'var(--color-text-4)', fontSize: 13, paddingLeft: 6 }}>
+              —
+            </span>
+          );
+        }
+
+        const docMenuList = (
+          <Menu onClickMenuItem={(_, e) => e?.stopPropagation?.()}>
+            <Menu.Item
+              key="doc-os4"
+              onClick={(e) => {
+                e?.stopPropagation?.();
+                handleOpenDoc(record);
+              }}
+            >
+              <Space size={8}>
+                <IconFile style={{ color: '#F53F3F' }} />
+                <span>
+                  OS-4 Spisanie Akti {record.actNumber ? `(${record.actNumber})` : ''}{' '}
+                  {record.hasWormStamp ? '(WORM Muhrli)' : ''}
+                </span>
+              </Space>
+            </Menu.Item>
+          </Menu>
+        );
+
+        return (
+          <div onClick={(e) => e?.stopPropagation?.()}>
+            <Dropdown droplist={docMenuList} trigger="click" position="bl">
+              <Button
+                size="small"
+                type="outline"
+                icon={<IconFile />}
+                style={{
+                  borderRadius: 0,
+                  padding: '0 8px',
+                  color: '#165DFF',
+                  borderColor: '#94BFFF',
+                }}
+              >
+                Hujjatlar <IconDown style={{ fontSize: 10, marginLeft: 2 }} />
+              </Button>
+            </Dropdown>
+          </div>
+        );
+      },
+    },
+    {
       title: 'Amallar',
       dataIndex: 'actions',
-      width: 250,
+      width: 160,
       fixed: 'right' as const,
       render: (_: any, record: WriteOffItem) => {
         const isUserMember = record.members?.some((m) => m.userId === user?.id);
         const userVote = record.members?.find((m) => m.userId === user?.id);
         const hasVoted = userVote && userVote.vote !== 'PENDING';
 
-        return (
-          <TableActions rightPadding={0} gap={6}>
-            <Button
-              size="small"
-              type="outline"
-              icon={<IconEye />}
-              style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap' }}
-              onClick={(e) => {
-                e?.stopPropagation?.();
-                handleOpenPassport(record);
-              }}
-            >
-              Pasport
-            </Button>
-
-            {record.status === 'IN_REVIEW' ? (
-              isUserMember ? (
-                hasVoted ? (
+        const actionElement = (() => {
+          if (record.status === 'IN_REVIEW') {
+            if (isUserMember) {
+              if (hasVoted) {
+                return (
                   <Tag
                     color="green"
                     size="small"
-                    style={{ borderRadius: 0, padding: '0 6px', fontSize: 11 }}
+                    style={{ borderRadius: 0, padding: '0 6px', fontSize: 11, whiteSpace: 'nowrap' }}
                   >
                     Ovozingiz berilgan
                   </Tag>
-                ) : (
-                  <Button
-                    type="primary"
-                    status="success"
-                    size="small"
-                    icon={<IconQrcode />}
-                    style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
-                    onClick={(e) => {
-                      e?.stopPropagation?.();
-                      handleOpenVote(record);
-                    }}
-                  >
-                    QR-Ovoz Berish
-                  </Button>
-                )
-              ) : (
-                <Tooltip content="Siz ushbu hisobdan chiqarish komissiyasi tarkibida emassiz. Ovoz berish huquqi faqat rasmiy komissiya a’zolarida mavjud.">
-                  <Button
-                    size="small"
-                    disabled
-                    icon={<IconQrcode />}
-                    style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap' }}
-                  >
-                    Ovoz Berish
-                  </Button>
-                </Tooltip>
-              )
+                );
+              }
+              return (
+                <Button
+                  type="primary"
+                  status="success"
+                  size="small"
+                  icon={<IconQrcode />}
+                  style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+                  onClick={(e) => {
+                    e?.stopPropagation?.();
+                    handleOpenVote(record);
+                  }}
+                >
+                  QR-Ovoz Berish
+                </Button>
+              );
+            }
+            return (
+              <Tooltip content="Ovoz berish huquqi faqat rasmiy komissiya a’zolarida mavjud">
+                <Button
+                  size="small"
+                  disabled
+                  icon={<IconQrcode />}
+                  style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+                >
+                  Ovoz Berish
+                </Button>
+              </Tooltip>
+            );
+          }
+          return null;
+        })();
+
+        return (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              flexWrap: 'nowrap',
+              justifyContent: 'flex-start',
+            }}
+            onClick={(e) => e?.stopPropagation?.()}
+          >
+            {actionElement ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                {actionElement}
+                <Button
+                  size="small"
+                  type="outline"
+                  icon={<IconEye />}
+                  style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+                  onClick={(e) => {
+                    e?.stopPropagation?.();
+                    handleOpenPassport(record);
+                  }}
+                >
+                  Batafsil
+                </Button>
+              </div>
             ) : (
               <Button
                 size="small"
-                type={record.status === 'APPROVED' ? 'primary' : 'outline'}
-                status={record.status === 'APPROVED' ? 'success' : 'default'}
-                icon={<IconPrinter />}
-                style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap' }}
+                type="outline"
+                icon={<IconEye />}
+                style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
                 onClick={(e) => {
                   e?.stopPropagation?.();
-                  handleOpenDoc(record);
+                  handleOpenPassport(record);
                 }}
               >
-                OS-4 Akti {record.hasWormStamp ? '(WORM)' : ''}
+                Batafsil
               </Button>
             )}
-          </TableActions>
+          </div>
         );
       },
     },
@@ -616,7 +698,7 @@ export const WriteOffPage: React.FC = () => {
       />
 
       {/* Actions Toolbar */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '16px 20px' }}>
+      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '12px 16px' }}>
         <div
           style={{
             display: 'flex',
@@ -626,37 +708,37 @@ export const WriteOffPage: React.FC = () => {
             gap: 12,
           }}
         >
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Input
               prefix={<IconSearch />}
               placeholder="Dalolatnoma №, inv № yoki sabab..."
-              style={{ width: 320, borderRadius: 0 }}
+              style={{ width: 340, borderRadius: 0 }}
               value={search}
               onChange={setSearch}
               allowClear
             />
           </Space>
 
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Button
               icon={<IconRefresh />}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
               onClick={() => refetch()}
             >
               Yangilash
             </Button>
             <Button
               icon={<IconDownload />}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
               onClick={handleExportExcel}
             >
-              Excel
+              Export
             </Button>
             {canCreateWriteOff ? (
               <Button
                 type="primary"
                 icon={<IconPlus />}
-                style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
+                style={{ borderRadius: 0, backgroundColor: '#165DFF', whiteSpace: 'nowrap' }}
                 onClick={() => setCreateModalVisible(true)}
               >
                 Yangi Spisanie Talabnomasi
@@ -667,7 +749,7 @@ export const WriteOffPage: React.FC = () => {
                   type="primary"
                   icon={<IconPlus />}
                   disabled
-                  style={{ borderRadius: 0 }}
+                  style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
                 >
                   Yangi Spisanie Talabnomasi
                 </Button>
@@ -704,7 +786,7 @@ export const WriteOffPage: React.FC = () => {
         loading={isLoading}
         columns={columns}
         data={filteredWriteOffs}
-        scrollX={1220}
+        scrollX={1300}
         onRowClick={(record) => handleOpenPassport(record)}
         emptyText={
           search

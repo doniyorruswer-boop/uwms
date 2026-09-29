@@ -593,7 +593,7 @@ export const UsersPage: React.FC = () => {
       />
 
       {/* Actions Toolbar */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '16px 20px' }}>
+      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '12px 16px' }}>
         <div
           style={{
             display: 'flex',
@@ -603,11 +603,11 @@ export const UsersPage: React.FC = () => {
             gap: 12,
           }}
         >
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Input
               prefix={<IconSearch />}
               placeholder="F.I.Sh., login yoki lavozim..."
-              style={{ width: 260, borderRadius: 0 }}
+              style={{ width: 280, borderRadius: 0 }}
               value={search}
               onChange={setSearch}
               allowClear
@@ -639,10 +639,10 @@ export const UsersPage: React.FC = () => {
             </Select>
           </Space>
 
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Button
               icon={<IconRefresh />}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
               onClick={() => refetch()}
               loading={isLoading}
             >
@@ -651,16 +651,16 @@ export const UsersPage: React.FC = () => {
 
             <Button
               icon={<IconDownload />}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
               onClick={handleExportUsersExcel}
             >
-              Excel
+              Export
             </Button>
 
             <Button
               type="primary"
               icon={<IconPlus />}
-              style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
+              style={{ borderRadius: 0, backgroundColor: '#165DFF', whiteSpace: 'nowrap' }}
               onClick={() => setIsCreateOpen(true)}
             >
               Yangi Xodim Qo‘shish

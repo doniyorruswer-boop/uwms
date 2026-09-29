@@ -12,6 +12,8 @@ import {
   Radio,
   Alert,
   Tooltip,
+  Dropdown,
+  Menu,
 } from '@arco-design/web-react';
 import {
   IconTool,
@@ -25,6 +27,7 @@ import {
   IconEye,
   IconFile,
   IconDelete,
+  IconDown,
 } from '@arco-design/web-react/icon';
 import { useRepairsQuery, type RepairItem } from '../../hooks/useRepairsQuery';
 import { useAuthStore } from '../../store/authStore';
@@ -233,58 +236,121 @@ export const RepairsPage: React.FC = () => {
       ),
     },
     {
-      title: 'Amallar',
-      dataIndex: 'actions',
-      width: 250,
-      fixed: 'right' as const,
-      render: (_: any, record: RepairItem) => (
-        <TableActions rightPadding={0} gap={6}>
-          <Button
-            size="small"
-            type="outline"
-            icon={<IconEye />}
-            onClick={(e) => {
-              e?.stopPropagation?.();
-              handleOpenUpdate(record);
-            }}
-            style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap' }}
-          >
-            Batafsil
-          </Button>
+      title: 'Hujjatlar',
+      width: 140,
+      render: (_: any, record: RepairItem) => {
+        const hasOS3 = record.status === 'COMPLETED' || Boolean(record.actNumber);
+        const hasDefect = record.status === 'UNREPAIRABLE';
+        const hasDocs = hasOS3 || hasDefect;
 
-          {/* Direct Write-off action button for UNREPAIRABLE assets */}
-          {record.status === 'UNREPAIRABLE' && (
-            <Button
-              size="small"
-              type="primary"
-              status="danger"
-              icon={<IconDelete />}
-              onClick={(e) => {
-                e?.stopPropagation?.();
-                handleOpenWriteOff(record);
-              }}
-              style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
-            >
-              Spisanie (OS-4)
-            </Button>
-          )}
+        if (!hasDocs) {
+          return (
+            <span style={{ color: 'var(--color-text-4)', fontSize: 13, paddingLeft: 6 }}>
+              —
+            </span>
+          );
+        }
 
-          {(record.status === 'IN_REPAIR' || record.status === 'PENDING') && (
-            canManageRepairs ? (
-              <Button
-                size="small"
-                type="primary"
-                status="success"
-                icon={<IconSync />}
+        const docMenuList = (
+          <Menu onClickMenuItem={(_, e) => e?.stopPropagation?.()}>
+            {hasOS3 && (
+              <Menu.Item
+                key="doc-os3"
                 onClick={(e) => {
                   e?.stopPropagation?.();
                   handleOpenUpdate(record);
                 }}
-                style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap', width: 96 }}
               >
-                Yangilash
+                <Space size={8}>
+                  <IconFile style={{ color: '#00b42a' }} />
+                  <span>OS-3 Ta’mir Akti {record.actNumber ? `(${record.actNumber})` : ''}</span>
+                </Space>
+              </Menu.Item>
+            )}
+            {hasDefect && (
+              <Menu.Item
+                key="doc-defect"
+                onClick={(e) => {
+                  e?.stopPropagation?.();
+                  handleOpenUpdate(record);
+                }}
+              >
+                <Space size={8}>
+                  <IconFile style={{ color: '#F53F3F' }} />
+                  <span>Yaroqsizlik (Defekt) Dalolatnomasi</span>
+                </Space>
+              </Menu.Item>
+            )}
+          </Menu>
+        );
+
+        return (
+          <div onClick={(e) => e?.stopPropagation?.()}>
+            <Dropdown droplist={docMenuList} trigger="click" position="bl">
+              <Button
+                size="small"
+                type="outline"
+                icon={<IconFile />}
+                style={{
+                  borderRadius: 0,
+                  padding: '0 8px',
+                  color: '#165DFF',
+                  borderColor: '#94BFFF',
+                }}
+              >
+                Hujjatlar <IconDown style={{ fontSize: 10, marginLeft: 2 }} />
               </Button>
-            ) : (
+            </Dropdown>
+          </div>
+        );
+      },
+    },
+    {
+      title: 'Amallar',
+      dataIndex: 'actions',
+      width: 170,
+      fixed: 'right' as const,
+      render: (_: any, record: RepairItem) => {
+        const actionButton = (() => {
+          if (record.status === 'UNREPAIRABLE') {
+            return (
+              <Tooltip content="Spisanie: Yaroqsiz ashyoni hisobdan chiqarish (OS-4)">
+                <Button
+                  size="small"
+                  type="primary"
+                  status="danger"
+                  icon={<IconDelete />}
+                  onClick={(e) => {
+                    e?.stopPropagation?.();
+                    handleOpenWriteOff(record);
+                  }}
+                  style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+                >
+                  Spisanie (OS-4)
+                </Button>
+              </Tooltip>
+            );
+          }
+
+          if (record.status === 'IN_REPAIR' || record.status === 'PENDING') {
+            if (canManageRepairs) {
+              return (
+                <Button
+                  size="small"
+                  type="primary"
+                  status="success"
+                  icon={<IconSync />}
+                  onClick={(e) => {
+                    e?.stopPropagation?.();
+                    handleOpenUpdate(record);
+                  }}
+                  style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+                >
+                  Yangilash
+                </Button>
+              );
+            }
+            return (
               <Tooltip content="Ta’mir statusini yangilash faqat Komendant, Omborchi yoki IT mutaxassisiga ruxsat etilgan">
                 <Button
                   size="small"
@@ -292,30 +358,61 @@ export const RepairsPage: React.FC = () => {
                   status="success"
                   disabled
                   icon={<IconSync />}
-                  style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap', width: 96 }}
+                  style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
                 >
                   Yangilash
                 </Button>
               </Tooltip>
-            )
-          )}
+            );
+          }
 
-          {record.status === 'COMPLETED' && (
-            <Button
-              size="small"
-              type="outline"
-              icon={<IconFile />}
-              onClick={(e) => {
-                e?.stopPropagation?.();
-                handleOpenUpdate(record);
-              }}
-              style={{ borderRadius: 0, padding: '0 7px', whiteSpace: 'nowrap' }}
-            >
-              Akt ({record.actNumber ? record.actNumber.substring(0, 12) : 'OS-3'})
-            </Button>
-          )}
-        </TableActions>
-      ),
+          return null;
+        })();
+
+        return (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              flexWrap: 'nowrap',
+              justifyContent: 'flex-start',
+            }}
+            onClick={(e) => e?.stopPropagation?.()}
+          >
+            {actionButton ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                {actionButton}
+                <Button
+                  size="small"
+                  type="outline"
+                  icon={<IconEye />}
+                  onClick={(e) => {
+                    e?.stopPropagation?.();
+                    handleOpenUpdate(record);
+                  }}
+                  style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+                >
+                  Batafsil
+                </Button>
+              </div>
+            ) : (
+              <Button
+                size="small"
+                type="outline"
+                icon={<IconEye />}
+                onClick={(e) => {
+                  e?.stopPropagation?.();
+                  handleOpenUpdate(record);
+                }}
+                style={{ borderRadius: 0, padding: '0 8px', whiteSpace: 'nowrap' }}
+              >
+                Batafsil
+              </Button>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -357,7 +454,7 @@ export const RepairsPage: React.FC = () => {
       />
 
       {/* Actions Toolbar */}
-      <Card className="uwms-card" bodyStyle={{ padding: '16px 20px' }}>
+      <Card className="uwms-card" bodyStyle={{ padding: '12px 16px' }}>
         <div
           style={{
             display: 'flex',
@@ -367,37 +464,37 @@ export const RepairsPage: React.FC = () => {
             gap: 12,
           }}
         >
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Input
               prefix={<IconSearch />}
               placeholder="Uskuna nomi, inv №, nosozlik sababi..."
-              style={{ width: 320, borderRadius: 0 }}
+              style={{ width: 340, borderRadius: 0 }}
               value={search}
               onChange={setSearch}
               allowClear
             />
           </Space>
 
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Button
               icon={<IconRefresh />}
               onClick={() => refetch()}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
             >
               Yangilash
             </Button>
             <Button
               icon={<IconDownload />}
               onClick={handleExportExcel}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
             >
-              Excelga Yuklash
+              Export
             </Button>
             {canManageRepairs ? (
               <Button
                 type="primary"
                 icon={<IconPlus />}
-                style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
+                style={{ borderRadius: 0, backgroundColor: '#165DFF', whiteSpace: 'nowrap' }}
                 onClick={() => setCreateModalVisible(true)}
               >
                 Yangi Ta’mir Talabnomasi
@@ -408,7 +505,7 @@ export const RepairsPage: React.FC = () => {
                   type="primary"
                   icon={<IconPlus />}
                   disabled
-                  style={{ borderRadius: 0 }}
+                  style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
                 >
                   Yangi Ta’mir Talabnomasi
                 </Button>
@@ -438,7 +535,7 @@ export const RepairsPage: React.FC = () => {
         loading={isLoading}
         columns={columns}
         data={filteredRepairs}
-        scrollX={1150}
+        scrollX={1250}
         onRowClick={(record) => handleOpenUpdate(record)}
         emptyText={
           search ? 'Qidiruv bo‘yicha ariza topilmadi' : 'Hozircha ta’mirlash arizalari mavjud emas'

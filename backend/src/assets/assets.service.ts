@@ -4,6 +4,7 @@ import { AssetStatus, RoleType, FundingSource } from '@prisma/client';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { ImportExcelAssetRowDto, ReturnAssetDto, MassMolHandoffDto, BatchTransferAssetDto } from './dto/asset.dto';
 import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 import { TransfersService } from '../transfers/transfers.service';
 
 import { NotificationsService } from '../notifications/notifications.service';
@@ -386,126 +387,351 @@ export class AssetsService {
   }
 
   async generateImportTemplate() {
-    const wb = XLSX.utils.book_new();
+    const [buildings, departments, rooms, categories, users] = await Promise.all([
+      this.prisma.building
+        ? this.prisma.building.findMany({
+            where: { deletedAt: null },
+            orderBy: { name: 'asc' },
+          })
+        : [],
+      this.prisma.department
+        ? this.prisma.department.findMany({
+            where: { deletedAt: null },
+            orderBy: { name: 'asc' },
+          })
+        : [],
+      this.prisma.room.findMany({
+        where: { deletedAt: null },
+        include: { buildingRelation: true, department: true },
+        orderBy: [{ building: 'asc' }, { number: 'asc' }],
+      }),
+      this.prisma.category?.findMany
+        ? this.prisma.category.findMany({
+            orderBy: { name: 'asc' },
+          })
+        : [],
+      this.prisma.user.findMany({
+        where: { deletedAt: null },
+        select: { id: true, username: true, fullName: true, role: true },
+        orderBy: { fullName: 'asc' },
+      }),
+    ]);
 
-    // Sheet 1: Template data with headers and 3 example rows
-    const templateData = [
-      {
-        'Inventar raqami': 'INV-2026-00050',
-        'Aktiv nomi (*majburiy)': 'Lenovo ThinkCentre M70q',
-        'Modeli': 'M70q Gen 3',
-        'Kategoriya nomi': 'Kompyuter va IT uskunalari',
-        'Zavod seriya raqami': 'SN-LN-88310',
-        'Xona raqami': '101',
-        'Mas’ul xodim (MOL logini)': 'mol_user',
-        'Boshlang‘ich xarid narxi (so‘m)': 8500000,
-        'Moliyalashtirish manbasi': 'BYUDJET',
-        'Kafolat muddati (oy)': 24,
-      },
-      {
-        'Inventar raqami': '', // bo'sh qoldirilsa avtomatik generatsiya qilinadi
-        'Aktiv nomi (*majburiy)': 'HP LaserJet Pro M404dn',
-        'Modeli': 'M404dn',
-        'Kategoriya nomi': 'Orgtexnika va printerlar',
-        'Zavod seriya raqami': 'SN-HP-3391',
-        'Xona raqami': '102',
-        'Mas’ul xodim (MOL logini)': '',
-        'Boshlang‘ich xarid narxi (so‘m)': 3800000,
-        'Moliyalashtirish manbasi': 'KONTRAKT_RIVOJLANTIRISH',
-        'Kafolat muddati (oy)': 12,
-      },
-      {
-        'Inventar raqami': '',
-        'Aktiv nomi (*majburiy)': 'Cisco Catalyst 2960 Switch',
-        'Modeli': 'WS-C2960-24TC-L',
-        'Kategoriya nomi': 'Tarmoq uskunalari',
-        'Zavod seriya raqami': 'SN-CS-55421',
-        'Xona raqami': '204',
-        'Mas’ul xodim (MOL logini)': '',
-        'Boshlang‘ich xarid narxi (so‘m)': 12000000,
-        'Moliyalashtirish manbasi': 'GRANT',
-        'Kafolat muddati (oy)': 36,
-      },
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'UWMS - Universitet Ombor va Inventar Tizimi';
+    wb.lastModifiedBy = 'UWMS Avtomatik Shablon Generatori';
+    wb.created = new Date();
+    wb.modified = new Date();
+
+    const buildingList =
+      buildings.length > 0
+        ? buildings.map((b) => b.name.trim())
+        : ['Bosh bino', 'Bosh o‘quv binosi', 'IT Bino'];
+
+    const deptList =
+      departments.length > 0
+        ? departments.map((d) => d.name.trim())
+        : ['Dasturiy Injiniring Kafedrasi', 'Axborot Texnologiyalari Markazi'];
+
+    const roomList =
+      rooms.length > 0
+        ? rooms.map(
+            (r) =>
+              `${r.number} | ${r.name} (${r.buildingRelation?.name || r.building || 'Bino ko‘rsatilmagan'})`,
+          )
+        : ['101 | Rektorat qabulxonasi (Bosh bino)', '304 | O‘quv laboratoriyasi (IT Bino)'];
+
+    const catList =
+      categories.length > 0
+        ? categories.map((c) => c.name.trim())
+        : ['Kompyuter va IT uskunalari', 'Orgtexnika va printerlar', 'Mebel va ofis jihozlari'];
+
+    const userList =
+      users.length > 0
+        ? users.map((u) => `${u.username} (${u.fullName})`)
+        : ['omborchi (Toshmatov Omon)', 'kafedra_mudiri (Prof. Alimov Jasur)'];
+
+    const fundingList = ['BYUDJET', 'KONTRAKT_RIVOJLANTIRISH', 'GRANT'];
+
+    // 1. Sheet 1: Aktivlar Shablon (Main Data Entry Sheet - Displayed First)
+    const wsMain = wb.addWorksheet('Aktivlar Shablon', {
+      views: [{ state: 'frozen', ySplit: 1 }],
+    });
+
+    wsMain.columns = [
+      { header: 'Inventar raqami', key: 'inventoryNumber', width: 22 },
+      { header: 'Aktiv nomi (*majburiy)', key: 'itemName', width: 35 },
+      { header: 'Modeli', key: 'model', width: 20 },
+      { header: 'Kategoriya nomi', key: 'categoryName', width: 28 },
+      { header: 'Zavod seriya raqami', key: 'serialNumber', width: 24 },
+      { header: 'Bino nomi', key: 'buildingName', width: 26 },
+      { header: 'Fakultet / Kafedra / Bo‘lim', key: 'departmentName', width: 36 },
+      { header: 'Xona raqami va nomi', key: 'roomNumber', width: 45 },
+      { header: 'Mas’ul xodim (MOL logini)', key: 'responsibleUsername', width: 32 },
+      { header: 'Boshlang‘ich xarid narxi (so‘m)', key: 'purchasePrice', width: 26 },
+      { header: 'Moliyalashtirish manbasi', key: 'fundingSource', width: 26 },
+      { header: 'Kafolat muddati (oy)', key: 'warrantyMonths', width: 18 },
     ];
 
-    const ws = XLSX.utils.json_to_sheet(templateData);
-    ws['!cols'] = [
-      { wch: 22 },
-      { wch: 30 },
-      { wch: 18 },
-      { wch: 28 },
-      { wch: 22 },
-      { wch: 14 },
-      { wch: 24 },
-      { wch: 26 },
-      { wch: 26 },
-      { wch: 18 },
-    ];
-    XLSX.utils.book_append_sheet(wb, ws, 'Aktivlar Shablon');
+    const mainHeaderRow = wsMain.getRow(1);
+    mainHeaderRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    mainHeaderRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF165DFF' }, // Arco brand blue
+    };
+    mainHeaderRow.height = 28;
+    mainHeaderRow.alignment = { vertical: 'middle', horizontal: 'center' };
 
-    // Sheet 2: Guidelines / rules
+    // 2. Sheet 2: Malumotnoma (Reference Lists for Data Validation)
+    const wsRef = wb.addWorksheet('Malumotnoma');
+    wsRef.columns = [
+      { header: 'Bino nomi', key: 'building', width: 28 },
+      { header: 'Fakultet / Kafedra / Bo‘lim', key: 'department', width: 42 },
+      { header: 'Xona (Kodi va Nomi)', key: 'room', width: 55 },
+      { header: 'Kategoriya', key: 'category', width: 32 },
+      { header: 'Mas’ul xodim (Login va F.I.O)', key: 'user', width: 36 },
+      { header: 'Moliyalashtirish manbasi', key: 'funding', width: 28 },
+    ];
+
+    const refHeaderRow = wsRef.getRow(1);
+    refHeaderRow.font = { bold: true, color: { argb: 'FF1D2129' }, size: 11 };
+    refHeaderRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF2F3F5' },
+    };
+    refHeaderRow.height = 24;
+    refHeaderRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    const maxRefRows = Math.max(
+      buildingList.length,
+      deptList.length,
+      roomList.length,
+      catList.length,
+      userList.length,
+      fundingList.length,
+    );
+
+    for (let i = 0; i < maxRefRows; i++) {
+      wsRef.addRow({
+        building: buildingList[i] || '',
+        department: deptList[i] || '',
+        room: roomList[i] || '',
+        category: catList[i] || '',
+        user: userList[i] || '',
+        funding: fundingList[i] || '',
+      });
+    }
+
+    // 3 Realistic sample rows
+    wsMain.addRow({
+      inventoryNumber: 'INV-2026-00050',
+      itemName: 'Lenovo ThinkCentre M70q',
+      model: 'M70q Gen 3',
+      categoryName: catList[0] || 'Kompyuter va IT uskunalari',
+      serialNumber: 'SN-LN-88310',
+      buildingName: buildingList[0] || 'Bosh ma’muriy bino',
+      departmentName: deptList[0] || 'Dasturiy Injiniring Kafedrasi',
+      roomNumber: roomList[0] || '101 | Rektorat qabulxonasi (Bosh ma’muriy bino)',
+      responsibleUsername: userList[0] || 'kafedra_mudiri (Prof. Alimov Jasur)',
+      purchasePrice: 8500000,
+      fundingSource: 'BYUDJET',
+      warrantyMonths: 24,
+    });
+    wsMain.addRow({
+      inventoryNumber: '',
+      itemName: 'HP LaserJet Pro M404dn',
+      model: 'M404dn',
+      categoryName: catList[1] || catList[0] || 'Orgtexnika va printerlar',
+      serialNumber: 'SN-HP-3391',
+      buildingName: buildingList[1] || buildingList[0] || 'IT Bino',
+      departmentName: deptList[1] || deptList[0] || 'Axborot Texnologiyalari Markazi (ATM)',
+      roomNumber: roomList[1] || roomList[0] || '304 | O‘quv laboratoriyasi (IT Bino)',
+      responsibleUsername: userList[1] || userList[0] || 'omborchi (Toshmatov Omon)',
+      purchasePrice: 3800000,
+      fundingSource: 'KONTRAKT_RIVOJLANTIRISH',
+      warrantyMonths: 12,
+    });
+    wsMain.addRow({
+      inventoryNumber: '',
+      itemName: 'Cisco Catalyst 2960 Switch',
+      model: 'WS-C2960-24TC-L',
+      categoryName: catList[2] || catList[0] || 'Tarmoq uskunalari',
+      serialNumber: 'SN-CS-55421',
+      buildingName: buildingList[0] || 'Bosh ma’muriy bino',
+      departmentName: deptList[0] || 'Axborot Texnologiyalari Markazi (ATM)',
+      roomNumber: roomList[2] || roomList[0] || '301 | ATM Server xonasi (IT Bino)',
+      responsibleUsername: '',
+      purchasePrice: 12000000,
+      fundingSource: 'GRANT',
+      warrantyMonths: 36,
+    });
+
+    // Add Data Validation dropdown lists to rows 2 through 500
+    const catRef = `Malumotnoma!$D$2:$D$${catList.length + 1}`;
+    const buildingRef = `Malumotnoma!$A$2:$A$${buildingList.length + 1}`;
+    const deptRef = `Malumotnoma!$B$2:$B$${deptList.length + 1}`;
+    const roomRef = `Malumotnoma!$C$2:$C$${roomList.length + 1}`;
+    const userRef = `Malumotnoma!$E$2:$E$${userList.length + 1}`;
+    const fundingRef = `Malumotnoma!$F$2:$F$${fundingList.length + 1}`;
+
+    for (let r = 2; r <= 500; r++) {
+      // D: Category
+      wsMain.getCell(`D${r}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [catRef],
+        showErrorMessage: true,
+        errorTitle: 'Noto‘g‘ri kategoriya',
+        error: 'Iltimos, universitet kategoriyalar ro‘yxatidan tanlang!',
+      };
+      // F: Building
+      wsMain.getCell(`F${r}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [buildingRef],
+        showErrorMessage: true,
+        errorTitle: 'Noto‘g‘ri bino',
+        error: 'Iltimos, universitet binolar ro‘yxatidan tanlang!',
+      };
+      // G: Department
+      wsMain.getCell(`G${r}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [deptRef],
+        showErrorMessage: true,
+        errorTitle: 'Noto‘g‘ri kafedra / bo‘lim',
+        error: 'Iltimos, universitet kafedra va bo‘limlar ro‘yxatidan tanlang!',
+      };
+      // H: Room
+      wsMain.getCell(`H${r}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [roomRef],
+        showErrorMessage: true,
+        errorTitle: 'Noto‘g‘ri xona',
+        error: 'Iltimos, universitet xonalari ro‘yxatidan tanlang!',
+      };
+      // I: User (MOL)
+      wsMain.getCell(`I${r}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [userRef],
+        showErrorMessage: true,
+        errorTitle: 'Noto‘g‘ri mas’ul xodim',
+        error: 'Iltimos, ro‘yxatdagi mas’ul xodimlardan birini tanlang!',
+      };
+      // K: Funding Source
+      wsMain.getCell(`K${r}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [fundingRef],
+        showErrorMessage: true,
+        errorTitle: 'Noto‘g‘ri moliyalashtirish manbasi',
+        error: 'Faqat BYUDJET, KONTRAKT_RIVOJLANTIRISH yoki GRANT bo‘lishi mumkin!',
+      };
+    }
+
+    // 3. Sheet 3: Qoidalar va Yo‘riqnoma
+    const wsHelp = wb.addWorksheet('Qoidalar va Yo‘riqnoma');
+    wsHelp.columns = [
+      { header: 'Maydon nomi', key: 'field', width: 28 },
+      { header: 'Majburiyligi', key: 'required', width: 16 },
+      { header: 'Tanlash turi', key: 'type', width: 24 },
+      { header: 'Qoida, Cheklov va Yo‘riqnoma', key: 'desc', width: 85 },
+    ];
+
+    const helpHeaderRow = wsHelp.getRow(1);
+    helpHeaderRow.font = { bold: true, color: { argb: 'FF1D2129' }, size: 11 };
+    helpHeaderRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF2F3F5' },
+    };
+    helpHeaderRow.height = 24;
+    helpHeaderRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
     const instructions = [
       {
-        'Maydon nomi': 'Inventar raqami',
-        Majburiyligi: 'Ixtiyoriy',
-        'Qoida va Izoh':
-          'Agar bo‘sh qoldirilsa, tizim avtomatik navbatdagi unikal inventar raqamini yaratadi (masalan: INV-2026-00010). Agar kiritilsa, tizimda va fayl ichida takrorlanmagan bo‘lishi shart.',
+        field: 'Inventar raqami',
+        required: 'Ixtiyoriy',
+        type: 'Matn (Erkin)',
+        desc: 'Bo‘sh qoldirilsa, tizim avtomatik navbatdagi unikal INV-... raqamini generatsiya qiladi. Agar kiritilsa, tizimda va fayl ichida takrorlanmas bo‘lishi shart.',
       },
       {
-        'Maydon nomi': 'Aktiv nomi',
-        Majburiyligi: 'MAJBURIY',
-        'Qoida va Izoh': 'Asosiy vositaning to‘liq rasmiy nomi (kamida 2 ta belgi).',
+        field: 'Aktiv nomi',
+        required: 'MAJBURIY',
+        type: 'Matn (Erkin)',
+        desc: 'Asosiy vositaning to‘liq rasmiy nomi (kamida 2 ta belgi). Masalan: Dell OptiPlex 7000.',
       },
       {
-        'Maydon nomi': 'Modeli',
-        Majburiyligi: 'Ixtiyoriy',
-        'Qoida va Izoh': 'Uskunaning texnik modeli yoki modifikatsiyasi.',
+        field: 'Modeli',
+        required: 'Ixtiyoriy',
+        type: 'Matn (Erkin)',
+        desc: 'Uskunaning texnik modeli yoki modifikatsiyasi.',
       },
       {
-        'Maydon nomi': 'Kategoriya nomi',
-        Majburiyligi: 'Ixtiyoriy',
-        'Qoida va Izoh':
-          'Masalan: "Kompyuter va IT uskunalari", "Mebel", "Orgtexnika". Tizimda yo‘q bo‘lsa yangi kategoriya ochiladi.',
+        field: 'Kategoriya nomi',
+        required: 'Ixtiyoriy',
+        type: 'Tanlov (Dropdown)',
+        desc: 'Universitet aktivlari kategoriyasi. Shablon ichidagi tanlov ro‘yxatidan (Select) tanlanadi. Agar ro‘yxatda bo‘lmasa, yangi kategoriya nomi yozilsa tizim uni avtomatik kiritadi.',
       },
       {
-        'Maydon nomi': 'Zavod seriya raqami',
-        Majburiyligi: 'Ixtiyoriy',
-        'Qoida va Izoh': 'Ishlab chiqaruvchi seriya raqami (S/N).',
+        field: 'Zavod seriya raqami',
+        required: 'Ixtiyoriy',
+        type: 'Matn (Erkin)',
+        desc: 'Ishlab chiqaruvchi zavod seriya raqami (S/N).',
       },
       {
-        'Maydon nomi': 'Xona raqami',
-        Majburiyligi: 'Ixtiyoriy',
-        'Qoida va Izoh':
-          'Universitetda mavjud xona raqami (masalan: 101, 304). Agar kiritilsa, uskunaning holati "FOYDALANISHDA" deb o‘rnatiladi, bo‘sh bo‘lsa "YANGI" bo‘lib markaziy omborga tushadi.',
+        field: 'Bino nomi',
+        required: 'Ixtiyoriy',
+        type: 'Tanlov (Dropdown)',
+        desc: 'Universitet korpusi yoki binosi. Dropdown ro‘yxatidan tanlanadi. Yangi bino kiritilganda andoza qayta yuklansa avtomatik yangilanadi.',
       },
       {
-        'Maydon nomi': 'Mas’ul xodim (MOL logini)',
-        Majburiyligi: 'Ixtiyoriy',
-        'Qoida va Izoh':
-          'Xona javobgari yoki moddiy javobgar shaxsning tizimdagi foydalanuvchi logini (username).',
+        field: 'Fakultet / Kafedra / Bo‘lim',
+        required: 'Ixtiyoriy',
+        type: 'Tanlov (Dropdown)',
+        desc: 'Uskuna tegishli bo‘lgan kafedra yoki tarkibiy bo‘linma. Dropdown orqali tanlanadi.',
       },
       {
-        'Maydon nomi': 'Boshlang‘ich xarid narxi',
-        Majburiyligi: 'Ixtiyoriy',
-        'Qoida va Izoh': 'Musbat son, milliy valyutada (so‘m).',
+        field: 'Xona raqami va nomi',
+        required: 'Ixtiyoriy',
+        type: 'Tanlov (Dropdown)',
+        desc: 'Aktiv joylashtiriladigan xona. Dropdown orqali aniq xona (raqami, nomi va binosi) tanlanadi. Tanlansa status "FOYDALANISHDA" bo‘ladi, bo‘sh qoldirilsa "YANGI" bo‘lib Markaziy Omborga tushadi.',
       },
       {
-        'Maydon nomi': 'Moliyalashtirish manbasi',
-        Majburiyligi: 'Ixtiyoriy',
-        'Qoida va Izoh':
-          'Faqat quyidagi 3 tadan biri: BYUDJET, KONTRAKT_RIVOJLANTIRISH yoki GRANT. Bo‘sh bo‘lsa "BYUDJET" qo‘yiladi.',
+        field: 'Mas’ul xodim (MOL logini)',
+        required: 'Ixtiyoriy',
+        type: 'Tanlov (Dropdown)',
+        desc: 'Moddiy javobgar shaxs (MOL). Dropdown ro‘yxatidan tanlanadi.',
       },
       {
-        'Maydon nomi': 'Kafolat muddati',
-        Majburiyligi: 'Ixtiyoriy',
-        'Qoida va Izoh': 'Oylarda kiritiladi (masalan: 12, 24, 36). Standart: 12 oy.',
+        field: 'Boshlang‘ich xarid narxi',
+        required: 'Ixtiyoriy',
+        type: 'Raqam (So‘mda)',
+        desc: 'Musbat son, milliy valyutada (so‘m). Masalan: 8500000.',
+      },
+      {
+        field: 'Moliyalashtirish manbasi',
+        required: 'Ixtiyoriy',
+        type: 'Tanlov (Dropdown)',
+        desc: 'Faqat: BYUDJET, KONTRAKT_RIVOJLANTIRISH yoki GRANT. Dropdowndan tanlanadi. Bo‘sh bo‘lsa "BYUDJET" o‘rnatiladi.',
+      },
+      {
+        field: 'Kafolat muddati',
+        required: 'Ixtiyoriy',
+        type: 'Raqam (Oylarda)',
+        desc: 'Oylarda kiritiladi (masalan: 12, 24, 36). Standart qiymat: 12 oy.',
       },
     ];
-    const wsInstructions = XLSX.utils.json_to_sheet(instructions);
-    wsInstructions['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 80 }];
-    XLSX.utils.book_append_sheet(wb, wsInstructions, 'Qoidalar va Yo‘riqnoma');
 
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    for (const inst of instructions) {
+      wsHelp.addRow(inst);
+    }
+
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
     return {
       buffer,
       filename: 'UWMS_Aktivlar_Import_Shablon.xlsx',
@@ -522,7 +748,7 @@ export class AssetsService {
     const [rooms, users] = await Promise.all([
       this.prisma.room.findMany({
         where: { deletedAt: null },
-        include: { responsibleUser: true },
+        include: { buildingRelation: true, department: true, responsibleUser: true },
       }),
       this.prisma.user.findMany({
         where: { deletedAt: null },
@@ -530,17 +756,103 @@ export class AssetsService {
       }),
     ]);
 
-    const roomMap = new Map<string, (typeof rooms)[0]>();
-    for (const r of rooms) {
-      roomMap.set(r.number.trim().toLowerCase(), r);
-      roomMap.set(r.id, r);
-    }
+    // Helper to resolve room from number, ID, or composite dropdown string
+    const resolveRoom = (
+      rawRoom?: string,
+      rawBuilding?: string,
+      rawDepartment?: string,
+    ): (typeof rooms)[0] | null => {
+      if (!rawRoom || !String(rawRoom).trim()) return null;
+      const cleanRoom = String(rawRoom).trim();
+      const lowerRoom = cleanRoom.toLowerCase();
 
-    const userMap = new Map<string, (typeof users)[0]>();
-    for (const u of users) {
-      userMap.set(u.username.trim().toLowerCase(), u);
-      userMap.set(u.id, u);
-    }
+      // 1. Direct ID match
+      const byId = rooms.find((r) => r.id.toLowerCase() === lowerRoom);
+      if (byId) return byId;
+
+      // 2. Direct exact formatted string match
+      const byFormatted = rooms.find((r) => {
+        const bName = r.buildingRelation?.name || r.building || '';
+        const opt1 = `${r.number} | ${r.name} (${bName})`.toLowerCase();
+        const opt2 = `${r.number} - ${r.name}`.toLowerCase();
+        const opt3 = `${r.number} (${bName})`.toLowerCase();
+        return lowerRoom === opt1 || lowerRoom === opt2 || lowerRoom === opt3;
+      });
+      if (byFormatted) return byFormatted;
+
+      // 3. Extract room number prefix: e.g. "101 | ..." or "101 - ..." or "101 [..."
+      const extractedNumberMatch = cleanRoom.match(/^([a-zA-Z0-9\-_]+)/);
+      const roomNum = extractedNumberMatch ? extractedNumberMatch[1].toLowerCase() : lowerRoom;
+
+      // Extract building name from parentheses if present, e.g. "... (IT Bino)" or "[IT Bino]"
+      let targetBuilding = rawBuilding ? String(rawBuilding).trim().toLowerCase() : '';
+      if (!targetBuilding) {
+        const parenMatch = cleanRoom.match(/[\(\[]([^\)\]]+)[\)\]]/);
+        if (parenMatch) {
+          targetBuilding = parenMatch[1].trim().toLowerCase();
+        }
+      }
+
+      // 4. If building is specified, find room with roomNum in that building
+      if (targetBuilding) {
+        const byRoomAndBuilding = rooms.find((r) => {
+          const rNum = r.number.trim().toLowerCase();
+          const bName = (r.buildingRelation?.name || r.building || '').toLowerCase();
+          return rNum === roomNum && bName.includes(targetBuilding);
+        });
+        if (byRoomAndBuilding) return byRoomAndBuilding;
+      }
+
+      // 5. Match by room number alone
+      const byNumberMatches = rooms.filter((r) => r.number.trim().toLowerCase() === roomNum);
+      if (byNumberMatches.length === 1) {
+        return byNumberMatches[0];
+      }
+      if (byNumberMatches.length > 1) {
+        if (rawDepartment) {
+          const lowerDept = String(rawDepartment).trim().toLowerCase();
+          const byDept = byNumberMatches.find(
+            (r) => r.department && r.department.name.toLowerCase().includes(lowerDept),
+          );
+          if (byDept) return byDept;
+        }
+        return byNumberMatches[0];
+      }
+
+      return null;
+    };
+
+    // Helper to resolve user from username, fullName, ID, or composite dropdown string
+    const resolveUser = (rawUser?: string): (typeof users)[0] | null => {
+      if (!rawUser || !String(rawUser).trim()) return null;
+      const cleanUser = String(rawUser).trim();
+      const lowerUser = cleanUser.toLowerCase();
+
+      // 1. Direct ID match
+      const byId = users.find((u) => u.id.toLowerCase() === lowerUser);
+      if (byId) return byId;
+
+      // 2. Direct username match
+      const byUsername = users.find((u) => u.username.toLowerCase() === lowerUser);
+      if (byUsername) return byUsername;
+
+      // 3. Formatted dropdown match: e.g. "kafedra_mudiri (Prof. Alimov Jasur)"
+      const byFormatted = users.find((u) => {
+        const formatted = `${u.username} (${u.fullName})`.toLowerCase();
+        return lowerUser === formatted || lowerUser === u.fullName.toLowerCase();
+      });
+      if (byFormatted) return byFormatted;
+
+      // 4. Extract username from prefix: e.g. "kafedra_mudiri (..."
+      const usernameMatch = cleanUser.match(/^([a-zA-Z0-9_\.\-]+)/);
+      if (usernameMatch) {
+        const uName = usernameMatch[1].toLowerCase();
+        const byExtracted = users.find((u) => u.username.toLowerCase() === uName);
+        if (byExtracted) return byExtracted;
+      }
+
+      return null;
+    };
 
     // 2. Collect inventory numbers to check intra-file and cross-DB duplicates
     const invFreqMap = new Map<string, number>();
@@ -619,12 +931,11 @@ export class AssetsService {
       // Validation d: roomNumber
       let matchedRoom: (typeof rooms)[0] | null = null;
       if (row.roomNumber && String(row.roomNumber).trim()) {
-        const roomKey = String(row.roomNumber).trim().toLowerCase();
-        matchedRoom = roomMap.get(roomKey) || null;
+        matchedRoom = resolveRoom(row.roomNumber, row.buildingName, row.departmentName);
         if (!matchedRoom) {
           rowErrors.push({
             field: 'roomNumber',
-            message: `"${row.roomNumber}" raqamli xona universitet tizimida topilmadi!`,
+            message: `"${row.roomNumber}" raqamli xona universitet tizimida topilmadi! Iltimos, andozadagi tanlov ro‘yxatidan foydalaning.`,
           });
         }
       }
@@ -632,12 +943,11 @@ export class AssetsService {
       // Validation e: responsibleUsername
       let matchedUser: (typeof users)[0] | null = null;
       if (row.responsibleUsername && String(row.responsibleUsername).trim()) {
-        const userKey = String(row.responsibleUsername).trim().toLowerCase();
-        matchedUser = userMap.get(userKey) || null;
+        matchedUser = resolveUser(row.responsibleUsername);
         if (!matchedUser) {
           rowErrors.push({
             field: 'responsibleUsername',
-            message: `"${row.responsibleUsername}" loginli mas’ul xodim tizimda topilmadi!`,
+            message: `"${row.responsibleUsername}" loginli mas’ul xodim tizimda topilmadi! Iltimos, andozadagi tanlov ro‘yxatidan foydalaning.`,
           });
         }
       }

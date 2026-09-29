@@ -430,7 +430,7 @@ export const SystemAuditPage: React.FC = () => {
       />
 
       {/* Filter Toolbar */}
-      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '16px 20px' }}>
+      <Card className="uwms-card" style={{ borderRadius: 0 }} bodyStyle={{ padding: '12px 16px' }}>
         <div
           style={{
             display: 'flex',
@@ -440,7 +440,7 @@ export const SystemAuditPage: React.FC = () => {
             gap: 12,
           }}
         >
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Input
               style={{ width: 250, borderRadius: 0 }}
               placeholder="Qidiruv (Xodim, ID, matn)..."
@@ -516,11 +516,10 @@ export const SystemAuditPage: React.FC = () => {
             />
           </Space>
 
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Button
-              type="outline"
               icon={<IconRefresh />}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
               onClick={() => refetch()}
               loading={isLoading}
             >
@@ -529,10 +528,10 @@ export const SystemAuditPage: React.FC = () => {
 
             <Button
               icon={<IconDownload />}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
               onClick={handleExportExcel}
             >
-              Excel
+              Export
             </Button>
           </Space>
         </div>

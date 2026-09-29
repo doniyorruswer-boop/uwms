@@ -645,6 +645,17 @@ export class TransfersService {
       throw new NotFoundException('Topshiruvchi mas’ul shaxs (Eski MOL) topilmadi!');
     }
 
+    // Check if internal handover within the same department
+    let isInternalHandover = false;
+    if (dto.targetUserId && departingUser.departmentId) {
+      const targetUser = await this.prisma.user.findUnique({
+        where: { id: dto.targetUserId },
+      });
+      if (targetUser?.departmentId && targetUser.departmentId === departingUser.departmentId) {
+        isInternalHandover = true;
+      }
+    }
+
     // Auto-resolve building and commandant if roomId provided
     let buildingId = dto.buildingId;
     let commandantUserId = dto.commandantUserId;
@@ -657,10 +668,11 @@ export class TransfersService {
       if (room?.buildingId && !buildingId) {
         buildingId = room.buildingId;
       }
-      if (room?.buildingRelation?.commendantId && !commandantUserId) {
+      // For inter-departmental transfers, auto-resolve commandant if not explicitly passed
+      if (!isInternalHandover && room?.buildingRelation?.commendantId && !commandantUserId) {
         commandantUserId = room.buildingRelation.commendantId;
       }
-    } else if (buildingId && !commandantUserId) {
+    } else if (!isInternalHandover && buildingId && !commandantUserId) {
       const bld = await this.prisma.building.findUnique({ where: { id: buildingId } });
       if (bld?.commendantId) {
         commandantUserId = bld.commendantId;
@@ -1444,16 +1456,24 @@ export class TransfersService {
             },
           });
 
+          const isInternal = Boolean(
+            handover.departingUser?.departmentId &&
+            targetUser?.departmentId &&
+            handover.departingUser.departmentId === targetUser.departmentId
+          );
+
           await tx.assetHistory.create({
             data: {
               assetId: asset.id,
-              action: 'MOL_ALMASHINUVI',
+              action: isInternal ? 'KAFEDRA_ICHKI_BIRIKTIRISH' : 'MOL_ALMASHINUVI',
               fromLocation: fromLoc,
               toLocation: handover.room ? `${handover.room.building} ${handover.room.number}-xona` : fromLoc,
               fromUser: handover.departingUser.fullName,
               toUser: targetUser?.fullName || 'Yangi MOL',
-              referenceDoc: `Qabul qilish-topshirish akti (${handover.handoverNumber})`,
-              note: itemAction.conditionNote || handover.note || 'Moddiy javobgarlik o‘tkazildi',
+              referenceDoc: isInternal
+                ? `Kafedra ichki biriktirish dalolatnomasi (${handover.handoverNumber})`
+                : `Qabul qilish-topshirish akti (${handover.handoverNumber})`,
+              note: itemAction.conditionNote || handover.note || (isInternal ? 'Kafedra ichki foydalanishiga biriktirildi' : 'Moddiy javobgarlik o‘tkazildi'),
               executedById: executorId,
             },
           });

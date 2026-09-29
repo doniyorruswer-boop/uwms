@@ -239,7 +239,7 @@ export const DashboardPage: React.FC = () => {
               onClick={handleExportExecutiveExcel}
               style={{ borderRadius: 0 }}
             >
-              Tahliliy Hisobot (Excel)
+              Export
             </Button>
           )}
           <Button

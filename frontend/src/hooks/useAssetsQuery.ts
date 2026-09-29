@@ -117,6 +117,8 @@ export function useAssetsQuery(params?: {
       serialNumber?: string;
       purchasePrice?: number;
       fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT';
+      buildingName?: string;
+      departmentName?: string;
       roomNumber?: string;
       responsibleUsername?: string;
       warrantyMonths?: number;

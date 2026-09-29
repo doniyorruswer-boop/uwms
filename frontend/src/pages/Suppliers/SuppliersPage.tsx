@@ -24,6 +24,7 @@ import {
   IconCheckCircle,
   IconFile,
   IconLock,
+  IconRefresh,
 } from '@arco-design/web-react/icon';
 import { useSuppliersQuery, SupplierItem } from '../../hooks/useSuppliersQuery';
 import { useAuthStore } from '../../store/authStore';
@@ -364,9 +365,9 @@ export const SuppliersPage: React.FC = () => {
       </Row>
 
       {/* Filter and Search Bar */}
-      <Card className="uwms-card" bodyStyle={{ padding: '16px 20px' }}>
+      <Card className="uwms-card" bodyStyle={{ padding: '12px 16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Input
               prefix={<IconSearch />}
               placeholder="Korxona nomi, STIR (INN), shartnoma raqami yoki vakil..."
@@ -375,62 +376,60 @@ export const SuppliersPage: React.FC = () => {
               onChange={setSearch}
               allowClear
             />
-            <Space size="small">
+            <Button
+              type={filterTab === 'ALL' ? 'primary' : 'secondary'}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
+              onClick={() => setFilterTab('ALL')}
+            >
+              Barchasi ({suppliers.length})
+            </Button>
+            <Button
+              type={filterTab === 'CONTRACTED' ? 'primary' : 'secondary'}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
+              onClick={() => setFilterTab('CONTRACTED')}
+            >
+              Faol Shartnomali ({contractedCount})
+            </Button>
+            <Button
+              type={filterTab === 'DELIVERIES' ? 'primary' : 'secondary'}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
+              onClick={() => setFilterTab('DELIVERIES')}
+            >
+              Hisob-fakturali ({deliveryCount})
+            </Button>
+            {isSuperAdmin && (
               <Button
-                type={filterTab === 'ALL' ? 'primary' : 'secondary'}
-                style={{ borderRadius: 0 }}
-                onClick={() => setFilterTab('ALL')}
+                type={showDeleted ? 'primary' : 'outline'}
+                status={showDeleted ? 'warning' : 'default'}
+                icon={<IconDelete />}
+                style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
+                onClick={() => setShowDeleted(!showDeleted)}
               >
-                Barchasi ({suppliers.length})
+                {showDeleted ? 'Faol kontragentlar' : 'O‘chirilganlar'}
               </Button>
-              <Button
-                type={filterTab === 'CONTRACTED' ? 'primary' : 'secondary'}
-                style={{ borderRadius: 0 }}
-                onClick={() => setFilterTab('CONTRACTED')}
-              >
-                Faol Shartnomali ({contractedCount})
-              </Button>
-              <Button
-                type={filterTab === 'DELIVERIES' ? 'primary' : 'secondary'}
-                style={{ borderRadius: 0 }}
-                onClick={() => setFilterTab('DELIVERIES')}
-              >
-                Hisob-fakturali ({deliveryCount})
-              </Button>
-              {isSuperAdmin && (
-                <Button
-                  type={showDeleted ? 'primary' : 'outline'}
-                  status={showDeleted ? 'warning' : 'default'}
-                  icon={<IconDelete />}
-                  style={{ borderRadius: 0 }}
-                  onClick={() => setShowDeleted(!showDeleted)}
-                >
-                  {showDeleted ? 'Faol kontragentlar' : 'O‘chirilganlar'}
-                </Button>
-              )}
-            </Space>
+            )}
           </Space>
 
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Button
               icon={<IconDownload />}
               onClick={handleExportExcel}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
             >
-              Excelga Yuklash
+              Export
             </Button>
             {canManage ? (
               <Button
                 type="primary"
                 icon={<IconPlus />}
                 onClick={handleOpenCreate}
-                style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
+                style={{ borderRadius: 0, backgroundColor: '#165DFF', whiteSpace: 'nowrap' }}
               >
                 Yangi Shartnoma / Kontragent
               </Button>
             ) : (
               <Tooltip content="Yangi ta’minotchi qo‘shish faqat Bosh omborchi va Administrator uchun ruxsat etilgan">
-                <Button disabled icon={<IconLock />} style={{ borderRadius: 0 }}>
+                <Button disabled icon={<IconLock />} style={{ borderRadius: 0, whiteSpace: 'nowrap' }}>
                   Yangi Shartnoma (Cheklangan)
                 </Button>
               </Tooltip>

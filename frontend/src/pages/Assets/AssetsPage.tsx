@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Card,
@@ -43,6 +43,7 @@ import {
   IconExclamationCircle,
   IconUser,
   IconApps,
+  IconRefresh,
 } from '@arco-design/web-react/icon';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -80,6 +81,7 @@ const ALLOWED_ASSET_ROLES = [
   'COMMENDANT',
   'RECTOR',
   'VICE_RECTOR_FINANCE',
+  'EMPLOYEE',
 ];
 
 const FormItem = Form.Item;
@@ -126,7 +128,7 @@ export const AssetsPage: React.FC = () => {
     responsibleUserId: showMyAssetsOnly ? user?.id : undefined,
   });
 
-  const { transfers, isLoading: isTransfersLoading, respondTransfer } = useTransfersQuery();
+  const { transfers, isLoading: isTransfersLoading, respondTransfer, refetch: refetchTransfers } = useTransfersQuery();
   const { categories: backendCategories, isLoading: isCategoriesLoading } = useCategoriesQuery();
 
   useEffect(() => {
@@ -229,12 +231,15 @@ export const AssetsPage: React.FC = () => {
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
+  const myAssets = useMemo(() => {
+    if (!user?.id) return [];
+    return assets.filter(
+      (a) => a.responsibleUserId === user.id && a.status !== 'WRITTEN_OFF'
+    );
+  }, [assets, user?.id]);
+
   const handleOpenMyHandoverWizard = () => {
     // Foydalanuvchining o'z nomidagi (bo'ynidagi) faol aktivlari
-    const myAssets = assets.filter(
-      (a) => a.responsibleUserId === user?.id && a.status !== 'WRITTEN_OFF'
-    );
-
     if (myAssets.length === 0) {
       Message.info('Sizning nomingizda topshirish mumkin bo‘lgan faol asosiy vositalar mavjud emas.');
       return;
@@ -339,6 +344,11 @@ export const AssetsPage: React.FC = () => {
     user?.role === 'ADMIN' ||
     user?.role === 'HEAD_WAREHOUSE' ||
     user?.role === 'MOL';
+
+  const canImportExcel =
+    user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'ADMIN' ||
+    user?.role === 'HEAD_WAREHOUSE';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -511,9 +521,17 @@ export const AssetsPage: React.FC = () => {
       {activeMainTab === 'ASSETS' && (
         <>
           {/* Top Filter and Controls Bar */}
-          <Card className="uwms-card" bodyStyle={{ padding: '16px 20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-              <Space size="medium" wrap>
+          <Card className="uwms-card" bodyStyle={{ padding: '12px 16px' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 12,
+              }}
+            >
+              <Space size="small" wrap>
                 <Radio.Group
                   type="button"
                   value={showMyAssetsOnly ? 'MINE' : 'ALL'}
@@ -527,7 +545,7 @@ export const AssetsPage: React.FC = () => {
                 <Input
                   prefix={<IconSearch />}
                   placeholder="Inventar №, Nomi, Seriya № yoki Xona..."
-                  style={{ width: 260 }}
+                  style={{ width: 260, borderRadius: 0 }}
                   value={searchText}
                   onChange={setSearchText}
                   allowClear
@@ -536,7 +554,7 @@ export const AssetsPage: React.FC = () => {
                   placeholder="Barcha turlar"
                   value={quickCategory}
                   onChange={setQuickCategory}
-                  style={{ width: 220 }}
+                  style={{ width: 180, borderRadius: 0 }}
                   loading={isCategoriesLoading}
                 >
                   <Select.Option value="ALL">Barcha turlar (Barchasi)</Select.Option>
@@ -549,7 +567,7 @@ export const AssetsPage: React.FC = () => {
                 <Select
                   value={statusFilter}
                   onChange={setStatusFilter}
-                  style={{ width: 160 }}
+                  style={{ width: 160, borderRadius: 0 }}
                 >
                   <Select.Option value="ALL">Barcha holatlar</Select.Option>
                   <Select.Option value="IN_USE">Foydalanishda</Select.Option>
@@ -560,7 +578,7 @@ export const AssetsPage: React.FC = () => {
                 <Select
                   value={fundingSourceFilter}
                   onChange={setFundingSourceFilter}
-                  style={{ width: 170 }}
+                  style={{ width: 160, borderRadius: 0 }}
                 >
                   <Select.Option value="ALL">Barcha manbalar</Select.Option>
                   <Select.Option value="BYUDJET">Byudjet mablag‘i</Select.Option>
@@ -570,26 +588,24 @@ export const AssetsPage: React.FC = () => {
               </Space>
 
               <Space size="small" wrap>
-                {canManageAssets && (
-                  <>
-                    <Button
-                      type="primary"
-                      status="success"
-                      icon={<IconSwap />}
-                      onClick={handleOpenMyHandoverWizard}
-                      style={{ borderRadius: 0, fontWeight: 600 }}
-                    >
-                      Aktivlarni topshirish
-                    </Button>
-                    <Button
-                      type="outline"
-                      icon={<IconUpload />}
-                      onClick={() => setIsExcelImportModalVisible(true)}
-                      style={{ borderRadius: 0 }}
-                    >
-                      Excel Import
-                    </Button>
-                  </>
+                <Button
+                  type="primary"
+                  status="success"
+                  icon={<IconSwap />}
+                  onClick={handleOpenMyHandoverWizard}
+                  style={{ borderRadius: 0, fontWeight: 600 }}
+                >
+                  Aktivlarni topshirish {myAssets.length > 0 ? `(${myAssets.length})` : ''}
+                </Button>
+                {canImportExcel && (
+                  <Button
+                    type="outline"
+                    icon={<IconUpload />}
+                    onClick={() => setIsExcelImportModalVisible(true)}
+                    style={{ borderRadius: 0 }}
+                  >
+                    Excel Import
+                  </Button>
                 )}
                 <Button
                   type="outline"
@@ -597,7 +613,7 @@ export const AssetsPage: React.FC = () => {
                   onClick={() => handleExportExcel()}
                   style={{ borderRadius: 0 }}
                 >
-                  Eksport
+                  Export
                 </Button>
               </Space>
             </div>
@@ -652,7 +668,7 @@ export const AssetsPage: React.FC = () => {
             rowKey="id"
             loading={isLoading}
             data={filteredAssets}
-            scrollX={1170}
+            scrollX={1280}
             emptyText="Qidiruv bo‘yicha asosiy vosita topilmadi"
             rowSelection={{
               type: 'checkbox',
@@ -761,7 +777,7 @@ export const AssetsPage: React.FC = () => {
               },
               {
                 title: 'Amallar',
-                width: 125,
+                width: 165,
                 fixed: 'right' as const,
                 render: (_, record: ItemInstance) => (
                   <TableActions
@@ -777,7 +793,7 @@ export const AssetsPage: React.FC = () => {
                     deleteTooltip="Hisobdan chiqarish (OS-4)"
                     deleteConfirmTitle="Ushbu vositani hisobdan chiqarish (OS-4) komissiyasiga yuborilsinmi?"
                     deleteOkText="Ha, yuborilsin"
-                    rightPadding={4}
+                    rightPadding={0}
                     gap={6}
                   >
                     <Tooltip content="Vosita pasporti (ko‘rish)">
@@ -803,7 +819,7 @@ export const AssetsPage: React.FC = () => {
                         QR
                       </Button>
                     </Tooltip>
-                    {canManageAssets && record.status !== 'WRITTEN_OFF' && (
+                    {(canManageAssets || record.responsibleUserId === user?.id) && record.status !== 'WRITTEN_OFF' && (
                       <>
                         <Tooltip
                           content={

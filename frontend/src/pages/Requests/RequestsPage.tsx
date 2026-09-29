@@ -19,6 +19,8 @@ import {
   Alert,
   Tooltip,
   Progress,
+  Dropdown,
+  Menu,
 } from '@arco-design/web-react';
 import {
   IconPlus,
@@ -34,6 +36,7 @@ import {
   IconUserGroup,
   IconMobile,
   IconWifi,
+  IconDown,
 } from '@arco-design/web-react/icon';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRequestsQuery } from '../../hooks/useRequestsQuery';
@@ -764,9 +767,9 @@ export const RequestsPage: React.FC = () => {
       />
 
       {/* Actions Toolbar */}
-      <Card className="uwms-card" bodyStyle={{ padding: '16px 20px' }}>
+      <Card className="uwms-card" bodyStyle={{ padding: '12px 16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Input
               prefix={<IconSearch />}
               placeholder="Zayavka raqami, talabgor, bo‘lim yoki mahsulot bo‘yicha qidirish..."
@@ -776,29 +779,29 @@ export const RequestsPage: React.FC = () => {
               allowClear
             />
             {isSocketConnected ? (
-              <Tag color="green" icon={<IconWifi />} style={{ borderRadius: 0, fontWeight: 600 }}>
+              <Tag color="green" icon={<IconWifi />} style={{ borderRadius: 0, fontWeight: 600, whiteSpace: 'nowrap' }}>
                 Live Workflow Sync (Faol)
               </Tag>
             ) : (
-              <Tag color="gray" style={{ borderRadius: 0 }}>Offline</Tag>
+              <Tag color="gray" style={{ borderRadius: 0, whiteSpace: 'nowrap' }}>Offline</Tag>
             )}
           </Space>
 
-          <Space size="medium" wrap>
+          <Space size="small" wrap>
             <Button
               icon={<IconRefresh />}
               onClick={() => refetch()}
-              style={{ borderRadius: 0 }}
+              style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
             >
               Yangilash
             </Button>
-            <Button icon={<IconDownload />} onClick={handleExportExcel} style={{ borderRadius: 0 }}>
-              Excelga Yuklash
+            <Button icon={<IconDownload />} onClick={handleExportExcel} style={{ borderRadius: 0, whiteSpace: 'nowrap' }}>
+              Export
             </Button>
             <Button
               type="primary"
               icon={<IconPlus />}
-              style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
+              style={{ borderRadius: 0, backgroundColor: '#165DFF', whiteSpace: 'nowrap' }}
               onClick={() => {
                 form.setFieldsValue({ unit: 'PACHKA', quantity: 5 });
                 setIsNewModalVisible(true);
@@ -815,7 +818,7 @@ export const RequestsPage: React.FC = () => {
         rowKey="id"
         loading={isLoading || isFetching}
         data={filteredRequests}
-        scrollX={1300}
+        scrollX={1420}
         onRowClick={(record) => handleOpenDetail(record)}
         emptyText={
           isError
@@ -934,6 +937,87 @@ export const RequestsPage: React.FC = () => {
             },
           },
           {
+            title: 'Hujjatlar',
+            width: 140,
+            render: (_, record: RequestRecord) => {
+              const hasOS1 =
+                record.status === 'RECEIVED_AT_WAREHOUSE' ||
+                record.status === 'HANDED_TO_COMMENDANT' ||
+                record.status === 'FULFILLED';
+              const hasOS2 =
+                record.status === 'HANDED_TO_COMMENDANT' ||
+                record.status === 'FULFILLED';
+              const hasHandover = record.status === 'FULFILLED';
+              const hasDocs = hasOS1 || hasOS2 || hasHandover;
+
+              if (!hasDocs) {
+                return (
+                  <span style={{ color: 'var(--color-text-4)', fontSize: 13, paddingLeft: 6 }}>
+                    —
+                  </span>
+                );
+              }
+
+              const docMenuList = (
+                <Menu onClickMenuItem={(_, e) => e?.stopPropagation?.()}>
+                  {hasOS1 && (
+                    <Menu.Item
+                      key="doc-os1"
+                      onClick={(e) => handleOpenDocModal(record, 'KIRIM', e)}
+                    >
+                      <Space size={8}>
+                        <IconFile style={{ color: '#165DFF' }} />
+                        <span>OS-1 Ombor Kirim Akti</span>
+                      </Space>
+                    </Menu.Item>
+                  )}
+                  {hasOS2 && (
+                    <Menu.Item
+                      key="doc-os2"
+                      onClick={(e) => handleOpenDocModal(record, 'TRANSFER', e)}
+                    >
+                      <Space size={8}>
+                        <IconFile style={{ color: '#ff7d00' }} />
+                        <span>OS-2 Ombordan Binoga Chiqim</span>
+                      </Space>
+                    </Menu.Item>
+                  )}
+                  {hasHandover && (
+                    <Menu.Item
+                      key="doc-handover"
+                      onClick={(e) => handleOpenDocModal(record, 'KAFEDRA_HANDOVER', e)}
+                    >
+                      <Space size={8}>
+                        <IconFile style={{ color: '#00b42a' }} />
+                        <span>Topshirish-Qabul Qilish Akti</span>
+                      </Space>
+                    </Menu.Item>
+                  )}
+                </Menu>
+              );
+
+              return (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Dropdown droplist={docMenuList} trigger="click" position="bl">
+                    <Button
+                      size="small"
+                      type="outline"
+                      icon={<IconFile />}
+                      style={{
+                        borderRadius: 0,
+                        padding: '0 8px',
+                        color: '#165DFF',
+                        borderColor: '#94BFFF',
+                      }}
+                    >
+                      Hujjatlar <IconDown style={{ fontSize: 10, marginLeft: 2 }} />
+                    </Button>
+                  </Dropdown>
+                </div>
+              );
+            },
+          },
+          {
             title: 'Amallar',
             width: 140,
             fixed: 'right' as const,
@@ -982,153 +1066,144 @@ export const RequestsPage: React.FC = () => {
                  (record.status === 'FINANCED_BY_ACCOUNTANT' &&
                   user?.role === 'HEAD_WAREHOUSE'));
 
+              const actionButton = (() => {
+                if (canProrektorApprove) {
+                  return (
+                    <Tooltip content="1-Viza: Prorektor elektron imzosi (QR)">
+                      <Button
+                        size="small"
+                        type="primary"
+                        status="success"
+                        icon={<IconCheck />}
+                        onClick={(e) => handleProrektorApprove(record, e)}
+                        style={{ borderRadius: 0, padding: '0 8px' }}
+                      >
+                        1-Viza
+                      </Button>
+                    </Tooltip>
+                  );
+                }
+                if (canRectorApprove) {
+                  return (
+                    <Tooltip content="2-Viza: Rektor elektron imzosi (QR)">
+                      <Button
+                        size="small"
+                        type="primary"
+                        status="success"
+                        icon={<IconCheck />}
+                        onClick={(e) => handleRectorApprove(record, e)}
+                        style={{ borderRadius: 0, padding: '0 8px' }}
+                      >
+                        2-Viza
+                      </Button>
+                    </Tooltip>
+                  );
+                }
+                if (canAccountantFinance) {
+                  return (
+                    <Tooltip content="Moliya va Sub-hisob belgilash (QR)">
+                      <Button
+                        size="small"
+                        type="primary"
+                        icon={<IconCheckCircle />}
+                        onClick={(e) => handleOpenFinanceModal(record, e)}
+                        style={{ borderRadius: 0, padding: '0 8px', background: '#722ed1', borderColor: '#722ed1' }}
+                      >
+                        Moliyalash
+                      </Button>
+                    </Tooltip>
+                  );
+                }
+                if (canWarehouseReceive) {
+                  return (
+                    <Tooltip content="Ombor kirim aktini tasdiqlash (OS-1 QR)">
+                      <Button
+                        size="small"
+                        type="primary"
+                        icon={<IconArchive />}
+                        onClick={(e) => handleWarehouseReceive(record, e)}
+                        style={{ borderRadius: 0, padding: '0 8px' }}
+                      >
+                        Ombor Kirimi
+                      </Button>
+                    </Tooltip>
+                  );
+                }
+                if (canCommendantHandover) {
+                  return (
+                    <Tooltip content="Binoga qabul qilib olish (OS-2 QR)">
+                      <Button
+                        size="small"
+                        type="primary"
+                        icon={<IconCheck />}
+                        onClick={(e) => handleCommendantHandover(record, e)}
+                        style={{ borderRadius: 0, padding: '0 8px', background: '#ff7d00', borderColor: '#ff7d00' }}
+                      >
+                        Binoga Qabul
+                      </Button>
+                    </Tooltip>
+                  );
+                }
+                if (canMudirFulfill) {
+                  return (
+                    <Tooltip content="Xonaga qabul qilib olish (Yakuniy QR)">
+                      <Button
+                        size="small"
+                        type="primary"
+                        status="success"
+                        icon={<IconCheckCircle />}
+                        onClick={(e) => handleMudirFulfill(record, e)}
+                        style={{ borderRadius: 0, padding: '0 8px' }}
+                      >
+                        Qabul qilish
+                      </Button>
+                    </Tooltip>
+                  );
+                }
+                return null;
+              })();
+
               return (
-                <TableActions rightPadding={16} gap={5}>
-                  <Button
-                    size="small"
-                    type="outline"
-                    icon={<IconEye />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleOpenDetail(record);
-                    }}
-                    style={{ borderRadius: 0, padding: '0 8px' }}
-                  >
-                    Batafsil
-                  </Button>
-
-                  {/* Step 2: Prorektor Vizasi */}
-                  {canProrektorApprove && (
-                    <Button
-                      size="small"
-                      type="primary"
-                      status="success"
-                      icon={<IconCheck />}
-                      onClick={(e) => handleProrektorApprove(record, e)}
-                      style={{ borderRadius: 0, padding: '0 8px' }}
-                    >
-                      1-Viza (Prorektor QR)
-                    </Button>
-                  )}
-
-                  {/* Step 3: Rektor Vizasi */}
-                  {canRectorApprove && (
-                    <Button
-                      size="small"
-                      type="primary"
-                      status="success"
-                      icon={<IconCheck />}
-                      onClick={(e) => handleRectorApprove(record, e)}
-                      style={{ borderRadius: 0, padding: '0 8px' }}
-                    >
-                      2-Viza (Rektor QR)
-                    </Button>
-                  )}
-
-                  {/* Step 4: Bosh Hisobchi Moliyalash */}
-                  {canAccountantFinance && (
-                    <Button
-                      size="small"
-                      type="primary"
-                      icon={<IconCheckCircle />}
-                      onClick={(e) => handleOpenFinanceModal(record, e)}
-                      style={{ borderRadius: 0, padding: '0 8px', background: '#722ed1', borderColor: '#722ed1' }}
-                    >
-                      Moliya & Sub-hisob (QR)
-                    </Button>
-                  )}
-
-                  {/* Step 5: Ombor Kirimi (OS-1) */}
-                  {canWarehouseReceive && (
-                    <Button
-                      size="small"
-                      type="primary"
-                      icon={<IconArchive />}
-                      onClick={(e) => handleWarehouseReceive(record, e)}
-                      style={{ borderRadius: 0, padding: '0 8px' }}
-                    >
-                      Ombor Kirimi (OS-1 QR)
-                    </Button>
-                  )}
-
-                  {/* Step 6: Komendant Binoga Qabul (OS-2) */}
-                  {canCommendantHandover && (
-                    <Button
-                      size="small"
-                      type="primary"
-                      icon={<IconCheck />}
-                      onClick={(e) => handleCommendantHandover(record, e)}
-                      style={{ borderRadius: 0, padding: '0 8px', background: '#ff7d00', borderColor: '#ff7d00' }}
-                    >
-                      Binoga Qabul (OS-2 QR)
-                    </Button>
-                  )}
-
-                  {/* Step 7: Mudir Yakuniy Qabul */}
-                  {canMudirFulfill && (
-                    <Button
-                      size="small"
-                      type="primary"
-                      status="success"
-                      icon={<IconCheckCircle />}
-                      onClick={(e) => handleMudirFulfill(record, e)}
-                      style={{ borderRadius: 0, padding: '0 8px' }}
-                    >
-                      Xonaga Qabul (Yakuniy QR)
-                    </Button>
-                  )}
-
-                  {/* Documents: OS-1 Kirim Akti */}
-                  {(record.status === 'RECEIVED_AT_WAREHOUSE' ||
-                    record.status === 'HANDED_TO_COMMENDANT' ||
-                    record.status === 'FULFILLED') && (
-                    <Tooltip content="OS-1 Ombor Kirim Aktini ko‘rish">
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    flexWrap: 'nowrap',
+                    justifyContent: 'flex-start',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Ustma-ust blok: Agar jarayon amali bo'lsa, u tepada, Batafsil esa bir xil standart o'lchamda pastda turadi */}
+                  {actionButton ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                      {actionButton}
                       <Button
                         size="small"
                         type="outline"
-                        icon={<IconFile />}
-                        onClick={(e) => handleOpenDocModal(record, 'KIRIM', e)}
-                        style={{ borderRadius: 0, padding: '0 8px' }}
-                      >
-                        OS-1
-                      </Button>
-                    </Tooltip>
-                  )}
-
-                  {/* Documents: OS-2 Chiqim Nakladnoyi */}
-                  {(record.status === 'HANDED_TO_COMMENDANT' || record.status === 'FULFILLED') && (
-                    <Tooltip content="OS-2 Ombordan Binoga Chiqim Nakladnoyini ko‘rish (Bosh omborchi + Bino komendanti)">
-                      <Button
-                        size="small"
-                        type="outline"
-                        icon={<IconFile />}
-                        onClick={(e) => handleOpenDocModal(record, 'TRANSFER', e)}
-                        style={{ borderRadius: 0, padding: '0 8px' }}
-                      >
-                        OS-2
-                      </Button>
-                    </Tooltip>
-                  )}
-
-                  {/* Documents: Kafedra / Bo'lim Qabuli va Topshirish Dalolatnomasi (Faqat yakuniy qabul qilib olingach: 7-bosqich) */}
-                  {record.status === 'FULFILLED' && (
-                    <Tooltip content="Kafedra/Bo‘lim topshirish-qabul qilish dalolatnomasini ko‘rish (Komendant + Talabgor)">
-                      <Button
-                        size="small"
-                        type="outline"
-                        icon={<IconFile />}
-                        onClick={(e) => handleOpenDocModal(record, 'KAFEDRA_HANDOVER', e)}
-                        style={{
-                          borderRadius: 0,
-                          padding: '0 8px',
-                          color: '#096dd9',
-                          borderColor: '#91d5ff',
-                          backgroundColor: '#e6f7ff',
+                        icon={<IconEye />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenDetail(record);
                         }}
+                        style={{ borderRadius: 0, padding: '0 8px' }}
                       >
-                        Dalolatnoma (Akt)
+                        Batafsil
                       </Button>
-                    </Tooltip>
+                    </div>
+                  ) : (
+                    <Button
+                      size="small"
+                      type="outline"
+                      icon={<IconEye />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenDetail(record);
+                      }}
+                      style={{ borderRadius: 0, padding: '0 8px' }}
+                    >
+                      Batafsil
+                    </Button>
                   )}
 
                   {/* Rad etish */}
@@ -1144,7 +1219,7 @@ export const RequestsPage: React.FC = () => {
                       />
                     </Tooltip>
                   )}
-                </TableActions>
+                </div>
               );
             },
           },

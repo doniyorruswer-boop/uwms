@@ -449,7 +449,7 @@ export const ChiefAccountantLedgerPage: React.FC = () => {
             style={{ backgroundColor: '#165DFF' }}
             onClick={() => setActiveTab('exports')}
           >
-            Davlat Eksport Markazi
+            Export
           </Button>
         </Space>
       </div>

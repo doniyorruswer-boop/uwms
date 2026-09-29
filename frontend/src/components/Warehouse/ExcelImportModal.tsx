@@ -47,6 +47,8 @@ interface RawParsedRow {
   serialNumber?: string;
   purchasePrice?: number;
   fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT';
+  buildingName?: string;
+  departmentName?: string;
   roomNumber?: string;
   responsibleUsername?: string;
   warrantyMonths?: number;
@@ -136,21 +138,31 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
 
         const colMap: Record<string, number> = {};
         headerRow.forEach((h, colIdx) => {
-          if (h.includes('nomi') || h.includes('name') || h.includes('aktiv')) {
-            if (colMap['itemName'] === undefined) colMap['itemName'] = colIdx;
-          } else if (h.includes('inventar') || h.includes('inv')) {
-            if (colMap['inventoryNumber'] === undefined) colMap['inventoryNumber'] = colIdx;
-          } else if (h.includes('model')) {
-            if (colMap['model'] === undefined) colMap['model'] = colIdx;
+          if (h.includes('bino') || h.includes('building')) {
+            if (colMap['buildingName'] === undefined) colMap['buildingName'] = colIdx;
+          } else if (
+            h.includes('fakultet') ||
+            h.includes('kafedra') ||
+            h.includes('bo‘lim') ||
+            h.includes('bo\'lim') ||
+            h.includes('bolim') ||
+            h.includes('department')
+          ) {
+            if (colMap['departmentName'] === undefined) colMap['departmentName'] = colIdx;
           } else if (h.includes('kategoriya') || h.includes('category')) {
             if (colMap['categoryName'] === undefined) colMap['categoryName'] = colIdx;
-          } else if (h.includes('seriya') || h.includes('serial') || h.includes('s/n')) {
-            if (colMap['serialNumber'] === undefined) colMap['serialNumber'] = colIdx;
           } else if (h.includes('xona') || h.includes('room')) {
             if (colMap['roomNumber'] === undefined) colMap['roomNumber'] = colIdx;
+          } else if (h.includes('inventar') || h.includes('inv')) {
+            if (colMap['inventoryNumber'] === undefined) colMap['inventoryNumber'] = colIdx;
+          } else if (h.includes('seriya') || h.includes('serial') || h.includes('s/n')) {
+            if (colMap['serialNumber'] === undefined) colMap['serialNumber'] = colIdx;
+          } else if (h.includes('model')) {
+            if (colMap['model'] === undefined) colMap['model'] = colIdx;
           } else if (
             h.includes('mol') ||
             h.includes('mas’ul') ||
+            h.includes('mas\'ul') ||
             h.includes('masul') ||
             h.includes('login') ||
             h.includes('xodim')
@@ -162,6 +174,8 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
             if (colMap['fundingSource'] === undefined) colMap['fundingSource'] = colIdx;
           } else if (h.includes('kafolat') || h.includes('warranty')) {
             if (colMap['warrantyMonths'] === undefined) colMap['warrantyMonths'] = colIdx;
+          } else if (h.includes('nomi') || h.includes('name') || h.includes('aktiv') || h.includes('uskuna')) {
+            if (colMap['itemName'] === undefined) colMap['itemName'] = colIdx;
           }
         });
 
@@ -188,6 +202,8 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
           const categoryName = getItemVal('categoryName');
           const inventoryNumber = getItemVal('inventoryNumber');
           const serialNumber = getItemVal('serialNumber');
+          const buildingName = getItemVal('buildingName');
+          const departmentName = getItemVal('departmentName');
           const roomNumber = getItemVal('roomNumber');
           const responsibleUsername = getItemVal('responsibleUsername');
 
@@ -212,6 +228,8 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
             serialNumber: serialNumber || undefined,
             purchasePrice: cleanPrice !== undefined && !isNaN(cleanPrice) ? cleanPrice : undefined,
             fundingSource,
+            buildingName: buildingName || undefined,
+            departmentName: departmentName || undefined,
             roomNumber: roomNumber || undefined,
             responsibleUsername: responsibleUsername || undefined,
             warrantyMonths: warrantyMonths !== undefined && !isNaN(warrantyMonths) ? warrantyMonths : undefined,
@@ -343,9 +361,16 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       render: (_: any, record: PreviewRowItem) => {
         if (record.resolvedRoom) {
           return (
-            <Tag color="cyan">
-              {record.resolvedRoom.number}-xona ({record.resolvedRoom.name})
-            </Tag>
+            <Space direction="vertical" size={2}>
+              <Tag color="cyan">
+                {record.resolvedRoom.number}-xona: {record.resolvedRoom.name}
+              </Tag>
+              {(record.data.buildingName || record.data.departmentName) && (
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  {[record.data.buildingName, record.data.departmentName].filter(Boolean).join(' • ')}
+                </Text>
+              )}
+            </Space>
           );
         }
         if (record.data.roomNumber) {
@@ -440,12 +465,12 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <Alert
             type="info"
-            title="Xavfsiz Ommaviy Import Tizimi"
-            content="Tizim ma’lumotlar butunligini ta’minlash maqsadida kiritilayotgan barcha qatorlarni avval sinovdan o‘tkazadi (Dry-Run). Dublikat inventar raqamlar, noto‘g‘ri moliyalashtirish manbalari yoki mavjud bo‘lmagan xonalar avtomatik aniqlanadi."
+            title="Dinamik va Xavfsiz Ommaviy Import Tizimi"
+            content="Tizim ma’lumotlar butunligini ta’minlash maqsadida kiritilayotgan barcha qatorlarni avval sinovdan o‘tkazadi (Dry-Run). Yuklab olinadigan Excel shablonda universitetning barcha mavjud binolari, kafedra/bo‘limlari, xonalari va mas’ullari avtomatik tanlov ro‘yxati (Dropdown Select) ko‘rinishida biriktirilgan. Yangi xona yoki bino qo‘shilsa, shablon qayta yuklanganda bazadan avtomatik yangilanadi."
           />
 
           <Card
-            title="Import Shablonining Asosiy Ustunlari"
+            title="Import Shablonining Asosiy Ustunlari (Dinamik Select / Tanlov)"
             style={{ borderRadius: 4, background: '#F7F8FA' }}
           >
             <Table
@@ -456,9 +481,17 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                 {
                   title: 'Majburiyligi',
                   dataIndex: 'required',
-                  width: 130,
+                  width: 120,
                   render: (r) => (
                     <Tag color={r === 'Majburiy' ? 'red' : 'arcoblue'}>{r}</Tag>
+                  ),
+                },
+                {
+                  title: 'Kiritish turi',
+                  dataIndex: 'type',
+                  width: 160,
+                  render: (t) => (
+                    <Tag color={t.includes('Select') ? 'green' : 'gray'}>{t}</Tag>
                   ),
                 },
                 { title: 'Talab va Qoida', dataIndex: 'desc' },
@@ -467,32 +500,62 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                 {
                   name: 'Aktiv nomi',
                   required: 'Majburiy',
-                  desc: 'Uskunaning to‘liq rasmiy nomi (kamida 2 ta belgi).',
+                  type: 'Matn (Erkin)',
+                  desc: 'Uskunaning to‘liq rasmiy nomi (kamida 2 ta belgi). Masalan: Dell OptiPlex 7000.',
                 },
                 {
-                  name: 'Inventar raqami',
+                  name: 'Bino nomi',
                   required: 'Ixtiyoriy',
-                  desc: 'Bo‘sh qoldirilsa tizim avtomatik unikal INV-... generatsiya qiladi. Agar qo‘lda kiritilsa, takrorlanmas bo‘lishi shart.',
+                  type: 'Select (Dropdown)',
+                  desc: 'OTM korpusi. Excel ichidagi tanlov ro‘yxatidan tanlanadi.',
                 },
                 {
-                  name: 'Moliyalashtirish manbasi',
+                  name: 'Fakultet / Kafedra / Bo‘lim',
                   required: 'Ixtiyoriy',
-                  desc: 'Faqat: BYUDJET, KONTRAKT_RIVOJLANTIRISH yoki GRANT. Bo‘sh bo‘lsa BYUDJET hisoblanadi.',
+                  type: 'Select (Dropdown)',
+                  desc: 'Aktiv biriktiriladigan kafedra yoki bo‘linma (tanlov ro‘yxati orqali).',
                 },
                 {
-                  name: 'Xona raqami',
+                  name: 'Xona raqami va nomi',
                   required: 'Ixtiyoriy',
-                  desc: 'OTM bazasidagi mavjud xona raqami (masalan: 101, 304). Kiritilsa status "FOYDALANISHDA" bo‘ladi.',
+                  type: 'Select (Dropdown)',
+                  desc: 'Mavjud xona (raqami, nomi va binosi bilan). Tanlansa status "FOYDALANISHDA" bo‘ladi.',
+                },
+                {
+                  name: 'Kategoriya nomi',
+                  required: 'Ixtiyoriy',
+                  type: 'Select (Dropdown)',
+                  desc: 'Universitet toifalar ro‘yxati (yangi kategoriya kiritilsa avtomatik qo‘shiladi).',
                 },
                 {
                   name: 'Mas’ul xodim (MOL logini)',
                   required: 'Ixtiyoriy',
-                  desc: 'Moddiy javobgar shaxsning tizimdagi foydalanuvchi logini (username).',
+                  type: 'Select (Dropdown)',
+                  desc: 'Moddiy javobgar shaxs (MOL) login va F.I.O tanlov ro‘yxatidan tanlanadi.',
                 },
                 {
-                  name: 'Boshlang‘ich narx',
+                  name: 'Moliyalashtirish manbasi',
                   required: 'Ixtiyoriy',
-                  desc: 'So‘mda, musbat son.',
+                  type: 'Select (Dropdown)',
+                  desc: 'Faqat: BYUDJET, KONTRAKT_RIVOJLANTIRISH yoki GRANT. Bo‘sh bo‘lsa BYUDJET hisoblanadi.',
+                },
+                {
+                  name: 'Inventar raqami',
+                  required: 'Ixtiyoriy',
+                  type: 'Matn (Erkin)',
+                  desc: 'Bo‘sh qoldirilsa tizim avtomatik navbatdagi unikal INV-... generatsiya qiladi.',
+                },
+                {
+                  name: 'Boshlang‘ich xarid narxi',
+                  required: 'Ixtiyoriy',
+                  type: 'Raqam (so‘m)',
+                  desc: 'So‘mda, 0 dan kam bo‘lmagan musbat son.',
+                },
+                {
+                  name: 'Kafolat muddati',
+                  required: 'Ixtiyoriy',
+                  type: 'Raqam (oy)',
+                  desc: 'Oylarda (masalan: 12, 24). Standart: 12 oy.',
                 },
               ]}
             />

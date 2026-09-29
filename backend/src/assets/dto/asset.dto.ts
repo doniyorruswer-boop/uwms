@@ -145,6 +145,16 @@ export class ImportExcelAssetRowDto {
   @IsOptional()
   fundingSource?: 'BYUDJET' | 'KONTRAKT_RIVOJLANTIRISH' | 'GRANT';
 
+  @ApiPropertyOptional({ example: 'Bosh bino (A-bino)', description: 'Bino yoki korpus nomi' })
+  @IsString()
+  @IsOptional()
+  buildingName?: string;
+
+  @ApiPropertyOptional({ example: 'Dasturiy Injiniring Kafedrasi', description: 'Kafedra yoki bo‘lim nomi' })
+  @IsString()
+  @IsOptional()
+  departmentName?: string;
+
   @ApiPropertyOptional({ example: '304', description: 'Xona raqami yoki ID si' })
   @IsString()
   @IsOptional()

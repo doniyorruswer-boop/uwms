@@ -2132,7 +2132,7 @@ export const OrganizationPage: React.FC = () => {
                   exportToExcel(data, 'Universitet_Binolari_Reestri');
                 }}
               >
-                Excelga Eksport
+                Export
               </Button>
             </div>
           </Card>
@@ -2199,7 +2199,7 @@ export const OrganizationPage: React.FC = () => {
                 style={{ borderRadius: 0 }}
                 onClick={handleExportDepartmentsExcel}
               >
-                Excelga Eksport
+                Export
               </Button>
             </div>
           </Card>
@@ -2264,7 +2264,7 @@ export const OrganizationPage: React.FC = () => {
                 style={{ borderRadius: 0 }}
                 onClick={handleExportRoomsExcel}
               >
-                Excelga Eksport
+                Export
               </Button>
             </div>
           </Card>

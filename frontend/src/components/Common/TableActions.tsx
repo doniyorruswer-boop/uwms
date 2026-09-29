@@ -389,11 +389,11 @@ export const TableActions: React.FC<TableActionsProps> = ({
         ...style,
       }}
     >
-      <Space size={gap} style={{ flexWrap: 'nowrap' }}>
+      <Space size={gap} style={{ flexWrap: 'nowrap', flexShrink: 0 }}>
         {visibleItems}
 
         {dropdownMenu && (
-          <Dropdown droplist={dropdownMenu} position="br">
+          <Dropdown droplist={dropdownMenu} trigger="click" position="br">
             <Button
               size="small"
               type="secondary"
@@ -401,7 +401,9 @@ export const TableActions: React.FC<TableActionsProps> = ({
               style={{
                 borderRadius: 0,
                 width: 28,
+                minWidth: 28,
                 height: 28,
+                flexShrink: 0,
                 padding: 0,
                 display: 'inline-flex',
                 alignItems: 'center',
