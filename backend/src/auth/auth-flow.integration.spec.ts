@@ -53,7 +53,7 @@ describe('Auth Flow & JWT Lifecycle Integration Tests', () => {
         if (key === 'JWT_SECRET') return JWT_SECRET;
         if (key === 'JWT_REFRESH_SECRET') return REFRESH_SECRET;
         if (key === 'JWT_EXPIRES_IN') return '15m';
-        if (key === 'JWT_REFRESH_EXPIRES_IN') return '7d';
+        if (key === 'JWT_REFRESH_EXPIRES_IN') return '12h';
         return null;
       }),
     };

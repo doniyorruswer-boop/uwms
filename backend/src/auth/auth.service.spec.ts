@@ -49,7 +49,7 @@ describe('AuthService (Unit Tests)', () => {
     configService = {
       get: jest.fn((key: string) => {
         if (key === 'JWT_EXPIRES_IN') return '15m';
-        if (key === 'JWT_REFRESH_EXPIRES_IN') return '7d';
+        if (key === 'JWT_REFRESH_EXPIRES_IN') return '12h';
         return 'test_secret_key_123';
       }),
     };
