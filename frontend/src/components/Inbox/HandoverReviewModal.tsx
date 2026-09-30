@@ -315,10 +315,10 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
         }
         visible={visible}
         onCancel={onClose}
-        style={{ width: 880 }}
+        style={{ width: 880, maxWidth: '95vw', top: 24 }}
         footer={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Space>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, width: '100%' }}>
+            <Space wrap>
               <Button onClick={onClose}>Yopish</Button>
               {isDraft && (isDeparting || isSuperAdmin) && (
                 <Button status="danger" onClick={handleCancelHandover} loading={cancelMutation.isPending}>
@@ -326,7 +326,7 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
                 </Button>
               )}
             </Space>
-            <Space>
+            <Space wrap>
               {!isCompleted && !isRejected && !isCancelled && !isDraft && (isDeparting || isSuperAdmin) && (
                 <Button
                   status="danger"
@@ -397,7 +397,16 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
             <Spin tip="Dalolatnoma ma’lumotlari yuklanmoqda..." />
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+              maxHeight: 'calc(85vh - 140px)',
+              overflowY: 'auto',
+              paddingRight: 6,
+            }}
+          >
             {/* 1. Official State Machine Stepper */}
             <Card className="uwms-card" style={{ padding: '12px 16px', background: 'var(--color-fill-1)' }}>
               <Steps current={stepCurrent} status={stepStatus} size="small">

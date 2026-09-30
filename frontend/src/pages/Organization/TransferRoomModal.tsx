@@ -283,10 +283,19 @@ export const TransferRoomModal: React.FC<TransferRoomModalProps> = ({
           : 'O‘tkazishni Tasdiqlash'
       }
       cancelText="Bekor qilish"
-      style={{ width: 680, borderRadius: 0 }}
+      style={{ width: 680, maxWidth: '95vw', top: 24, borderRadius: 0 }}
     >
       {room && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            maxHeight: 'calc(85vh - 140px)',
+            overflowY: 'auto',
+            paddingRight: 6,
+          }}
+        >
           {/* Current Room Information Card */}
           <div
             style={{
