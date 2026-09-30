@@ -13,6 +13,7 @@ import {
   Message,
   Tooltip,
   Steps,
+  Tabs,
 } from '@arco-design/web-react';
 import {
   IconCheckCircle,
@@ -25,6 +26,8 @@ import {
   IconFile,
   IconSend,
   IconSafe,
+  IconApps,
+  IconList,
 } from '@arco-design/web-react/icon';
 import { useAuthStore } from '../../store/authStore';
 import { apiClient } from '../../api/client';
@@ -85,9 +88,12 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
     }
   };
 
+  const [activeTab, setActiveTab] = useState<string>('signatories');
+
   useEffect(() => {
     if (visible && handoverId) {
       loadDoc();
+      setActiveTab('signatories');
     }
   }, [visible, handoverId]);
 
@@ -315,13 +321,13 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
         }
         visible={visible}
         onCancel={onClose}
-        style={{ width: 880, maxWidth: '95vw', top: 24 }}
+        style={{ width: 940, maxWidth: '96vw', top: 20 }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, width: '100%' }}>
             <Space wrap>
-              <Button onClick={onClose}>Yopish</Button>
+              <Button onClick={onClose} style={{ borderRadius: 0 }}>Yopish</Button>
               {isDraft && (isDeparting || isSuperAdmin) && (
-                <Button status="danger" onClick={handleCancelHandover} loading={cancelMutation.isPending}>
+                <Button status="danger" onClick={handleCancelHandover} loading={cancelMutation.isPending} style={{ borderRadius: 0 }}>
                   Qoralamani Bekor Qilish
                 </Button>
               )}
@@ -332,6 +338,7 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
                   status="danger"
                   icon={<IconCloseCircle />}
                   onClick={() => setIsRejectModalVisible(true)}
+                  style={{ borderRadius: 0 }}
                 >
                   Rad Etish
                 </Button>
@@ -344,6 +351,7 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
                   icon={<IconSend />}
                   loading={submitMutation.isPending}
                   onClick={handleSubmitDraft}
+                  style={{ borderRadius: 0 }}
                 >
                   Topshirishga Yuborish
                 </Button>
@@ -355,6 +363,7 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
                   status="warning"
                   icon={<IconCheckCircle />}
                   onClick={() => handleOpenQrSign('SUPER_ADMIN')}
+                  style={{ borderRadius: 0 }}
                 >
                   Rahbariyat Nomidan Tasdiqlash
                 </Button>
@@ -366,6 +375,7 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
                   status="success"
                   icon={<IconMobile />}
                   onClick={() => handleOpenQrSign(myRoleToSign!)}
+                  style={{ borderRadius: 0 }}
                 >
                   {myRoleToSign === 'TARGET'
                     ? 'Barchasini qabul qilaman (QR-Imzo)'
@@ -383,7 +393,7 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
                       : "Siz ushbu arizada imzo qo‘yuvchi mas’ul emassiz yoki imzoingiz allaqachon qo‘yilgan."
                   }
                 >
-                  <Button type="primary" disabled icon={<IconCheckCircle />}>
+                  <Button type="primary" disabled icon={<IconCheckCircle />} style={{ borderRadius: 0 }}>
                     {isCompleted ? 'To‘liq Imzolangan' : 'Imzo Kutilmaydi'}
                   </Button>
                 </Tooltip>
@@ -397,18 +407,9 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
             <Spin tip="Dalolatnoma ma’lumotlari yuklanmoqda..." />
           </div>
         ) : (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 16,
-              maxHeight: 'calc(85vh - 140px)',
-              overflowY: 'auto',
-              paddingRight: 6,
-            }}
-          >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* 1. Official State Machine Stepper */}
-            <Card className="uwms-card" style={{ padding: '12px 16px', background: 'var(--color-fill-1)' }}>
+            <Card className="uwms-card" style={{ padding: '10px 14px', background: 'var(--color-fill-1)', borderRadius: 0 }}>
               <Steps current={stepCurrent} status={stepStatus} size="small">
                 <Steps.Step title="1. Topshiruvchi" description={isDraft ? 'Qoralama' : 'Yuborildi'} />
                 <Steps.Step title="2. Yangi MOL" description={targetSig?.signed ? 'Qabul qilindi' : 'Ko‘rib chiqish'} />
@@ -423,301 +424,566 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
             </Card>
 
             {/* Context Alert based on State */}
-            {isDraft ? (
-              <Alert
-                type="info"
-                showIcon
-                content="Ushbu ariza qoralama (DRAFT) holatida. Barcha aktivlar ro‘yxatini tekshiring va rasmiy topshirish jarayonini boshlash uchun 'Topshirishga Yuborish' tugmasini bosing."
-              />
-            ) : isPendingApproval ? (
-              <Alert
-                type="warning"
-                showIcon
-                content={
-                  <span>
-                    <strong>Rahbariyat Tasdig‘i Kutilmoqda (PENDING_APPROVAL):</strong> Barcha operatsion tomonlar
-                    (Qabul qiluvchi, Komendant, Buxgalter) dalolatnomani imzoladilar. Prorektor yoki Bosh hisobchi
-                    tasdiqlaganidan so‘ng mulklar rasman yangi mas’ul balansiga o‘tkaziladi.
-                  </span>
-                }
-              />
-            ) : isCompleted ? (
-              <Alert
-                type="success"
-                showIcon
-                content={
-                  <span>
-                    <strong>Muvaffaqiyatli Yakunlangan (COMPLETED):</strong> Ushbu moddiy topshirish dalolatnomasi
-                    barcha tomonlar tomonidan to‘liq imzolangan, davlat standarti OS-1 elektron dalolatnomasi
-                    muhrlangan va ashyolar yangi mas’ul balansiga o‘tkazilgan.
-                  </span>
-                }
-              />
-            ) : isRejected ? (
-              <Alert
-                type="error"
-                showIcon
-                content="Topshirish arizasi rad etilgan va jarayon to‘xtatilgan. Aktivlar topshiruvchi xodim hisobida saqlanib qoldi."
-              />
-            ) : isCancelled ? (
-              <Alert
-                type="info"
-                showIcon
-                content="Ushbu topshirish arizasi arizachi yoki ma’mur tomonidan bekor qilingan."
-              />
-            ) : (
-              <Alert
-                type="info"
-                showIcon
-                content={
-                  <span>
-                    Topshiruvchi: <strong>{handover?.departingUser?.fullName}</strong> ({handover?.departingUser?.position || 'MOL'}). 
-                    Qabul qiluvchi: <strong>{handover?.targetUser?.fullName || handover?.targetWarehouse?.name || 'Omborxona'}</strong>. 
-                    Ashyolar barcha mas’ullar tasdiqlagandan so‘ng rasman yangi balansga o‘tadi.
-                  </span>
-                }
-              />
-            )}
-
-            {/* Signatories 4-Way Status Cards */}
-            <Card className="uwms-card" title="Ishtirokchilar Imzosi Holati (4 Tomonlama Vizalash)">
-              <Row gutter={[12, 12]}>
-                {/* 1. Topshiruvchi */}
-                <Col span={12}>
-                  <Card
-                    className="uwms-card"
-                    style={{ border: '1px solid var(--color-border)' }}
-                    title="1. Topshiruvchi (Eski MOL)"
-                    extra={
-                      departingSig?.signed ? (
-                        <Tag color="green" icon={<IconCheckCircle />}>Imzolandi</Tag>
-                      ) : (
-                        <Tag color="gold" icon={<IconClockCircle />}>Kutilmoqda</Tag>
-                      )
-                    }
-                  >
-                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
-                      {handover?.departingUser?.fullName} ({handover?.departingUser?.position || 'MOL'})
-                    </div>
-                    {departingSig?.signed ? (
-                      <Tag color="green">Elektron imzo qo‘yilgan</Tag>
-                    ) : isDeparting || isSuperAdmin ? (
-                      <Button size="small" type="primary" icon={<IconMobile />} onClick={() => handleOpenQrSign('DEPARTING')}>
-                        QR bilan Imzolash
-                      </Button>
-                    ) : (
-                      <Text type="secondary" style={{ fontSize: 12 }}>Topshiruvchi imzosi kutilmoqda</Text>
-                    )}
-                  </Card>
-                </Col>
-
-                {/* 2. Qabul qiluvchi */}
-                <Col span={12}>
-                  <Card
-                    className="uwms-card"
-                    style={{ border: '1px solid var(--color-border)' }}
-                    title="2. Qabul Qiluvchi (Yangi MOL)"
-                    extra={
-                      targetSig?.signed ? (
-                        <Tag color="green" icon={<IconCheckCircle />}>Imzolandi</Tag>
-                      ) : (
-                        <Tag color="gold" icon={<IconClockCircle />}>Kutilmoqda</Tag>
-                      )
-                    }
-                  >
-                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
-                      {handover?.targetUser?.fullName || handover?.targetWarehouse?.name || 'Qabul qiluvchi'}
-                    </div>
-                    {targetSig?.signed ? (
-                      <Tag color="green">Elektron imzo qo‘yilgan</Tag>
-                    ) : isTarget || isSuperAdmin ? (
-                      <Button size="small" type="primary" status="success" icon={<IconMobile />} onClick={() => handleOpenQrSign('TARGET')}>
-                        QR bilan Qabul Qilish
-                      </Button>
-                    ) : (
-                      <Text type="secondary" style={{ fontSize: 12 }}>Qabul qiluvchi tasdig‘i kutilmoqda</Text>
-                    )}
-                  </Card>
-                </Col>
-
-                {/* 3. Bino Komendanti */}
-                <Col span={12}>
-                  <Card
-                    className="uwms-card"
-                    style={{ border: '1px solid var(--color-border)' }}
-                    title="3. Bino Komendanti"
-                    extra={
-                      commandantSig?.signed ? (
-                        <Tag color="green" icon={<IconCheckCircle />}>Imzolandi</Tag>
-                      ) : (
-                        <Tag color="gold" icon={<IconClockCircle />}>Kutilmoqda</Tag>
-                      )
-                    }
-                  >
-                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
-                      {handover?.commandantUser?.fullName || 'Bino komendanti'}
-                    </div>
-                    {commandantSig?.signed ? (
-                      <Tag color="green">Elektron imzo qo‘yilgan</Tag>
-                    ) : isCommandant || isSuperAdmin ? (
-                      <Button size="small" type="primary" icon={<IconMobile />} onClick={() => handleOpenQrSign('COMMANDANT')}>
-                        QR bilan Tasdiqlash
-                      </Button>
-                    ) : (
-                      <Text type="secondary" style={{ fontSize: 12 }}>Komendant imzosi kutilmoqda</Text>
-                    )}
-                  </Card>
-                </Col>
-
-                {/* 4. Moddiy Hisobchi */}
-                <Col span={12}>
-                  <Card
-                    className="uwms-card"
-                    style={{ border: '1px solid var(--color-border)' }}
-                    title="4. Moddiy Hisobchi"
-                    extra={
-                      accountantSig?.signed ? (
-                        <Tag color="green" icon={<IconCheckCircle />}>Imzolandi</Tag>
-                      ) : (
-                        <Tag color="gold" icon={<IconClockCircle />}>Kutilmoqda</Tag>
-                      )
-                    }
-                  >
-                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
-                      {handover?.accountantUser?.fullName || 'Buxgalteriya vakili'}
-                    </div>
-                    {accountantSig?.signed ? (
-                      <Tag color="green">Elektron imzo qo‘yilgan</Tag>
-                    ) : isAccountant || isSuperAdmin ? (
-                      <Button size="small" type="primary" icon={<IconMobile />} onClick={() => handleOpenQrSign('ACCOUNTANT')}>
-                        QR bilan Tasdiqlash
-                      </Button>
-                    ) : (
-                      <Text type="secondary" style={{ fontSize: 12 }}>Hisobchi imzosi kutilmoqda</Text>
-                    )}
-                  </Card>
-                </Col>
-              </Row>
-            </Card>
-
-            {/* Role-Specific Direct Action Banner */}
-            {isTarget && !targetSig?.signed && (
-              <Card className="uwms-card" style={{ background: '#E8FFEA', border: '1px solid #7BE188' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                  <div>
-                    <Typography.Text style={{ fontWeight: 600, color: '#00B42A', fontSize: 14 }}>
-                      <IconCheckCircle style={{ marginRight: 6 }} /> Qabul Qiluvchi Mas’ul (Yangi MOL) Ko‘rigi:
-                    </Typography.Text>
-                    <Typography.Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--color-text-2)' }}>
-                      Quyidagi {handover?.items?.length || 0} ta asosiy vosita va inventarlarning jismoniy holati hamda seriya raqamlarini to‘liq tekshirib chiqing.
-                    </Typography.Paragraph>
-                  </div>
-                  <Button
-                    type="primary"
-                    status="success"
-                    icon={<IconMobile />}
-                    size="large"
-                    onClick={() => handleOpenQrSign('TARGET')}
-                  >
-                    Barchasini qabul qilaman (QR-Imzo)
-                  </Button>
-                </div>
-              </Card>
-            )}
-
-            {isCommandant && !commandantSig?.signed && (
-              <Card className="uwms-card" style={{ background: '#FFF7E8', border: '1px solid #FFC72E' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                  <div>
-                    <Typography.Text style={{ fontWeight: 600, color: '#D46B08', fontSize: 14 }}>
-                      <IconSafe style={{ marginRight: 6 }} /> Bino Komendantining Nazorat Tekshiruvi:
-                    </Typography.Text>
-                    <Typography.Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--color-text-2)' }}>
-                      Xonaning jismoniy butunligi, eshik va derazalar sozligi hamda xona kalitlari yangi mas’ulga topshirilgani tekshirildi.
-                    </Typography.Paragraph>
-                  </div>
-                  <Button
-                    type="primary"
-                    status="warning"
-                    icon={<IconMobile />}
-                    size="large"
-                    onClick={() => handleOpenQrSign('COMMANDANT')}
-                  >
-                    Xona Butunligi va Kalitlarni Tasdiqlash (QR-Imzo)
-                  </Button>
-                </div>
-              </Card>
-            )}
-
-            {isAccountant && !accountantSig?.signed && (
-              <Card className="uwms-card" style={{ background: '#F9F0FF', border: '1px solid #D3ADF7' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                  <div>
-                    <Typography.Text style={{ fontWeight: 600, color: '#722ED1', fontSize: 14 }}>
-                      <IconFile style={{ marginRight: 6 }} /> Moddiy Hisobchi Tekshiruvi (Buxgalteriya):
-                    </Typography.Text>
-                    <Typography.Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--color-text-2)' }}>
-                      Ashyolarning buxgalteriya balansi va subschetdagi qoldiqlari tekshirildi, o‘tkazishga tayyor.
-                    </Typography.Paragraph>
-                  </div>
-                  <Button
-                    type="primary"
-                    style={{ backgroundColor: '#722ED1', borderColor: '#722ED1' }}
-                    icon={<IconMobile />}
-                    size="large"
-                    onClick={() => handleOpenQrSign('ACCOUNTANT')}
-                  >
-                    Balansni Tasdiqlash (QR-Imzo)
-                  </Button>
-                </div>
-              </Card>
-            )}
-
-            {/* Items Table */}
-            <Card
-              className="uwms-card"
-              title={`Topshirilayotgan Asosiy Vositalar (${handover?.items?.length || 0} ta)`}
-              style={{ maxHeight: 250, overflowY: 'auto' }}
-            >
-              <Table
-                rowKey="id"
-                columns={itemColumns}
-                data={handover?.items || []}
-                pagination={false}
-                size="small"
-              />
-            </Card>
-
-            {/* Official OS-1 Document HTML Preview */}
-            <Card
-              className="uwms-card"
-              title="OS-1 Rasmiy Davlat Standart Dalolatnomasi Ko‘rinishi"
-              extra={
-                <Button size="small" icon={<IconPrinter />} onClick={() => window.print()}>
-                  Chop Etish
-                </Button>
-              }
-              style={{ maxHeight: 350, overflowY: 'auto' }}
-            >
-              {isLoadingDoc ? (
-                <div style={{ textAlign: 'center', padding: 20 }}>
-                  <Spin tip="Hujjat shakli yuklanmoqda..." />
-                </div>
-              ) : contentHtml ? (
-                <div
-                  dangerouslySetInnerHTML={{ __html: contentHtml }}
-                  style={{
-                    transform: 'scale(0.92)',
-                    transformOrigin: 'top left',
-                    width: '108%',
-                  }}
+            <div>
+              {isDraft ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  content="Ushbu ariza qoralama (DRAFT) holatida. Barcha aktivlar ro‘yxatini tekshiring va rasmiy topshirish jarayonini boshlash uchun 'Topshirishga Yuborish' tugmasini bosing."
+                  style={{ borderRadius: 0 }}
+                />
+              ) : isPendingApproval ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  content={
+                    <span>
+                      <strong>Rahbariyat Tasdig‘i Kutilmoqda (PENDING_APPROVAL):</strong> Barcha operatsion tomonlar
+                      (Qabul qiluvchi, Komendant, Buxgalter) dalolatnomani imzoladilar. Prorektor yoki Bosh hisobchi
+                      tasdiqlaganidan so‘ng mulklar rasman yangi mas’ul balansiga o‘tkaziladi.
+                    </span>
+                  }
+                  style={{ borderRadius: 0 }}
+                />
+              ) : isCompleted ? (
+                <Alert
+                  type="success"
+                  showIcon
+                  content={
+                    <span>
+                      <strong>Muvaffaqiyatli Yakunlangan (COMPLETED):</strong> Ushbu moddiy topshirish dalolatnomasi
+                      barcha tomonlar tomonidan to‘liq imzolangan, davlat standarti OS-1 elektron dalolatnomasi
+                      muhrlangan va ashyolar yangi mas’ul balansiga o‘tkazilgan.
+                    </span>
+                  }
+                  style={{ borderRadius: 0 }}
+                />
+              ) : isRejected ? (
+                <Alert
+                  type="error"
+                  showIcon
+                  content="Topshirish arizasi rad etilgan va jarayon to‘xtatilgan. Aktivlar topshiruvchi xodim hisobida saqlanib qoldi."
+                  style={{ borderRadius: 0 }}
+                />
+              ) : isCancelled ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  content="Ushbu topshirish arizasi arizachi yoki ma’mur tomonidan bekor qilingan."
+                  style={{ borderRadius: 0 }}
                 />
               ) : (
-                <div style={{ textAlign: 'center', padding: 20 }}>
-                  <Text type="secondary">OS-1 rasmiy elektron hujjati tayyorlanmoqda...</Text>
-                </div>
+                <Alert
+                  type="info"
+                  showIcon
+                  content={
+                    <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+                      Topshiruvchi: <strong style={{ color: '#165DFF' }}>{handover?.departingUser?.fullName || 'Belgilanmagan'}</strong> ({handover?.departingUser?.position || 'MOL'}).{' '}
+                      Qabul qiluvchi: <strong style={{ color: '#00B42A' }}>{handover?.targetUser?.fullName || handover?.targetWarehouse?.name || 'Omborxona'}</strong>.{' '}
+                      Ashyolar barcha mas’ullar tasdiqlagandan so‘ng rasman yangi balansga o‘tadi.
+                    </div>
+                  }
+                  style={{ borderRadius: 0 }}
+                />
               )}
-            </Card>
+            </div>
+
+            {/* SECTIONS TABS */}
+            <Tabs
+              activeTab={activeTab}
+              onChange={setActiveTab}
+              type="rounded"
+              style={{ width: '100%' }}
+            >
+              <Tabs.TabPane
+                key="signatories"
+                title={
+                  <Space size={6}>
+                    <IconUser />
+                    <span>Vizalar & Imzolar (4 Tomonlama)</span>
+                  </Space>
+                }
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 10 }}>
+                  {/* Signatories 4-Way Status Cards */}
+                  <Card className="uwms-card" title="Ishtirokchilar Imzosi Holati (4 Tomonlama Vizalash)" style={{ borderRadius: 0 }}>
+                    <Row gutter={[12, 12]}>
+                      {/* 1. Topshiruvchi */}
+                      <Col span={12}>
+                        <Card
+                          className="uwms-card"
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 0 }}
+                          title="1. Topshiruvchi (Eski MOL)"
+                          extra={
+                            departingSig?.signed ? (
+                              <Tag color="green" icon={<IconCheckCircle />}>Imzolandi</Tag>
+                            ) : (
+                              <Tag color="gold" icon={<IconClockCircle />}>Kutilmoqda</Tag>
+                            )
+                          }
+                        >
+                          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                            {handover?.departingUser?.fullName} ({handover?.departingUser?.position || 'MOL'})
+                          </div>
+                          {departingSig?.signed ? (
+                            <Tag color="green">Elektron imzo qo‘yilgan</Tag>
+                          ) : isDeparting || isSuperAdmin ? (
+                            <Button size="small" type="primary" icon={<IconMobile />} onClick={() => handleOpenQrSign('DEPARTING')} style={{ borderRadius: 0 }}>
+                              QR bilan Imzolash
+                            </Button>
+                          ) : (
+                            <Text type="secondary" style={{ fontSize: 12 }}>Topshiruvchi imzosi kutilmoqda</Text>
+                          )}
+                        </Card>
+                      </Col>
+
+                      {/* 2. Qabul qiluvchi */}
+                      <Col span={12}>
+                        <Card
+                          className="uwms-card"
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 0 }}
+                          title="2. Qabul Qiluvchi (Yangi MOL)"
+                          extra={
+                            targetSig?.signed ? (
+                              <Tag color="green" icon={<IconCheckCircle />}>Imzolandi</Tag>
+                            ) : (
+                              <Tag color="gold" icon={<IconClockCircle />}>Kutilmoqda</Tag>
+                            )
+                          }
+                        >
+                          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                            {handover?.targetUser?.fullName || handover?.targetWarehouse?.name || 'Qabul qiluvchi'}
+                          </div>
+                          {targetSig?.signed ? (
+                            <Tag color="green">Elektron imzo qo‘yilgan</Tag>
+                          ) : isTarget || isSuperAdmin ? (
+                            <Button size="small" type="primary" status="success" icon={<IconMobile />} onClick={() => handleOpenQrSign('TARGET')} style={{ borderRadius: 0 }}>
+                              QR bilan Qabul Qilish
+                            </Button>
+                          ) : (
+                            <Text type="secondary" style={{ fontSize: 12 }}>Qabul qiluvchi tasdig‘i kutilmoqda</Text>
+                          )}
+                        </Card>
+                      </Col>
+
+                      {/* 3. Bino Komendanti */}
+                      <Col span={12}>
+                        <Card
+                          className="uwms-card"
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 0 }}
+                          title="3. Bino Komendanti"
+                          extra={
+                            commandantSig?.signed ? (
+                              <Tag color="green" icon={<IconCheckCircle />}>Imzolandi</Tag>
+                            ) : (
+                              <Tag color="gold" icon={<IconClockCircle />}>Kutilmoqda</Tag>
+                            )
+                          }
+                        >
+                          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                            {handover?.commandantUser?.fullName || 'Bino komendanti'}
+                          </div>
+                          {commandantSig?.signed ? (
+                            <Tag color="green">Elektron imzo qo‘yilgan</Tag>
+                          ) : isCommandant || isSuperAdmin ? (
+                            <Button size="small" type="primary" icon={<IconMobile />} onClick={() => handleOpenQrSign('COMMANDANT')} style={{ borderRadius: 0 }}>
+                              QR bilan Tasdiqlash
+                            </Button>
+                          ) : (
+                            <Text type="secondary" style={{ fontSize: 12 }}>Komendant imzosi kutilmoqda</Text>
+                          )}
+                        </Card>
+                      </Col>
+
+                      {/* 4. Moddiy Hisobchi */}
+                      <Col span={12}>
+                        <Card
+                          className="uwms-card"
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 0 }}
+                          title="4. Moddiy Hisobchi"
+                          extra={
+                            accountantSig?.signed ? (
+                              <Tag color="green" icon={<IconCheckCircle />}>Imzolandi</Tag>
+                            ) : (
+                              <Tag color="gold" icon={<IconClockCircle />}>Kutilmoqda</Tag>
+                            )
+                          }
+                        >
+                          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                            {handover?.accountantUser?.fullName || 'Buxgalteriya vakili'}
+                          </div>
+                          {accountantSig?.signed ? (
+                            <Tag color="green">Elektron imzo qo‘yilgan</Tag>
+                          ) : isAccountant || isSuperAdmin ? (
+                            <Button size="small" type="primary" icon={<IconMobile />} onClick={() => handleOpenQrSign('ACCOUNTANT')} style={{ borderRadius: 0 }}>
+                              QR bilan Tasdiqlash
+                            </Button>
+                          ) : (
+                            <Text type="secondary" style={{ fontSize: 12 }}>Hisobchi imzosi kutilmoqda</Text>
+                          )}
+                        </Card>
+                      </Col>
+                    </Row>
+                  </Card>
+
+                  {/* Role-Specific Direct Action Banner */}
+                  {isTarget && !targetSig?.signed && (
+                    <Card className="uwms-card" style={{ background: '#E8FFEA', border: '1px solid #7BE188', borderRadius: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                        <div>
+                          <Typography.Text style={{ fontWeight: 600, color: '#00B42A', fontSize: 14 }}>
+                            <IconCheckCircle style={{ marginRight: 6 }} /> Qabul Qiluvchi Mas’ul (Yangi MOL) Ko‘rigi:
+                          </Typography.Text>
+                          <Typography.Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--color-text-2)' }}>
+                            Quyidagi {handover?.items?.length || 0} ta asosiy vosita va inventarlarning jismoniy holati hamda seriya raqamlarini to‘liq tekshirib chiqing.
+                          </Typography.Paragraph>
+                        </div>
+                        <Button
+                          type="primary"
+                          status="success"
+                          icon={<IconMobile />}
+                          size="large"
+                          onClick={() => handleOpenQrSign('TARGET')}
+                          style={{ borderRadius: 0 }}
+                        >
+                          Barchasini qabul qilaman (QR-Imzo)
+                        </Button>
+                      </div>
+                    </Card>
+                  )}
+
+                  {isCommandant && !commandantSig?.signed && (
+                    <Card className="uwms-card" style={{ background: '#FFF7E8', border: '1px solid #FFC72E', borderRadius: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                        <div>
+                          <Typography.Text style={{ fontWeight: 600, color: '#D46B08', fontSize: 14 }}>
+                            <IconSafe style={{ marginRight: 6 }} /> Bino Komendantining Nazorat Tekshiruvi:
+                          </Typography.Text>
+                          <Typography.Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--color-text-2)' }}>
+                            Xonaning jismoniy butunligi, eshik va derazalar sozligi hamda xona kalitlari yangi mas’ulga topshirilgani tekshirildi.
+                          </Typography.Paragraph>
+                        </div>
+                        <Button
+                          type="primary"
+                          status="warning"
+                          icon={<IconMobile />}
+                          size="large"
+                          onClick={() => handleOpenQrSign('COMMANDANT')}
+                          style={{ borderRadius: 0 }}
+                        >
+                          Xona Butunligi va Kalitlarni Tasdiqlash (QR-Imzo)
+                        </Button>
+                      </div>
+                    </Card>
+                  )}
+
+                  {isAccountant && !accountantSig?.signed && (
+                    <Card className="uwms-card" style={{ background: '#F9F0FF', border: '1px solid #D3ADF7', borderRadius: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                        <div>
+                          <Typography.Text style={{ fontWeight: 600, color: '#722ED1', fontSize: 14 }}>
+                            <IconFile style={{ marginRight: 6 }} /> Moddiy Hisobchi Tekshiruvi (Buxgalteriya):
+                          </Typography.Text>
+                          <Typography.Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--color-text-2)' }}>
+                            Ashyolarning buxgalteriya balansi va subschetdagi qoldiqlari tekshirildi, o‘tkazishga tayyor.
+                          </Typography.Paragraph>
+                        </div>
+                        <Button
+                          type="primary"
+                          style={{ backgroundColor: '#722ED1', borderColor: '#722ED1', borderRadius: 0 }}
+                          icon={<IconMobile />}
+                          size="large"
+                          onClick={() => handleOpenQrSign('ACCOUNTANT')}
+                        >
+                          Balansni Tasdiqlash (QR-Imzo)
+                        </Button>
+                      </div>
+                    </Card>
+                  )}
+                </div>
+              </Tabs.TabPane>
+
+              <Tabs.TabPane
+                key="items"
+                title={
+                  <Space size={6}>
+                    <IconApps />
+                    <span>Topshirilayotgan Asosiy Vositalar ({handover?.items?.length || 0})</span>
+                  </Space>
+                }
+              >
+                <div style={{ paddingTop: 10 }}>
+                  <Card
+                    className="uwms-card"
+                    style={{ borderRadius: 0, border: '1px solid var(--color-border-2)' }}
+                    title={
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Topshirilayotgan Asosiy Vositalar Ro‘yxati</span>
+                        <Tag color="arcoblue" style={{ borderRadius: 0, fontWeight: 600 }}>
+                          {handover?.items?.length || 0} ta aktiv
+                        </Tag>
+                      </div>
+                    }
+                  >
+                    <Table
+                      rowKey="id"
+                      columns={itemColumns}
+                      data={handover?.items || []}
+                      pagination={handover?.items && handover.items.length > 8 ? { pageSize: 8, size: 'small' } : false}
+                      size="small"
+                      border
+                      scroll={{ y: 380 }}
+                    />
+                  </Card>
+                </div>
+              </Tabs.TabPane>
+
+              <Tabs.TabPane
+                key="document"
+                title={
+                  <Space size={6}>
+                    <IconFile />
+                    <span>OS-1 Rasmiy Dalolatnoma</span>
+                  </Space>
+                }
+              >
+                <div style={{ paddingTop: 10 }}>
+                  <Card
+                    className="uwms-card"
+                    style={{ borderRadius: 0, border: '1px solid var(--color-border-2)' }}
+                    title="OS-1 Rasmiy Davlat Standart Dalolatnomasi Ko‘rinishi"
+                    extra={
+                      <Button size="small" type="outline" icon={<IconPrinter />} onClick={() => window.print()} style={{ borderRadius: 0 }}>
+                        Chop Etish
+                      </Button>
+                    }
+                  >
+                    <div
+                      style={{
+                        maxHeight: 'calc(80vh - 280px)',
+                        minHeight: 280,
+                        overflowY: 'auto',
+                        padding: '16px 20px',
+                        background: '#f7f8fa',
+                        border: '1px solid var(--color-border-2)',
+                      }}
+                    >
+                      {isLoadingDoc ? (
+                        <div style={{ textAlign: 'center', padding: 30 }}>
+                          <Spin tip="Hujjat shakli yuklanmoqda..." />
+                        </div>
+                      ) : contentHtml ? (
+                        <div
+                          dangerouslySetInnerHTML={{ __html: contentHtml }}
+                          style={{
+                            maxWidth: 820,
+                            margin: '0 auto',
+                            background: '#fff',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                            padding: 24,
+                          }}
+                        />
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: 30 }}>
+                          <Text type="secondary">OS-1 rasmiy elektron hujjati tayyorlanmoqda...</Text>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                </div>
+              </Tabs.TabPane>
+
+              <Tabs.TabPane
+                key="all"
+                title={
+                  <Space size={6}>
+                    <IconList />
+                    <span>Barcha Bo‘limlar (Umumiy)</span>
+                  </Space>
+                }
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 16,
+                    paddingTop: 10,
+                    maxHeight: 'calc(80vh - 260px)',
+                    overflowY: 'auto',
+                    paddingRight: 6,
+                  }}
+                >
+                  {/* Signatories */}
+                  <Card className="uwms-card" title="Ishtirokchilar Imzosi Holati (4 Tomonlama Vizalash)" style={{ borderRadius: 0 }}>
+                    <Row gutter={[12, 12]}>
+                      <Col span={12}>
+                        <Card
+                          className="uwms-card"
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 0 }}
+                          title="1. Topshiruvchi (Eski MOL)"
+                          extra={
+                            departingSig?.signed ? (
+                              <Tag color="green" icon={<IconCheckCircle />}>Imzolandi</Tag>
+                            ) : (
+                              <Tag color="gold" icon={<IconClockCircle />}>Kutilmoqda</Tag>
+                            )
+                          }
+                        >
+                          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                            {handover?.departingUser?.fullName} ({handover?.departingUser?.position || 'MOL'})
+                          </div>
+                          {departingSig?.signed ? (
+                            <Tag color="green">Elektron imzo qo‘yilgan</Tag>
+                          ) : isDeparting || isSuperAdmin ? (
+                            <Button size="small" type="primary" icon={<IconMobile />} onClick={() => handleOpenQrSign('DEPARTING')} style={{ borderRadius: 0 }}>
+                              QR bilan Imzolash
+                            </Button>
+                          ) : (
+                            <Text type="secondary" style={{ fontSize: 12 }}>Topshiruvchi imzosi kutilmoqda</Text>
+                          )}
+                        </Card>
+                      </Col>
+
+                      <Col span={12}>
+                        <Card
+                          className="uwms-card"
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 0 }}
+                          title="2. Qabul Qiluvchi (Yangi MOL)"
+                          extra={
+                            targetSig?.signed ? (
+                              <Tag color="green" icon={<IconCheckCircle />}>Imzolandi</Tag>
+                            ) : (
+                              <Tag color="gold" icon={<IconClockCircle />}>Kutilmoqda</Tag>
+                            )
+                          }
+                        >
+                          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                            {handover?.targetUser?.fullName || handover?.targetWarehouse?.name || 'Qabul qiluvchi'}
+                          </div>
+                          {targetSig?.signed ? (
+                            <Tag color="green">Elektron imzo qo‘yilgan</Tag>
+                          ) : isTarget || isSuperAdmin ? (
+                            <Button size="small" type="primary" status="success" icon={<IconMobile />} onClick={() => handleOpenQrSign('TARGET')} style={{ borderRadius: 0 }}>
+                              QR bilan Qabul Qilish
+                            </Button>
+                          ) : (
+                            <Text type="secondary" style={{ fontSize: 12 }}>Qabul qiluvchi tasdig‘i kutilmoqda</Text>
+                          )}
+                        </Card>
+                      </Col>
+
+                      <Col span={12}>
+                        <Card
+                          className="uwms-card"
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 0 }}
+                          title="3. Bino Komendanti"
+                          extra={
+                            commandantSig?.signed ? (
+                              <Tag color="green" icon={<IconCheckCircle />}>Imzolandi</Tag>
+                            ) : (
+                              <Tag color="gold" icon={<IconClockCircle />}>Kutilmoqda</Tag>
+                            )
+                          }
+                        >
+                          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                            {handover?.commandantUser?.fullName || 'Bino komendanti'}
+                          </div>
+                          {commandantSig?.signed ? (
+                            <Tag color="green">Elektron imzo qo‘yilgan</Tag>
+                          ) : isCommandant || isSuperAdmin ? (
+                            <Button size="small" type="primary" icon={<IconMobile />} onClick={() => handleOpenQrSign('COMMANDANT')} style={{ borderRadius: 0 }}>
+                              QR bilan Tasdiqlash
+                            </Button>
+                          ) : (
+                            <Text type="secondary" style={{ fontSize: 12 }}>Komendant imzosi kutilmoqda</Text>
+                          )}
+                        </Card>
+                      </Col>
+
+                      <Col span={12}>
+                        <Card
+                          className="uwms-card"
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 0 }}
+                          title="4. Moddiy Hisobchi"
+                          extra={
+                            accountantSig?.signed ? (
+                              <Tag color="green" icon={<IconCheckCircle />}>Imzolandi</Tag>
+                            ) : (
+                              <Tag color="gold" icon={<IconClockCircle />}>Kutilmoqda</Tag>
+                            )
+                          }
+                        >
+                          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                            {handover?.accountantUser?.fullName || 'Buxgalteriya vakili'}
+                          </div>
+                          {accountantSig?.signed ? (
+                            <Tag color="green">Elektron imzo qo‘yilgan</Tag>
+                          ) : isAccountant || isSuperAdmin ? (
+                            <Button size="small" type="primary" icon={<IconMobile />} onClick={() => handleOpenQrSign('ACCOUNTANT')} style={{ borderRadius: 0 }}>
+                              QR bilan Tasdiqlash
+                            </Button>
+                          ) : (
+                            <Text type="secondary" style={{ fontSize: 12 }}>Hisobchi imzosi kutilmoqda</Text>
+                          )}
+                        </Card>
+                      </Col>
+                    </Row>
+                  </Card>
+
+                  {/* Items */}
+                  <Card
+                    className="uwms-card"
+                    title={`Topshirilayotgan Asosiy Vositalar (${handover?.items?.length || 0} ta)`}
+                    style={{ borderRadius: 0, border: '1px solid var(--color-border-2)' }}
+                  >
+                    <Table
+                      rowKey="id"
+                      columns={itemColumns}
+                      data={handover?.items || []}
+                      pagination={false}
+                      size="small"
+                      border
+                      scroll={{ y: 260 }}
+                    />
+                  </Card>
+
+                  {/* Document */}
+                  <Card
+                    className="uwms-card"
+                    title="OS-1 Rasmiy Davlat Standart Dalolatnomasi Ko‘rinishi"
+                    extra={
+                      <Button size="small" type="outline" icon={<IconPrinter />} onClick={() => window.print()} style={{ borderRadius: 0 }}>
+                        Chop Etish
+                      </Button>
+                    }
+                    style={{ borderRadius: 0, border: '1px solid var(--color-border-2)' }}
+                  >
+                    <div style={{ maxHeight: 380, overflowY: 'auto', padding: '12px 16px', background: '#f7f8fa' }}>
+                      {isLoadingDoc ? (
+                        <div style={{ textAlign: 'center', padding: 20 }}>
+                          <Spin tip="Hujjat shakli yuklanmoqda..." />
+                        </div>
+                      ) : contentHtml ? (
+                        <div
+                          dangerouslySetInnerHTML={{ __html: contentHtml }}
+                          style={{
+                            maxWidth: 820,
+                            margin: '0 auto',
+                            background: '#fff',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                            padding: 20,
+                          }}
+                        />
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: 20 }}>
+                          <Text type="secondary">OS-1 rasmiy elektron hujjati tayyorlanmoqda...</Text>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                </div>
+              </Tabs.TabPane>
+            </Tabs>
           </div>
         )}
       </Modal>
