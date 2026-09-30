@@ -10,6 +10,7 @@ export function useAssetsQuery(params?: {
   roomId?: string;
   fundingSource?: string;
   responsibleUserId?: string;
+  inspectedByEngineerId?: string;
   page?: number;
   limit?: number;
 }) {

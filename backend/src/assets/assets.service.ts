@@ -31,10 +31,12 @@ export class AssetsService {
     roomId?: string;
     fundingSource?: string;
     responsibleUserId?: string;
+    inspectedByEngineerId?: string;
     page?: number | string;
     limit?: number | string;
   }) {
     const where: any = {};
+    const andConditions: any[] = [];
 
     if (query?.status && query.status !== 'ALL') {
       where.status = query.status as AssetStatus;
@@ -54,7 +56,7 @@ export class AssetsService {
 
     if (query?.search) {
       const isWarehouseSearch = /ombor/i.test(query.search);
-      where.OR = [
+      const searchOr: any[] = [
         { inventoryNumber: { contains: query.search, mode: 'insensitive' } },
         { serialNumber: { contains: query.search, mode: 'insensitive' } },
         { item: { name: { contains: query.search, mode: 'insensitive' } } },
@@ -68,8 +70,26 @@ export class AssetsService {
         { responsibleUser: { department: { name: { contains: query.search, mode: 'insensitive' } } } },
       ];
       if (isWarehouseSearch) {
-        where.OR.push({ roomId: null });
+        searchOr.push({ roomId: null });
       }
+      andConditions.push({ OR: searchOr });
+    }
+
+    if (query?.inspectedByEngineerId && query.inspectedByEngineerId !== 'ALL') {
+      const engineerId = query.inspectedByEngineerId;
+      andConditions.push({
+        OR: [
+          { responsibleUserId: engineerId },
+          { repairRecords: { some: { OR: [{ approvedById: engineerId }, { requestedById: engineerId }] } } },
+          { writeOffRequests: { some: { OR: [{ createdById: engineerId }, { members: { some: { userId: engineerId } } }] } } },
+          { histories: { some: { executedById: engineerId } } },
+          { item: { requestItems: { some: { request: { OR: [{ engineerInspectedById: engineerId }, { assignedEngineerId: engineerId }] } } } } },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const isPaginated = query?.page !== undefined || query?.limit !== undefined;
@@ -84,7 +104,31 @@ export class AssetsService {
     const sortOrder = query && (query as any).sortOrder === 'asc' ? 'asc' : 'desc';
 
     const assetInclude = {
-      item: { include: { category: true } },
+      item: {
+        include: {
+          category: true,
+          requestItems: {
+            select: {
+              request: {
+                select: {
+                  id: true,
+                  requestNumber: true,
+                  engineerInspectedById: true,
+                  assignedEngineerId: true,
+                  engineerInspectedAt: true,
+                  engineerInspectedBy: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                      role: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       room: {
         include: {
           department: {
@@ -102,6 +146,47 @@ export class AssetsService {
         },
       },
       supplier: true,
+      repairRecords: {
+        select: {
+          id: true,
+          repairNumber: true,
+          status: true,
+          actNumber: true,
+          notes: true,
+          approvedById: true,
+          approvedBy: {
+            select: {
+              id: true,
+              fullName: true,
+              role: true,
+            },
+          },
+          requestedById: true,
+          requestedBy: {
+            select: {
+              id: true,
+              fullName: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' as const },
+      },
+      writeOffRequests: {
+        select: {
+          id: true,
+          actNumber: true,
+          status: true,
+          createdById: true,
+          technicalConclusion: true,
+          members: {
+            select: {
+              userId: true,
+              roleName: true,
+              vote: true,
+            },
+          },
+        },
+      },
     };
 
     const [instances, total] = isPaginated
@@ -124,12 +209,28 @@ export class AssetsService {
           0,
         ];
 
-    const mapped = instances.map((inst) => {
+    const mapped = instances.map((inst: any) => {
       const dep = this.codeGen.calculateDepreciation(
         inst.purchasePrice ? Number(inst.purchasePrice) : 0,
         inst.purchaseDate || inst.createdAt,
         inst.item.category.name,
       );
+
+      const signedRepair = inst.repairRecords?.find(
+        (r: any) => r.approvedById || r.actNumber
+      ) || inst.repairRecords?.[0];
+
+      const inspectedRequest = inst.item?.requestItems?.find(
+        (ri: any) => ri.request?.engineerInspectedById
+      )?.request;
+
+      const writeOff = inst.writeOffRequests?.[0];
+
+      const hasEngineerSignature =
+        !!signedRepair ||
+        !!inspectedRequest ||
+        (inst.writeOffRequests && inst.writeOffRequests.length > 0) ||
+        (query?.inspectedByEngineerId && inst.responsibleUserId === query.inspectedByEngineerId);
 
       return {
         id: inst.id,
@@ -167,6 +268,15 @@ export class AssetsService {
         reprintCount: inst.reprintCount || 0,
         lastReprintReason: inst.lastReprintReason,
         lastReprintedAt: inst.lastReprintedAt?.toISOString(),
+        engineerSignatures: {
+          hasSignature: hasEngineerSignature,
+          inspectionAct: inspectedRequest ? `AKT-TEX-${inspectedRequest.requestNumber}` : null,
+          inspectorName: inspectedRequest?.engineerInspectedBy?.fullName || null,
+          repairAct: signedRepair?.actNumber || signedRepair?.repairNumber || null,
+          repairStatus: signedRepair?.status || null,
+          repairApproverName: signedRepair?.approvedBy?.fullName || null,
+          writeOffAct: writeOff?.actNumber || null,
+        },
       };
     });
 
@@ -199,6 +309,19 @@ export class AssetsService {
         reprintLogs: {
           include: { printedBy: { select: { fullName: true } } },
           orderBy: { createdAt: 'desc' },
+        },
+        repairRecords: {
+          include: {
+            requestedBy: { select: { fullName: true, role: true } },
+            approvedBy: { select: { fullName: true, role: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        writeOffRequests: {
+          include: {
+            createdBy: { select: { fullName: true, role: true } },
+            members: { include: { user: { select: { fullName: true, role: true } } } },
+          },
         },
       },
     });

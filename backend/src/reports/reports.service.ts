@@ -14,6 +14,7 @@ import {
 } from './dto/chief-accountant.dto';
 import { FundingSource, RoleType } from '@prisma/client';
 import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -26,6 +27,188 @@ export class ReportsService {
       .update(data)
       .digest('hex')
       .slice(0, 32);
+  }
+
+  /**
+   * 2-rasmdagi korporativ standart bo'yicha mukammal formatlangan Excel varaqasini yaratish
+   * (Arco Blue sarlavha, oq qalin matn, muzlatilgan sarlavha, chegaralar, zebra chiziqlari, avto-kenglik)
+   */
+  private addStyledExcelWorksheet(
+    wb: ExcelJS.Workbook,
+    sheetName: string,
+    dataRows: Record<string, any>[],
+    columnWidthOverrides?: Record<string, number>,
+  ): ExcelJS.Worksheet {
+    const safeSheetName =
+      (sheetName || 'Reestr')
+        .replace(/[\\/?*\[\]:]/g, ' ')
+        .trim()
+        .substring(0, 31) || 'Reestr';
+
+    const ws = wb.addWorksheet(safeSheetName, {
+      views: [{ state: 'frozen', ySplit: 1 }],
+    });
+
+    if (!dataRows || dataRows.length === 0) {
+      ws.addRow(['Ma’lumot topilmadi']);
+      return ws;
+    }
+
+    // 1. Unique headers in original key order
+    const keys = Object.keys(dataRows[0]);
+
+    // 2. Calculate dynamic smart column widths
+    const columns = keys.map((key) => {
+      if (columnWidthOverrides && columnWidthOverrides[key]) {
+        return { header: key, key, width: columnWidthOverrides[key] };
+      }
+
+      let maxLen = String(key).length;
+      for (const row of dataRows) {
+        const val = row[key];
+        if (val !== undefined && val !== null) {
+          const strVal = String(val);
+          if (strVal.length > maxLen) {
+            maxLen = strVal.length;
+          }
+        }
+      }
+
+      const lower = key.toLowerCase();
+      let minWidth = 14;
+
+      if (lower === '№' || lower === 'no' || lower === 'id') {
+        minWidth = 8;
+      } else if (lower.includes('sana') || lower.includes('date')) {
+        minWidth = 16;
+      } else if (lower.includes('raqam') || lower.includes('kod') || lower.includes('akt') || lower.includes('nakladnoy')) {
+        minWidth = 24;
+      } else if (lower.includes('nomi') || lower.includes('tovar') || lower.includes('jihoz') || lower.includes('qisqartmasi')) {
+        minWidth = 36;
+      } else if (lower.includes('kafedra') || lower.includes('bo‘lim') || lower.includes('ta’minotchi')) {
+        minWidth = 32;
+      } else if (lower.includes('mas’ul') || lower.includes('shaxs') || lower.includes('qabul')) {
+        minWidth = 26;
+      } else if (lower.includes('qiymat') || lower.includes('mablag') || lower.includes('summa') || lower.includes('narx')) {
+        minWidth = 24;
+      } else if (lower.includes('xesh') || lower.includes('hash') || lower.includes('kripto') || lower.includes('worm')) {
+        minWidth = 36;
+      } else if (lower.includes('holat') || lower.includes('manba')) {
+        minWidth = 24;
+      }
+
+      const calculatedWidth = Math.min(Math.max(maxLen + 5, minWidth), 65);
+      return {
+        header: key,
+        key,
+        width: calculatedWidth,
+      };
+    });
+
+    ws.columns = columns;
+
+    // 3. Header Row Styling (Arco Blue #165DFF, Bold White, 28pt height)
+    const headerRow = ws.getRow(1);
+    headerRow.height = 28;
+    headerRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Calibri',
+        size: 11,
+        bold: true,
+        color: { argb: 'FFFFFFFF' },
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF165DFF' }, // Arco brand blue #165DFF
+      };
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: 'center',
+        wrapText: false,
+      };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF0E42D2' } },
+        bottom: { style: 'medium', color: { argb: 'FF0E42D2' } },
+        left: { style: 'thin', color: { argb: 'FF0E42D2' } },
+        right: { style: 'thin', color: { argb: 'FF0E42D2' } },
+      };
+    });
+
+    // 4. Data Rows Styling (Zebra striping, borders, numeric/currency/date alignment)
+    dataRows.forEach((item, index) => {
+      const row = ws.addRow(item);
+      row.height = 22;
+      const isZebra = index % 2 === 1;
+
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        const key = keys[colNumber - 1];
+        const lowerKey = (key || '').toLowerCase();
+        const cellVal = cell.value;
+
+        // Font
+        cell.font = {
+          name: 'Calibri',
+          size: 10.5,
+          color: { argb: 'FF1D2129' },
+        };
+
+        // Borders
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE5E6EB' } },
+          bottom: { style: 'thin', color: { argb: 'FFE5E6EB' } },
+          left: { style: 'thin', color: { argb: 'FFE5E6EB' } },
+          right: { style: 'thin', color: { argb: 'FFE5E6EB' } },
+        };
+
+        // Zebra fill
+        if (isZebra) {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF7F8FA' },
+          };
+        } else {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFFFF' },
+          };
+        }
+
+        // Alignments & Number formatting
+        if (lowerKey === '№' || lowerKey === 'no') {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        } else if (lowerKey.includes('sana') || lowerKey.includes('date')) {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        } else if (lowerKey.includes('kod') || lowerKey.includes('sub-hisob') || lowerKey.includes('telefon') || lowerKey.includes('holat')) {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        } else if (lowerKey.includes('worm') || lowerKey.includes('hash') || lowerKey.includes('muhr')) {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.font = { name: 'Courier New', size: 9.5, color: { argb: 'FF4E5969' } };
+        } else if (
+          typeof cellVal === 'number' ||
+          lowerKey.includes('qiymat') ||
+          lowerKey.includes('mablag') ||
+          lowerKey.includes('summa') ||
+          lowerKey.includes('narx') ||
+          lowerKey.includes('soni')
+        ) {
+          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          if (typeof cellVal === 'number') {
+            if (lowerKey.includes('soni') || lowerKey.includes('count')) {
+              cell.numFmt = '#,##0';
+            } else {
+              cell.numFmt = '#,##0 "so‘m"';
+            }
+          }
+        } else {
+          cell.alignment = { vertical: 'middle', horizontal: 'left' };
+        }
+      });
+    });
+
+    return ws;
   }
 
   constructor(
@@ -527,11 +710,15 @@ export class ReportsService {
       };
     }
 
-    // Default XLSX
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(dataRows);
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    // Default XLSX using professional ExcelJS styling matching Image 2
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'UWMS — Universitet Ombor va Aktivlarni Boshqarish Tizimi';
+    wb.lastModifiedBy = 'UWMS Moliyalashtirish Eksport Markazi';
+    wb.created = new Date();
+    wb.modified = new Date();
+
+    this.addStyledExcelWorksheet(wb, sheetName, dataRows);
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
 
     return {
       buffer,
@@ -995,10 +1182,7 @@ export class ReportsService {
       };
     }
 
-    // Default: 3-Sheet Excel Workbook
-    const wb = XLSX.utils.book_new();
-
-    // Sheet 1: Kirim Reestri (OS-1)
+    // 1. Sheet 1: Kirim Reestri (OS-1)
     const sheet1Data = receiptsRes.data.map((r, idx) => ({
       '№': idx + 1,
       'Sana': r.receiptDate.slice(0, 10),
@@ -1014,10 +1198,8 @@ export class ReportsService {
       'Doimiy Kripto-Muhr': r.hasStamp ? `TASDIQLANGAN (${r.stampHash?.slice(0, 12)}...)` : 'KUTILMOQDA',
       'WORM Nazorat Kodi (HMAC Hash)': r.stampHash || this.generateHmac(`${r.os1DocNumber}-${r.allocatedAmount}-${r.subAccountCode}`),
     }));
-    const ws1 = XLSX.utils.json_to_sheet(sheet1Data);
-    XLSX.utils.book_append_sheet(wb, ws1, '1. Kirim Reestri (OS-1)');
 
-    // Sheet 2: Chiqim Reestri (OS-2)
+    // 2. Sheet 2: Chiqim Reestri (OS-2)
     const sheet2Data = receiptsRes.data.map((r, idx) => ({
       '№': idx + 1,
       'Sana': r.receiptDate.slice(0, 10),
@@ -1031,10 +1213,8 @@ export class ReportsService {
       'Holat': 'Komendant va Mudir Imzolagan (OS-2)',
       'WORM Nazorat Kodi (HMAC Hash)': this.generateHmac(`${r.requestNumber}-OS2-${r.subAccountCode}-${r.allocatedAmount}`),
     }));
-    const ws2 = XLSX.utils.json_to_sheet(sheet2Data);
-    XLSX.utils.book_append_sheet(wb, ws2, '2. Chiqim Reestri (OS-2)');
 
-    // Sheet 3: MOL Balansi va Qoldiq Vedomosti
+    // 3. Sheet 3: MOL Balansi va Qoldiq Vedomosti
     const sheet3Data = balanceRes.data.map((m, idx) => ({
       '№': idx + 1,
       'Kafedra / Bo‘lim Nomi': m.departmentName,
@@ -1048,64 +1228,181 @@ export class ReportsService {
       'Oxirgi Harakat Sanasi': m.lastHandoverDate ? m.lastHandoverDate.slice(0, 10) : '—',
       'WORM Nazorat Kodi (HMAC Hash)': this.generateHmac(`${m.molId}-${m.fixedAssetsTotalValue}-${m.fixedAssetsCount}`),
     }));
-    const ws3 = XLSX.utils.json_to_sheet(sheet3Data);
-    XLSX.utils.book_append_sheet(wb, ws3, '3. MOL Aylanma Balansi');
 
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    // 4. Sheet 4: Davlat Statistika (1-AV) Shakli
+    let activeInstances: any[] = [];
+    try {
+      activeInstances =
+        (await this.prisma.itemInstance?.findMany({
+          where: { status: { not: 'WRITTEN_OFF' } },
+          select: {
+            id: true,
+            purchasePrice: true,
+            fundingSource: true,
+            item: {
+              select: {
+                name: true,
+                category: { select: { name: true } },
+              },
+            },
+          },
+        })) || [];
+    } catch {
+      activeInstances = [];
+    }
+
+    const subAccountDefinitions = [
+      { code: '010', name: 'Bino va inshootlar' },
+      { code: '013', name: 'Mashina va asbob-uskunalar (Kompyuter, texnika, laboratoriya)' },
+      { code: '015', name: 'Transport vositalari' },
+      { code: '016', name: 'Boshqa asosiy vositalar (Mebel va ofis jihozlari)' },
+      { code: '071', name: 'O‘rnatiladigan asbob-uskunalar va moddiy sarf zaxiralari' },
+      { code: '060', name: 'Material zaxiralar va sarflanuvchi buyumlar' },
+      { code: '212', name: 'Boshqa xo‘jalik va inventar jihozlari' },
+    ];
+
+    const subAccountBalances: Record<string, { count: number; totalValue: number; primarySource: string }> = {};
+    for (const def of subAccountDefinitions) {
+      subAccountBalances[def.code] = { count: 0, totalValue: 0, primarySource: 'BYUDJET' };
+    }
+
+    for (const inst of activeInstances) {
+      const cat = (inst.item?.category?.name || '').toLowerCase();
+      let code = '013';
+      if (cat.includes('mebel')) code = '016';
+      else if (cat.includes('transport') || (cat.includes('mashina') && !cat.includes('uskuna'))) code = '015';
+      else if (cat.includes('bino') || cat.includes('inshoot')) code = '010';
+      else if (cat.includes('sarf') || cat.includes('kanselyariya')) code = '060';
+      else if (cat.includes('montaj') || cat.includes('o‘rnatiladigan')) code = '071';
+      else if (cat.includes('xo‘jalik') || cat.includes('jihoz')) code = '212';
+      else code = '013';
+
+      if (!subAccountBalances[code]) {
+        subAccountBalances[code] = { count: 0, totalValue: 0, primarySource: inst.fundingSource || 'BYUDJET' };
+      }
+      subAccountBalances[code].count++;
+      subAccountBalances[code].totalValue += Number(inst.purchasePrice || 0);
+    }
+
+    const sheet4Data = subAccountDefinitions.map((def, idx) => {
+      const receiptStat = (receiptsRes.summary.bySubAccount as any)?.[def.code] || { count: 0, amount: 0 };
+      const balStat = subAccountBalances[def.code] || { count: 0, totalValue: 0, primarySource: 'BYUDJET' };
+      const receiptAmt = Number(receiptStat.amount || 0);
+      const receiptCnt = Number(receiptStat.count || 0);
+      const closingVal = Number(balStat.totalValue || 0);
+      const closingCnt = Number(balStat.count || 0);
+      const openingVal = Math.max(0, closingVal - receiptAmt);
+
+      return {
+        '№': idx + 1,
+        'Sub-hisob Kodi': def.code,
+        'Sub-hisob Nomi (Davlat Standarti)': def.name,
+        'Boshlang‘ich Qoldiq Qiymati (so‘m)': openingVal,
+        'Kirim — OS-1 Soni (dona)': receiptCnt,
+        'Kirim — OS-1 Qiymati (so‘m)': receiptAmt,
+        'Chiqim — OS-2 Soni (dona)': receiptCnt,
+        'Chiqim — OS-2 Qiymati (so‘m)': receiptAmt,
+        'Hisobdan Chiqarish — OS-4 (dona)': 0,
+        'Yakuniy Qoldiq Soni (dona)': closingCnt,
+        'Davr Oxiriga Balans Qiymati (so‘m)': closingVal,
+        'Asosiy Moliyalashtirish Manbasi': this.getSourceLabel(balStat.primarySource as any),
+        'WORM Nazorat Kodi (HMAC Hash)': this.generateHmac(`${def.code}-${closingVal}-${closingCnt}`),
+      };
+    });
+
+    // ExcelJS Workbook Initialization (Matching Image 2 Executive Layout)
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'UWMS — Universitet Ombor va Aktivlarni Boshqarish Tizimi';
+    wb.lastModifiedBy = 'UWMS Bosh Hisobchi Daftari';
+    wb.created = new Date();
+    wb.modified = new Date();
+
+    const isDedicated1Av = fmtLower.includes('stat_1av') || fmtLower.includes('1av');
+
+    if (isDedicated1Av) {
+      this.addStyledExcelWorksheet(wb, '1. Davlat Statistika (1-AV)', sheet4Data);
+      this.addStyledExcelWorksheet(wb, '2. Kirim Reestri (OS-1)', sheet1Data);
+      this.addStyledExcelWorksheet(wb, '3. MOL Aylanma Balansi', sheet3Data);
+
+      const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+      return {
+        buffer,
+        filename: `UWMS_Davlat_Statistika_1AV_${period}.xlsx`,
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      };
+    }
+
+    // Default: Complete 4-Sheet Central Management Workbook
+    this.addStyledExcelWorksheet(wb, '1. Kirim Reestri (OS-1)', sheet1Data);
+    this.addStyledExcelWorksheet(wb, '2. Chiqim Reestri (OS-2)', sheet2Data);
+    this.addStyledExcelWorksheet(wb, '3. MOL Aylanma Balansi', sheet3Data);
+    this.addStyledExcelWorksheet(wb, '4. Davlat Statistika (1-AV)', sheet4Data);
+
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
 
     return {
       buffer,
-      filename: `UWMS_Bosh_Hisobchi_Davlat_Hisoboti_${period}.xlsx`,
+      filename: `UWMS_Bosh_Hisobchi_Markaziy_Hisobot_${period}.xlsx`,
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     };
+  }
+
+  private escapeXml(unsafe: any): string {
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
   }
 
   private generateUzAsboStateXml(period: string, receipts: any, balance: any): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <UzASBODavlatHisoboti version="2.0" xmlns="urn:uzasbo:treasury:inventory:v2">
   <Muassasa>
-    <Nomi>O'zbekiston Davlat Universiteti</Nomi>
+    <Nomi>${this.escapeXml("O'zbekiston Davlat Universiteti")}</Nomi>
     <INN>301245789</INN>
-    <G'aznaHisobRaqami>23402000300100001010</G'aznaHisobRaqami>
-    <HisobotDavri>${period}</HisobotDavri>
+    <GaznaHisobRaqami>23402000300100001010</GaznaHisobRaqami>
+    <HisobotDavri>${this.escapeXml(period)}</HisobotDavri>
     <YaratilganVaqt>${new Date().toISOString()}</YaratilganVaqt>
-    <BoshHisobchiTasdig'i>TASDIQLANGAN_ELEKTRON_HMAC</BoshHisobchiTasdig'i>
+    <BoshHisobchiTasdigi>TASDIQLANGAN_ELEKTRON_HMAC</BoshHisobchiTasdigi>
   </Muassasa>
-  <SubHisoblarYig'indisi>
-    <SubHisob kod="013" nomi="Mashina va asbob-uskunalar (Kompyuter, texnika, laboratoriya)">
-      <JamiQiymat>${receipts.summary.bySubAccount['013']?.amount || 0}</JamiQiymat>
+  <SubHisoblarYigindisi>
+    <SubHisob kod="013" nomi="${this.escapeXml('Mashina va asbob-uskunalar (Kompyuter, texnika, laboratoriya)')}">
+      <JamiQiymat>${receipts.summary.bySubAccount?.['013']?.amount || 0}</JamiQiymat>
     </SubHisob>
-    <SubHisob kod="015" nomi="Transport vositalari">
-      <JamiQiymat>${receipts.summary.bySubAccount['015']?.amount || 0}</JamiQiymat>
+    <SubHisob kod="015" nomi="${this.escapeXml('Transport vositalari')}">
+      <JamiQiymat>${receipts.summary.bySubAccount?.['015']?.amount || 0}</JamiQiymat>
     </SubHisob>
-    <SubHisob kod="016" nomi="Boshqa asosiy vositalar (Mebel va ofis jihozlari)">
-      <JamiQiymat>${receipts.summary.bySubAccount['016']?.amount || 0}</JamiQiymat>
+    <SubHisob kod="016" nomi="${this.escapeXml('Boshqa asosiy vositalar (Mebel va ofis jihozlari)')}">
+      <JamiQiymat>${receipts.summary.bySubAccount?.['016']?.amount || 0}</JamiQiymat>
     </SubHisob>
-    <SubHisob kod="071" nomi="O‘rnatiladigan asbob-uskunalar va moddiy sarf zaxiralari">
-      <JamiQiymat>${receipts.summary.bySubAccount['071']?.amount || 0}</JamiQiymat>
+    <SubHisob kod="071" nomi="${this.escapeXml('O‘rnatiladigan asbob-uskunalar va moddiy sarf zaxiralari')}">
+      <JamiQiymat>${receipts.summary.bySubAccount?.['071']?.amount || 0}</JamiQiymat>
     </SubHisob>
-    <SubHisob kod="010" nomi="Bino va inshootlar">
-      <JamiQiymat>${receipts.summary.bySubAccount['010']?.amount || 0}</JamiQiymat>
+    <SubHisob kod="010" nomi="${this.escapeXml('Bino va inshootlar')}">
+      <JamiQiymat>${receipts.summary.bySubAccount?.['010']?.amount || 0}</JamiQiymat>
     </SubHisob>
-    <SubHisob kod="060" nomi="Material zaxiralar va sarflanuvchi buyumlar">
-      <JamiQiymat>${receipts.summary.bySubAccount['060']?.amount || 0}</JamiQiymat>
+    <SubHisob kod="060" nomi="${this.escapeXml('Material zaxiralar va sarflanuvchi buyumlar')}">
+      <JamiQiymat>${receipts.summary.bySubAccount?.['060']?.amount || 0}</JamiQiymat>
     </SubHisob>
-    <SubHisob kod="212" nomi="Boshqa xo‘jalik va inventar jihozlari">
-      <JamiQiymat>${receipts.summary.bySubAccount['212']?.amount || 0}</JamiQiymat>
+    <SubHisob kod="212" nomi="${this.escapeXml('Boshqa xo‘jalik va inventar jihozlari')}">
+      <JamiQiymat>${receipts.summary.bySubAccount?.['212']?.amount || 0}</JamiQiymat>
     </SubHisob>
-  </SubHisoblarYig'indisi>
+  </SubHisoblarYigindisi>
   <KirimReestri_OS1 jamiSoni="${receipts.total}">
     ${receipts.data
       .map(
         (r: any) => `
     <KirimHujjati>
-      <HujjatRaqami>${r.os1DocNumber}</HujjatRaqami>
-      <Sana>${r.receiptDate.slice(0, 10)}</Sana>
-      <Ta'minotchi>${r.supplierName}</Ta'minotchi>
-      <Manba>${r.fundingSource}</Manba>
-      <SubHisob>${r.subAccountCode}</SubHisob>
-      <Summa>${r.allocatedAmount}</Summa>
-      <MuhrXeshi>${r.stampHash || 'IMZOLANGAN'}</MuhrXeshi>
+      <HujjatRaqami>${this.escapeXml(r.os1DocNumber)}</HujjatRaqami>
+      <Sana>${this.escapeXml(r.receiptDate ? r.receiptDate.slice(0, 10) : '')}</Sana>
+      <Taminotchi>${this.escapeXml(r.supplierName)}</Taminotchi>
+      <Manba>${this.escapeXml(r.fundingSource)}</Manba>
+      <SubHisob>${this.escapeXml(r.subAccountCode)}</SubHisob>
+      <Summa>${r.allocatedAmount || 0}</Summa>
+      <MuhrXeshi>${this.escapeXml(r.stampHash || 'IMZOLANGAN')}</MuhrXeshi>
     </KirimHujjati>`,
       )
       .join('')}
@@ -1115,12 +1412,12 @@ export class ReportsService {
       .map(
         (m: any) => `
     <MOL_Vedomost>
-      <F.I.SH>${m.fullName}</F.I.SH>
-      <Kafedra>${m.departmentName}</Kafedra>
-      <AsosiyVositalarSoni>${m.fixedAssetsCount}</AsosiyVositalarSoni>
-      <BalansQiymati>${m.fixedAssetsTotalValue}</BalansQiymati>
-      <SarfMateriallari>${m.consumablesCount}</SarfMateriallari>
-      <OxirgiNakladnoy>${m.lastOs2DocNumber || '—'}</OxirgiNakladnoy>
+      <FISH>${this.escapeXml(m.fullName)}</FISH>
+      <Kafedra>${this.escapeXml(m.departmentName)}</Kafedra>
+      <AsosiyVositalarSoni>${m.fixedAssetsCount || 0}</AsosiyVositalarSoni>
+      <BalansQiymati>${m.fixedAssetsTotalValue || 0}</BalansQiymati>
+      <SarfMateriallari>${m.consumablesCount || 0}</SarfMateriallari>
+      <OxirgiNakladnoy>${this.escapeXml(m.lastOs2DocNumber || '—')}</OxirgiNakladnoy>
     </MOL_Vedomost>`,
       )
       .join('')}
@@ -1135,7 +1432,7 @@ export class ReportsService {
     <SourceApp>UWMS — Universitet Ombor va Inventar Tizimi</SourceApp>
     <FormatVersion>1.8</FormatVersion>
     <CreationDate>${new Date().toISOString()}</CreationDate>
-    <Period>${period}</Period>
+    <Period>${this.escapeXml(period)}</Period>
     <OrganizationINN>301245789</OrganizationINN>
   </Header>
   <Receipts_OS1>
@@ -1143,12 +1440,12 @@ export class ReportsService {
       .map(
         (r: any) => `
     <DocumentReceipt>
-      <Number>${r.os1DocNumber}</Number>
-      <Date>${r.receiptDate.slice(0, 10)}</Date>
-      <Supplier>${r.supplierName}</Supplier>
-      <FundingSource>${r.fundingSource}</FundingSource>
-      <AccountCode>${r.subAccountCode}</AccountCode>
-      <TotalAmount>${r.allocatedAmount}</TotalAmount>
+      <Number>${this.escapeXml(r.os1DocNumber)}</Number>
+      <Date>${this.escapeXml(r.receiptDate ? r.receiptDate.slice(0, 10) : '')}</Date>
+      <Supplier>${this.escapeXml(r.supplierName)}</Supplier>
+      <FundingSource>${this.escapeXml(r.fundingSource)}</FundingSource>
+      <AccountCode>${this.escapeXml(r.subAccountCode)}</AccountCode>
+      <TotalAmount>${r.allocatedAmount || 0}</TotalAmount>
     </DocumentReceipt>`,
       )
       .join('')}
@@ -1158,10 +1455,10 @@ export class ReportsService {
       .map(
         (m: any) => `
     <MOL_Balance>
-      <Name>${m.fullName}</Name>
-      <Department>${m.departmentName}</Department>
-      <FixedAssetsQuantity>${m.fixedAssetsCount}</FixedAssetsQuantity>
-      <FixedAssetsTotalCost>${m.fixedAssetsTotalValue}</FixedAssetsTotalCost>
+      <Name>${this.escapeXml(m.fullName)}</Name>
+      <Department>${this.escapeXml(m.departmentName)}</Department>
+      <FixedAssetsQuantity>${m.fixedAssetsCount || 0}</FixedAssetsQuantity>
+      <FixedAssetsTotalCost>${m.fixedAssetsTotalValue || 0}</FixedAssetsTotalCost>
     </MOL_Balance>`,
       )
       .join('')}

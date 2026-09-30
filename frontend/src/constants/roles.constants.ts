@@ -120,6 +120,13 @@ export const ROLE_CONFIG: Record<RoleType, RoleMeta> = {
     color: 'cyan',
     allowedRoutes: ['/dashboard', '/requests', '/assets', '/reports', '/organization'],
   },
+  ENGINEER: {
+    code: 'ENGINEER',
+    label: 'Texnik Injener (IT / Muhandis)',
+    description: 'Qimmatbaho texnika va asbob-uskunalarni texnik ko‘rikdan o‘tkazish (AKT-TEX) va sozlik nazoratchisi',
+    color: 'teal',
+    allowedRoutes: ['/dashboard', '/requests', '/assets', '/repairs', '/organization'],
+  },
 };
 
 /**
@@ -162,6 +169,7 @@ export const formatRoleName = (role?: string): string => {
     ADMIN: 'Universitet Administratori',
     ADMINISTRATOR: 'Universitet Administratori',
     DEPARTMENT_HEAD: 'Kafedra mudiri',
+    ENGINEER: 'Texnik Injener (IT / Muhandis)',
   };
   if (customMap[upper]) {
     return customMap[upper];

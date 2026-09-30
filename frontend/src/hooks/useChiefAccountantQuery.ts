@@ -114,7 +114,7 @@ export interface ChiefAccountantMolDetailsResponse {
   }>;
 }
 
-export type StateExportFormat = 'EXCEL_3SHEET' | 'UZASBO_XML' | '1C_ENTERPRISE_XML';
+export type StateExportFormat = 'EXCEL_3SHEET' | 'UZASBO_XML' | '1C_ENTERPRISE_XML' | 'STAT_1AV';
 
 export interface StateExportParams {
   format: StateExportFormat;
@@ -190,7 +190,10 @@ export const useChiefAccountantExport = () => {
       let mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
       if (params.format === 'EXCEL_3SHEET') {
-        filename = `Davlat_Hisoboti_3Sheet_OS1_OS2_MOL_${dateStr}.xlsx`;
+        filename = `Davlat_Boshqaruv_Reestri_4Sheet_${dateStr}.xlsx`;
+        mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      } else if (params.format === 'STAT_1AV') {
+        filename = `Davlat_Statistika_1AV_${dateStr}.xlsx`;
         mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
       } else if (params.format === 'UZASBO_XML') {
         filename = `UzASBO_Kirim_OS1_OS2_${dateStr}.xml`;

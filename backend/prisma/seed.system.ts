@@ -314,6 +314,28 @@ async function main() {
     },
   });
 
+  // 4.9 Bosh Texnik Injener (IT / Muhandis)
+  await prisma.user.upsert({
+    where: { username: 'injener' },
+    update: {
+      role: RoleType.ENGINEER,
+      departmentId: itCenter.id,
+      position: 'Bosh texnik muhandis / IT-mutaxassis',
+      isActive: true,
+    },
+    create: {
+      fullName: 'Qodirov Sardor',
+      username: 'injener',
+      email: 'injener@university.uz',
+      password: passwordHash,
+      phone: '+998 90 555 44 33',
+      position: 'Bosh texnik muhandis / IT-mutaxassis',
+      role: RoleType.ENGINEER,
+      departmentId: itCenter.id,
+      mustChangePassword: false,
+    },
+  });
+
   // 5. Birlamchi Xonalar
   console.log('5. Setting up initial facility rooms...');
 

@@ -30,7 +30,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     path: '/assets',
     label: 'Asosiy Vositalar',
     pageTitle: 'Asosiy Vositalar va Reestr Boshqaruvi',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'HEAD_WAREHOUSE', 'MOL', 'AUDITOR', 'CHIEF_ACCOUNTANT', 'COMMENDANT', 'RECTOR', 'VICE_RECTOR_FINANCE'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'HEAD_WAREHOUSE', 'MOL', 'AUDITOR', 'CHIEF_ACCOUNTANT', 'COMMENDANT', 'RECTOR', 'VICE_RECTOR_FINANCE', 'ENGINEER'],
   },
   {
     key: 'warehouse',
@@ -57,7 +57,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     path: '/repairs',
     label: 'Ta’mirlash & Servis',
     pageTitle: 'Ta’mirlash va Texnik Servis Jurnali',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'HEAD_WAREHOUSE', 'MOL'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'HEAD_WAREHOUSE', 'MOL', 'ENGINEER'],
   },
   {
     key: 'write-offs',

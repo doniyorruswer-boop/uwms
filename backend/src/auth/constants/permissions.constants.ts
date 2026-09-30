@@ -344,6 +344,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, string[]> = {
     'users:update',
     'users:reset_password',
     'users:delete',
+    'users:permissions',
   ],
 
   [RoleType.HEAD_WAREHOUSE]: [
@@ -606,5 +607,23 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, string[]> = {
     'repairs:create',
     'page:quotas',
     'quotas:read',
+  ],
+
+  [RoleType.ENGINEER]: [
+    'page:dashboard',
+    'dashboard:view_stats',
+    'page:inbox',
+    'inbox:sign',
+    'page:assets',
+    'assets:read',
+    'page:requests',
+    'requests:read',
+    'requests:update',
+    'page:repairs',
+    'repairs:read',
+    'repairs:create',
+    'repairs:update',
+    'page:organization',
+    'organization:read',
   ],
 };

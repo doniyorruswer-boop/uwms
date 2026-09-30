@@ -9,6 +9,7 @@ export const RoleType = {
   COMMENDANT: 'COMMENDANT',
   RECTOR: 'RECTOR',
   VICE_RECTOR_FINANCE: 'VICE_RECTOR_FINANCE',
+  ENGINEER: 'ENGINEER',
 } as const;
 
 export type RoleType = typeof RoleType[keyof typeof RoleType];
@@ -130,6 +131,17 @@ export interface ItemInstance {
   lastReprintReason?: string;
   lastReprintedAt?: string;
   history?: { date: string; action: string; user: string; room?: string }[];
+  engineerSignatures?: {
+    hasSignature?: boolean;
+    inspectionAct?: string | null;
+    inspectorName?: string | null;
+    repairAct?: string | null;
+    repairStatus?: string | null;
+    repairApproverName?: string | null;
+    writeOffAct?: string | null;
+  };
+  repairRecords?: any[];
+  writeOffRequests?: any[];
 }
 
 export interface StockItem {
@@ -173,6 +185,29 @@ export interface RequestItem {
   unit: string;
 }
 
+export interface TechnicalInspectionChecklist {
+  packagingIntegrity: boolean;
+  completeness: boolean;
+  powerSafety: boolean;
+  serialNumberMatch: boolean;
+  specsCompliance: boolean;
+  notes?: string | null;
+  inspectedAt?: string;
+  inspectorId?: string;
+  inspectorName?: string;
+  inspectorPosition?: string;
+}
+
+export interface EligibleEngineer {
+  id: string;
+  fullName: string;
+  username: string;
+  role: string;
+  position: string;
+  departmentName?: string;
+  phone?: string;
+}
+
 export interface RequestRecord {
   id: string;
   requestNumber: string;
@@ -184,6 +219,7 @@ export interface RequestRecord {
   requesterName: string;
   requesterRole?: string;
   requesterPosition?: string;   // Foydalanuvchi lavozimi (masalan: "Kafedra mudiri", "Prorektor", "Laborant")
+  requesterPhone?: string;      // Foydalanuvchi telefon raqami
   departmentId?: string;
   departmentName?: string;
   approvalNote?: string;
@@ -197,6 +233,15 @@ export interface RequestRecord {
   targetRoomNumber?: string;
   commendantId?: string;
   commendantName?: string;
+  requiresTechnicalInspection?: boolean;
+  assignedEngineerId?: string;
+  assignedEngineerName?: string;
+  assignedEngineerPosition?: string;
+  assignedEngineerPhone?: string;
+  engineerInspectedAt?: string;
+  engineerInspectedById?: string;
+  engineerInspectedByName?: string;
+  inspectionChecklist?: TechnicalInspectionChecklist;
   submittedAt?: string;
   prorektorApprovedAt?: string;
   prorektorApprovedById?: string;

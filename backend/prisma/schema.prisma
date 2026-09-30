@@ -18,6 +18,7 @@ enum RoleType {
   COMMENDANT
   RECTOR
   VICE_RECTOR_FINANCE
+  ENGINEER
 }
 
 enum ItemType {
@@ -137,6 +138,8 @@ model User {
   accountantFinancedRequests Request[]       @relation("AccountantFinancedRequests")
   warehouseReceivedRequests  Request[]       @relation("WarehouseReceivedRequests")
   commendantHandedRequests   Request[]       @relation("CommendantHandedRequests")
+  assignedEngineerRequests   Request[]       @relation("AssignedEngineerRequests")
+  engineerInspectedRequests  Request[]       @relation("EngineerInspectedRequests")
   commendantBuildings        Building[]       @relation("BuildingCommendant")
   managedWarehouses          Warehouse[]      @relation("WarehouseManager")
   departingHandovers         ResponsibilityHandover[] @relation("DepartingHandovers")
@@ -515,6 +518,15 @@ model Request {
   targetRoom      Room?         @relation("RequestTargetRoom", fields: [targetRoomId], references: [id], onDelete: SetNull)
   commendantId    String?
   commendant      User?         @relation("CommendantRequests", fields: [commendantId], references: [id], onDelete: SetNull)
+
+  // Technical engineer inspection (AKT-TEX)
+  requiresTechnicalInspection Boolean   @default(false)
+  assignedEngineerId          String?
+  assignedEngineer            User?     @relation("AssignedEngineerRequests", fields: [assignedEngineerId], references: [id], onDelete: SetNull)
+  engineerInspectedAt         DateTime?
+  engineerInspectedById       String?
+  engineerInspectedBy         User?     @relation("EngineerInspectedRequests", fields: [engineerInspectedById], references: [id], onDelete: SetNull)
+  inspectionChecklist         Json?
 
   // 7-step Workflow timestamps & signer IDs
   submittedAt            DateTime?     @default(now())

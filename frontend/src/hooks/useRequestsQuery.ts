@@ -1,8 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { API_ENDPOINTS } from '../constants';
-import type { RequestRecord, RequestStatus } from '../types';
+import type { RequestRecord, RequestStatus, EligibleEngineer } from '../types';
 import { Message } from '@arco-design/web-react';
+
+export function useEligibleEngineersQuery() {
+  return useQuery({
+    queryKey: ['eligible-engineers'],
+    queryFn: async () => {
+      const res = await apiClient.get<EligibleEngineer[]>(API_ENDPOINTS.REQUESTS.ELIGIBLE_ENGINEERS);
+      return res.data;
+    },
+  });
+}
 
 export function useRequestsQuery() {
   const queryClient = useQueryClient();
@@ -18,6 +28,9 @@ export function useRequestsQuery() {
   const createRequestMutation = useMutation({
     mutationFn: async (data: {
       purpose: string;
+      targetRoomId?: string;
+      requiresTechnicalInspection?: boolean;
+      assignedEngineerId?: string;
       items: { itemId?: string; itemName: string; quantity: number; unit?: string }[];
     }) => {
       const res = await apiClient.post(API_ENDPOINTS.REQUESTS.BASE, data);
@@ -120,6 +133,33 @@ export function useRequestsQuery() {
     },
   });
 
+  const submitInspectionMutation = useMutation({
+    mutationFn: async ({
+      id,
+      checklist,
+    }: {
+      id: string;
+      checklist: {
+        packagingIntegrity: boolean;
+        completeness: boolean;
+        powerSafety: boolean;
+        serialNumberMatch: boolean;
+        specsCompliance: boolean;
+        notes?: string;
+      };
+    }) => {
+      const res = await apiClient.post(API_ENDPOINTS.REQUESTS.ENGINEER_INSPECT(id), checklist);
+      return res.data;
+    },
+    onSuccess: () => {
+      Message.success('Texnik ko‘rik muvaffaqiyatli tasdiqlandi (AKT-TEX)!');
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+    },
+    onError: (err: any) => {
+      Message.error(err.response?.data?.message || 'Texnik ko‘rikni tasdiqlashda xatolik yuz berdi!');
+    },
+  });
+
   return {
     requests: requestsQuery.data || [],
     isLoading: requestsQuery.isLoading,
@@ -130,5 +170,6 @@ export function useRequestsQuery() {
     createRequest: createRequestMutation.mutateAsync,
     updateRequestStatus: updateStatusMutation.mutateAsync,
     advanceWorkflow: advanceWorkflowMutation.mutateAsync,
+    submitTechnicalInspection: submitInspectionMutation.mutateAsync,
   };
 }

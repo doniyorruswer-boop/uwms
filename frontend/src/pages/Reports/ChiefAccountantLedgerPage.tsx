@@ -774,12 +774,12 @@ export const ChiefAccountantLedgerPage: React.FC = () => {
                 title={
                   <Space>
                     <IconFile style={{ color: '#00b42a', fontSize: 18 }} />
-                    <Text bold>3-Varaqli Excel (.xlsx)</Text>
+                    <Text bold>Markaziy Excel Reestri (.xlsx)</Text>
                   </Space>
                 }
               >
                 <Paragraph type="secondary" style={{ minHeight: 90 }}>
-                  Universitetning barcha kirim (OS-1), chiqim (OS-2) va moddiy javobgarlar aylanma balansini WORM HMAC xeshi bilan jamlagan to‘liq reestr.
+                  Universitetning barcha kirim (OS-1), chiqim (OS-2), MOL balansi va Davlat Statistika (1-AV) ko‘rsatkichlarini WORM HMAC xeshi bilan jamlagan to‘liq reestr.
                 </Paragraph>
                 <Button
                   type="primary"
@@ -872,7 +872,7 @@ export const ChiefAccountantLedgerPage: React.FC = () => {
                   long
                   icon={<IconDownload />}
                   loading={exportMutation.isPending}
-                  onClick={() => handleExport('EXCEL_3SHEET')}
+                  onClick={() => handleExport('STAT_1AV')}
                 >
                   1-AV Shakli (.xlsx)
                 </Button>

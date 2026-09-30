@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsArray, ValidateNested, IsNumber, Min, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsArray, ValidateNested, IsNumber, Min, IsEnum, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { RequestStatus } from '@prisma/client';
@@ -36,11 +36,53 @@ export class CreateRequestDto {
   @IsOptional()
   departmentId?: string;
 
+  @ApiPropertyOptional({ description: 'Aktivlar joylashadigan xona ID si (agar xona uchun bo‘lsa)' })
+  @IsString()
+  @IsOptional()
+  targetRoomId?: string;
+
+  @ApiPropertyOptional({ description: 'Texnik ko‘rik (Injener) talab etiladimi?' })
+  @IsOptional()
+  @IsBoolean()
+  requiresTechnicalInspection?: boolean;
+
+  @ApiPropertyOptional({ description: 'Mas’ul Texnik Injener ID si' })
+  @IsOptional()
+  @IsString()
+  assignedEngineerId?: string;
+
   @ApiProperty({ type: [RequestItemDto], description: 'So‘ralayotgan mahsulotlar ro‘yxati' })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => RequestItemDto)
   items: RequestItemDto[];
+}
+
+export class SubmitTechnicalInspectionDto {
+  @ApiProperty({ description: '1. Qadoq va tashqi jismoniy butunligi tekshirildi' })
+  @IsBoolean()
+  packagingIntegrity: boolean;
+
+  @ApiProperty({ description: '2. Komplektatsiya va butlovchi qismlar to‘liq' })
+  @IsBoolean()
+  completeness: boolean;
+
+  @ApiProperty({ description: '3. Elektr va yong‘in xavfsizligi (Power-ON) sinovi' })
+  @IsBoolean()
+  powerSafety: boolean;
+
+  @ApiProperty({ description: '4. Zavod seriya raqami (S/N) va kafolat muvofiqligi' })
+  @IsBoolean()
+  serialNumberMatch: boolean;
+
+  @ApiProperty({ description: '5. Texnik parametrlar va shartnoma talablari mosligi' })
+  @IsBoolean()
+  specsCompliance: boolean;
+
+  @ApiPropertyOptional({ example: 'S/N: DL-992182 sinovdan o‘tdi, to‘liq soz holatda', description: 'Texnik xulosa va qo‘shimcha izohlar' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class UpdateRequestStatusDto {

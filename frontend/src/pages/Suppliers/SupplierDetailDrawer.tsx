@@ -49,7 +49,7 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
   const { data: supplier, isLoading } = useSupplierDetailQuery(supplierId);
   const [activeTab, setActiveTab] = useState('invoices');
   const user = useAuthStore((s) => s.user);
-  const canManage = user?.role === 'SUPER_ADMIN' || user?.role === 'HEAD_WAREHOUSE';
+  const canManage = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'HEAD_WAREHOUSE';
 
   const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return '—';

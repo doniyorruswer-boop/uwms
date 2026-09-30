@@ -23,6 +23,7 @@ export enum SubAccountFilter {
 export enum StateExportFormat {
   EXCEL = 'excel',
   EXCEL_3SHEET = 'EXCEL_3SHEET',
+  STAT_1AV = 'STAT_1AV',
   UZASBO = 'uzasbo',
   UZASBO_XML = 'UZASBO_XML',
   ONE_C = '1c',

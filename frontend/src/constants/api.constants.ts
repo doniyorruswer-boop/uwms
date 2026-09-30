@@ -92,6 +92,8 @@ export const API_ENDPOINTS = {
   // Talabnomalar (Zayavkalar)
   REQUESTS: {
     BASE: '/requests',
+    ELIGIBLE_ENGINEERS: '/requests/eligible-engineers',
+    ENGINEER_INSPECT: (id: string) => `/requests/${id}/engineer-inspect`,
     BY_ID: (id: string) => `/requests/${id}`,
     STATUS: (id: string) => `/requests/${id}/status`,
     APPROVE: (id: string) => `/requests/${id}/approve`,

@@ -61,6 +61,7 @@ const roleTagColors: Record<RoleType, string> = {
   [RoleType.COMMENDANT]: 'orange',
   [RoleType.RECTOR]: 'magenta',
   [RoleType.VICE_RECTOR_FINANCE]: 'green',
+  [RoleType.ENGINEER]: 'teal',
 };
 
 const roleLabels: Record<RoleType, string> = {
@@ -74,6 +75,7 @@ const roleLabels: Record<RoleType, string> = {
   [RoleType.COMMENDANT]: 'Bino Komendanti',
   [RoleType.RECTOR]: 'Universitet Rektori',
   [RoleType.VICE_RECTOR_FINANCE]: 'Moliya Prorektori',
+  [RoleType.ENGINEER]: 'Texnik Injener (IT / Muhandis)',
 };
 
 export const UsersPage: React.FC = () => {
@@ -101,6 +103,7 @@ export const UsersPage: React.FC = () => {
   const activeRoleQuery = useMemo(() => {
     if (roleTab === 'MOL') return RoleType.MOL;
     if (roleTab === 'EMPLOYEE') return RoleType.EMPLOYEE;
+    if (roleTab === 'ENGINEER') return RoleType.ENGINEER;
     return undefined;
   }, [roleTab]);
 
@@ -585,6 +588,7 @@ export const UsersPage: React.FC = () => {
           { key: 'ALL', title: 'Barcha Xodimlar', count: totalUsers },
           { key: 'MOL', title: 'Moddiy Javobgarlar (MOL)', count: molCount },
           { key: 'ADMIN', title: 'Administratorlar', count: adminCount },
+          { key: 'ENGINEER', title: 'Texnik Injenerlar' },
           { key: 'EMPLOYEE', title: 'Oddiy Xodimlar' },
           ...(canManageUsers
             ? [{ key: 'DELETED', title: 'O‘chirilganlar' }]

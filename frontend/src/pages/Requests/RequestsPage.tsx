@@ -37,6 +37,10 @@ import {
   IconMobile,
   IconWifi,
   IconDown,
+  IconSend,
+  IconEdit,
+  IconPhone,
+  IconTool,
 } from '@arco-design/web-react/icon';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRequestsQuery } from '../../hooks/useRequestsQuery';
@@ -54,6 +58,7 @@ import { OfficialDocModal } from '../../components/OfficialDocument/OfficialDocM
 import { TableActions } from '../../components/Common/TableActions';
 import { QRPairingModal } from '../../components/Common/QRPairingModal';
 import { NewRequestModal } from '../../components/Requests/NewRequestModal';
+import { TechnicalInspectionModal } from '../../components/Requests/TechnicalInspectionModal';
 import { StatusTag } from '../../components/Common/StatusTag';
 import { getStatusLabel, getStatusSelectOptions } from '../../constants/status.constants';
 
@@ -64,7 +69,17 @@ const { Row, Col } = Grid;
 export const RequestsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
-  const { requests, isLoading, isFetching, isError, refetch, createRequest, updateRequestStatus, advanceWorkflow } = useRequestsQuery();
+  const {
+    requests,
+    isLoading,
+    isFetching,
+    isError,
+    refetch,
+    createRequest,
+    updateRequestStatus,
+    advanceWorkflow,
+    submitTechnicalInspection,
+  } = useRequestsQuery();
   const { stocks } = useWarehouseQuery();
   const { user } = useAuthStore();
 
@@ -96,6 +111,12 @@ export const RequestsPage: React.FC = () => {
     payload?: any;
   } | null>(null);
   const [docModalType, setDocModalType] = useState<DocType>('TRANSFER');
+
+  // Texnik Ko‘rik (AKT-TEX) State
+  const [isInspectionModalVisible, setIsInspectionModalVisible] = useState<boolean>(false);
+  const [selectedInspectionRequest, setSelectedInspectionRequest] = useState<RequestRecord | null>(null);
+  const [isSubmittingInspection, setIsSubmittingInspection] = useState<boolean>(false);
+  const [pendingInspectionAction, setPendingInspectionAction] = useState<{ req: RequestRecord; checklist: any } | null>(null);
 
   // Reject Reason Modal State (Rule 4.1 & Rule 5.4)
   const [isRejectModalVisible, setIsRejectModalVisible] = useState<boolean>(false);
@@ -302,19 +323,39 @@ export const RequestsPage: React.FC = () => {
           description: 'Mablag‘ ajratildi, tovarlar xarid qilinib omborga qabul qilinishi kutilmoqda',
         };
       case 'RECEIVED_AT_WAREHOUSE':
-      case 'APPROVED_BY_WAREHOUSE':
+      case 'APPROVED_BY_WAREHOUSE': {
+        if (record?.requiresTechnicalInspection && !record?.engineerInspectedAt) {
+          return {
+            step: 6,
+            total: 7,
+            percent: 64,
+            title: '6/7: Mas’ul Injener Texnik Ko‘rigi (AKT-TEX)',
+            currentActor: record?.assignedEngineerName
+              ? `Mas’ul Injener (${record.assignedEngineerName})`
+              : 'Mas’ul Texnik Injener',
+            color: '#165DFF',
+            badgeStatus: 'processing' as const,
+            description: 'Tovarlar omborda (OS-1). Topshirishdan oldin mas’ul injener tomonidan 5 bosqichli xavfsizlik va sozlik ko‘rigi (AKT-TEX) o‘tkazilishi kutilmoqda',
+          };
+        }
+        const hasRoom = Boolean(record?.targetRoomId || record?.targetRoomName || record?.targetRoomNumber);
         return {
           step: 6,
           total: 7,
           percent: 71,
-          title: '6/7: Binoga Topshirish (OS-2)',
-          currentActor: record?.commendantHandedByName || record?.commendantName
-            ? `Bosh omborchi va Bino komendanti (${record.commendantHandedByName || record.commendantName})`
-            : 'Bosh omborchi va Bino komendanti',
+          title: hasRoom ? '6/7: Komendantga Topshirish (OS-2)' : '6/7: Bo‘lim Mas’uliga Topshirish (OS-2 — Komendantsiz)',
+          currentActor: hasRoom
+            ? (record?.commendantHandedByName || record?.commendantName
+                ? `Bosh omborchi va Bino komendanti (${record.commendantHandedByName || record.commendantName})`
+                : 'Bosh omborchi va Bino komendanti')
+            : (record?.requesterName ? `Bosh omborchi va Bo‘lim mas’uli (${record.requesterName})` : 'Bosh omborchi va Bo‘lim mas’uli'),
           color: '#0fc6c2',
           badgeStatus: 'processing' as const,
-          description: 'Mahsulot bosh omborga keldi (OS-1). Bino komendantiga topshirish kutilmoqda',
+          description: hasRoom
+            ? (record?.requiresTechnicalInspection ? 'Texnik ko‘rikdan o‘tgan (Soz). Bino komendantiga OS-2 nakladnoy bilan topshirilishi kutilmoqda' : 'Mahsulot omborga keldi (OS-1). Bino komendantiga OS-2 nakladnoy bilan topshirilishi kutilmoqda')
+            : (record?.requiresTechnicalInspection ? 'Texnik ko‘rikdan o‘tgan (Soz). Bo‘lim mas’uliga to‘g‘ridan-to‘g‘ri (komendantsiz) OS-2 bilan topshirilishi kutilmoqda' : 'Mahsulot omborga keldi (OS-1). Bo‘lim mas’uliga to‘g‘ridan-to‘g‘ri (komendantsiz) OS-2 bilan topshirilishi kutilmoqda'),
         };
+      }
       case 'HANDED_TO_COMMENDANT':
         return {
           step: 7,
@@ -328,17 +369,21 @@ export const RequestsPage: React.FC = () => {
           badgeStatus: 'processing' as const,
           description: 'Ashyolar binoga yetkazildi (OS-2). Komendant bilan xonada o‘zaro qabul qilib imzolash kutilmoqda',
         };
-      case 'FULFILLED':
+      case 'FULFILLED': {
+        const isDirect = !record?.commendantHandedAt;
         return {
           step: 7,
           total: 7,
           percent: 100,
-          title: '7/7: To‘liq Topshirildi (Balansda)',
+          title: isDirect ? 'To‘liq Topshirildi (Komendantsiz)' : '7/7: To‘liq Topshirildi (Balansda)',
           currentActor: record?.requesterName || 'Talabgor (Mas’ul)',
           color: '#00b42a',
           badgeStatus: 'success' as const,
-          description: 'Ashyolar kafedraga topshirildi, yakuniy dalolatnoma imzolandi va balansga o‘tdi',
+          description: isDirect
+            ? 'Ashyolar ombordan to‘g‘ridan-to‘g‘ri bo‘limga topshirildi va balansga o‘tdi (Komendantsiz)'
+            : 'Ashyolar kafedraga topshirildi, yakuniy dalolatnoma imzolandi va balansga o‘tdi',
         };
+      }
       case 'REJECTED':
         return {
           step: 1,
@@ -533,6 +578,32 @@ export const RequestsPage: React.FC = () => {
     setIsQrModalVisible(true);
   };
 
+  const handleDirectHandover = (req: RequestRecord, e?: any) => {
+    e?.stopPropagation?.();
+    setPendingWorkflowAction({
+      req,
+      targetStatus: 'FULFILLED',
+      payload: { note: 'Ombordan to‘g‘ridan-to‘g‘ri bo‘lim mas’uliga topshirildi (Komendantsiz)' },
+    });
+    setQrSignPayload({
+      docNumber: `${req.requestNumber}-OS2`,
+      docType: 'OS_2',
+      title: `Bo‘limga To‘g‘ridan-to‘g‘ri Topshirish (OS-2 Chiqim: ${req.requestNumber})`,
+      departmentName: req.departmentName || undefined,
+      itemSummary: req.items.map((i) => `${i.itemName} (${i.requestedQty} ${i.unit})`).join(', '),
+      targetSignerName: req.requesterName || 'Bo‘lim mas’ul xodimi',
+      targetSignerRole: (req as any).requesterPosition || req.requesterRole || 'Bo‘lim mas’uli',
+      metadata: {
+        stage: 'DIRECT_DEPARTMENT_HANDOVER',
+        reqId: req.id,
+        sender: 'Bosh ombor mudiri',
+        receiver: req.requesterName,
+      },
+    });
+    setIsQrModalVisible(true);
+  };
+
+
   const handleMudirFulfill = (req: RequestRecord, e?: any) => {
     e?.stopPropagation?.();
     setPendingWorkflowAction({
@@ -554,6 +625,37 @@ export const RequestsPage: React.FC = () => {
         reqId: req.id,
         sender: req.commendantName || req.commendantHandedByName || 'Bino komendanti',
         receiver: req.requesterName,
+      },
+    });
+    setIsQrModalVisible(true);
+  };
+
+  const handleOpenInspectionModal = (req: RequestRecord, e?: any) => {
+    e?.stopPropagation?.();
+    setSelectedInspectionRequest(req);
+    setIsInspectionModalVisible(true);
+  };
+
+  const handleConfirmInspection = async (checklist: any) => {
+    if (!selectedInspectionRequest) return;
+    setIsInspectionModalVisible(false);
+    setPendingInspectionAction({
+      req: selectedInspectionRequest,
+      checklist,
+    });
+    setQrSignPayload({
+      docNumber: `${selectedInspectionRequest.requestNumber}-AKT-TEX`,
+      docType: 'AKT_TEX',
+      title: `Texnik Ko‘rik va Sozlik Dalolatnomasi (AKT-TEX: ${selectedInspectionRequest.requestNumber})`,
+      departmentName: selectedInspectionRequest.departmentName || undefined,
+      itemSummary: selectedInspectionRequest.items.map((i) => `${i.itemName} (${i.requestedQty} ${i.unit})`).join(', '),
+      targetSignerName: selectedInspectionRequest.assignedEngineerName || user?.fullName || 'Mas’ul Injener',
+      targetSignerRole: (user as any)?.position || 'Mas’ul Injener / IT Mutaxassisi',
+      metadata: {
+        stage: 'ENGINEER_INSPECTION',
+        reqId: selectedInspectionRequest.id,
+        engineerId: user?.id,
+        checklist,
       },
     });
     setIsQrModalVisible(true);
@@ -586,6 +688,28 @@ export const RequestsPage: React.FC = () => {
         Message.error(err?.response?.data?.message || 'Bosqichni o‘tkazishda xatolik yuz berdi');
       }
       setPendingWorkflowAction(null);
+    } else if (pendingInspectionAction) {
+      const targetReq = pendingInspectionAction.req;
+      try {
+        setIsSubmittingInspection(true);
+        await submitTechnicalInspection({
+          id: targetReq.id,
+          checklist: pendingInspectionAction.checklist,
+        });
+        // Ssenariy 5: Muhrlangan rasmiy elektron AKT-TEX hujjatini avtomatik ochish
+        setSelectedDocRequest({
+          ...targetReq,
+          engineerInspectedAt: new Date().toISOString(),
+          engineerInspectedByName: user?.fullName || targetReq.assignedEngineerName || 'Mas’ul Injener',
+        });
+        setDocModalType('AKT_TEX');
+        setIsDocModalVisible(true);
+      } catch (err: any) {
+        Message.error(err?.response?.data?.message || 'Texnik ko‘rikni tasdiqlashda xatolik yuz berdi');
+      } finally {
+        setIsSubmittingInspection(false);
+        setPendingInspectionAction(null);
+      }
     }
     setIsQrModalVisible(false);
     refetch();
@@ -612,37 +736,40 @@ export const RequestsPage: React.FC = () => {
     }
 
     if (docModalType === 'TRANSFER') {
+      const hasRoom = Boolean(selectedDocRequest.targetRoomId || selectedDocRequest.targetRoomName || selectedDocRequest.targetRoomNumber);
+      const isDirect = !hasRoom || (!selectedDocRequest.commendantHandedAt && selectedDocRequest.status === 'FULFILLED');
       const isSigned =
         Boolean(selectedDocRequest.commendantHandedAt) ||
         ['HANDED_TO_COMMENDANT', 'FULFILLED'].includes(selectedDocRequest.status);
+      const signTime = selectedDocRequest.fulfilledAt || selectedDocRequest.commendantHandedAt;
       return [
         {
           role: 'Topshiruvchi bosh ombor mudiri',
           name: (selectedDocRequest as any).warehouseReceivedByName || 'Bosh ombor mudiri',
           isSigned,
-          signedAt: selectedDocRequest.commendantHandedAt
-            ? new Date(selectedDocRequest.commendantHandedAt).toLocaleString('uz-UZ')
-            : undefined,
+          signedAt: signTime ? new Date(signTime).toLocaleString('uz-UZ') : undefined,
           biometricType: 'Dinamik Mobil QR-Pairing (Biometrik Tasdiq)',
         },
         {
-          role: 'Qabul qiluvchi bino komendanti',
-          name: selectedDocRequest.commendantName || 'Bino komendanti',
+          role: isDirect ? `Qabul qiluvchi mas'ul (${(selectedDocRequest as any).requesterPosition || 'Bo‘lim mas’uli'})` : 'Qabul qiluvchi bino komendanti',
+          name: isDirect ? selectedDocRequest.requesterName : (selectedDocRequest.commendantName || 'Bino komendanti'),
           isSigned,
-          signedAt: selectedDocRequest.commendantHandedAt
-            ? new Date(selectedDocRequest.commendantHandedAt).toLocaleString('uz-UZ')
-            : undefined,
+          signedAt: signTime ? new Date(signTime).toLocaleString('uz-UZ') : undefined,
           biometricType: 'Dinamik Mobil QR-Pairing (Biometrik Tasdiq)',
         },
       ];
     }
 
     if (docModalType === 'KAFEDRA_HANDOVER') {
+      const hasRoom = Boolean(selectedDocRequest.targetRoomId || selectedDocRequest.targetRoomName || selectedDocRequest.targetRoomNumber);
+      const isDirect = !hasRoom || (!selectedDocRequest.commendantHandedAt && selectedDocRequest.status === 'FULFILLED');
       const isSigned = Boolean(selectedDocRequest.fulfilledAt) || selectedDocRequest.status === 'FULFILLED';
       return [
         {
-          role: 'Topshiruvchi bino komendanti',
-          name: selectedDocRequest.commendantName || (selectedDocRequest as any).commendantHandedByName || 'Bino komendanti',
+          role: isDirect ? 'Topshiruvchi bosh ombor mudiri' : 'Topshiruvchi bino komendanti',
+          name: isDirect
+            ? ((selectedDocRequest as any).warehouseReceivedByName || 'Bosh ombor mudiri')
+            : (selectedDocRequest.commendantName || (selectedDocRequest as any).commendantHandedByName || 'Bino komendanti'),
           isSigned,
           signedAt: selectedDocRequest.fulfilledAt
             ? new Date(selectedDocRequest.fulfilledAt).toLocaleString('uz-UZ')
@@ -651,11 +778,38 @@ export const RequestsPage: React.FC = () => {
         },
         {
           role: `Qabul qiluvchi mas'ul: ${(selectedDocRequest as any).requesterPosition || 'Bo\'lim / Kafedra Boshlig\'i / Xodim'}`,
-
           name: selectedDocRequest.requesterName,
           isSigned,
           signedAt: selectedDocRequest.fulfilledAt
             ? new Date(selectedDocRequest.fulfilledAt).toLocaleString('uz-UZ')
+            : undefined,
+          biometricType: 'Dinamik Mobil QR-Pairing (Biometrik Tasdiq)',
+        },
+      ];
+    }
+
+    if (docModalType === 'AKT_TEX') {
+      const isSigned = Boolean(selectedDocRequest.engineerInspectedAt);
+      return [
+        {
+          role: 'Topshiruvchi / Saqlovchi: Bosh ombor mudiri',
+          name: (selectedDocRequest as any).warehouseReceivedByName || 'Bosh ombor mudiri',
+          isSigned: Boolean(selectedDocRequest.warehouseReceivedAt),
+          signedAt: selectedDocRequest.warehouseReceivedAt
+            ? new Date(selectedDocRequest.warehouseReceivedAt).toLocaleString('uz-UZ')
+            : undefined,
+          biometricType: 'Dinamik Mobil QR-Pairing (Biometrik Tasdiq)',
+        },
+        {
+          role: 'Texnik ko‘rikdan o‘tkazgan: Mas’ul Texnik Injener',
+          name:
+            selectedDocRequest.assignedEngineerName ||
+            selectedDocRequest.engineerInspectedByName ||
+            (selectedDocRequest as any).assignedEngineer?.name ||
+            'Mas’ul Injener',
+          isSigned,
+          signedAt: selectedDocRequest.engineerInspectedAt
+            ? new Date(selectedDocRequest.engineerInspectedAt).toLocaleString('uz-UZ')
             : undefined,
           biometricType: 'Dinamik Mobil QR-Pairing (Biometrik Tasdiq)',
         },
@@ -706,8 +860,23 @@ export const RequestsPage: React.FC = () => {
     setIsDetailModalVisible(true);
   };
 
+  const handleCloneOrResubmit = (req: RequestRecord, e?: any) => {
+    e?.stopPropagation?.();
+    const clonedItems = req.items.map((i) => ({
+      itemId: i.itemId || undefined,
+      itemName: i.itemName,
+      quantity: i.requestedQty,
+      unit: i.unit,
+    }));
+    setDraftItems(clonedItems);
+    setInitialPurpose(req.purpose || '');
+    setIsDetailModalVisible(false);
+    setIsNewModalVisible(true);
+  };
+
   const handleNewRequestSubmit = async (payload: {
     purpose: string;
+    targetRoomId?: string;
     items: Array<{ itemId?: string; itemName: string; quantity: number; unit?: string }>;
   }) => {
     await createRequest(payload);
@@ -841,18 +1010,46 @@ export const RequestsPage: React.FC = () => {
                   color="#165DFF"
                   bg="#E8F3FF"
                 />
+                {record.requesterPhone && (
+                  <div style={{ marginTop: 3, fontSize: 11, color: 'var(--color-text-3)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <IconPhone style={{ fontSize: 11, color: '#165DFF' }} />
+                    <a
+                      href={`tel:${record.requesterPhone}`}
+                      style={{ color: '#165DFF', textDecoration: 'none', fontWeight: 500 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {record.requesterPhone}
+                    </a>
+                  </div>
+                )}
               </div>
             ),
           },
           {
             title: 'Bo‘lim / Kafedra',
             dataIndex: 'departmentName',
-            width: 200,
-            render: (deptName: string) => (
-              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-1)', lineHeight: 1.4 }}>
-                {deptName || '—'}
-              </div>
-            ),
+            width: 220,
+            render: (deptName: string, record: RequestRecord) => {
+              const hasRoom = Boolean(record.targetRoomId || record.targetRoomName || record.targetRoomNumber);
+              const roomLabel = record.targetRoomNumber ? `${record.targetRoomNumber}-xona` : record.targetRoomName;
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-1)', lineHeight: 1.4 }}>
+                    {deptName || '—'}
+                  </div>
+                  {hasRoom ? (
+                    <Tag size="small" color="arcoblue" style={{ width: 'fit-content', borderRadius: 2, fontSize: 10, padding: '0 4px' }}>
+                      🏛 Komendant orqali ({roomLabel || 'Xona'})
+                    </Tag>
+                  ) : (
+                    <Tag size="small" color="green" style={{ width: 'fit-content', borderRadius: 2, fontSize: 10, padding: '0 4px' }}>
+                      ⚡ To‘g‘ridan-to‘g‘ri (Obyekt / Xonasiz)
+                    </Tag>
+                  )}
+                </div>
+              );
+            },
           },
           {
             title: 'So‘ralayotgan Mahsulotlar',
@@ -948,7 +1145,8 @@ export const RequestsPage: React.FC = () => {
                 record.status === 'HANDED_TO_COMMENDANT' ||
                 record.status === 'FULFILLED';
               const hasHandover = record.status === 'FULFILLED';
-              const hasDocs = hasOS1 || hasOS2 || hasHandover;
+              const hasAktTex = Boolean(record.engineerInspectedAt);
+              const hasDocs = hasOS1 || hasOS2 || hasHandover || hasAktTex;
 
               if (!hasDocs) {
                 return (
@@ -971,6 +1169,17 @@ export const RequestsPage: React.FC = () => {
                       </Space>
                     </Menu.Item>
                   )}
+                  {hasAktTex && (
+                    <Menu.Item
+                      key="doc-akt-tex"
+                      onClick={(e) => handleOpenDocModal(record, 'AKT_TEX', e)}
+                    >
+                      <Space size={8}>
+                        <IconTool style={{ color: '#0fc6c2' }} />
+                        <span>AKT-TEX Sozlik Dalolatnomasi</span>
+                      </Space>
+                    </Menu.Item>
+                  )}
                   {hasOS2 && (
                     <Menu.Item
                       key="doc-os2"
@@ -978,7 +1187,11 @@ export const RequestsPage: React.FC = () => {
                     >
                       <Space size={8}>
                         <IconFile style={{ color: '#ff7d00' }} />
-                        <span>OS-2 Ombordan Binoga Chiqim</span>
+                        <span>
+                          {record.targetRoomId || record.targetRoomName || record.targetRoomNumber
+                            ? 'OS-2 Ombordan Binoga Chiqim'
+                            : 'OS-2 Ombordan Bo‘limga Chiqim (Komendantsiz)'}
+                        </span>
                       </Space>
                     </Menu.Item>
                   )}
@@ -989,7 +1202,11 @@ export const RequestsPage: React.FC = () => {
                     >
                       <Space size={8}>
                         <IconFile style={{ color: '#00b42a' }} />
-                        <span>Topshirish-Qabul Qilish Akti</span>
+                        <span>
+                          {record.targetRoomId || record.targetRoomName || record.targetRoomNumber
+                            ? 'Xonada Qabul Qilish Akti'
+                            : 'Bo‘lim Qabul Qilish Akti'}
+                        </span>
                       </Space>
                     </Menu.Item>
                   )}
@@ -1019,7 +1236,7 @@ export const RequestsPage: React.FC = () => {
           },
           {
             title: 'Amallar',
-            width: 140,
+            width: 160,
             fixed: 'right' as const,
             render: (_, record: RequestRecord) => {
               const canProrektorApprove =
@@ -1040,9 +1257,28 @@ export const RequestsPage: React.FC = () => {
                 record.status === 'FINANCED_BY_ACCOUNTANT' &&
                 user?.role === 'HEAD_WAREHOUSE';
 
+              const hasRoomForRecord = Boolean(record.targetRoomId || record.targetRoomName || record.targetRoomNumber);
+
+              const isInspectionPending = Boolean(record.requiresTechnicalInspection && !record.engineerInspectedAt);
+              const isAssignedEngineer = Boolean(
+                user?.id === record.assignedEngineerId ||
+                /injener|muhandis|texnik/i.test(user?.position || '') ||
+                user?.role === 'SUPER_ADMIN' ||
+                user?.role === 'ADMIN'
+              );
+              const canInspect =
+                isInspectionPending &&
+                record.status === 'RECEIVED_AT_WAREHOUSE' &&
+                isAssignedEngineer;
+
+              const canWarehouseDirectHandover =
+                record.status === 'RECEIVED_AT_WAREHOUSE' &&
+                (user?.role === 'HEAD_WAREHOUSE' || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN');
+
               const canCommendantHandover =
                 record.status === 'RECEIVED_AT_WAREHOUSE' &&
-                user?.role === 'COMMENDANT';
+                hasRoomForRecord &&
+                (user?.role === 'COMMENDANT' || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN');
 
               const isRequester = user?.id === record.requesterId;
               const isDeptMol =
@@ -1052,6 +1288,13 @@ export const RequestsPage: React.FC = () => {
               const canMudirFulfill =
                 record.status === 'HANDED_TO_COMMENDANT' &&
                 user?.role !== 'COMMENDANT' &&
+                (isRequester || isDeptMol);
+
+              const canMudirDirectFulfill =
+                record.status === 'RECEIVED_AT_WAREHOUSE' &&
+                !hasRoomForRecord &&
+                user?.role !== 'COMMENDANT' &&
+                user?.role !== 'HEAD_WAREHOUSE' &&
                 (isRequester || isDeptMol);
 
               const canReject =
@@ -1129,10 +1372,75 @@ export const RequestsPage: React.FC = () => {
                     </Tooltip>
                   );
                 }
-                if (canCommendantHandover) {
+                if (canInspect) {
                   return (
-                    <Tooltip content="Binoga qabul qilib olish (OS-2 QR)">
+                    <Tooltip content={`Mas’ul injener ko‘rigi (AKT-TEX): 5 bosqichli xavfsizlik va sozlik tekshiruvi. ${record.assignedEngineerName ? `Biriktirilgan: ${record.assignedEngineerName}` : ''}`}>
                       <Button
+                        size="small"
+                        type="primary"
+                        icon={<IconTool />}
+                        onClick={(e) => handleOpenInspectionModal(record, e)}
+                        style={{
+                          borderRadius: 0,
+                          padding: '0 8px',
+                          background: '#0fc6c2',
+                          borderColor: '#0fc6c2',
+                        }}
+                      >
+                        Texnik Ko‘rik
+                      </Button>
+                    </Tooltip>
+                  );
+                }
+                const hasRoom = Boolean(record.targetRoomId || record.targetRoomName || record.targetRoomNumber);
+
+                if (canWarehouseDirectHandover && user?.role === 'HEAD_WAREHOUSE') {
+                  return (
+                    <Space size={4}>
+                      <Tooltip content={isInspectionPending ? "Diqqat: Mas’ul injener tomonidan texnik ko‘rik (AKT-TEX) o‘tkazilishi kutilmoqda! Topshirish bloklangan." : "Komendantsiz: to‘g‘ridan-to‘g‘ri bo‘lim mas’uliga topshirish (Obyekt/Sarf)"}>
+                        <Button
+                          disabled={isInspectionPending}
+                          size="small"
+                          type={!hasRoom ? 'primary' : 'outline'}
+                          icon={<IconSend />}
+                          onClick={(e) => handleDirectHandover(record, e)}
+                          style={{
+                            borderRadius: 0,
+                            padding: '0 6px',
+                            background: !isInspectionPending && !hasRoom ? '#00b42a' : undefined,
+                            borderColor: '#00b42a',
+                            color: !isInspectionPending && !hasRoom ? '#fff' : '#00b42a',
+                          }}
+                        >
+                          Bo‘limga
+                        </Button>
+                      </Tooltip>
+                      <Tooltip content={isInspectionPending ? "Diqqat: Mas’ul injener tomonidan texnik ko‘rik (AKT-TEX) o‘tkazilishi kutilmoqda! Topshirish bloklangan." : "Binoga qabul / Bino komendantiga topshirish (Xona aktivlari uchun)"}>
+                        <Button
+                          disabled={isInspectionPending}
+                          size="small"
+                          type={hasRoom ? 'primary' : 'outline'}
+                          icon={<IconCheck />}
+                          onClick={(e) => handleCommendantHandover(record, e)}
+                          style={{
+                            borderRadius: 0,
+                            padding: '0 6px',
+                            background: !isInspectionPending && hasRoom ? '#ff7d00' : undefined,
+                            borderColor: '#ff7d00',
+                            color: !isInspectionPending && hasRoom ? '#fff' : '#ff7d00',
+                          }}
+                        >
+                          Binoga
+                        </Button>
+                      </Tooltip>
+                    </Space>
+                  );
+                }
+                if (canCommendantHandover && user?.role === 'COMMENDANT') {
+                  return (
+                    <Tooltip content={isInspectionPending ? "Diqqat: Mas’ul injener tomonidan texnik ko‘rik (AKT-TEX) o‘tkazilishi kutilmoqda! Topshirish bloklangan." : "Binoga qabul qilib olish (OS-2 QR)"}>
+                      <Button
+                        disabled={isInspectionPending}
                         size="small"
                         type="primary"
                         icon={<IconCheck />}
@@ -1142,6 +1450,53 @@ export const RequestsPage: React.FC = () => {
                         Binoga Qabul
                       </Button>
                     </Tooltip>
+                  );
+                }
+                if (canMudirDirectFulfill) {
+                  return (
+                    <Tooltip content={isInspectionPending ? "Diqqat: Mas’ul injener tomonidan texnik ko‘rik (AKT-TEX) kutilmoqda" : "Ombordan to‘g‘ridan-to‘g‘ri qabul qilib olish (Komendantsiz)"}>
+                      <Button
+                        disabled={isInspectionPending}
+                        size="small"
+                        type="primary"
+                        status="success"
+                        icon={<IconCheckCircle />}
+                        onClick={(e) => handleDirectHandover(record, e)}
+                        style={{ borderRadius: 0, padding: '0 8px' }}
+                      >
+                        Ombordan qabul
+                      </Button>
+                    </Tooltip>
+                  );
+                }
+                if (canWarehouseDirectHandover && (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')) {
+                  return (
+                    <Space size={4}>
+                      <Tooltip content={isInspectionPending ? "Diqqat: Mas’ul injener tomonidan texnik ko‘rik (AKT-TEX) kutilmoqda" : "Komendantsiz: to‘g‘ridan-to‘g‘ri bo‘lim mas’uliga topshirish"}>
+                        <Button
+                          disabled={isInspectionPending}
+                          size="small"
+                          type="primary"
+                          icon={<IconSend />}
+                          onClick={(e) => handleDirectHandover(record, e)}
+                          style={{ borderRadius: 0, padding: '0 6px', background: '#00b42a', borderColor: '#00b42a' }}
+                        >
+                          Bo‘limga
+                        </Button>
+                      </Tooltip>
+                      <Tooltip content={isInspectionPending ? "Diqqat: Mas’ul injener tomonidan texnik ko‘rik (AKT-TEX) kutilmoqda" : "Binoga qabul (OS-2 QR)"}>
+                        <Button
+                          disabled={isInspectionPending}
+                          size="small"
+                          type="primary"
+                          icon={<IconCheck />}
+                          onClick={(e) => handleCommendantHandover(record, e)}
+                          style={{ borderRadius: 0, padding: '0 6px', background: '#ff7d00', borderColor: '#ff7d00' }}
+                        >
+                          Binoga
+                        </Button>
+                      </Tooltip>
+                    </Space>
                   );
                 }
                 if (canMudirFulfill) {
@@ -1156,6 +1511,22 @@ export const RequestsPage: React.FC = () => {
                         style={{ borderRadius: 0, padding: '0 8px' }}
                       >
                         Qabul qilish
+                      </Button>
+                    </Tooltip>
+                  );
+                }
+                if (record.status === 'REJECTED' && (user?.id === record.requesterId || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')) {
+                  return (
+                    <Tooltip content="Zayavka rad etilgan: xatolarini to‘g‘rilab qayta yuborish">
+                      <Button
+                        size="small"
+                        type="primary"
+                        status="warning"
+                        icon={<IconEdit />}
+                        onClick={(e) => handleCloneOrResubmit(record, e)}
+                        style={{ borderRadius: 0, padding: '0 8px' }}
+                      >
+                        Qayta tuzatish
                       </Button>
                     </Tooltip>
                   );
@@ -1265,7 +1636,9 @@ export const RequestsPage: React.FC = () => {
                   if (selectedRequest) handleOpenDocModal(selectedRequest, 'TRANSFER');
                 }}
               >
-                OS-2 Nakladnoy
+                {selectedRequest.targetRoomId || selectedRequest.targetRoomName || selectedRequest.targetRoomNumber
+                  ? 'OS-2 Nakladnoy (Binoga)'
+                  : 'OS-2 Chiqim Yuk Xati (Bo‘limga)'}
               </Button>
             )}
             {selectedRequest?.status === 'FULFILLED' && (
@@ -1277,7 +1650,20 @@ export const RequestsPage: React.FC = () => {
                 }}
                 style={{ color: '#096dd9', borderColor: '#91d5ff', backgroundColor: '#e6f7ff' }}
               >
-                Qabul Dalolatnomasi (Akt)
+                {selectedRequest.targetRoomId || selectedRequest.targetRoomName || selectedRequest.targetRoomNumber
+                  ? 'Xonada Qabul Dalolatnomasi'
+                  : 'Bo‘lim Qabul Dalolatnomasi'}
+              </Button>
+            )}
+            {selectedRequest?.status === 'REJECTED' &&
+              (user?.id === selectedRequest.requesterId || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+              <Button
+                type="primary"
+                status="warning"
+                icon={<IconEdit />}
+                onClick={() => handleCloneOrResubmit(selectedRequest)}
+              >
+                Tahrirlash va Qayta Yuborish
               </Button>
             )}
             <Button type="primary" onClick={() => setIsDetailModalVisible(false)}>
@@ -1288,6 +1674,8 @@ export const RequestsPage: React.FC = () => {
       >
         {selectedRequest && (() => {
           const stageDetails = getStageDetails(selectedRequest.status, selectedRequest);
+          const hasRoom = Boolean(selectedRequest.targetRoomId || selectedRequest.targetRoomName || selectedRequest.targetRoomNumber);
+          const roomLabel = selectedRequest.targetRoomNumber ? `${selectedRequest.targetRoomNumber}-xona` : selectedRequest.targetRoomName;
           return (
           <div>
             {/* Live Progress Hero Banner */}
@@ -1328,6 +1716,14 @@ export const RequestsPage: React.FC = () => {
               <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-2)' }}>
                 <b>Hozirgi mas’ul:</b> {stageDetails.currentActor}
               </div>
+              {selectedRequest.status === 'REJECTED' && selectedRequest.approvalNote && (
+                <div style={{ marginTop: 10, padding: '10px 14px', background: '#ffece8', border: '1px solid #ff7d00', borderRadius: 4, color: '#f53f3f', fontSize: 13 }}>
+                  <b>Rad etilish sababi / Izoh:</b> {selectedRequest.approvalNote}
+                  <div style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-2)' }}>
+                    Xatoliklarni to‘g‘rilab, yangi talabnoma sifatida qayta yuborish uchun pastdagi <b>"Tahrirlash va Qayta Yuborish"</b> tugmasidan foydalanishingiz mumkin.
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 7-Step Workflow Tracker */}
@@ -1343,6 +1739,26 @@ export const RequestsPage: React.FC = () => {
                     <div style={{ fontSize: 13, marginTop: 4 }}>
                       <div><b>Yuborilgan sana:</b> {selectedRequest.submittedAt ? new Date(selectedRequest.submittedAt).toLocaleString() : selectedRequest.createdAt}</div>
                       <div><b>Tashabbuskor:</b> {selectedRequest.requesterName} · {(selectedRequest as any).requesterPosition || 'Xodim'} ({selectedRequest.departmentName || 'Bo\'lim'})</div>
+                      {selectedRequest.requesterPhone && (
+                        <div style={{ marginTop: 3 }}>
+                          <b>Bog‘lanish (Telefon):</b>{' '}
+                          <a
+                            href={`tel:${selectedRequest.requesterPhone}`}
+                            style={{
+                              color: '#165DFF',
+                              fontWeight: 600,
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <IconPhone style={{ fontSize: 13 }} />
+                            {selectedRequest.requesterPhone}
+                          </a>
+                        </div>
+                      )}
                     </div>
                   }
                 />
@@ -1400,21 +1816,49 @@ export const RequestsPage: React.FC = () => {
                   }
                 />
                 <Step
-                  title="6. Bino Komendantiga Topshirish (OS-2 Nakladnoy)"
+                  title={
+                    !hasRoom
+                      ? "6. Bo‘lim Mas’uliga To‘g‘ridan-to‘g‘ri Topshirish (OS-2 Chiqim — Komendantsiz)"
+                      : "6. Bino Komendantiga Topshirish (OS-2 Nakladnoy)"
+                  }
                   description={
                     <div style={{ fontSize: 13, marginTop: 4 }}>
-                      <div><b>Holat:</b> {selectedRequest.commendantHandedAt || getStepCurrent(selectedRequest.status) > 6 ? '✅ Omborchi va Komendant o‘rtasida OS-2 nakladnoyi imzolandi' : getStepCurrent(selectedRequest.status) === 6 ? '⏳ Ombordan binoga topshirish kutilmoqda' : '⏳ Kutilmoqda'}</div>
-                      {selectedRequest.commendantHandedAt && (
-                        <div><b>Sana:</b> {new Date(selectedRequest.commendantHandedAt).toLocaleString()}</div>
+                      <div><b>Holat:</b> {
+                        !hasRoom
+                          ? (selectedRequest.status === 'FULFILLED'
+                              ? '✅ Ombordan to‘g‘ridan-to‘g‘ri bo‘lim mas’uliga topshirildi (Komendant ishtirok etmadi)'
+                              : getStepCurrent(selectedRequest.status) === 6
+                              ? '⏳ Ombordan to‘g‘ridan-to‘g‘ri bo‘lim mas’uliga topshirish kutilmoqda (Komendantsiz)'
+                              : '⏳ Kutilmoqda (Komendant ishtirok etmaydi, to‘g‘ridan-to‘g‘ri bo‘limga)')
+                          : (selectedRequest.commendantHandedAt || getStepCurrent(selectedRequest.status) > 6
+                              ? '✅ Omborchi va Komendant o‘rtasida OS-2 nakladnoyi imzolandi'
+                              : getStepCurrent(selectedRequest.status) === 6
+                              ? '⏳ Ombordan bino komendantiga topshirish kutilmoqda'
+                              : '⏳ Kutilmoqda')
+                      }</div>
+                      {(selectedRequest.commendantHandedAt || (!selectedRequest.commendantHandedAt && selectedRequest.fulfilledAt)) && (
+                        <div><b>Sana:</b> {new Date(selectedRequest.commendantHandedAt || selectedRequest.fulfilledAt!).toLocaleString()}</div>
                       )}
                     </div>
                   }
                 />
                 <Step
-                  title={`7. ${selectedRequest.requesterName || 'Mas\'ul Xodim'} — Bo'lim Qabul Qilish Dalolatnomasi`}
+                  title={
+                    !hasRoom
+                      ? `7. ${selectedRequest.requesterName || 'Bo‘lim Mas’uli'} — Balansga Biriktirish va Yakunlash`
+                      : `7. ${selectedRequest.requesterName || 'Mas\'ul Xodim'} — Xonada Qabul Qilish Dalolatnomasi`
+                  }
                   description={
                     <div style={{ fontSize: 13, marginTop: 4 }}>
-                      <div><b>Holat:</b> {selectedRequest.status === 'FULFILLED' ? '🎉 Komendant va Talabgor o‘rtasida o‘zaro topshirish-qabul qilish dalolatnomasi imzolandi' : getStepCurrent(selectedRequest.status) === 7 ? '⏳ Xonada o‘zaro topshirish-qabul qilish kutilmoqda' : '⏳ Kutilmoqda'}</div>
+                      <div><b>Holat:</b> {
+                        selectedRequest.status === 'FULFILLED'
+                          ? (!selectedRequest.commendantHandedAt
+                              ? '🎉 Ombordan to‘g‘ridan-to‘g‘ri qabul qilib olindi va bo‘lim balansiga biriktirildi'
+                              : '🎉 Komendant va Talabgor o‘rtasida o‘zaro topshirish-qabul qilish dalolatnomasi imzolandi')
+                          : getStepCurrent(selectedRequest.status) === 7
+                          ? '⏳ Qabul qilib olish va tasdiqlash kutilmoqda'
+                          : (!hasRoom ? '⏳ Kutilmoqda (Ombordan qabul qilingach avtomatik yakunlanadi)' : '⏳ Kutilmoqda')
+                      }</div>
                       {selectedRequest.fulfilledAt && (
                         <div><b>Sana:</b> {new Date(selectedRequest.fulfilledAt).toLocaleString()}</div>
                       )}
@@ -1424,14 +1868,160 @@ export const RequestsPage: React.FC = () => {
               </Steps>
             </div>
 
+            {/* Texnik Ko‘rik (Injener) Maxsus Xavfsizlik Nazorati Kartasi */}
+            {selectedRequest.requiresTechnicalInspection && (
+              <div
+                style={{
+                  marginBottom: 24,
+                  padding: '16px 20px',
+                  borderRadius: 4,
+                  background: selectedRequest.engineerInspectedAt ? 'rgba(0, 180, 42, 0.05)' : 'rgba(255, 125, 0, 0.05)',
+                  border: `1px solid ${selectedRequest.engineerInspectedAt ? '#00b42a' : '#ff7d00'}`,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
+                  <Space size={8}>
+                    <IconTool style={{ fontSize: 18, color: selectedRequest.engineerInspectedAt ? '#00b42a' : '#ff7d00' }} />
+                    <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-text-1)' }}>
+                      {selectedRequest.engineerInspectedAt
+                        ? '✅ 5/5 Texnik Ko‘rikdan Muvaffaqiyatli O‘tgan (AKT-TEX Rasmiylashtirilgan)'
+                        : '⚠️ Mas’ul Injener Texnik Ko‘rigi Kutilmoqda (Majburiy Xavfsizlik Nazorati)'}
+                    </span>
+                  </Space>
+                  {selectedRequest.engineerInspectedAt ? (
+                    <Button
+                      size="small"
+                      type="outline"
+                      icon={<IconFile />}
+                      onClick={() => handleOpenDocModal(selectedRequest, 'AKT_TEX')}
+                      style={{ borderColor: '#00b42a', color: '#00b42a', fontWeight: 600 }}
+                    >
+                      AKT-TEX Hujjatini Ko‘rish
+                    </Button>
+                  ) : (
+                    (user?.id === selectedRequest.assignedEngineerId ||
+                     user?.role === 'SUPER_ADMIN' ||
+                     user?.role === 'ADMIN' ||
+                     /injener|muhandis|texnik/i.test(user?.position || '')) &&
+                    selectedRequest.status === 'RECEIVED_AT_WAREHOUSE' && (
+                      <Button
+                        size="small"
+                        type="primary"
+                        icon={<IconTool />}
+                        onClick={() => handleOpenInspectionModal(selectedRequest)}
+                        style={{ background: '#0fc6c2', borderColor: '#0fc6c2', fontWeight: 600 }}
+                      >
+                        Texnik Ko‘rikni Boshlash (5/5 Checklist)
+                      </Button>
+                    )
+                  )}
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.5 }}>
+                  <div>
+                    <b>Mas’ul Texnik Injener:</b>{' '}
+                    <Tag color="cyan">
+                      {selectedRequest.assignedEngineerName || (selectedRequest as any).assignedEngineer?.name || 'Biriktirilgan mutaxassis'}
+                    </Tag>
+                  </div>
+                  {selectedRequest.engineerInspectedAt ? (
+                    <div style={{ color: '#00b42a', marginTop: 4 }}>
+                      <b>Ko‘rik xulosasi va sana:</b> {new Date(selectedRequest.engineerInspectedAt).toLocaleString('uz-UZ')} · 5 ta xavfsizlik va sozlik talabi (qadoq, komplektatsiya, elektr/yong‘in xavfsizligi, seriya raqami, texnik parametrlar) bo‘yicha to‘liq soz deb topilgan.
+                    </div>
+                  ) : (
+                    <div style={{ color: '#d46b08', marginTop: 4 }}>
+                      Ushbu uskunalar xonaga yoki bo‘limga topshirilishidan oldin omborda mas’ul injener tomonidan 5 bosqichli ko‘rikdan o‘tkazilishi va AKT-TEX tuzilishi shart. Injener xulosasisiz topshirish bloklanadi.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Details Table */}
             <Descriptions
               column={1}
               border
               data={[
                 { label: 'Talabnoma Raqami', value: selectedRequest.requestNumber },
-                { label: 'Talabgor Xodim', value: selectedRequest.requesterName },
+                {
+                  label: 'Talabgor Xodim',
+                  value: (
+                    <Space size={10} wrap align="center">
+                      <span style={{ fontWeight: 600 }}>{selectedRequest.requesterName}</span>
+                      {(selectedRequest as any).requesterPosition && (
+                        <Tag color="arcoblue">{(selectedRequest as any).requesterPosition}</Tag>
+                      )}
+                      {selectedRequest.requesterPhone ? (
+                        <a
+                          href={`tel:${selectedRequest.requesterPhone}`}
+                          style={{
+                            color: '#165DFF',
+                            fontWeight: 600,
+                            textDecoration: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '2px 8px',
+                            background: '#E8F3FF',
+                            borderRadius: 4,
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <IconPhone />
+                          {selectedRequest.requesterPhone}
+                        </a>
+                      ) : (
+                        <span style={{ color: 'var(--color-text-4)', fontSize: 12 }}>
+                          (Telefon raqami kiritilmagan)
+                        </span>
+                      )}
+                    </Space>
+                  ),
+                },
                 { label: 'Bo‘lim / Kafedra', value: selectedRequest.departmentName || '—' },
+                {
+                  label: 'Topshirish Marshruti',
+                  value: hasRoom ? (
+                    <Tag color="arcoblue">
+                      🏛 Bino komendanti orqali ({roomLabel || 'Xonaga biriktirish'})
+                    </Tag>
+                  ) : (
+                    <Tag color="green">
+                      ⚡ To‘g‘ridan-to‘g‘ri bo‘lim mas’uliga (Obyekt / Xonasiz sarf — Komendantsiz)
+                    </Tag>
+                  ),
+                },
+                ...(selectedRequest.requiresTechnicalInspection
+                  ? [
+                      {
+                        label: 'Texnik Ko‘rik (Injener)',
+                        value: (
+                          <Space size={8} wrap align="center">
+                            <Tag color={selectedRequest.engineerInspectedAt ? 'green' : 'orange'}>
+                              <IconTool style={{ marginRight: 4 }} />
+                              {selectedRequest.engineerInspectedAt
+                                ? 'Texnik ko‘rikdan o‘tgan (AKT-TEX)'
+                                : 'Injener ko‘rigi talab etiladi'}
+                            </Tag>
+                            {selectedRequest.assignedEngineerName && (
+                              <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>
+                                Mas’ul: <b>{selectedRequest.assignedEngineerName}</b>
+                              </span>
+                            )}
+                            {selectedRequest.engineerInspectedAt && (
+                              <Button
+                                size="mini"
+                                type="outline"
+                                icon={<IconFile />}
+                                onClick={() => handleOpenDocModal(selectedRequest, 'AKT_TEX')}
+                              >
+                                AKT-TEX Hujjat
+                              </Button>
+                            )}
+                          </Space>
+                        ),
+                      },
+                    ]
+                  : []),
                 { label: 'Ehtiyoj Asosi / Maqsad', value: selectedRequest.purpose },
                 {
                   label: 'So‘ralgan Mahsulotlar',
@@ -1549,58 +2139,76 @@ export const RequestsPage: React.FC = () => {
       </Modal>
 
       {/* RASMIY HUJJAT (OS-1 / OS-2 / KAFEDRA_HANDOVER) MODAL */}
-      {selectedDocRequest && (
-        <OfficialDocModal
-          visible={isDocModalVisible}
-          onClose={() => setIsDocModalVisible(false)}
-          docType={docModalType}
-          entityId={selectedDocRequest.id}
-          docNumber={
-            docModalType === 'KIRIM'
-              ? `${selectedDocRequest.requestNumber}-OS1`
-              : docModalType === 'TRANSFER'
-              ? `${selectedDocRequest.requestNumber}-OS2`
-              : `${selectedDocRequest.requestNumber}-AKT`
-          }
-          date={selectedDocRequest.createdAt}
-          sourceLocation={
-            docModalType === 'KIRIM'
-              ? "Ta'minotchi / Yetkazib beruvchi"
-              : docModalType === 'TRANSFER'
-              ? 'Universitet Bosh Ombori'
-              : (selectedDocRequest.commendantName ? `${selectedDocRequest.commendantName} (Bino komendanti)` : 'Bino komendantligi')
-          }
-          targetLocation={
-            docModalType === 'KIRIM'
-              ? 'Universitet Bosh Ombori'
-              : docModalType === 'TRANSFER'
-              ? (selectedDocRequest.commendantName ? `${selectedDocRequest.commendantName} (Bino)` : 'Bino komendanti')
-              : `${selectedDocRequest.departmentName || 'Kafedra / Bo‘lim'}${selectedDocRequest.targetRoomNumber ? ` (${selectedDocRequest.targetRoomNumber}-xona)` : ''}`
-          }
-          senderName={
-            docModalType === 'KIRIM'
-              ? "Yetkazib beruvchi tashkilot vakili"
-              : docModalType === 'TRANSFER'
-              ? ((selectedDocRequest as any).warehouseReceivedByName || 'Bosh ombor mudiri')
-              : (selectedDocRequest.commendantName || 'Bino komendanti')
-          }
-          receiverName={
-            docModalType === 'KIRIM'
-              ? ((selectedDocRequest as any).warehouseReceivedByName || 'Bosh ombor mudiri')
-              : docModalType === 'TRANSFER'
-              ? (selectedDocRequest.commendantName || 'Bino komendanti')
-              : `${selectedDocRequest.requesterName} (${selectedDocRequest.requesterRole === 'VICE_RECTOR_FINANCE' ? 'Prorektor' : 'Kafedra mudiri / Mas’ul'})`
-          }
-          items={selectedDocRequest.items.map((i, idx) => ({
-            inventoryNumber: `SRF-${idx + 1}`,
-            name: i.itemName,
-            quantity: i.requestedQty,
-            unit: i.unit,
-          }))}
-          reason={selectedDocRequest.purpose}
-          signatures={computedDocSignatures}
-        />
-      )}
+      {selectedDocRequest && (() => {
+        const hasRoomDoc = Boolean(selectedDocRequest.targetRoomId || selectedDocRequest.targetRoomName || selectedDocRequest.targetRoomNumber);
+        const isDirectDoc = !hasRoomDoc || (!selectedDocRequest.commendantHandedAt && selectedDocRequest.status === 'FULFILLED');
+        return (
+          <OfficialDocModal
+            visible={isDocModalVisible}
+            onClose={() => setIsDocModalVisible(false)}
+            docType={docModalType}
+            entityId={selectedDocRequest.id}
+            docNumber={
+              docModalType === 'KIRIM'
+                ? `${selectedDocRequest.requestNumber}-OS1`
+                : docModalType === 'TRANSFER'
+                ? `${selectedDocRequest.requestNumber}-OS2`
+                : docModalType === 'AKT_TEX'
+                ? `${selectedDocRequest.requestNumber}-AKT-TEX`
+                : `${selectedDocRequest.requestNumber}-AKT`
+            }
+            date={selectedDocRequest.createdAt}
+            sourceLocation={
+              docModalType === 'KIRIM'
+                ? "Ta'minotchi / Yetkazib beruvchi"
+                : docModalType === 'AKT_TEX'
+                ? 'Universitet Bosh Ombori (Texnik Nazorat Maydoni)'
+                : docModalType === 'TRANSFER' || isDirectDoc
+                ? 'Universitet Bosh Ombori'
+                : (selectedDocRequest.commendantName ? `${selectedDocRequest.commendantName} (Bino komendanti)` : 'Bino komendantligi')
+            }
+            targetLocation={
+              docModalType === 'KIRIM'
+                ? 'Universitet Bosh Ombori'
+                : docModalType === 'AKT_TEX'
+                ? 'Texnik Ko‘rik va Ekspertiza Xulosasi (AKT-TEX)'
+                : isDirectDoc
+                ? `${selectedDocRequest.departmentName || 'Bo‘lim'} (To‘g‘ridan-to‘g‘ri bo‘lim mas’uliga)`
+                : docModalType === 'TRANSFER'
+                ? (selectedDocRequest.commendantName ? `${selectedDocRequest.commendantName} (Bino)` : 'Bino komendanti')
+                : `${selectedDocRequest.departmentName || 'Kafedra / Bo‘lim'}${selectedDocRequest.targetRoomNumber ? ` (${selectedDocRequest.targetRoomNumber}-xona)` : ''}`
+            }
+            senderName={
+              docModalType === 'KIRIM'
+                ? "Yetkazib beruvchi tashkilot vakili"
+                : docModalType === 'AKT_TEX'
+                ? ((selectedDocRequest as any).warehouseReceivedByName || 'Bosh ombor mudiri')
+                : docModalType === 'TRANSFER' || isDirectDoc
+                ? ((selectedDocRequest as any).warehouseReceivedByName || 'Bosh ombor mudiri')
+                : (selectedDocRequest.commendantName || 'Bino komendanti')
+            }
+            receiverName={
+              docModalType === 'KIRIM'
+                ? ((selectedDocRequest as any).warehouseReceivedByName || 'Bosh ombor mudiri')
+                : docModalType === 'AKT_TEX'
+                ? (selectedDocRequest.assignedEngineerName || selectedDocRequest.engineerInspectedByName || (selectedDocRequest as any).assignedEngineer?.name || 'Mas’ul Texnik Injener')
+                : isDirectDoc
+                ? `${selectedDocRequest.requesterName} (Bo‘lim mas’uli)`
+                : docModalType === 'TRANSFER'
+                ? (selectedDocRequest.commendantName || 'Bino komendanti')
+                : `${selectedDocRequest.requesterName} (${selectedDocRequest.requesterRole === 'VICE_RECTOR_FINANCE' ? 'Prorektor' : 'Kafedra mudiri / Mas’ul'})`
+            }
+            items={selectedDocRequest.items.map((i, idx) => ({
+              inventoryNumber: `SRF-${idx + 1}`,
+              name: i.itemName,
+              quantity: i.requestedQty,
+              unit: i.unit,
+            }))}
+            reason={selectedDocRequest.purpose}
+            signatures={computedDocSignatures}
+          />
+        );
+      })()}
 
       {/* 60s Dynamic QR-Pairing Modal for Mobile Biometric Signing */}
       {qrSignPayload && (
@@ -1622,6 +2230,18 @@ export const RequestsPage: React.FC = () => {
         onConfirm={handleConfirmReject}
         loading={isRejecting}
         itemIdentifier={requestToReject?.requestNumber}
+      />
+
+      {/* 5 Bosqichli Texnik Ko‘rik va Sozlik Nazorati Modali (AKT-TEX) */}
+      <TechnicalInspectionModal
+        visible={isInspectionModalVisible}
+        onClose={() => {
+          setIsInspectionModalVisible(false);
+          setSelectedInspectionRequest(null);
+        }}
+        request={selectedInspectionRequest}
+        onConfirm={handleConfirmInspection}
+        loading={isSubmittingInspection}
       />
     </div>
   );

@@ -13,6 +13,7 @@ import {
   FinanceWorkflowDto,
   HandoverWorkflowDto,
   FulfillWorkflowDto,
+  SubmitTechnicalInspectionDto,
 } from './dto/request.dto';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 
@@ -23,6 +24,12 @@ import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 @Controller('api/requests')
 export class RequestsController {
   constructor(private requestsService: RequestsService) {}
+
+  @Get('eligible-engineers')
+  @ApiOperation({ summary: 'Texnik ko‘rik o‘tkazishga mas’ul muhandis va injenerlar ro‘yxati' })
+  async getEligibleEngineers() {
+    return this.requestsService.getEligibleEngineers();
+  }
 
   @Get()
   @ApiOperation({ summary: 'Barcha talabnomalar (zayavkalar) ro‘yxati (qidiruv, filtr, sahifalash, saralash)' })
@@ -36,6 +43,9 @@ export class RequestsController {
     return this.requestsService.createRequest({
       purpose: dto.purpose,
       departmentId: dto.departmentId,
+      targetRoomId: dto.targetRoomId,
+      requiresTechnicalInspection: dto.requiresTechnicalInspection,
+      assignedEngineerId: dto.assignedEngineerId,
       items: dto.items,
       requesterId: user.id,
     });
@@ -189,6 +199,34 @@ export class RequestsController {
       note: dto.note,
       targetRoomId: dto.targetRoomId,
     });
+  }
+
+  @Post(':id/direct-fulfill')
+  @ApiOperation({ summary: 'Ombordan to‘g‘ridan-to‘g‘ri bo‘limga (komendantsiz) topshirish (Direct Handover)' })
+  async directFulfill(
+    @Param('id') id: string,
+    @Body() dto: FulfillWorkflowDto,
+    @CurrentUser() user: any,
+  ) {
+    if (user.role === RoleType.COMMENDANT) {
+      throw new ForbiddenException(
+        'Bino komendanti to‘g‘ridan-to‘g‘ri bo‘limga topshirish amalini bajara olmaydi!',
+      );
+    }
+    return this.requestsService.advanceWorkflowStage(id, RequestStatus.FULFILLED, user, {
+      note: dto.note || 'Ombordan to‘g‘ridan-to‘g‘ri bo‘lim mas’uliga topshirildi (Komendantsiz)',
+      targetRoomId: dto.targetRoomId,
+    });
+  }
+
+  @Post(':id/engineer-inspect')
+  @ApiOperation({ summary: 'Mas’ul injener tomonidan 5 bosqichli sozlik va xavfsizlik ko‘rigini (AKT-TEX) tasdiqlash' })
+  async submitTechnicalInspection(
+    @Param('id') id: string,
+    @Body() dto: SubmitTechnicalInspectionDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.requestsService.submitTechnicalInspection(id, dto, user);
   }
 }
 

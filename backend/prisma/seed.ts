@@ -1004,6 +1004,29 @@ async function main() {
     },
   });
 
+  // 2.10 Bosh Texnik Injener (IT / Muhandis)
+  const engineer = await prisma.user.upsert({
+    where: { username: 'injener' },
+    update: {
+      password: passwordHash,
+      isActive: true,
+      role: RoleType.ENGINEER,
+      departmentId: itCenter.id,
+      position: 'Bosh texnik muhandis / IT-mutaxassis',
+    },
+    create: {
+      fullName: 'Qodirov Sardor',
+      username: 'injener',
+      email: 'injener@university.uz',
+      password: passwordHash,
+      phone: '+998 90 555 44 33',
+      position: 'Bosh texnik muhandis / IT-mutaxassis',
+      role: RoleType.ENGINEER,
+      departmentId: itCenter.id,
+      mustChangePassword: false,
+    },
+  });
+
   // =========================================================================
   // 3. XONALAR VA AUDITORIYALAR (25 TA XONA)
   // =========================================================================
@@ -3055,20 +3078,20 @@ async function main() {
     createdAt: new Date('2026-09-12T11:20:00Z'),
   });
 
-  // 2. PENDING: Noutbuk akkumulyator nosozligi
+  // 2. COMPLETED: Noutbuk sovutish tizimi va termo-pasta
   await getOrCreateRepairRecord({
     repairNumber: 'REP-2026-0002',
     assetId: a0008.id,
-    issueDescription: 'Akkumulyator batareyasi 10 daqiqadan ortiq quvvat ushlamayapti, faqat doimiy tarmoqqa ulangan holda ishlaydi',
-    status: RepairStatus.PENDING,
-    serviceProvider: 'Universitet ATM ichki ustaxonasi',
-    cost: null,
-    startDate: null,
-    completionDate: null,
-    actNumber: null,
-    notes: 'Kafedra mudiri roziligi bilan batareyani almashtirish so‘ralgan',
+    issueDescription: 'Akkumulyator batareyasi 10 daqiqadan ortiq quvvat ushlamayapti, sovutish ventilyatori qizib ketmoqda',
+    status: RepairStatus.COMPLETED,
+    serviceProvider: 'Universitet IT / Muhandislik ustaxonasi',
+    cost: 120000,
+    startDate: new Date('2026-09-13T15:45:00Z'),
+    completionDate: new Date('2026-09-14T12:00:00Z'),
+    actNumber: 'AKT-REP-2026-0002',
+    notes: 'Kafedra mudiri talabnomasi asosida bosh injener ko‘rigidan o‘tkazildi va tasdiqlandi',
     requestedById: employee.id,
-    approvedById: null,
+    approvedById: engineer.id,
     createdAt: new Date('2026-09-13T15:45:00Z'),
   });
 
@@ -3082,10 +3105,10 @@ async function main() {
     cost: 480000,
     startDate: new Date('2026-09-08T10:00:00Z'),
     completionDate: null,
-    actNumber: null,
-    notes: 'Ehtiyot qism (original LVDS shleyf) buyurtma qilingan, 2 ish kuni ichida yetkaziladi',
+    actNumber: 'AKT-REP-2026-0003',
+    notes: 'Ehtiyot qism (original LVDS shleyf) buyurtma qilingan, bosh muhandis Qodirov S. ko‘rigi xulosasi bilan ta’mirga yo‘naltirildi',
     requestedById: teacher2.id,
-    approvedById: warehouseChief.id,
+    approvedById: engineer.id,
     createdAt: new Date('2026-09-07T09:30:00Z'),
   });
 
@@ -3179,6 +3202,13 @@ async function main() {
         vote: VoteStatus.APPROVED,
         comment: 'Texnik ekspertiza xulosasini to‘liq tasdiqlayman. Butlovchi qismlar qayta foydalanishga yaroqsiz.',
         votedAt: new Date('2026-08-20T11:00:00Z'),
+      },
+      {
+        userId: engineer.id,
+        roleName: 'Komissiya a’zosi (Bosh muhandis / IT-mutaxassis)',
+        vote: VoteStatus.APPROVED,
+        comment: 'Texnik ekspertiza xulosasini tasdiqlayman. Uskuna butunlay yaroqsiz va qayta tiklanmaydi.',
+        votedAt: new Date('2026-08-20T11:30:00Z'),
       },
       {
         userId: molAcc.id,

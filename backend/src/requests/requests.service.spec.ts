@@ -616,5 +616,149 @@ describe('RequestsService (Unit Tests)', () => {
         }),
       );
     });
+
+    it('Omborga kelgan tovarlarni (RECEIVED_AT_WAREHOUSE) komendantsiz to‘g‘ridan-to‘g‘ri bo‘limga (FULFILLED) topshirish mumkin bo‘lishi kerak', async () => {
+      prisma.request.findUnique.mockResolvedValue({
+        id: 'req-direct-1',
+        requestNumber: 'REQ-2026-0200',
+        status: RequestStatus.RECEIVED_AT_WAREHOUSE,
+        purpose: 'Qurilish va ta’mirlash bo‘limi uchun sement va bo‘yoq',
+        isOverQuota: false,
+        requesterId: 'user-builder',
+        departmentId: 'dept-construction',
+        items: [{ id: 'ri-1', itemId: 'item-cement', requestedQty: 20, item: { name: 'Sement M-500', unit: 'qop', minStockLimit: 5 } }],
+      });
+      prisma.warehouse.findFirst.mockResolvedValue({ id: 'wh-main', name: 'Markaziy ombor' });
+      prisma.$queryRaw.mockResolvedValue([{ id: 'stock-cement', quantity: 50 }]);
+      prisma.$executeRaw.mockResolvedValue(1);
+      prisma.stockMovement.create.mockResolvedValue({ id: 'mov-dir', movementNumber: 'MOV-2026-0099' });
+      prisma.request.update.mockResolvedValue({
+        id: 'req-direct-1',
+        requestNumber: 'REQ-2026-0200',
+        purpose: 'Qurilish va ta’mirlash bo‘limi uchun sement va bo‘yoq',
+        status: RequestStatus.FULFILLED,
+        fulfilledAt: new Date(),
+        items: [{ id: 'ri-1', requestedQty: 20, item: { name: 'Sement M-500', unit: 'qop' } }],
+      });
+
+      const res = await service.updateStatus('req-direct-1', RequestStatus.FULFILLED, {
+        approvedById: 'wh-head-1',
+        currentUser: { id: 'wh-head-1', role: RoleType.HEAD_WAREHOUSE },
+        note: 'Qurilish bo‘limiga to‘g‘ridan-to‘g‘ri topshirildi',
+      });
+
+      expect(res.status).toBe(RequestStatus.FULFILLED);
+      expect(prisma.request.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'req-direct-1' },
+          data: expect.objectContaining({
+            status: RequestStatus.FULFILLED,
+          }),
+        }),
+      );
+    });
+
+    describe('submitTechnicalInspection (5-Step Safety and Specs Verification)', () => {
+      it('talabnomada 5 ta banddan biri bajarilmagan bo‘lsa (masalan, 4/5) BadRequestException berishi kerak', async () => {
+        prisma.request.findUnique.mockResolvedValue({
+          id: 'req-tech-1',
+          requestNumber: 'REQ-2026-0301',
+          status: RequestStatus.RECEIVED_AT_WAREHOUSE,
+          requiresTechnicalInspection: true,
+          assignedEngineerId: 'eng-1',
+          items: [{ item: { name: 'Server Uskunasi', unit: 'DONA' }, requestedQty: 1 }],
+        });
+
+        await expect(
+          service.submitTechnicalInspection(
+            'req-tech-1',
+            {
+              packagingIntegrity: true,
+              completeness: true,
+              powerSafety: false, // ⚠️ Bitta punkt qolib ketgan
+              serialNumberMatch: true,
+              specsCompliance: true,
+            },
+            { id: 'eng-1', fullName: 'Jasur Muhandis', role: RoleType.EMPLOYEE },
+          ),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('5/5 punkt to‘liq tasdiqlanganda muvaffaqiyatli saqlashi va AKT-TEX shtampini chaqirishi kerak', async () => {
+        prisma.request.findUnique.mockResolvedValue({
+          id: 'req-tech-1',
+          requestNumber: 'REQ-2026-0301',
+          status: RequestStatus.RECEIVED_AT_WAREHOUSE,
+          requiresTechnicalInspection: true,
+          assignedEngineerId: 'eng-1',
+          department: { name: 'Axborot texnologiyalari markazi' },
+          items: [{ item: { name: 'Server Uskunasi', unit: 'DONA' }, requestedQty: 1 }],
+        });
+
+        prisma.request.update.mockResolvedValue({
+          id: 'req-tech-1',
+          requestNumber: 'REQ-2026-0301',
+          status: RequestStatus.RECEIVED_AT_WAREHOUSE,
+          engineerInspectedAt: new Date(),
+          engineerInspectedById: 'eng-1',
+        });
+
+        await service.submitTechnicalInspection(
+          'req-tech-1',
+          {
+            packagingIntegrity: true,
+            completeness: true,
+            powerSafety: true,
+            serialNumberMatch: true,
+            specsCompliance: true,
+            notes: 'S/N: SRV-2026-9921 soz holatda',
+          },
+          { id: 'eng-1', fullName: 'Jasur Muhandis', role: RoleType.EMPLOYEE },
+        );
+
+        expect(prisma.request.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: 'req-tech-1' },
+            data: expect.objectContaining({
+              engineerInspectedById: 'eng-1',
+              inspectionChecklist: expect.objectContaining({
+                packagingIntegrity: true,
+                completeness: true,
+                powerSafety: true,
+                serialNumberMatch: true,
+                specsCompliance: true,
+              }),
+            }),
+          }),
+        );
+        expect(documentStamps.stampDocument).toHaveBeenCalledWith(
+          expect.objectContaining({
+            docType: 'AKT',
+            docNumber: 'AKT-TEX-REQ-2026-0301',
+          }),
+        );
+      });
+
+      it('texnik ko‘rik talab etilgan lekin o‘tkazilmagan bo‘lsa, topshirish (HANDED_TO_COMMENDANT yoki FULFILLED) bloklanishi kerak', async () => {
+        prisma.request.findUnique.mockResolvedValue({
+          id: 'req-tech-2',
+          requestNumber: 'REQ-2026-0302',
+          status: RequestStatus.RECEIVED_AT_WAREHOUSE,
+          requiresTechnicalInspection: true,
+          engineerInspectedAt: null, // Hali ko'rik o'tkazilmagan!
+          assignedEngineerId: 'eng-1',
+          items: [],
+        });
+
+        await expect(
+          service.advanceWorkflowStage(
+            'req-tech-2',
+            RequestStatus.HANDED_TO_COMMENDANT,
+            { id: 'comm-1', fullName: 'Sodiqov Anvar', role: RoleType.COMMENDANT },
+          ),
+        ).rejects.toThrow(BadRequestException);
+      });
+    });
   });
 });
+

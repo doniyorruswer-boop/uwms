@@ -176,6 +176,9 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
                 <Select.Option value={RoleType.EMPLOYEE}>
                   Xodim (O‘qituvchi / Laborant)
                 </Select.Option>
+                <Select.Option value={RoleType.ENGINEER}>
+                  Texnik Injener (IT / Muhandis)
+                </Select.Option>
                 <Select.Option value={RoleType.CHIEF_ACCOUNTANT}>
                   Bosh Hisobchi
                 </Select.Option>

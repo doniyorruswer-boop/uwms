@@ -10,7 +10,8 @@ export type DocType =
   | 'AUDIT_DECREE'
   | 'MOL_TRANSFER'
   | 'RETURN'
-  | 'KAFEDRA_HANDOVER';
+  | 'KAFEDRA_HANDOVER'
+  | 'AKT_TEX';
 
 export interface DocumentMeta {
   type: DocType;
@@ -94,5 +95,14 @@ export const DOCUMENT_TEMPLATES: Record<DocType, DocumentMeta> = {
     senderLabel: 'Qaytaruvchi mas’ul shaxs (MOL)',
     receiverLabel: 'Qabul qiluvchi ombor mudiri',
     supervisorLabel: 'Moddiy hisob buxgalteri',
+  },
+  AKT_TEX: {
+    type: 'AKT_TEX',
+    formCode: 'AKT-TEX',
+    title: 'TEXNIK KO‘RIK VA SOZLIK DALOLATNOMASI',
+    legalBasisDefault: 'O‘zbekiston Respublikasi Oliy Ta’lim Uskunalar Xavfsizligi va Sozlik Nizomi',
+    senderLabel: 'Tekshirilgan ombor / Qabul punkti',
+    receiverLabel: 'Mas’ul Texnik Injener / IT Mutaxassisi',
+    supervisorLabel: 'Texnik nazorat xizmati',
   },
 };

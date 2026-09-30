@@ -114,7 +114,7 @@ export const OrganizationPage: React.FC = () => {
   const { assets } = useAssetsQuery();
   const { user } = useAuthStore();
 
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
   const canTransferRoom = isSuperAdmin || user?.role === 'COMMENDANT' || user?.role === 'HEAD_WAREHOUSE';
 
   // Tabs state
@@ -1164,7 +1164,7 @@ export const OrganizationPage: React.FC = () => {
             Yangilash
           </Button>
 
-          <Tooltip content={!isSuperAdmin ? 'Faqat Tizim Bosh Administratori bino qo‘sha oladi' : undefined}>
+          <Tooltip content={!isSuperAdmin ? 'Faqat Tizim Administratori bino qo‘sha oladi' : undefined}>
             <Button
               type="secondary"
               icon={<IconHome />}
@@ -1176,7 +1176,7 @@ export const OrganizationPage: React.FC = () => {
             </Button>
           </Tooltip>
 
-          <Tooltip content={!isSuperAdmin ? 'Faqat Tizim Bosh Administratori (SUPER_ADMIN) bo‘lim qo‘sha oladi' : undefined}>
+          <Tooltip content={!isSuperAdmin ? 'Faqat Tizim Administratori bo‘lim qo‘sha oladi' : undefined}>
             <Button
               type="secondary"
               icon={<IconBranch />}
@@ -1188,7 +1188,7 @@ export const OrganizationPage: React.FC = () => {
             </Button>
           </Tooltip>
 
-          <Tooltip content={!isSuperAdmin ? 'Faqat Tizim Bosh Administratori (SUPER_ADMIN) xona qo‘sha oladi' : undefined}>
+          <Tooltip content={!isSuperAdmin ? 'Faqat Tizim Administratori xona qo‘sha oladi' : undefined}>
             <Button
               type="primary"
               icon={<IconPlus />}
@@ -1208,7 +1208,7 @@ export const OrganizationPage: React.FC = () => {
           type="info"
           showIcon
           title="Tashkiliy Tuzilma (Ko‘rish Rejimi)"
-          content="Universitet tashkiliy tuzilmasi, bo‘limlar va auditoriyalarni o‘zgartirish huquqi faqat Tizim Super Adminida mavjud. Siz ushbu sahifadan ma’lumotlarni ko‘rish va monitoring qilish rejimida foydalanmoqdasiz."
+          content="Universitet tashkiliy tuzilmasi, bo‘limlar va auditoriyalarni o‘zgartirish huquqi faqat Tizim Administratorida mavjud. Siz ushbu sahifadan ma’lumotlarni ko‘rish va monitoring qilish rejimida foydalanmoqdasiz."
         />
       )}
 

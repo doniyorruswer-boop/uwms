@@ -46,11 +46,15 @@ export class RequestsService {
     // Multi-tenant / Role Data Isolation:
     if (user && user.role !== RoleType.SUPER_ADMIN && user.role !== RoleType.ADMIN) {
       if (user.role === RoleType.EMPLOYEE) {
-        where.requesterId = user.id;
+        where.OR = [
+          { requesterId: user.id },
+          { assignedEngineerId: user.id },
+        ];
       } else if (user.role === RoleType.MOL && user.departmentId) {
         where.OR = [
           { requesterId: user.id },
           { departmentId: user.departmentId },
+          { assignedEngineerId: user.id },
         ];
       }
     }
@@ -81,11 +85,13 @@ export class RequestsService {
     const sortOrder = query?.sortOrder === 'asc' ? 'asc' : 'desc';
 
     const requestInclude = {
-      requester: { select: { id: true, fullName: true, role: true, position: true } },
+      requester: { select: { id: true, fullName: true, role: true, position: true, phone: true } },
       department: true,
       items: { include: { item: true } },
       targetRoom: true,
       commendant: { select: { id: true, fullName: true } },
+      assignedEngineer: { select: { id: true, fullName: true, role: true, position: true, phone: true } },
+      engineerInspectedBy: { select: { id: true, fullName: true, role: true, position: true } },
       approvedBy: { select: { id: true, fullName: true, role: true } },
       prorektorApprovedBy: { select: { id: true, fullName: true } },
       rectorApprovedBy: { select: { id: true, fullName: true } },
@@ -125,6 +131,7 @@ export class RequestsService {
       requesterName: r.requester.fullName,
       requesterRole: r.requester.role,
       requesterPosition: r.requester.position ?? undefined,  // Lavozim: "Kafedra mudiri", "Prorektor", "Laborant" va h.k.
+      requesterPhone: (r.requester as any).phone ?? undefined,
       departmentName: r.department?.name,
       approvalNote: r.approvalNote,
       approvedById: r.approvedById,
@@ -137,6 +144,15 @@ export class RequestsService {
       targetRoomNumber: r.targetRoom?.number,
       commendantId: r.commendantId,
       commendantName: r.commendant?.fullName,
+      requiresTechnicalInspection: r.requiresTechnicalInspection,
+      assignedEngineerId: r.assignedEngineerId,
+      assignedEngineerName: r.assignedEngineer?.fullName,
+      assignedEngineerPosition: r.assignedEngineer?.position,
+      assignedEngineerPhone: r.assignedEngineer?.phone,
+      engineerInspectedAt: r.engineerInspectedAt?.toISOString(),
+      engineerInspectedById: r.engineerInspectedById,
+      engineerInspectedByName: r.engineerInspectedBy?.fullName,
+      inspectionChecklist: r.inspectionChecklist,
       submittedAt: r.submittedAt?.toISOString(),
       prorektorApprovedAt: r.prorektorApprovedAt?.toISOString(),
       prorektorApprovedById: r.prorektorApprovedById,
@@ -182,6 +198,9 @@ export class RequestsService {
     purpose: string;
     requesterId: string;
     departmentId?: string;
+    targetRoomId?: string;
+    requiresTechnicalInspection?: boolean;
+    assignedEngineerId?: string;
     items: { itemId?: string; itemName?: string; quantity: number; unit?: string }[];
   }) {
     const created = await this.prisma.$transaction(async (tx) => {
@@ -265,6 +284,9 @@ export class RequestsService {
           purpose: dto.purpose,
           requesterId: dto.requesterId,
           departmentId,
+          targetRoomId: dto.targetRoomId || null,
+          requiresTechnicalInspection: Boolean(dto.requiresTechnicalInspection),
+          assignedEngineerId: dto.requiresTechnicalInspection ? (dto.assignedEngineerId || null) : null,
           status: RequestStatus.SUBMITTED,
           submittedAt: new Date(),
           isOverQuota,
@@ -303,6 +325,21 @@ export class RequestsService {
         '/requests',
       );
 
+      // Agar texnik ko‘rik talab etilgan va injener biriktirilgan bo‘lsa, injenerga bildirishnoma yuborish
+      if (dto.requiresTechnicalInspection && dto.assignedEngineerId) {
+        try {
+          await this.notificationsService.create({
+            userId: dto.assignedEngineerId,
+            title: 'Talabnomaga Mas’ul Texnik Injener etib biriktirildingiz',
+            message: `${user?.fullName || 'Xodim'} tomonidan kiritilgan yangi talabnoma (${reqNum}) bo‘yicha tovarlar kelgach texnik ko‘rik (AKT-TEX) o‘tkazish sizga biriktirildi.`,
+            type: NotificationType.INFO,
+            link: '/requests',
+          });
+        } catch (notifErr) {
+          // non-fatal
+        }
+      }
+
       // Audit log
       await this.systemAuditService.log({
         action: 'CREATE',
@@ -314,6 +351,8 @@ export class RequestsService {
           isOverQuota,
           itemsCount: dto.items.length,
           stage: 'SUBMITTED',
+          requiresTechnicalInspection: request.requiresTechnicalInspection,
+          assignedEngineerId: request.assignedEngineerId,
         },
         userId: dto.requesterId,
       });
@@ -330,6 +369,8 @@ export class RequestsService {
         requesterId: created.requesterId,
         departmentId: created.departmentId,
         isOverQuota: created.isOverQuota,
+        requiresTechnicalInspection: created.requiresTechnicalInspection,
+        assignedEngineerId: created.assignedEngineerId,
         createdAt: created.createdAt,
       };
 
@@ -379,8 +420,14 @@ export class RequestsService {
         throw new ForbiddenException('Ombor kirimini faqat Bosh ombor mudiri tasdiqlashi mumkin!');
       }
     } else if (targetStatus === RequestStatus.HANDED_TO_COMMENDANT) {
-      if (user.role !== RoleType.COMMENDANT) {
+      if (user.role !== RoleType.COMMENDANT && user.role !== RoleType.SUPER_ADMIN && user.role !== RoleType.ADMIN) {
         throw new ForbiddenException('Binoga qabul qilishni faqat Bino komendanti imzolashi mumkin!');
+      }
+      const req = await this.prisma.request.findUnique({ where: { id } });
+      if (req?.requiresTechnicalInspection && !req.engineerInspectedAt) {
+        throw new BadRequestException(
+          'Ushbu talabnoma bo‘yicha texnik ko‘rik talab etilgan! Mas’ul injener tomonidan 5 bosqichli xavfsizlik va sozlik tekshiruvi (Texnik Ko‘rik Dalolatnomasi) o‘tkazilmasdan tovarlarni topshirish qat’iyan taqiqlanadi.',
+        );
       }
     } else if (targetStatus === RequestStatus.FULFILLED) {
       if (user.role === RoleType.COMMENDANT) {
@@ -389,14 +436,21 @@ export class RequestsService {
         );
       }
       const req = await this.prisma.request.findUnique({ where: { id } });
+      const isDirectFromWarehouse = req?.status === RequestStatus.RECEIVED_AT_WAREHOUSE;
+      if (isDirectFromWarehouse && req?.requiresTechnicalInspection && !req.engineerInspectedAt) {
+        throw new BadRequestException(
+          'Ushbu talabnoma bo‘yicha texnik ko‘rik talab etilgan! Mas’ul injener tomonidan 5 bosqichli xavfsizlik va sozlik tekshiruvi (Texnik Ko‘rik Dalolatnomasi) o‘tkazilmasdan tovarlarni topshirish qat’iyan taqiqlanadi.',
+        );
+      }
       const isAuthorized =
         user.id === req?.requesterId ||
         (user.role === RoleType.MOL && (!user.departmentId || user.departmentId === req?.departmentId)) ||
+        (isDirectFromWarehouse && user.role === RoleType.HEAD_WAREHOUSE) ||
         user.role === RoleType.SUPER_ADMIN ||
         user.role === RoleType.ADMIN;
       if (!isAuthorized) {
         throw new ForbiddenException(
-          'Yakuniy qabul va topshirish dalolatnomasini faqat talabnoma kiritgan xodim yoki kafedra mas’uli (MOL) imzolashi mumkin!',
+          'Yakuniy qabul va topshirish dalolatnomasini faqat talabnoma kiritgan xodim, kafedra/bo‘lim mas’uli (MOL) yoki ombor mudiri tasdiqlashi mumkin!',
         );
       }
     }
@@ -446,7 +500,8 @@ export class RequestsService {
       }
 
       // Qat'iy etapma-etap o'tish tekshiruvi (Sequential State Machine Enforcement):
-      // Oldingi etap to'liq yakunlanib, o'zaro imzo/akt rasmiylashtirilmaguncha keyingi etapga o'tib bo'lmaydi!
+      // Standart: Ombor -> Komendant -> Kafedra/Xona.
+      // To'g'ridan-to'g'ri (Qurilish, sarf materiallari, xonasiz bo'limlar): Ombor -> Bo'lim (FULFILLED)
       const validTransitions: Record<string, RequestStatus[]> = {
         [RequestStatus.APPROVED_BY_PRORECTOR]: [
           RequestStatus.SUBMITTED,
@@ -461,7 +516,10 @@ export class RequestsService {
         [RequestStatus.FINANCED_BY_ACCOUNTANT]: [RequestStatus.APPROVED_BY_RECTOR],
         [RequestStatus.RECEIVED_AT_WAREHOUSE]: [RequestStatus.FINANCED_BY_ACCOUNTANT, RequestStatus.APPROVED_BY_HEAD],
         [RequestStatus.HANDED_TO_COMMENDANT]: [RequestStatus.RECEIVED_AT_WAREHOUSE],
-        [RequestStatus.FULFILLED]: [RequestStatus.HANDED_TO_COMMENDANT],
+        [RequestStatus.FULFILLED]: [
+          RequestStatus.HANDED_TO_COMMENDANT,
+          RequestStatus.RECEIVED_AT_WAREHOUSE,
+        ],
         [RequestStatus.REJECTED]: [
           RequestStatus.SUBMITTED,
           RequestStatus.PENDING,
@@ -496,17 +554,31 @@ export class RequestsService {
               'Bino komendanti topshiruvchi hisoblanadi. Talabnomani faqat uni kiritgan talabgor xodim yoki kafedra mas’uli (MOL) qabul qilib yakunlashi mumkin!',
             );
           }
+          const isDirectFromWarehouse = request.status === RequestStatus.RECEIVED_AT_WAREHOUSE;
           const isAllowed =
             executor.id === request.requesterId ||
             (executor.role === RoleType.MOL && (!executor.departmentId || executor.departmentId === request.departmentId)) ||
+            (isDirectFromWarehouse && executor.role === RoleType.HEAD_WAREHOUSE) ||
             executor.role === RoleType.SUPER_ADMIN ||
             executor.role === RoleType.ADMIN;
           if (!isAllowed) {
             throw new ForbiddenException(
-              'Talabnomani faqat uni kiritgan talabgor xodim (yoki kafedra MOLi) qabul qilib yakunlashi mumkin!',
+              'Talabnomani faqat uni kiritgan talabgor xodim, kafedra/bo‘lim mas’uli (MOL) yoki ombor mudiri (to‘g‘ridan-to‘g‘ri topshirishda) yakunlashi mumkin!',
             );
           }
         }
+      }
+
+      // Texnik ko‘rik talab etilgan bo‘lsa, ko‘rik o‘tmasdan komendantga yoki bo‘limga topshirish taqiqlanadi
+      if (
+        (status === RequestStatus.HANDED_TO_COMMENDANT ||
+          (status === RequestStatus.FULFILLED && request.status === RequestStatus.RECEIVED_AT_WAREHOUSE)) &&
+        request.requiresTechnicalInspection &&
+        !request.engineerInspectedAt
+      ) {
+        throw new BadRequestException(
+          'Ushbu talabnoma bo‘yicha texnik ko‘rik talab etilgan! Mas’ul injener tomonidan 5 bosqichli xavfsizlik va sozlik tekshiruvi (Texnik Ko‘rik Dalolatnomasi) o‘tkazilmasdan tovarlarni topshirish qat’iyan taqiqlanadi.',
+        );
       }
 
       // Agar kafedra oylik kvotasi oshirilgan bo'lsa (isOverQuota === true),
@@ -608,6 +680,8 @@ export class RequestsService {
           items: { include: { item: true } },
           targetRoom: true,
           commendant: true,
+          assignedEngineer: true,
+          engineerInspectedBy: true,
           warehouseReceivedBy: true,
           commendantHandedBy: true,
           accountantFinancedBy: true,
@@ -664,10 +738,15 @@ export class RequestsService {
         link: '/requests',
       });
     } else if (status === RequestStatus.FULFILLED) {
+      const isDirectFromWarehouse = !result.commendantHandedAt && !result.commendantId;
       await this.notificationsService.create({
         userId: result.requesterId,
-        title: '🎉 Ashyolar To‘liq Qabul Qilindi va Balansga O‘tdi!',
-        message: `"${result.purpose}" talabnomasi bo‘yicha barcha ashyolar (${itemsList}) muvaffaqiyatli topshirildi va hisobingizga biriktirildi.`,
+        title: isDirectFromWarehouse
+          ? '📦 Ashyolar Ombordan To‘g‘ridan-to‘g‘ri Bo‘limingizga Topshirildi!'
+          : '🎉 Ashyolar To‘liq Qabul Qilindi va Balansga O‘tdi!',
+        message: isDirectFromWarehouse
+          ? `"${result.purpose}" talabnomasi bo‘yicha ashyolar (${itemsList}) bosh ombordan to‘g‘ridan-to‘g‘ri bo‘limingiz tasarrufiga topshirildi va hisobingizga biriktirildi.`
+          : `"${result.purpose}" talabnomasi bo‘yicha barcha ashyolar (${itemsList}) muvaffaqiyatli topshirildi va hisobingizga biriktirildi.`,
         type: NotificationType.SUCCESS,
         link: '/requests',
       });
@@ -830,18 +909,28 @@ export class RequestsService {
     // 7-bosqich: Kafedra/Bo‘lim topshirish-qabul qilish dalolatnomasini muhrlash
     if (status === RequestStatus.FULFILLED && fulfilledRequest) {
       try {
+        const isDirectFromWarehouse = !result.commendantHandedAt && !result.commendantId;
+        const senderRole = isDirectFromWarehouse ? 'Topshiruvchi (Bosh Ombor Mudiri)' : 'Topshiruvchi (Bino Komendanti)';
+        const effectiveSignerName = isDirectFromWarehouse ? warehouseSigner : commendantSigner;
+        const effectiveSignerRole = isDirectFromWarehouse ? 'Bosh ombor mudiri' : 'Bosh bino komendanti';
+        const effectiveRoom = result.targetRoom?.name || result.targetRoom?.number || 'Bo‘lim tasarrufida / Obyektda (Xonasiz)';
+        const docTitle = isDirectFromWarehouse
+          ? `Bo‘limga to‘g‘ridan-to‘g‘ri topshirish-qabul qilish dalolatnomasi (${result.purpose})`
+          : `Ichki topshirish-qabul qilish dalolatnomasi (${result.purpose})`;
+
         await this.documentStampsService.stampDocument({
-          docType: 'AKT',
-          docNumber: `${result.requestNumber}-AKT`,
-          title: `Ichki topshirish-qabul qilish dalolatnomasi (${result.purpose})`,
-          signerName: commendantSigner,
-          signerRole: 'Bosh bino komendanti',
+          docType: isDirectFromWarehouse ? 'OS_2' : 'AKT',
+          docNumber: `${result.requestNumber}-${isDirectFromWarehouse ? 'OS2-DIR' : 'AKT'}`,
+          title: docTitle,
+          signerName: effectiveSignerName,
+          signerRole: effectiveSignerRole,
           metadata: {
             requestNumber: result.requestNumber,
             purpose: result.purpose,
             department: result.department?.name,
             requester: requesterSigner,
-            room: result.targetRoom?.name || result.targetRoom?.number,
+            room: effectiveRoom,
+            isDirectHandover: isDirectFromWarehouse,
             movementNumber: outgoingMovement?.movementNumber,
             items: result.items.map((i: any) => ({
               name: i.item.name,
@@ -850,8 +939,8 @@ export class RequestsService {
             })),
             signatures: [
               {
-                role: 'Topshiruvchi (Bino Komendanti)',
-                name: commendantSigner,
+                role: senderRole,
+                name: effectiveSignerName,
                 isSigned: true,
                 signedAt: new Date(),
                 method: 'UWMS Tizim Tasdig‘i (Workflow Auth)',
@@ -891,6 +980,7 @@ export class RequestsService {
         status: result.status,
         requesterId: result.requesterId,
         requesterName: result.requester?.fullName,
+        requesterPhone: result.requester?.phone,
         departmentId: result.departmentId,
         departmentName: result.department?.name,
         approvalNote: result.approvalNote,
@@ -902,6 +992,14 @@ export class RequestsService {
         targetRoomNumber: result.targetRoom?.number,
         commendantId: result.commendantId,
         commendantName: result.commendant?.fullName,
+        requiresTechnicalInspection: result.requiresTechnicalInspection,
+        assignedEngineerId: result.assignedEngineerId,
+        assignedEngineerName: result.assignedEngineer?.fullName,
+        assignedEngineerPosition: result.assignedEngineer?.position,
+        engineerInspectedAt: result.engineerInspectedAt?.toISOString(),
+        engineerInspectedById: result.engineerInspectedById,
+        engineerInspectedByName: result.engineerInspectedBy?.fullName,
+        inspectionChecklist: result.inspectionChecklist,
         submittedAt: result.submittedAt?.toISOString(),
         prorektorApprovedAt: result.prorektorApprovedAt?.toISOString(),
         prorektorApprovedById: result.prorektorApprovedById,
@@ -936,6 +1034,9 @@ export class RequestsService {
       } else if (status === RequestStatus.FINANCED_BY_ACCOUNTANT) {
         this.eventsGateway.emitToRole('HEAD_WAREHOUSE', 'REQUEST_UPDATED', eventPayload);
       } else if (status === RequestStatus.RECEIVED_AT_WAREHOUSE) {
+        if (result.requiresTechnicalInspection && result.assignedEngineerId) {
+          this.eventsGateway.emitToUser(result.assignedEngineerId, 'REQUEST_UPDATED', eventPayload);
+        }
         this.eventsGateway.emitToRole('COMMENDANT', 'REQUEST_UPDATED', eventPayload);
       } else if (status === RequestStatus.HANDED_TO_COMMENDANT) {
         this.eventsGateway.emitToUser(result.requesterId, 'REQUEST_UPDATED', eventPayload);
@@ -945,5 +1046,211 @@ export class RequestsService {
     }
 
     return result;
+  }
+
+  async getEligibleEngineers() {
+    // Qat'iy faqat RoleType.ENGINEER roliga ega faol foydalanuvchilar
+    const users = await this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: RoleType.ENGINEER,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        username: true,
+        role: true,
+        position: true,
+        phone: true,
+        department: { select: { id: true, name: true } },
+      },
+      orderBy: { fullName: 'asc' },
+    });
+
+    return users.map((u) => ({
+      id: u.id,
+      fullName: u.fullName,
+      username: u.username,
+      role: u.role,
+      position: u.position || 'Texnik Injener',
+      departmentName: u.department?.name,
+      phone: u.phone,
+    }));
+  }
+
+  async submitTechnicalInspection(
+    requestId: string,
+    dto: {
+      packagingIntegrity: boolean;
+      completeness: boolean;
+      powerSafety: boolean;
+      serialNumberMatch: boolean;
+      specsCompliance: boolean;
+      notes?: string;
+    },
+    currentUser: { id: string; fullName?: string; role: RoleType; position?: string },
+  ) {
+    const request = await this.prisma.request.findUnique({
+      where: { id: requestId },
+      include: {
+        assignedEngineer: true,
+        department: true,
+        requester: true,
+        items: { include: { item: true } },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Talabnoma topilmadi!');
+    }
+
+    if (request.status !== RequestStatus.RECEIVED_AT_WAREHOUSE) {
+      throw new BadRequestException(
+        `Texnik ko‘rik faqat tovarlar omborga kelgach (RECEIVED_AT_WAREHOUSE) o‘tkazilishi mumkin! Joriy holat: ${request.status}`,
+      );
+    }
+
+    if (!request.requiresTechnicalInspection) {
+      throw new BadRequestException('Ushbu talabnoma bo‘yicha texnik ko‘rik belgilanmagan!');
+    }
+
+    // Ruxsat tekshiruvi: Biriktirilgan injener, admin yoki texnik mutaxassis
+    const isAssigned = request.assignedEngineerId === currentUser.id;
+    const isAdmin = currentUser.role === RoleType.SUPER_ADMIN || currentUser.role === RoleType.ADMIN;
+    const isEngineerRole = currentUser.role === RoleType.ENGINEER;
+    const isEngineerPosition =
+      currentUser.position &&
+      (currentUser.position.toLowerCase().includes('injener') ||
+        currentUser.position.toLowerCase().includes('muhandis') ||
+        currentUser.position.toLowerCase().includes('texnik'));
+
+    if (!isAssigned && !isAdmin && !isEngineerRole && !isEngineerPosition) {
+      throw new ForbiddenException(
+        'Faqat ushbu talabnomaga biriktirilgan mas’ul injener yoki administrator texnik ko‘rikni tasdiqlashi mumkin!',
+      );
+    }
+
+    // 5 ta xavfsizlik va sozlik bandining to'liq tasdiqlanganligi (5/5 qat'iy talab)
+    if (
+      !dto.packagingIntegrity ||
+      !dto.completeness ||
+      !dto.powerSafety ||
+      !dto.serialNumberMatch ||
+      !dto.specsCompliance
+    ) {
+      throw new BadRequestException(
+        'Xavfsizlik va sozlik bo‘yicha barcha 5 ta tekshiruv bandi tasdiqlanishi shart! Qolib ketgan tekshiruv mavjud bo‘lganda uskunani soz deb topish va foydalanishga chiqarish qat’iyan taqiqlanadi.',
+      );
+    }
+
+    const inspectionChecklist = {
+      packagingIntegrity: dto.packagingIntegrity,
+      completeness: dto.completeness,
+      powerSafety: dto.powerSafety,
+      serialNumberMatch: dto.serialNumberMatch,
+      specsCompliance: dto.specsCompliance,
+      notes: dto.notes || null,
+      inspectedAt: new Date().toISOString(),
+      inspectorId: currentUser.id,
+      inspectorName: currentUser.fullName || 'Mas’ul Injener',
+      inspectorPosition: currentUser.position || 'Texnik Injener',
+    };
+
+    const updated = await this.prisma.request.update({
+      where: { id: requestId },
+      data: {
+        engineerInspectedAt: new Date(),
+        engineerInspectedById: currentUser.id,
+        inspectionChecklist,
+      },
+      include: {
+        assignedEngineer: true,
+        engineerInspectedBy: true,
+        requester: true,
+        department: true,
+        items: { include: { item: true } },
+      },
+    });
+
+    // Rasmiy elektron AKT-TEX hujjat shtampi (WORM)
+    const docNumber = `AKT-TEX-${request.requestNumber}`;
+    try {
+      if (this.documentStampsService) {
+        await this.documentStampsService.stampDocument({
+          docNumber,
+          docType: 'AKT',
+          title: `Texnik Ko‘rik va Sozlik Dalolatnomasi (${request.requestNumber})`,
+          signerRole: currentUser.position || 'Mas’ul Texnik Injener',
+          signerName: currentUser.fullName || 'Mas’ul Injener',
+          metadata: {
+            departmentName: request.department?.name,
+            requestId: request.id,
+            requestNumber: request.requestNumber,
+            checklist: inspectionChecklist,
+            items: request.items.map((i) => `${i.item.name}: ${i.requestedQty} ${i.item.unit}`).join(', '),
+          },
+        });
+      }
+    } catch (stampErr) {
+      // Non-fatal
+    }
+
+    // Ombor mudiri va talabgorga xabarnoma yuborish
+    try {
+      await this.notificationsService.notifyRole(
+        RoleType.HEAD_WAREHOUSE,
+        'Texnik Ko‘rik Muvaffaqiyatli O‘tkazildi (AKT-TEX)',
+        `Talabnoma (${request.requestNumber}) bo‘yicha texnik ko‘rik to‘liq o‘tkazildi va uskunalar soz deb topildi. Endi tovarlarni topshirish mumkin.`,
+        NotificationType.INFO,
+        '/requests',
+      );
+
+      await this.notificationsService.create({
+        userId: request.requesterId,
+        title: 'Uskunalar Texnik Ko‘rikdan O‘tdi (AKT-TEX)',
+        message: `Talabnomangiz (${request.requestNumber}) bo‘yicha tovarlar mas’ul injener tomonidan sozlik va xavfsizlik ko‘rigidan to‘liq o‘tkazildi.`,
+        type: NotificationType.SUCCESS,
+        link: '/requests',
+      });
+    } catch (notifErr) {
+      // Non-fatal
+    }
+
+    // Tizim Audit jurnali
+    await this.systemAuditService.log({
+      action: 'UPDATE',
+      entity: 'Request',
+      entityId: request.id,
+      details: {
+        requestNumber: request.requestNumber,
+        event: 'ENGINEER_INSPECTION_PASSED',
+        checklist: inspectionChecklist,
+      },
+      userId: currentUser.id,
+    });
+
+    // Realtime websocket signallari
+    if (this.eventsGateway) {
+      const eventPayload = {
+        id: updated.id,
+        requestNumber: updated.requestNumber,
+        status: updated.status,
+        requiresTechnicalInspection: updated.requiresTechnicalInspection,
+        assignedEngineerId: updated.assignedEngineerId,
+        assignedEngineerName: updated.assignedEngineer?.fullName,
+        assignedEngineerPosition: updated.assignedEngineer?.position,
+        engineerInspectedAt: updated.engineerInspectedAt?.toISOString(),
+        engineerInspectedById: updated.engineerInspectedById,
+        engineerInspectedByName: currentUser.fullName,
+        inspectionChecklist,
+      };
+      this.eventsGateway.broadcast('REQUEST_UPDATED', eventPayload);
+      this.eventsGateway.broadcast('request:updated', eventPayload);
+      this.eventsGateway.emitToUser(updated.requesterId, 'REQUEST_UPDATED', eventPayload);
+      this.eventsGateway.emitToRole(RoleType.HEAD_WAREHOUSE, 'REQUEST_UPDATED', eventPayload);
+      this.eventsGateway.emitToRole(RoleType.COMMENDANT, 'REQUEST_UPDATED', eventPayload);
+    }
+
+    return updated;
   }
 }

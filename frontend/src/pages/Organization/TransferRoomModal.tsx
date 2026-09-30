@@ -92,13 +92,13 @@ export const TransferRoomModal: React.FC<TransferRoomModalProps> = ({
 
   const commandantUsers = useMemo(() => {
     return (usersData?.items || []).filter(
-      (u) => u.role === 'COMMENDANT' || u.role === 'SUPER_ADMIN'
+      (u) => u.role === 'COMMENDANT' || u.role === 'SUPER_ADMIN' || u.role === 'ADMIN'
     );
   }, [usersData]);
 
   const accountantUsers = useMemo(() => {
     return (usersData?.items || []).filter(
-      (u) => u.role === 'CHIEF_ACCOUNTANT' || u.role === 'SUPER_ADMIN' || u.role === 'VICE_RECTOR_FINANCE'
+      (u) => u.role === 'CHIEF_ACCOUNTANT' || u.role === 'SUPER_ADMIN' || u.role === 'ADMIN' || u.role === 'VICE_RECTOR_FINANCE'
     );
   }, [usersData]);
 

@@ -41,6 +41,7 @@ const roleTagColors: Record<RoleType, string> = {
   [RoleType.COMMENDANT]: 'orange',
   [RoleType.RECTOR]: 'magenta',
   [RoleType.VICE_RECTOR_FINANCE]: 'green',
+  [RoleType.ENGINEER]: 'teal',
 };
 
 const roleLabels: Record<RoleType, string> = {
@@ -54,6 +55,7 @@ const roleLabels: Record<RoleType, string> = {
   [RoleType.COMMENDANT]: 'Komendant',
   [RoleType.RECTOR]: 'Rektor',
   [RoleType.VICE_RECTOR_FINANCE]: 'Moliya-iqtisod Prorektori',
+  [RoleType.ENGINEER]: 'Texnik Injener (IT / Muhandis)',
 };
 
 const statusColors: Record<string, string> = {

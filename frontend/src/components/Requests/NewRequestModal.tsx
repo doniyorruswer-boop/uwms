@@ -19,6 +19,7 @@ import {
   Empty,
   Drawer,
   Message,
+  Switch,
 } from '@arco-design/web-react';
 import {
   IconPlus,
@@ -27,11 +28,14 @@ import {
   IconSearch,
   IconEye,
   IconCheckCircle,
+  IconTool,
 } from '@arco-design/web-react/icon';
 import { useWarehouseQuery } from '../../hooks/useWarehouseQuery';
 import { useQuotasQuery, useCheckQuotaQuery } from '../../hooks/useQuotasQuery';
+import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
+import { useEligibleEngineersQuery } from '../../hooks/useRequestsQuery';
 import { useAuthStore } from '../../store/authStore';
-import type { StockItem } from '../../types';
+import { RoleType, type StockItem } from '../../types';
 
 const { Row, Col } = Grid;
 const { Text } = Typography;
@@ -55,6 +59,9 @@ interface NewRequestModalProps {
   onClose: () => void;
   onSubmit: (payload: {
     purpose: string;
+    targetRoomId?: string;
+    requiresTechnicalInspection?: boolean;
+    assignedEngineerId?: string;
     items: Array<{ itemId?: string; itemName: string; quantity: number; unit?: string }>;
   }) => Promise<void>;
   initialDraftItems?: Array<{
@@ -77,7 +84,58 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
 }) => {
   const [form] = Form.useForm();
   const { stocks, isLoading: isLoadingStocks } = useWarehouseQuery();
+  const { rooms = [], buildings = [] } = useOrganizationQuery();
+  const { data: eligibleEngineers = [], isLoading: isLoadingEngineers } = useEligibleEngineersQuery();
   const { user } = useAuthStore();
+
+  // Faqat rasmiy ENGINEER roliga ega mutaxassislar
+  const engineerUsers = useMemo(() => {
+    return eligibleEngineers.filter((e) => e.role === RoleType.ENGINEER);
+  }, [eligibleEngineers]);
+
+  // Texnik ko‘rik (Injener) holati
+  const [requiresEngineer, setRequiresEngineer] = useState<boolean>(false);
+  const [selectedEngineerId, setSelectedEngineerId] = useState<string | undefined>(undefined);
+
+  // Joylashuv / Yetkazish turi: OBJECT (Xonasiz / Obyektda sarflash) vs ROOM (Aniq xona / auditoriya uchun)
+  const [destinationType, setDestinationType] = useState<'ROOM' | 'OBJECT'>('OBJECT');
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | undefined>(undefined);
+  const [selectedTargetRoomId, setSelectedTargetRoomId] = useState<string | undefined>(undefined);
+
+  // Binoni o'zgartirganda: xonalar ro'yxatini filtrlash
+  const handleBuildingChange = (buildingId?: string) => {
+    setSelectedBuildingId(buildingId);
+    if (buildingId && selectedTargetRoomId) {
+      const curRoom = rooms.find((r) => r.id === selectedTargetRoomId);
+      const curRoomBldId = curRoom?.buildingId || buildings.find((b) => b.name === curRoom?.building)?.id;
+      if (curRoom && curRoomBldId && curRoomBldId !== buildingId) {
+        setSelectedTargetRoomId(undefined);
+      }
+    }
+  };
+
+  // Xonani tanlaganda: binosini avtomatik aniqlab qo'yish
+  const handleRoomChange = (roomId?: string) => {
+    setSelectedTargetRoomId(roomId);
+    if (roomId) {
+      const curRoom = rooms.find((r) => r.id === roomId);
+      if (curRoom) {
+        const bldId = curRoom.buildingId || buildings.find((b) => b.name === curRoom.building)?.id;
+        if (bldId) {
+          setSelectedBuildingId(bldId);
+        }
+      }
+    }
+  };
+
+  // Tanlangan binoga qarab xonalarni filtrlash
+  const availableRooms = useMemo(() => {
+    if (!selectedBuildingId) return rooms;
+    return rooms.filter((r) => {
+      const bldId = r.buildingId || buildings.find((b) => b.name === r.building)?.id;
+      return bldId === selectedBuildingId;
+    });
+  }, [rooms, buildings, selectedBuildingId]);
 
   // Mode: EXISTING (Ombordagi zaxiradan) vs NEW (Hali omborda mavjud bo'lmagan yangi tovar)
   const [addMode, setAddMode] = useState<'EXISTING' | 'NEW'>('EXISTING');
@@ -104,6 +162,24 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
   // Draft cart items list
   const [draftItems, setDraftItems] = useState<DraftItemRow[]>([]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Xona jihozi (mebel, parta, kompyuter) borligini aniqlash
+  const hasRoomAssetInCart = useMemo(() => {
+    return draftItems.some((item) => {
+      const n = (item.itemName || '').toLowerCase();
+      return (
+        n.includes('parta') ||
+        n.includes('stol') ||
+        n.includes('stul') ||
+        n.includes('mebel') ||
+        n.includes('shkaf') ||
+        n.includes('doska') ||
+        n.includes('kompyuter') ||
+        n.includes('printer') ||
+        n.includes('konditsioner')
+      );
+    });
+  }, [draftItems]);
 
   // Warehouse Live Catalog Drawer state
   const [isCatalogDrawerVisible, setIsCatalogDrawerVisible] = useState<boolean>(false);
@@ -133,6 +209,11 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
         purpose: initialPurpose || '',
       });
 
+      setDestinationType('OBJECT');
+      setSelectedBuildingId(undefined);
+      setSelectedTargetRoomId(undefined);
+      setRequiresEngineer(false);
+      setSelectedEngineerId(undefined);
       setSelectedStockId(undefined);
       setStockQuantityInput(1);
       setNewCustomName('');
@@ -282,9 +363,22 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
         return;
       }
 
+      if (destinationType === 'ROOM' && !selectedTargetRoomId) {
+        Message.warning('Iltimos, ashyolar joylashadigan aniq xona yoki auditoriyani tanlang!');
+        return;
+      }
+
+      if (requiresEngineer && !selectedEngineerId) {
+        Message.warning('Iltimos, texnik ko‘rik o‘tkazuvchi mas’ul injenerni tanlang!');
+        return;
+      }
+
       setIsSubmitting(true);
       await onSubmit({
         purpose: values.purpose,
+        targetRoomId: destinationType === 'ROOM' ? selectedTargetRoomId : undefined,
+        requiresTechnicalInspection: requiresEngineer,
+        assignedEngineerId: requiresEngineer ? selectedEngineerId : undefined,
         items: draftItems.map((d) => ({
           itemId: d.itemId,
           itemName: d.itemName,
@@ -367,6 +461,204 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
               rows={2}
             />
           </FormItem>
+
+          <Row gutter={16} style={{ marginBottom: 12 }}>
+            <Col span={24}>
+              <FormItem
+                label="Yetkazish joyi va joylashuv turi"
+                style={{ marginBottom: destinationType === 'ROOM' ? 12 : 0 }}
+              >
+                <Radio.Group
+                  type="button"
+                  value={destinationType}
+                  onChange={(val) => {
+                    setDestinationType(val);
+                    if (val === 'OBJECT') {
+                      setSelectedBuildingId(undefined);
+                      setSelectedTargetRoomId(undefined);
+                    }
+                  }}
+                  size="small"
+                >
+                  <Radio value="OBJECT">⚡ Obyektda sarflash / Xonasiz (Bo‘lim tasarrufida)</Radio>
+                  <Radio value="ROOM">🏢 Aniq xona / auditoriya uchun (Bino va Xona)</Radio>
+                </Radio.Group>
+              </FormItem>
+              {destinationType === 'OBJECT' && hasRoomAssetInCart && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  style={{ marginTop: 8 }}
+                  content="Diqqat: Savatchangizda auditoriya yoki xona jihozlari (parta, stol, kompyuter...) mavjud. Agar ushbu ashyolar aniq bir xonaga o‘rnatilishi lozim bo‘lsa, '🏢 Aniq xona / auditoriya uchun' tanlovini belgilab bino va xonani tanlashingiz tavsiya etiladi."
+                />
+              )}
+            </Col>
+
+            {destinationType === 'ROOM' && (
+              <>
+                <Col span={12}>
+                  <FormItem
+                    label="Joylashuv: Bino / Korpus (Filtr)"
+                    required
+                    style={{ marginBottom: 0 }}
+                  >
+                    <Select
+                      placeholder="Binoni tanlang..."
+                      value={selectedBuildingId}
+                      onChange={handleBuildingChange}
+                      showSearch
+                      allowClear
+                      filterOption={(input, option) => {
+                        const bld = buildings.find((b) => b.id === option.props.value);
+                        if (!bld) return false;
+                        const q = input.toLowerCase().trim();
+                        return (
+                          bld.name?.toLowerCase().includes(q) ||
+                          (bld.code && bld.code.toLowerCase().includes(q))
+                        );
+                      }}
+                    >
+                      {buildings.map((b) => (
+                        <Select.Option key={b.id} value={b.id}>
+                          <b>{b.name}</b> ({b.floorsCount} qavatli)
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </FormItem>
+                </Col>
+
+                <Col span={12}>
+                  <FormItem
+                    label="Aniq xona yoki auditoriya"
+                    required
+                    style={{ marginBottom: 0 }}
+                  >
+                    <Select
+                      placeholder={
+                        selectedBuildingId
+                          ? `${buildings.find((b) => b.id === selectedBuildingId)?.name || 'Bino'} bo‘yicha xonani tanlang...`
+                          : 'Xona yoki auditoriyani tanlang...'
+                      }
+                      value={selectedTargetRoomId}
+                      onChange={handleRoomChange}
+                      showSearch
+                      allowClear
+                      filterOption={(input, option) => {
+                        const rm = rooms.find((r) => r.id === option.props.value);
+                        if (!rm) return false;
+                        const q = input.toLowerCase().trim();
+                        return (
+                          rm.number?.toLowerCase().includes(q) ||
+                          rm.name?.toLowerCase().includes(q) ||
+                          (rm.building && rm.building.toLowerCase().includes(q))
+                        );
+                      }}
+                    >
+                      {availableRooms.map((rm) => (
+                        <Select.Option key={rm.id} value={rm.id}>
+                          <b>{rm.number}-xona:</b> {rm.name} ({rm.building || 'Bino'}, {rm.floor}-qavat)
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </FormItem>
+                </Col>
+              </>
+            )}
+          </Row>
+
+          {/* Texnik Nazorat va Injener Biriktirish */}
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '12px 14px',
+              background: requiresEngineer ? 'var(--color-fill-2)' : 'transparent',
+              border: `1px solid ${requiresEngineer ? '#94BFFF' : 'var(--color-border-2)'}`,
+              borderRadius: 4,
+              transition: 'all 0.2s',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: requiresEngineer ? '#E8F3FF' : 'var(--color-fill-3)',
+                    color: requiresEngineer ? '#165DFF' : 'var(--color-text-3)',
+                    flexShrink: 0,
+                    marginTop: 1,
+                  }}
+                >
+                  <IconTool style={{ fontSize: 18 }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)', lineHeight: 1.4 }}>
+                    Texnik ko‘rik (Injener nazorati) talab etiladimi?
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-3)', lineHeight: 1.4, marginTop: 2 }}>
+                    Qimmatbaho, IT va laboratoriya uskunalarini topshirishdan oldin mas’ul injener tomonidan 5 bosqichli sozlik ko‘rigidan o‘tkazish.
+                  </div>
+                </div>
+              </div>
+              <div style={{ flexShrink: 0 }}>
+                <Switch
+                  checked={requiresEngineer}
+                  onChange={(checked) => {
+                    setRequiresEngineer(checked);
+                    if (!checked) {
+                      setSelectedEngineerId(undefined);
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            {requiresEngineer && (
+              <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed var(--color-border-2)' }}>
+                <FormItem
+                  label="Mas’ul Texnik Injener / Mutaxassisni tanlang"
+                  required
+                  style={{ marginBottom: 6 }}
+                >
+                  <Select
+                    placeholder="Mas’ul injener yoki IT mutaxassisini tanlang..."
+                    value={selectedEngineerId}
+                    onChange={(val) => setSelectedEngineerId(val)}
+                    loading={isLoadingEngineers}
+                    showSearch
+                    allowClear
+                    filterOption={(input, option) => {
+                      if (!input) return true;
+                      const eng = engineerUsers.find((e) => e.id === option.props.value);
+                      if (!eng) return false;
+                      const q = input.toLowerCase().trim();
+                      return Boolean(
+                        eng.fullName?.toLowerCase().includes(q) ||
+                        eng.position?.toLowerCase().includes(q) ||
+                        (eng.departmentName && eng.departmentName.toLowerCase().includes(q))
+                      );
+                    }}
+                  >
+                    {engineerUsers.map((eng) => (
+                      <Select.Option key={eng.id} value={eng.id}>
+                        <b>{eng.fullName}</b> · <span style={{ color: 'var(--color-text-3)', fontSize: 12 }}>{eng.position} {eng.departmentName ? `(${eng.departmentName})` : ''}</span>
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </FormItem>
+                <Alert
+                  type="info"
+                  showIcon
+                  content="Belgilangan injener ashyolar omborga yetib kelgach, 5 bosqichli xavfsizlik va parametrlar nazoratidan o‘tkazib 'AKT-TEX' dalolatnomasini tasdiqlashi shart."
+                  style={{ fontSize: 12 }}
+                />
+              </div>
+            )}
+          </div>
 
           <Divider style={{ margin: '14px 0' }} />
 

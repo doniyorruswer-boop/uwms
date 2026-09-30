@@ -82,6 +82,7 @@ const ALLOWED_ASSET_ROLES = [
   'RECTOR',
   'VICE_RECTOR_FINANCE',
   'EMPLOYEE',
+  'ENGINEER',
 ];
 
 const FormItem = Form.Item;
@@ -94,6 +95,8 @@ export const AssetsPage: React.FC = () => {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
 
+  const isEngineer = user?.role === 'ENGINEER';
+
   const [activeMainTab, setActiveMainTab] = useState<'ASSETS' | 'TRANSFERS'>('ASSETS');
   const [selectedTransferDoc, setSelectedTransferDoc] = useState<TransferItem | null>(null);
   const [isDocModalVisible, setIsDocModalVisible] = useState(false);
@@ -104,12 +107,14 @@ export const AssetsPage: React.FC = () => {
   const [quickCategory, setQuickCategory] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [fundingSourceFilter, setFundingSourceFilter] = useState<string>('ALL');
-  const [showMyAssetsOnly, setShowMyAssetsOnly] = useState<boolean>(user?.role === 'MOL');
+  const [showMyAssetsOnly, setShowMyAssetsOnly] = useState<boolean>(
+    user?.role === 'MOL' || user?.role === 'ENGINEER'
+  );
   const [wizardAssets, setWizardAssets] = useState<ItemInstance[]>([]);
   const [wizardInitialActionType, setWizardInitialActionType] = useState<HandoverItemActionType>('TRANSFER_TO_MOL');
 
   useEffect(() => {
-    if (user?.role === 'MOL') {
+    if (user?.role === 'MOL' || user?.role === 'ENGINEER') {
       setShowMyAssetsOnly(true);
     }
   }, [user?.role]);
@@ -125,7 +130,8 @@ export const AssetsPage: React.FC = () => {
     search: searchText || undefined,
     status: statusFilter === 'ALL' ? undefined : statusFilter,
     fundingSource: fundingSourceFilter === 'ALL' ? undefined : fundingSourceFilter,
-    responsibleUserId: showMyAssetsOnly ? user?.id : undefined,
+    responsibleUserId: showMyAssetsOnly && !isEngineer ? user?.id : undefined,
+    inspectedByEngineerId: showMyAssetsOnly && isEngineer ? user?.id : undefined,
   });
 
   const { transfers, isLoading: isTransfersLoading, respondTransfer, refetch: refetchTransfers } = useTransfersQuery();
@@ -222,7 +228,7 @@ export const AssetsPage: React.FC = () => {
       (quickCategory === 'MEBEL' && a.categoryName?.includes('Mebel')) ||
       (quickCategory === 'NEW' && a.status === 'NEW');
 
-    const matchesMyAssets = !showMyAssetsOnly || a.responsibleUserId === user?.id;
+    const matchesMyAssets = !showMyAssetsOnly || (isEngineer ? true : a.responsibleUserId === user?.id);
 
     return matchesSearch && matchesStatus && matchesFunding && matchesCat && matchesMyAssets;
   });
@@ -538,9 +544,10 @@ export const AssetsPage: React.FC = () => {
                   onChange={(val) => setShowMyAssetsOnly(val === 'MINE')}
                 >
                   <Radio value="MINE">
-                    <IconUser style={{ marginRight: 4 }} /> Mening aktivlarim
+                    <IconUser style={{ marginRight: 4 }} />{' '}
+                    {isEngineer ? 'Men imzo qo‘ygan vositalar' : 'Mening aktivlarim'}
                   </Radio>
-                  <Radio value="ALL">Barchasi</Radio>
+                  <Radio value="ALL">{isEngineer ? 'Barcha asosiy vositalar' : 'Barchasi'}</Radio>
                 </Radio.Group>
                 <Input
                   prefix={<IconSearch />}
@@ -664,12 +671,28 @@ export const AssetsPage: React.FC = () => {
           )}
 
           {/* Main Assets Table with row selection & clickable rows */}
+          {isEngineer && showMyAssetsOnly && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ borderRadius: 0, marginBottom: 12 }}
+              content={
+                <span>
+                  Ushbu ro‘yxatda Siz tomonidan texnik ko‘rikdan o‘tkazilgan (<strong>AKT-TEX</strong>), ta’mirlash dalolatnomasi tasdiqlangan (<strong>AKT-REP</strong>) yoki Sizga biriktirilgan asosiy vositalar jamlangan.
+                </span>
+              }
+            />
+          )}
           <StandardTable
             rowKey="id"
             loading={isLoading}
             data={filteredAssets}
             scrollX={1280}
-            emptyText="Qidiruv bo‘yicha asosiy vosita topilmadi"
+            emptyText={
+              isEngineer && showMyAssetsOnly
+                ? 'Siz tomoningizdan imzo qo‘yilgan (texnik ko‘rik yoki ta’mir xulosasi berilgan) asosiy vositalar mavjud emas'
+                : 'Qidiruv bo‘yicha asosiy vosita topilmadi'
+            }
             rowSelection={{
               type: 'checkbox',
               selectedRowKeys,
@@ -768,11 +791,28 @@ export const AssetsPage: React.FC = () => {
                 },
               },
               {
-                title: 'Holati',
+                title: 'Holati & Dalolatnoma',
                 dataIndex: 'status',
-                width: 130,
-                render: (status: AssetStatus) => (
-                  <StatusTag domain="asset" status={status} mode="badge" />
+                width: 175,
+                render: (status: AssetStatus, record: ItemInstance) => (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <StatusTag domain="asset" status={status} mode="badge" />
+                    {record.engineerSignatures?.inspectionAct && (
+                      <Tag color="cyan" size="small" style={{ borderRadius: 0, fontSize: 11, width: 'fit-content' }}>
+                        📋 {record.engineerSignatures.inspectionAct}
+                      </Tag>
+                    )}
+                    {record.engineerSignatures?.repairAct && (
+                      <Tag color="orange" size="small" style={{ borderRadius: 0, fontSize: 11, width: 'fit-content' }}>
+                        🛠 {record.engineerSignatures.repairAct}
+                      </Tag>
+                    )}
+                    {record.engineerSignatures?.writeOffAct && (
+                      <Tag color="magenta" size="small" style={{ borderRadius: 0, fontSize: 11, width: 'fit-content' }}>
+                        📑 {record.engineerSignatures.writeOffAct}
+                      </Tag>
+                    )}
+                  </div>
                 ),
               },
               {
@@ -1082,6 +1122,41 @@ export const AssetsPage: React.FC = () => {
                     </>
                   )}
                 </Timeline>
+              </div>
+            </TabPane>
+
+            <TabPane key="tech" title="Texnik Xulosa & Aktlar">
+              <div style={{ padding: '8px 0' }}>
+                <Descriptions
+                  column={1}
+                  border
+                  data={[
+                    {
+                      label: 'Texnik Ko‘rik Dalolatnomasi (AKT-TEX)',
+                      value: selectedAsset.engineerSignatures?.inspectionAct || 'Mavjud emas / O‘tkazilmagan',
+                    },
+                    {
+                      label: 'Ko‘rik O‘tkazgan Injener',
+                      value: selectedAsset.engineerSignatures?.inspectorName || 'Biriktirilmagan',
+                    },
+                    {
+                      label: 'Ta’mirlash Dalolatnomasi (AKT-REP)',
+                      value: selectedAsset.engineerSignatures?.repairAct || 'Ta’mir talabnomasi mavjud emas',
+                    },
+                    {
+                      label: 'Ta’mirlash Xulosasi Bergan Shaxs',
+                      value: selectedAsset.engineerSignatures?.repairApproverName || '—',
+                    },
+                    {
+                      label: 'Ta’mirlash Holati',
+                      value: selectedAsset.engineerSignatures?.repairStatus || 'Standart ishchi holat',
+                    },
+                    {
+                      label: 'Hisobdan Chiqarish Dalolatnomasi (OS-4)',
+                      value: selectedAsset.engineerSignatures?.writeOffAct || 'Hisobdan chiqarish qayd etilmagan',
+                    },
+                  ]}
+                />
               </div>
             </TabPane>
 
