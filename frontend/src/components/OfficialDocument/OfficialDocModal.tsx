@@ -499,7 +499,7 @@ export const OfficialDocModal: React.FC<OfficialDocProps> = ({
         visible={visible}
         onCancel={onClose}
         footer={
-          <Space>
+          <Space wrap>
             <Button
               type="primary"
               status="success"

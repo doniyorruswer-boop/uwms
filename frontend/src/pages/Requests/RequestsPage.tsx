@@ -1599,7 +1599,7 @@ export const RequestsPage: React.FC = () => {
 
       {/* ARCO STEPS: REQUEST DETAIL MODAL */}
       <Modal
-        style={{ width: 720 }}
+        style={{ width: 840, maxWidth: '95vw', top: 30 }}
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span>Talabnoma Holati va 7-Bosqichli Xarid Zanjiri: {selectedRequest?.requestNumber}</span>
@@ -1613,63 +1613,81 @@ export const RequestsPage: React.FC = () => {
         visible={isDetailModalVisible}
         onCancel={() => setIsDetailModalVisible(false)}
         footer={
-          <Space>
-            {(selectedRequest?.status === 'RECEIVED_AT_WAREHOUSE' ||
-              selectedRequest?.status === 'HANDED_TO_COMMENDANT' ||
-              selectedRequest?.status === 'FULFILLED') && (
-              <Button
-                type="outline"
-                icon={<IconFile />}
-                onClick={() => {
-                  if (selectedRequest) handleOpenDocModal(selectedRequest, 'KIRIM');
-                }}
-              >
-                OS-1 Kirim Akti
-              </Button>
-            )}
-            {(selectedRequest?.status === 'HANDED_TO_COMMENDANT' ||
-              selectedRequest?.status === 'FULFILLED') && (
-              <Button
-                type="outline"
-                icon={<IconFile />}
-                onClick={() => {
-                  if (selectedRequest) handleOpenDocModal(selectedRequest, 'TRANSFER');
-                }}
-              >
-                {selectedRequest.targetRoomId || selectedRequest.targetRoomName || selectedRequest.targetRoomNumber
-                  ? 'OS-2 Nakladnoy (Binoga)'
-                  : 'OS-2 Chiqim Yuk Xati (Bo‘limga)'}
-              </Button>
-            )}
-            {selectedRequest?.status === 'FULFILLED' && (
-              <Button
-                type="outline"
-                icon={<IconFile />}
-                onClick={() => {
-                  if (selectedRequest) handleOpenDocModal(selectedRequest, 'KAFEDRA_HANDOVER');
-                }}
-                style={{ color: '#096dd9', borderColor: '#91d5ff', backgroundColor: '#e6f7ff' }}
-              >
-                {selectedRequest.targetRoomId || selectedRequest.targetRoomName || selectedRequest.targetRoomNumber
-                  ? 'Xonada Qabul Dalolatnomasi'
-                  : 'Bo‘lim Qabul Dalolatnomasi'}
-              </Button>
-            )}
-            {selectedRequest?.status === 'REJECTED' &&
-              (user?.id === selectedRequest.requesterId || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
-              <Button
-                type="primary"
-                status="warning"
-                icon={<IconEdit />}
-                onClick={() => handleCloneOrResubmit(selectedRequest)}
-              >
-                Tahrirlash va Qayta Yuborish
-              </Button>
-            )}
-            <Button type="primary" onClick={() => setIsDetailModalVisible(false)}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 8,
+              width: '100%',
+            }}
+          >
+            <Space wrap size="small">
+              {(selectedRequest?.status === 'RECEIVED_AT_WAREHOUSE' ||
+                selectedRequest?.status === 'HANDED_TO_COMMENDANT' ||
+                selectedRequest?.status === 'FULFILLED') && (
+                <Button
+                  type="outline"
+                  icon={<IconFile />}
+                  onClick={() => {
+                    if (selectedRequest) handleOpenDocModal(selectedRequest, 'KIRIM');
+                  }}
+                  style={{ borderRadius: 0 }}
+                >
+                  OS-1 Kirim Akti
+                </Button>
+              )}
+              {(selectedRequest?.status === 'HANDED_TO_COMMENDANT' ||
+                selectedRequest?.status === 'FULFILLED') && (
+                <Button
+                  type="outline"
+                  icon={<IconFile />}
+                  onClick={() => {
+                    if (selectedRequest) handleOpenDocModal(selectedRequest, 'TRANSFER');
+                  }}
+                  style={{ borderRadius: 0 }}
+                >
+                  {selectedRequest.targetRoomId || selectedRequest.targetRoomName || selectedRequest.targetRoomNumber
+                    ? 'OS-2 Nakladnoy (Binoga)'
+                    : 'OS-2 Chiqim (Bo‘limga)'}
+                </Button>
+              )}
+              {selectedRequest?.status === 'FULFILLED' && (
+                <Button
+                  type="outline"
+                  icon={<IconFile />}
+                  onClick={() => {
+                    if (selectedRequest) handleOpenDocModal(selectedRequest, 'KAFEDRA_HANDOVER');
+                  }}
+                  style={{ color: '#096dd9', borderColor: '#91d5ff', backgroundColor: '#e6f7ff', borderRadius: 0 }}
+                >
+                  {selectedRequest.targetRoomId || selectedRequest.targetRoomName || selectedRequest.targetRoomNumber
+                    ? 'Xonada Qabul Dalolatnomasi'
+                    : 'Bo‘lim Qabul Dalolatnomasi'}
+                </Button>
+              )}
+              {selectedRequest?.status === 'REJECTED' &&
+                (user?.id === selectedRequest.requesterId || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+                <Button
+                  type="primary"
+                  status="warning"
+                  icon={<IconEdit />}
+                  onClick={() => handleCloneOrResubmit(selectedRequest)}
+                  style={{ borderRadius: 0 }}
+                >
+                  Tahrirlash va Qayta Yuborish
+                </Button>
+              )}
+            </Space>
+            <Button
+              type="primary"
+              onClick={() => setIsDetailModalVisible(false)}
+              style={{ borderRadius: 0, marginLeft: 'auto' }}
+            >
               Yopish
             </Button>
-          </Space>
+          </div>
         }
       >
         {selectedRequest && (() => {
@@ -1677,7 +1695,7 @@ export const RequestsPage: React.FC = () => {
           const hasRoom = Boolean(selectedRequest.targetRoomId || selectedRequest.targetRoomName || selectedRequest.targetRoomNumber);
           const roomLabel = selectedRequest.targetRoomNumber ? `${selectedRequest.targetRoomNumber}-xona` : selectedRequest.targetRoomName;
           return (
-          <div>
+          <div style={{ maxHeight: 'calc(85vh - 140px)', overflowY: 'auto', paddingRight: 6 }}>
             {/* Live Progress Hero Banner */}
             <div
               style={{
