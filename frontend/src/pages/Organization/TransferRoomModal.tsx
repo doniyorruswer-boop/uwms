@@ -162,8 +162,8 @@ export const TransferRoomModal: React.FC<TransferRoomModalProps> = ({
           targetUserId: values.responsibleUserId,
           roomId: room.id,
           buildingId: room.buildingId || undefined,
-          commandantUserId: values.commandantUserId || defaultCommandantId || undefined,
-          accountantUserId: values.accountantUserId || chiefAccountant?.id || undefined,
+          commandantUserId: defaultCommandantId || undefined,
+          accountantUserId: chiefAccountant?.id || undefined,
           note:
             values.note ||
             `Xona topshiruvi (${roomDisplayName}): xona va uning ${roomAssets.length} ta aktivlari rasmiy tarzda yangi mas’ul shaxsga o‘tkazilmoqda.`,
@@ -394,7 +394,6 @@ export const TransferRoomModal: React.FC<TransferRoomModalProps> = ({
                   label="Biriktiriladigan Kafedra / Bo‘lim / Xizmat"
                   field="departmentId"
                   rules={[{ required: true, message: 'Bo‘limni tanlang!' }]}
-                  extra="Xona qaysi fakultet, kafedra yoki bo‘lim tasarrufiga o‘tkazilmoqda"
                 >
                   <Select
                     placeholder="Bo‘lim yoki kafedrani tanlang..."
@@ -425,11 +424,6 @@ export const TransferRoomModal: React.FC<TransferRoomModalProps> = ({
                       ? [{ required: true, message: 'Yangi moddiy javobgar shaxsni (MOL) tanlang!' }]
                       : []
                   }
-                  extra={
-                    roomAssets.length > 0
-                      ? 'Xona va jihozlar javobgarligini qabul qiluvchi yangi xodim'
-                      : 'Xona javobgari (Ixtiyoriy)'
-                  }
                 >
                   <Select
                     placeholder="Yangi moddiy javobgar shaxsni tanlang..."
@@ -446,67 +440,6 @@ export const TransferRoomModal: React.FC<TransferRoomModalProps> = ({
                       <Select.Option key={u.id} value={u.id}>
                         {u.fullName} ({u.role}
                         {u.department?.name ? ` • ${u.department.name}` : ''})
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </FormItem>
-              </Col>
-            </Row>
-
-            {/* Commandant & Chief Accountant fields for Handover signing */}
-            <Row gutter={16}>
-              <Col span={12}>
-                <FormItem
-                  label="Bino Komendanti (Nazorat qiluvchi)"
-                  field="commandantUserId"
-                  extra={
-                    roomBuilding?.commendant
-                      ? `Bino komendanti avtomatik belgilandi (${roomBuilding.commendant.fullName})`
-                      : 'Xona joylashgan bino komendanti'
-                  }
-                >
-                  <Select
-                    placeholder="Bino komendantini tanlang..."
-                    showSearch
-                    allowClear
-                    filterOption={(input, option) =>
-                      String(option.props.children || '')
-                        .toLowerCase()
-                        .includes(input.toLowerCase())
-                    }
-                    style={{ borderRadius: 0 }}
-                  >
-                    {commandantUsers.map((u) => (
-                      <Select.Option key={u.id} value={u.id}>
-                        {u.fullName} ({u.role}
-                        {u.phone ? ` • ${u.phone}` : ''})
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </FormItem>
-              </Col>
-
-              <Col span={12}>
-                <FormItem
-                  label="Bosh / Moddiy Hisobchi"
-                  field="accountantUserId"
-                  extra="Buxgalteriya hisobida asosiy vositalarni qayta ro‘yxatga oluvchi mas’ul"
-                >
-                  <Select
-                    placeholder="Bosh hisobchini tanlang..."
-                    showSearch
-                    allowClear
-                    filterOption={(input, option) =>
-                      String(option.props.children || '')
-                        .toLowerCase()
-                        .includes(input.toLowerCase())
-                    }
-                    style={{ borderRadius: 0 }}
-                  >
-                    {accountantUsers.map((u) => (
-                      <Select.Option key={u.id} value={u.id}>
-                        {u.fullName} ({u.role}
-                        {u.phone ? ` • ${u.phone}` : ''})
                       </Select.Option>
                     ))}
                   </Select>
