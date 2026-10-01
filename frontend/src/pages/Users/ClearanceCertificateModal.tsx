@@ -165,6 +165,7 @@ export const ClearanceCertificateModal: React.FC<ClearanceCertificateModalProps>
             bodyStyle={{ padding: 12 }}
           >
             <div
+              className="os-document-sheet"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.contentHtml) }}
               style={{
                 transform: 'scale(0.96)',

@@ -98,6 +98,7 @@ export class DocumentArchivesService {
     .parties p { margin: 3px 0; }
     table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
     th { border: 1px solid #000; padding: 6px; background: #f0f0f0; }
+    td { border: 1px solid #000; padding: 6px; }
     .signatures { margin-top: 36px; display: flex; justify-content: space-between; }
     .sig-box { width: 30%; }
     .stamp-badge {
@@ -571,6 +572,7 @@ export class DocumentArchivesService {
     .info-grid p { margin: 2px 0; }
     table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 11px; }
     th { border: 1px solid #000; padding: 6px; background: #f0f0f0; text-align: center; }
+    td { border: 1px solid #000; padding: 6px; }
     .signatures-title { margin-top: 20px; font-weight: bold; text-transform: uppercase; font-size: 11px; border-bottom: 1px solid #000; padding-bottom: 4px; }
     .signatures-grid {
       display: grid;

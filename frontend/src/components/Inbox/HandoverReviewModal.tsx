@@ -238,6 +238,29 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
 
   const contentHtml = docData?.contentHtml || docData?.htmlContent;
 
+  const handlePrintDocument = () => {
+    if (!contentHtml) {
+      Message.warning('Chop etish uchun hujjat matni mavjud emas');
+      return;
+    }
+    try {
+      const sanitized = sanitizeHtml(contentHtml);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(sanitized);
+        printWindow.document.close();
+        setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+        }, 500);
+      } else {
+        Message.error('Brauzer oynasi bloklandi. Iltimos, qalqib chiquvchi oynalarga ruxsat bering');
+      }
+    } catch {
+      Message.error('Hujjatni chop etishda xatolik yuz berdi');
+    }
+  };
+
   const itemColumns = [
     {
       title: 'Inventar №',
@@ -720,7 +743,7 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
               className="uwms-card"
               title="OS-1 Rasmiy Davlat Standart Dalolatnomasi Ko‘rinishi"
               extra={
-                <Button size="small" type="outline" icon={<IconPrinter />} onClick={() => window.print()} style={{ borderRadius: 0 }}>
+                <Button size="small" type="outline" icon={<IconPrinter />} onClick={handlePrintDocument} style={{ borderRadius: 0 }}>
                   Chop Etish
                 </Button>
               }
@@ -729,9 +752,10 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
               <div
                 style={{
                   minHeight: 280,
-                  padding: '16px 20px',
-                  background: '#f7f8fa',
+                  padding: '24px 20px',
+                  background: 'var(--color-fill-2)',
                   border: '1px solid var(--color-border-2)',
+                  overflowX: 'auto',
                 }}
               >
                 {isLoadingDoc ? (
@@ -740,14 +764,8 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
                   </div>
                 ) : contentHtml ? (
                   <div
+                    className="os-document-sheet"
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(contentHtml) }}
-                    style={{
-                      maxWidth: 820,
-                      margin: '0 auto',
-                      background: '#fff',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                      padding: 24,
-                    }}
                   />
                 ) : (
                   <div style={{ textAlign: 'center', padding: 30 }}>

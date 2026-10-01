@@ -182,22 +182,10 @@ export const HandoverDocModal: React.FC<HandoverDocModalProps> = ({
           </div>
         ) : (
           /* A4 DOCUMENT VIEWER CONTAINER */
-          <div
-            style={{
-              backgroundColor: '#FFFFFF',
-              color: '#000000',
-              padding: '24px 32px',
-              border: '1px solid #E5E6EB',
-              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.08)',
-              fontFamily: 'serif',
-            }}
-          >
+          <div style={{ background: 'var(--color-fill-2)', padding: '24px 16px', overflowX: 'auto' }}>
             <div
+              className="os-document-sheet"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(docData.contentHtml) }}
-              style={{
-                width: '100%',
-                overflowX: 'auto',
-              }}
             />
           </div>
         )}

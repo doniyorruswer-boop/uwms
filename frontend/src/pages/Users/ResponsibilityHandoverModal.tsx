@@ -1125,6 +1125,7 @@ export const ResponsibilityHandoverModal: React.FC<ResponsibilityHandoverModalPr
                     >
                       {contentHtml ? (
                         <div
+                          className="os-document-sheet"
                           dangerouslySetInnerHTML={{ __html: sanitizeHtml(contentHtml) }}
                           style={{
                             transform: 'scale(0.92)',
