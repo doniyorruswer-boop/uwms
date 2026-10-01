@@ -37,8 +37,7 @@ import {
 } from '../../hooks/useHandoverQuery';
 import { QRPairingModal } from '../Common/QRPairingModal';
 import { RejectReasonModal } from '../Common/RejectReasonModal';
-import { ROLE_CONFIG } from '../../constants/roles.constants';
-import { sanitizeHtml } from '../../utils';
+import { sanitizeHtml, printDocument } from '../../utils';
 import type { RoleType } from '../../types';
 
 const { Title, Text, Paragraph } = Typography;
@@ -243,22 +242,10 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
       Message.warning('Chop etish uchun hujjat matni mavjud emas');
       return;
     }
-    try {
-      const sanitized = sanitizeHtml(contentHtml);
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(sanitized);
-        printWindow.document.close();
-        setTimeout(() => {
-          printWindow.focus();
-          printWindow.print();
-        }, 500);
-      } else {
-        Message.error('Brauzer oynasi bloklandi. Iltimos, qalqib chiquvchi oynalarga ruxsat bering');
-      }
-    } catch {
-      Message.error('Hujjatni chop etishda xatolik yuz berdi');
-    }
+    printDocument(sanitizeHtml(contentHtml), {
+      title: `OS-1 Dalolatnoma — ${handover?.handoverNumber}`,
+      docNumber: handover?.handoverNumber,
+    });
   };
 
   const itemColumns = [

@@ -22,7 +22,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../api/client';
 import { API_ENDPOINTS } from '../../constants';
 import type { HandoverDocumentResponse } from '../../hooks/useHandoverQuery';
-import { sanitizeHtml } from '../../utils';
+import { sanitizeHtml, printDocument } from '../../utils';
 
 interface HandoverDocModalProps {
   visible: boolean;
@@ -62,27 +62,10 @@ export const HandoverDocModal: React.FC<HandoverDocModalProps> = ({
       Message.warning('Chop etish uchun hujjat matni mavjud emas');
       return;
     }
-
-    try {
-      setIsPrinting(true);
-      const sanitized = sanitizeHtml(docData.contentHtml);
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(sanitized);
-        printWindow.document.close();
-        setTimeout(() => {
-          printWindow.focus();
-          printWindow.print();
-          setIsPrinting(false);
-        }, 500);
-      } else {
-        setIsPrinting(false);
-        Message.error('Brauzer oynasi bloklandi. Iltimos, qalqib chiquvchi oynalarga ruxsat bering');
-      }
-    } catch {
-      setIsPrinting(false);
-      Message.error('Hujjatni chop etishda xatolik yuz berdi');
-    }
+    printDocument(sanitizeHtml(docData.contentHtml), {
+      title: `OS-1 Dalolatnoma — ${docData.handoverNumber}`,
+      docNumber: docData.handoverNumber,
+    });
   };
 
   return (

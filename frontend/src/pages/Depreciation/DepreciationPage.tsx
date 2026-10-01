@@ -36,6 +36,7 @@ import { StatHeroCard } from '../../components/Common/StatHeroCard';
 import { StandardTable } from '../../components/Common/StandardTable';
 import { ForbiddenView } from '../../components/Common/ForbiddenView';
 import { formatMoney } from '../../utils/formatters';
+import { printElement } from '../../utils';
 import { useAuthStore } from '../../store/authStore';
 import { useAssetsQuery } from '../../hooks/useAssetsQuery';
 import {
@@ -562,7 +563,16 @@ export const DepreciationPage: React.FC = () => {
                 </Space>
               </Col>
               <Col span={12} style={{ textAlign: 'right' }}>
-                <Button icon={<IconPrinter />} type="primary" onClick={() => window.print()} style={{ borderRadius: 0 }}>
+                <Button
+                  icon={<IconPrinter />}
+                  type="primary"
+                  onClick={() => {
+                    printElement('#printable-statement', {
+                      title: statementData?.documentName || 'Eskirish Hisoblash Qaydnomasi',
+                    });
+                  }}
+                  style={{ borderRadius: 0 }}
+                >
                   Chop Etish (Print)
                 </Button>
               </Col>

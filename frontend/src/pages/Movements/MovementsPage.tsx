@@ -42,6 +42,7 @@ import type {
   HandoverStatus,
 } from '../../types';
 import { exportToExcel } from '../../utils/exportExcel';
+import { sanitizeHtml, printDocument } from '../../utils';
 import { OfficialDocModal } from '../../components/OfficialDocument/OfficialDocModal';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { PageTabs } from '../../components/Common/PageTabs';
@@ -152,17 +153,11 @@ export const MovementsPage: React.FC = () => {
       hideMessage = Message.loading({ content: 'Rasmiy OS-1 hujjati yuklanmoqda...', duration: 0 });
       const res = await apiClient.get<HandoverDocumentResponse>(API_ENDPOINTS.HANDOVERS.DOCUMENT(record.id));
       if (hideMessage) hideMessage();
-      const html = res.data.contentHtml;
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(html);
-        printWindow.document.close();
-        setTimeout(() => {
-          printWindow.focus();
-          printWindow.print();
-        }, 500);
-      } else {
-        Message.warning('Brauzer chop etish oynasini ochishga to‘sqinlik qildi. Iltimos, qalqib chiquvchi oynalarga ruxsat bering.');
+      if (res.data?.contentHtml) {
+        printDocument(sanitizeHtml(res.data.contentHtml), {
+          title: `OS-1 Dalolatnoma — ${record.handoverNumber}`,
+          docNumber: record.handoverNumber,
+        });
       }
     } catch (err: any) {
       if (hideMessage) hideMessage();

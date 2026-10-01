@@ -32,6 +32,7 @@ import { API_ENDPOINTS } from '../../constants/api.constants';
 import { APP_CONFIG } from '../../constants';
 import { PublicVerifyResult } from '../../types';
 import { formatRoleName } from '../../constants/roles.constants';
+import { printElement } from '../../utils';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -117,7 +118,9 @@ export const PublicVerificationPage: React.FC = () => {
       Message.warning(
         'Yuklab olishda xatolik yuz berdi. Sahifani chop etish oynasi ochilmoqda.',
       );
-      window.print();
+      printElement('#public-doc-verify-area', {
+        title: `Hujjat Tasdiqnoma — ${data?.docNumber || docNumber || ''}`,
+      });
     } finally {
       setDownloadingPdf(false);
     }
@@ -277,6 +280,7 @@ export const PublicVerificationPage: React.FC = () => {
           </Card>
         ) : data ? (
           <Card
+            id="public-doc-verify-area"
             className="print-area"
             style={{
               borderRadius: 0,
@@ -825,7 +829,11 @@ export const PublicVerificationPage: React.FC = () => {
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
-                onClick={() => window.print()}
+                onClick={() =>
+                  printElement('#public-doc-verify-area', {
+                    title: `Hujjat Tasdiqnoma — ${data?.docNumber || docNumber || ''}`,
+                  })
+                }
               >
                 Sahifani Chop Etish (Print)
               </Button>

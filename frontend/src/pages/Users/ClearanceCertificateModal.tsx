@@ -19,7 +19,7 @@ import {
 } from '@arco-design/web-react/icon';
 import { useClearanceCertificateQuery } from '../../hooks/useHandoverQuery';
 import type { UserItem } from '../../hooks/useUsersQuery';
-import { sanitizeHtml } from '../../utils';
+import { sanitizeHtml, printDocument } from '../../utils';
 
 const { Text } = Typography;
 
@@ -41,14 +41,10 @@ export const ClearanceCertificateModal: React.FC<ClearanceCertificateModalProps>
 
   const handlePrint = () => {
     if (!data?.contentHtml) return;
-    const sanitized = sanitizeHtml(data.contentHtml);
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(sanitized);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-    }
+    printDocument(sanitizeHtml(data.contentHtml), {
+      title: `Obxodnoy Varaqasi — ${data.certificateNumber}`,
+      docNumber: data.certificateNumber,
+    });
   };
 
   const handleDownload = () => {

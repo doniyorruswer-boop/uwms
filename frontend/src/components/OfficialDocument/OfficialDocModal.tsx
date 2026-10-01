@@ -32,6 +32,7 @@ import {
   documentArchivesApi,
   type DocumentArchiveItem,
 } from '../../api/documentArchives.api';
+import { printElement } from '../../utils';
 
 export interface DocumentSignatureParticipant {
   role: string;
@@ -461,6 +462,13 @@ export const OfficialDocModal: React.FC<OfficialDocProps> = ({
     },
   ];
 
+  const handlePrint = () => {
+    printElement('#official-doc-print-area', {
+      title: `${docMeta.title} (${docNumber})`,
+      docNumber,
+    });
+  };
+
   return (
     <>
       <Modal
@@ -520,7 +528,7 @@ export const OfficialDocModal: React.FC<OfficialDocProps> = ({
             <Button
               type="primary"
               icon={<IconPrinter />}
-              onClick={() => window.print()}
+              onClick={handlePrint}
               style={{ borderRadius: 0 }}
             >
               Chop Etish
@@ -542,7 +550,8 @@ export const OfficialDocModal: React.FC<OfficialDocProps> = ({
           )}
 
           <div
-            className="print-area"
+            id="official-doc-print-area"
+            className="print-area os-document-sheet"
             style={{
               background: '#fff',
               color: '#000',

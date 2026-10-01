@@ -38,6 +38,7 @@ import {
   IconLock,
 } from '@arco-design/web-react/icon';
 import { apiClient } from '../../api/client';
+import { sanitizeHtml, printDocument } from '../../utils';
 import { API_ENDPOINTS } from '../../constants';
 import {
   useUserClearanceStatusQuery,
@@ -61,7 +62,6 @@ import {
   type ResponsibilityHandover,
   type InitSigningSessionPayload,
 } from '../../types';
-import { sanitizeHtml } from '../../utils';
 
 const { Step } = Steps;
 const { Row, Col } = Grid;
@@ -429,13 +429,10 @@ export const ResponsibilityHandoverModal: React.FC<ResponsibilityHandoverModalPr
   // Print OS-1 Act in clean print window
   const handlePrintDocument = () => {
     if (!handoverDoc?.contentHtml) return;
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(handoverDoc.contentHtml);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-    }
+    printDocument(sanitizeHtml(handoverDoc.contentHtml), {
+      title: `OS-1 Dalolatnoma — ${handoverDoc.handoverNumber || 'Topshirish-qabul qilish'}`,
+      docNumber: handoverDoc.handoverNumber,
+    });
   };
 
   const handleFinishAndClose = () => {
