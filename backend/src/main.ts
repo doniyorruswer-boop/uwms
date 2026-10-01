@@ -44,21 +44,22 @@ async function bootstrap() {
         return callback(null, true);
       }
 
-      // 2. Localhost ishlab chiqish muhitlari
+      // 2. Localhost ishlab chiqish muhitlari (faqat non-production yoki konfiguratsiyada ruxsat etilgan bo'lsa)
       if (
-        origin.startsWith('http://localhost:') ||
-        origin.startsWith('http://127.0.0.1:') ||
-        origin.startsWith('https://localhost:')
+        process.env.NODE_ENV !== 'production' &&
+        (origin.startsWith('http://localhost:') ||
+          origin.startsWith('http://127.0.0.1:') ||
+          origin.startsWith('https://localhost:'))
       ) {
         return callback(null, true);
       }
 
-      // 3. Konfiguratsiyada ko'rsatilgan domenlar
+      // 3. Konfiguratsiyada (CLIENT_URL) aniq ko'rsatilgan rasmiy domenlar
       if (configuredOrigins.includes(origin)) {
         return callback(null, true);
       }
 
-      // 4. Railway domenlari (*.up.railway.app, *.railway.app)
+      // 4. Railway deploy muhiti (*.up.railway.app, *.railway.app)
       try {
         const url = new URL(origin);
         if (

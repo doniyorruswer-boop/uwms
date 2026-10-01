@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateDocumentStampDto, RevokeDocumentStampDto } from './document-stamp.dto';
 import { DOCUMENT_VERIFICATION, SYSTEM_AUDIT_ACTIONS } from '../common/constants';
 import { RequestContext } from '../common/context/request-context';
+import { escapeHtml } from '../common/utils/html.util';
 import * as crypto from 'crypto';
 
 export interface PublicDocumentVerification {
@@ -754,9 +755,9 @@ export class DocumentStampsService {
               (item, idx) => `
         <tr>
           <td style="border:1px solid #333;padding:6px;text-align:center;">${idx + 1}</td>
-          <td style="border:1px solid #333;padding:6px;font-weight:bold;">${item.name || item.title || '—'}</td>
-          <td style="border:1px solid #333;padding:6px;text-align:center;">${item.qty ? `${item.qty} ${item.unit || 'dona'}` : item.inv || '—'}</td>
-          <td style="border:1px solid #333;padding:6px;">${item.room || item.department || verified.metadata?.department || 'Asosiy bino'}</td>
+          <td style="border:1px solid #333;padding:6px;font-weight:bold;">${escapeHtml(item.name || item.title || '—')}</td>
+          <td style="border:1px solid #333;padding:6px;text-align:center;">${escapeHtml(item.qty ? `${item.qty} ${item.unit || 'dona'}` : item.inv || '—')}</td>
+          <td style="border:1px solid #333;padding:6px;">${escapeHtml(item.room || item.department || verified.metadata?.department || 'Asosiy bino')}</td>
         </tr>
       `,
             )
@@ -769,7 +770,7 @@ export class DocumentStampsService {
         (s, idx) => `
       <tr>
         <td style="border:1px solid #333;padding:6px;text-align:center;">${idx + 1}</td>
-        <td style="border:1px solid #333;padding:6px;"><b>${s.name || 'Mas’ul xodim'}</b><br/><small style="color:#555;">${s.role}</small></td>
+        <td style="border:1px solid #333;padding:6px;"><b>${escapeHtml(s.name || 'Mas’ul xodim')}</b><br/><small style="color:#555;">${escapeHtml(s.role)}</small></td>
         <td style="border:1px solid #333;padding:6px;text-align:center;">
           ${s.isSigned ? '<span style="color:#00B42A;font-weight:bold;">✔ TASDIQLANGAN</span>' : '<span style="color:#FA8C16;font-weight:bold;">⏳ KUTILMOQDA</span>'}
         </td>
@@ -777,7 +778,7 @@ export class DocumentStampsService {
           ${s.signedAt ? new Date(s.signedAt).toLocaleString('uz-UZ') : '—'}
         </td>
         <td style="border:1px solid #333;padding:6px;font-size:11px;color:#165DFF;">
-          ${s.method || 'UWMS Tizim Tasdig‘i'}
+          ${escapeHtml(s.method || 'UWMS Tizim Tasdig‘i')}
         </td>
       </tr>
     `,
@@ -791,7 +792,7 @@ export class DocumentStampsService {
 <html lang="uz">
 <head>
   <meta charset="UTF-8" />
-  <title>${verified.title} — ${verified.docNumber}</title>
+  <title>${escapeHtml(verified.title)} — ${escapeHtml(verified.docNumber)}</title>
   <style>
     @page { size: A4 portrait; margin: 15mm; }
     body {
@@ -866,8 +867,8 @@ export class DocumentStampsService {
   </div>
 
   <div class="doc-title">
-    <h2>${verified.title}</h2>
-    <div class="meta">Hujjat №: ${verified.docNumber} | Turi: ${verified.docType}</div>
+    <h2>${escapeHtml(verified.title)}</h2>
+    <div class="meta">Hujjat №: ${escapeHtml(verified.docNumber)} | Turi: ${escapeHtml(verified.docType)}</div>
     <div style="font-size: 11px; color: #4E5969; margin-top: 4px;">Kiritilgan sana: ${new Date(verified.issuedAt).toLocaleString('uz-UZ')}</div>
   </div>
 
@@ -882,7 +883,7 @@ export class DocumentStampsService {
         <b>Bekor qilingan sana:</b> ${verified.revokedAt ? new Date(verified.revokedAt).toLocaleString('uz-UZ') : '—'}
       </div>
       <div style="font-size: 12px; margin: 2px 0;">
-        <b>Bekor qilish asosi / sababi:</b> ${verified.revokedReason || 'Universitet rasmiy farmoyishiga asosan bekor qilingan'}
+        <b>Bekor qilish asosi / sababi:</b> ${escapeHtml(verified.revokedReason || 'Universitet rasmiy farmoyishiga asosan bekor qilingan')}
       </div>
       <div style="font-size: 11px; color: #86909C; margin-top: 4px;">
         * Eslatma: Ushbu hujjat reyestrda faqat arxiv maqsadida saqlanadi, bekor qilinganligi sababli yuridik kuchga ega emas.
@@ -907,11 +908,11 @@ export class DocumentStampsService {
     </tr>
     <tr>
       <td class="label">Bosh Mas’ul / Tashabbuskor:</td>
-      <td>${verified.signerName} (${verified.signerRole})</td>
+      <td>${escapeHtml(verified.signerName)} (${escapeHtml(verified.signerRole)})</td>
     </tr>
     <tr>
       <td class="label">Tasdiqlash Texnologiyasi:</td>
-      <td>${verified.verificationMethod}</td>
+      <td>${escapeHtml(verified.verificationMethod)}</td>
     </tr>
     <tr>
       <td class="label">HMAC Nazorat Kodi:</td>

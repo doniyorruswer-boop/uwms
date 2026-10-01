@@ -299,6 +299,14 @@ export class SigningSessionsService {
       throw new BadRequestException('Ushbu imzolash sessiyasi bekor qilingan!');
     }
 
+    if (session.status === 'EXPIRED') {
+      throw new BadRequestException('Ushbu imzolash sessiyasining muddati tugagan!');
+    }
+
+    if (session.status !== 'PENDING' && session.status !== 'SCANNED') {
+      throw new BadRequestException(`Ushbu imzolash sessiyasi faol emas (Holati: ${session.status})!`);
+    }
+
     const now = new Date();
     if (now > session.expiresAt) {
       await this.prisma.signingSession.update({

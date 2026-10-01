@@ -16,6 +16,7 @@ import { FundingSource, RoleType } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import * as ExcelJS from 'exceljs';
 import * as crypto from 'crypto';
+import { escapeHtml } from '../common/utils/html.util';
 
 @Injectable()
 export class ReportsService {
@@ -1549,9 +1550,9 @@ export class ReportsService {
               (h, idx) => `
           <tr>
             <td style="border: 1px solid #1f2937; padding: 6px 10px; text-align: center;">${idx + 1}</td>
-            <td style="border: 1px solid #1f2937; padding: 6px 10px; font-weight: bold;">${h.handoverNumber}</td>
+            <td style="border: 1px solid #1f2937; padding: 6px 10px; font-weight: bold;">${escapeHtml(h.handoverNumber)}</td>
             <td style="border: 1px solid #1f2937; padding: 6px 10px; text-align: center;">${new Date(h.updatedAt).toLocaleDateString('uz-UZ')}</td>
-            <td style="border: 1px solid #1f2937; padding: 6px 10px;">${h.targetUser?.fullName || h.targetWarehouse?.name || 'Universitet ombori'}</td>
+            <td style="border: 1px solid #1f2937; padding: 6px 10px;">${escapeHtml(h.targetUser?.fullName || h.targetWarehouse?.name || 'Universitet ombori')}</td>
             <td style="border: 1px solid #1f2937; padding: 6px 10px; text-align: center;">${h._count?.items || 0} ta</td>
             <td style="border: 1px solid #1f2937; padding: 6px 10px; text-align: center; color: #059669; font-weight: bold;">To‘liq qabul qilingan (OS-1)</td>
           </tr>`,
@@ -1580,7 +1581,7 @@ export class ReportsService {
           ✔ YAKUNIY HUQUQIY VA MOLIYAVIY XULOSA
         </div>
         <div style="font-size: 14px; color: #047857; line-height: 1.5;">
-          Ushbu ma’lumotnoma berildiki, xodim <b>${user.fullName}</b> universitet oldidagi barcha moddiy javobgarliklarini tegishli topshirish dalolatnomalari bo‘yicha to‘liq topshirdi. Mas’uliyatidagi barcha asosiy vositalar va ashyolar bo‘yicha universitet hisobida <b>moddiy qarzdorligi MAVJUD EMAS</b>.
+          Ushbu ma’lumotnoma berildiki, xodim <b>${escapeHtml(user.fullName)}</b> universitet oldidagi barcha moddiy javobgarliklarini tegishli topshirish dalolatnomalari bo‘yicha to‘liq topshirdi. Mas’uliyatidagi barcha asosiy vositalar va ashyolar bo‘yicha universitet hisobida <b>moddiy qarzdorligi MAVJUD EMAS</b>.
           <br/><br/>
           <b>Kadrlar bo‘limiga:</b> Mazkur xodim bilan tuzilgan mehnat shartnomasini bekor qilishga, oxirgi hisob-kitobni amalga oshirishga va mehnat daftarchasini berishga ruxsat etiladi.
         </div>
@@ -1601,7 +1602,7 @@ export class ReportsService {
 <html lang="uz">
 <head>
   <meta charset="UTF-8">
-  <title>Elektron Aylanma Varaqa — ${certNumber}</title>
+  <title>Elektron Aylanma Varaqa — ${escapeHtml(certNumber)}</title>
   <style>
     @page { size: A4; margin: 15mm; }
     body {
@@ -1652,7 +1653,7 @@ export class ReportsService {
         </div>
       </td>
       <td style="width: 25%; text-align: right; vertical-align: top;">
-        <div style="font-size: 13px; font-weight: bold;">№ ${certNumber}</div>
+        <div style="font-size: 13px; font-weight: bold;">№ ${escapeHtml(certNumber)}</div>
         <div style="font-size: 11px; color: #6b7280;">Sana: ${issueDateStr}</div>
       </td>
     </tr>
@@ -1666,13 +1667,13 @@ export class ReportsService {
   <table class="meta-box">
     <tr>
       <td style="width: 50%; vertical-align: top;">
-        <p style="margin: 4px 0;"><b>Xodim (F.I.Sh):</b> <span style="font-size: 15px; font-weight: bold;">${user.fullName}</span></p>
-        <p style="margin: 4px 0;"><b>Lavozimi:</b> ${user.position || 'Xodim / O‘qituvchi'}</p>
-        <p style="margin: 4px 0;"><b>Bo‘lim / Kafedra:</b> ${user.department?.name || 'Universitet tarkibiy tuzilmasi'}</p>
+        <p style="margin: 4px 0;"><b>Xodim (F.I.Sh):</b> <span style="font-size: 15px; font-weight: bold;">${escapeHtml(user.fullName)}</span></p>
+        <p style="margin: 4px 0;"><b>Lavozimi:</b> ${escapeHtml(user.position || 'Xodim / O‘qituvchi')}</p>
+        <p style="margin: 4px 0;"><b>Bo‘lim / Kafedra:</b> ${escapeHtml(user.department?.name || 'Universitet tarkibiy tuzilmasi')}</p>
       </td>
       <td style="width: 50%; vertical-align: top;">
-        <p style="margin: 4px 0;"><b>Tizimdagi roli:</b> ${roleTitle}</p>
-        <p style="margin: 4px 0;"><b>Identifikator:</b> ${user.id}</p>
+        <p style="margin: 4px 0;"><b>Tizimdagi roli:</b> ${escapeHtml(roleTitle)}</p>
+        <p style="margin: 4px 0;"><b>Identifikator:</b> ${escapeHtml(user.id)}</p>
         <p style="margin: 4px 0;"><b>Holati:</b> <span style="color: ${isCleared ? '#059669' : '#dc2626'}; font-weight: bold;">${isCleared ? 'OZOD QILINGAN (CLEARANCE PASSED)' : 'JARAYONDA'}</span></p>
       </td>
     </tr>

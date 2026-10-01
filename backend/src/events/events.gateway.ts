@@ -27,7 +27,49 @@ import { PrismaService } from '../prisma/prisma.service';
  */
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: (origin: string, callback: (err: Error | null, allow?: boolean) => void) => {
+      // 1. Same-origin yoki origin taqdim etilmagan so'rovlar (masalan: mobil app yoki server)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      const clientOriginEnv = process.env.CLIENT_URL || '';
+      const configuredOrigins = clientOriginEnv
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      // 2. Localhost ishlab chiqish muhitlari (faqat non-production)
+      if (
+        process.env.NODE_ENV !== 'production' &&
+        (origin.startsWith('http://localhost:') ||
+          origin.startsWith('http://127.0.0.1:') ||
+          origin.startsWith('https://localhost:'))
+      ) {
+        return callback(null, true);
+      }
+
+      // 3. Konfiguratsiyada (CLIENT_URL) aniq ko'rsatilgan rasmiy domenlar
+      if (configuredOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // 4. Railway deploy muhiti (*.up.railway.app, *.railway.app)
+      try {
+        const url = new URL(origin);
+        if (
+          url.hostname.endsWith('.railway.app') ||
+          url.hostname.endsWith('.up.railway.app') ||
+          url.hostname === 'localhost'
+        ) {
+          return callback(null, true);
+        }
+      } catch {
+        // Invalid URL format
+      }
+
+      return callback(new Error(`WebSocket CORS xavfsizlik cheklovi: "${origin}" taqiqlangan`));
+    },
     credentials: true,
   },
   namespace: '/realtime',
@@ -149,7 +191,7 @@ export class EventsGateway
   }
 
   /**
-   * Maxsus xonaga qo‘shilish (Masalan: `session:SES-1234` yoki `campaign:CAMP-01`)
+   * Maxsus xonaga qo‘shilish (Avtorizatsiya tekshiruvi bilan)
    */
   @SubscribeMessage('join_room')
   async handleJoinRoom(
@@ -160,9 +202,68 @@ export class EventsGateway
     if (!roomName || typeof roomName !== 'string') {
       return { status: 'error', message: 'Xona nomi xato' };
     }
-    await client.join(roomName);
-    this.logger.debug(`Client ${client.id} xonaga qo‘shildi: ${roomName}`);
-    return { status: 'ok', room: roomName };
+
+    const user = client.data?.user;
+    if (!user) {
+      return { status: 'error', message: 'Avtorizatsiyadan o‘tmagan soket!' };
+    }
+
+    // Xavfsizlik 1: user:* va role:* xonalariga mijoz tomonidan qo'lda ulanish qat'iyan taqiqlanadi!
+    // Bu xonalar faqat ulanish (handshake) vaqtida JWT token orqali server tomonidan avtomatik belgilanadi.
+    if (roomName.startsWith('user:') || roomName.startsWith('role:')) {
+      this.logger.warn(
+        `[WsSecurity] Ruxsatsiz shaxsiy/rol xonasiga ulanish urinishi to‘xtatildi: ${user.username} (${user.role}) -> ${roomName}`,
+      );
+      return { status: 'error', message: 'Foydalanuvchi yoki rol xonasiga qo‘lda ulanish taqiqlanadi!' };
+    }
+
+    // Xavfsizlik 2: Agar sessiya xonasi bo'lsa (session:*)
+    if (roomName.startsWith('session:')) {
+      const sessionKey = roomName.slice(8);
+      if (!sessionKey) {
+        return { status: 'error', message: 'Sessiya identifikatori kiritilmadi' };
+      }
+      const session = await this.prisma.signingSession.findFirst({
+        where: {
+          OR: [{ id: sessionKey }, { sessionToken: sessionKey }],
+        },
+      });
+      if (!session) {
+        return { status: 'error', message: 'Bunday imzolash sessiyasi mavjud emas!' };
+      }
+      await client.join(roomName);
+      this.logger.debug(`Client ${client.id} (${user.username}) sessiya xonasiga qo‘shildi: ${roomName}`);
+      return { status: 'ok', room: roomName };
+    }
+
+    // Xavfsizlik 3: Agar audit kampaniyasi xonasi bo'lsa (campaign:*)
+    if (roomName.startsWith('campaign:')) {
+      const campaignId = roomName.slice(9);
+      const campaign = await this.prisma.inventoryCampaign.findUnique({
+        where: { id: campaignId },
+      });
+      if (!campaign) {
+        return { status: 'error', message: 'Audit kampaniyasi topilmadi!' };
+      }
+      await client.join(roomName);
+      return { status: 'ok', room: roomName };
+    }
+
+    // Xavfsizlik 4: Agar xona xonasi bo'lsa (room:*)
+    if (roomName.startsWith('room:')) {
+      const roomId = roomName.slice(5);
+      const room = await this.prisma.room.findUnique({
+        where: { id: roomId },
+      });
+      if (!room) {
+        return { status: 'error', message: 'Xona topilmadi!' };
+      }
+      await client.join(roomName);
+      return { status: 'ok', room: roomName };
+    }
+
+    this.logger.warn(`[WsSecurity] Noma’lum xona formati rad etildi: ${user.username} -> ${roomName}`);
+    return { status: 'error', message: 'Ruxsat etilmagan xona formati!' };
   }
 
   /**
@@ -213,30 +314,15 @@ export class EventsGateway
   }
 
   /**
-   * FAZA 1: Mobil qurilmada biometrik imzo (FaceID/TouchID) muvaffaqiyatli yakunlanganda
+   * Xavfsizlik: Imzo yakunlanishi faqat backend REST API tranzaksiyasi
+   * (SigningSessionsService) orqali emit qilinadi. Klientdan kelgan signal rad etiladi.
    */
   @SubscribeMessage('qr:signature_completed')
-  async handleSignatureCompleted(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
-  ) {
-    const sessionKey = payload?.sessionId || payload?.sessionToken;
-    if (!sessionKey) return { status: 'error', message: 'Sessiya identifikatori kiritilmadi' };
-    const room = `session:${sessionKey}`;
-    this.logger.log(`[QR-Pairing] Mobil biometrik imzo yakunlandi: ${client.id} -> ${room}`);
-
-    const eventData = {
-      ...payload,
-      status: 'SIGNED',
-      signedAt: payload?.signedAt || new Date().toISOString(),
+  handleSignatureCompleted() {
+    return {
+      status: 'error',
+      message: 'Imzo yakunlanishi faqat server REST API tranzaksiyasi orqali tasdiqlanishi shart!',
     };
-
-    this.server.to(room).emit('qr:signature_completed', eventData);
-    if (payload?.sessionId && payload?.sessionToken) {
-      this.server.to(`session:${payload.sessionId}`).emit('qr:signature_completed', eventData);
-      this.server.to(`session:${payload.sessionToken}`).emit('qr:signature_completed', eventData);
-    }
-    return { status: 'ok', room };
   }
 
   /**

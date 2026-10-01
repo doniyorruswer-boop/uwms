@@ -19,6 +19,7 @@ import {
 } from '@arco-design/web-react/icon';
 import { useClearanceCertificateQuery } from '../../hooks/useHandoverQuery';
 import type { UserItem } from '../../hooks/useUsersQuery';
+import { sanitizeHtml } from '../../utils';
 
 const { Text } = Typography;
 
@@ -40,9 +41,10 @@ export const ClearanceCertificateModal: React.FC<ClearanceCertificateModalProps>
 
   const handlePrint = () => {
     if (!data?.contentHtml) return;
+    const sanitized = sanitizeHtml(data.contentHtml);
     const printWindow = window.open('', '_blank');
     if (printWindow) {
-      printWindow.document.write(data.contentHtml);
+      printWindow.document.write(sanitized);
       printWindow.document.close();
       printWindow.focus();
       printWindow.print();
@@ -163,7 +165,7 @@ export const ClearanceCertificateModal: React.FC<ClearanceCertificateModalProps>
             bodyStyle={{ padding: 12 }}
           >
             <div
-              dangerouslySetInnerHTML={{ __html: data.contentHtml }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.contentHtml) }}
               style={{
                 transform: 'scale(0.96)',
                 transformOrigin: 'top center',

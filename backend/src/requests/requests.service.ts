@@ -42,20 +42,25 @@ export class RequestsService {
     user?: any,
   ) {
     const where: any = {};
+    const andConditions: any[] = [];
 
     // Multi-tenant / Role Data Isolation:
     if (user && user.role !== RoleType.SUPER_ADMIN && user.role !== RoleType.ADMIN) {
       if (user.role === RoleType.EMPLOYEE) {
-        where.OR = [
-          { requesterId: user.id },
-          { assignedEngineerId: user.id },
-        ];
+        andConditions.push({
+          OR: [
+            { requesterId: user.id },
+            { assignedEngineerId: user.id },
+          ],
+        });
       } else if (user.role === RoleType.MOL && user.departmentId) {
-        where.OR = [
-          { requesterId: user.id },
-          { departmentId: user.departmentId },
-          { assignedEngineerId: user.id },
-        ];
+        andConditions.push({
+          OR: [
+            { requesterId: user.id },
+            { departmentId: user.departmentId },
+            { assignedEngineerId: user.id },
+          ],
+        });
       }
     }
 
@@ -68,11 +73,17 @@ export class RequestsService {
     }
 
     if (query?.search) {
-      where.OR = [
-        { requestNumber: { contains: query.search, mode: 'insensitive' } },
-        { purpose: { contains: query.search, mode: 'insensitive' } },
-        { requester: { fullName: { contains: query.search, mode: 'insensitive' } } },
-      ];
+      andConditions.push({
+        OR: [
+          { requestNumber: { contains: query.search, mode: 'insensitive' } },
+          { purpose: { contains: query.search, mode: 'insensitive' } },
+          { requester: { fullName: { contains: query.search, mode: 'insensitive' } } },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const isPaginated = query?.page !== undefined || query?.limit !== undefined;

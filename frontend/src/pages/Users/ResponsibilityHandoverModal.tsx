@@ -61,6 +61,7 @@ import {
   type ResponsibilityHandover,
   type InitSigningSessionPayload,
 } from '../../types';
+import { sanitizeHtml } from '../../utils';
 
 const { Step } = Steps;
 const { Row, Col } = Grid;
@@ -1124,7 +1125,7 @@ export const ResponsibilityHandoverModal: React.FC<ResponsibilityHandoverModalPr
                     >
                       {contentHtml ? (
                         <div
-                          dangerouslySetInnerHTML={{ __html: contentHtml }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(contentHtml) }}
                           style={{
                             transform: 'scale(0.92)',
                             transformOrigin: 'top left',

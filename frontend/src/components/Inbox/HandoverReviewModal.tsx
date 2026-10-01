@@ -38,6 +38,7 @@ import {
 import { QRPairingModal } from '../Common/QRPairingModal';
 import { RejectReasonModal } from '../Common/RejectReasonModal';
 import { ROLE_CONFIG } from '../../constants/roles.constants';
+import { sanitizeHtml } from '../../utils';
 import type { RoleType } from '../../types';
 
 const { Title, Text, Paragraph } = Typography;
@@ -739,7 +740,7 @@ export const HandoverReviewModal: React.FC<HandoverReviewModalProps> = ({
                   </div>
                 ) : contentHtml ? (
                   <div
-                    dangerouslySetInnerHTML={{ __html: contentHtml }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(contentHtml) }}
                     style={{
                       maxWidth: 820,
                       margin: '0 auto',

@@ -388,6 +388,29 @@ describe('IntegrationsService (Unit Tests)', () => {
       expect(json).toHaveProperty('assetRegister');
       expect(json.assetRegister[0].inventoryNumber).toBe('INV-001');
     });
+
+    it('testHemisConnection ichki tarmoq yoki loopback manzil berilganda SSRF xatosini qaytarishi kerak', async () => {
+      await expect(
+        service.testHemisConnection({ hemisApiUrl: 'http://127.0.0.1:4000/api' }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.testHemisConnection({ hemisApiUrl: 'http://169.254.169.254/latest/meta-data' }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.testHemisConnection({ hemisApiUrl: 'http://localhost:8080' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('syncHemis LIVE rejimida ichki IP yoki metadata URL berilganda SSRF xatosini qaytarishi kerak', async () => {
+      await expect(
+        service.syncHemis(
+          { mode: 'LIVE', hemisApiUrl: 'http://10.0.0.1:8080', apiKey: 'test-key' },
+          'user-uuid',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 });
 

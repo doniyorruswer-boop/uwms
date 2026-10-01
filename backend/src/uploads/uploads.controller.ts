@@ -65,9 +65,17 @@ export class UploadsController {
   @Get('public/:filename')
   @ApiOperation({ summary: 'Ochiq (public) faylni ko‘rish yoki yuklab olish (Autentifikatsiya talab qilinmaydi)' })
   async getPublicFile(@Param('filename') filename: string, @Res() res: Response) {
+    if (!/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(filename)) {
+      throw new BadRequestException('Fayl nomi noto‘g‘ri formatda!');
+    }
     const { filePath, mimeType } = this.uploadsService.getFilePath(filename, true);
     res.setHeader('Content-Type', mimeType);
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    const isImage = mimeType.startsWith('image/');
+    res.setHeader(
+      'Content-Disposition',
+      isImage ? `inline; filename="${filename}"` : `attachment; filename="${filename}"`,
+    );
     return res.sendFile(filePath);
   }
 
@@ -76,9 +84,17 @@ export class UploadsController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Himoyalangan faylni ko‘rish yoki yuklab olish (JWT token talab qilinadi)' })
   async getFile(@Param('filename') filename: string, @Res() res: Response) {
+    if (!/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(filename)) {
+      throw new BadRequestException('Fayl nomi noto‘g‘ri formatda!');
+    }
     const { filePath, mimeType } = this.uploadsService.getFilePath(filename, false);
     res.setHeader('Content-Type', mimeType);
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    const isImage = mimeType.startsWith('image/');
+    res.setHeader(
+      'Content-Disposition',
+      isImage ? `inline; filename="${filename}"` : `attachment; filename="${filename}"`,
+    );
     return res.sendFile(filePath);
   }
 }

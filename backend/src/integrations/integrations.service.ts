@@ -13,6 +13,7 @@ import { SystemAuditService } from '../system-audit/system-audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { HemisSyncDto, HemisTestConnectionDto, UzAsboExportQueryDto } from './integrations.dto';
 import { NotificationType, RoleType } from '@prisma/client';
+import { validateSafeOutboundUrl } from '../common/utils/url.util';
 import {
   HemisAdapter,
   HttpHemisAdapter,
@@ -83,6 +84,7 @@ export class IntegrationsService {
     apiUrl: string,
     apiKey?: string,
   ): Promise<{ ok: boolean; status: number; errorMessage?: string; pingMs: number; details?: string }> {
+    const safeUrl = validateSafeOutboundUrl(apiUrl);
     const startTime = Date.now();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4000);
@@ -96,7 +98,7 @@ export class IntegrationsService {
         headers['api-key'] = apiKey;
       }
 
-      const cleanUrl = apiUrl.replace(/\/+$/, '');
+      const cleanUrl = safeUrl.replace(/\/+$/, '');
       const response = await fetch(cleanUrl, {
         method: 'GET',
         headers,
@@ -359,6 +361,7 @@ export class IntegrationsService {
   }
 
   private async executeLiveSync(apiUrl: string, apiKey: string | undefined, userId: string) {
+    const safeApiUrl = validateSafeOutboundUrl(apiUrl);
     let rawDepts: any[] = [];
     let rawRooms: any[] = [];
     let rawUsers: any[] = [];
@@ -366,9 +369,9 @@ export class IntegrationsService {
     try {
       // 1. Departments, Rooms, Users endpointlariga GET so'rovlar (Strict Read-Only, timeout handling)
       [rawDepts, rawRooms, rawUsers] = await Promise.all([
-        this.adapter.fetchDepartments(apiUrl, apiKey),
-        this.adapter.fetchRooms(apiUrl, apiKey),
-        this.adapter.fetchUsers(apiUrl, apiKey),
+        this.adapter.fetchDepartments(safeApiUrl, apiKey),
+        this.adapter.fetchRooms(safeApiUrl, apiKey),
+        this.adapter.fetchUsers(safeApiUrl, apiKey),
       ]);
     } catch (err: any) {
       await this.systemAuditService.log({

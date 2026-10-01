@@ -22,6 +22,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../api/client';
 import { API_ENDPOINTS } from '../../constants';
 import type { HandoverDocumentResponse } from '../../hooks/useHandoverQuery';
+import { sanitizeHtml } from '../../utils';
 
 interface HandoverDocModalProps {
   visible: boolean;
@@ -64,9 +65,10 @@ export const HandoverDocModal: React.FC<HandoverDocModalProps> = ({
 
     try {
       setIsPrinting(true);
+      const sanitized = sanitizeHtml(docData.contentHtml);
       const printWindow = window.open('', '_blank');
       if (printWindow) {
-        printWindow.document.write(docData.contentHtml);
+        printWindow.document.write(sanitized);
         printWindow.document.close();
         setTimeout(() => {
           printWindow.focus();
@@ -191,7 +193,7 @@ export const HandoverDocModal: React.FC<HandoverDocModalProps> = ({
             }}
           >
             <div
-              dangerouslySetInnerHTML={{ __html: docData.contentHtml }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(docData.contentHtml) }}
               style={{
                 width: '100%',
                 overflowX: 'auto',

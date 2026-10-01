@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DocumentArchiveStatus } from '@prisma/client';
 import { GenerateArchiveDto, QueryArchiveDto } from './document-archives.dto';
 import { DOCUMENT_VERIFICATION } from '../common/constants';
+import { escapeHtml, stripDangerousHtmlTags } from '../common/utils/html.util';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -39,7 +40,7 @@ export class DocumentArchivesService {
    */
   private buildDocumentHtml(dto: GenerateArchiveDto, version: number, verificationHash: string): string {
     if (dto.htmlContent && dto.htmlContent.trim().length > 50) {
-      return dto.htmlContent;
+      return stripDangerousHtmlTags(dto.htmlContent);
     }
 
     const meta = dto.metadata || {};
@@ -57,11 +58,11 @@ export class DocumentArchivesService {
       ? items.map((item, idx) => `
         <tr>
           <td style="border:1px solid #000;padding:6px;text-align:center;">${idx + 1}</td>
-          <td style="border:1px solid #000;padding:6px;font-weight:bold;">${item.inventoryNumber || '—'}</td>
-          <td style="border:1px solid #000;padding:6px;">${item.name || '—'} ${item.model ? `(${item.model})` : ''}</td>
-          <td style="border:1px solid #000;padding:6px;">${item.serialNumber || '—'}</td>
-          <td style="border:1px solid #000;padding:6px;text-align:center;">${item.unit || 'dona'}</td>
-          <td style="border:1px solid #000;padding:6px;text-align:center;">${item.quantity ?? 1}</td>
+          <td style="border:1px solid #000;padding:6px;font-weight:bold;">${escapeHtml(item.inventoryNumber || '—')}</td>
+          <td style="border:1px solid #000;padding:6px;">${escapeHtml(item.name || '—')} ${item.model ? `(${escapeHtml(item.model)})` : ''}</td>
+          <td style="border:1px solid #000;padding:6px;">${escapeHtml(item.serialNumber || '—')}</td>
+          <td style="border:1px solid #000;padding:6px;text-align:center;">${escapeHtml(item.unit || 'dona')}</td>
+          <td style="border:1px solid #000;padding:6px;text-align:center;">${escapeHtml(item.quantity ?? 1)}</td>
           <td style="border:1px solid #000;padding:6px;text-align:right;">${item.price ? Number(item.price).toLocaleString('uz-UZ') : '—'}</td>
         </tr>
       `).join('')
@@ -74,7 +75,7 @@ export class DocumentArchivesService {
 <html lang="uz">
 <head>
   <meta charset="UTF-8" />
-  <title>${dto.title} - ${dto.docNumber} (v${version})</title>
+  <title>${escapeHtml(dto.title)} - ${escapeHtml(dto.docNumber)} (v${version})</title>
   <style>
     @page { size: A4 portrait; margin: 15mm; }
     body {
@@ -118,16 +119,16 @@ export class DocumentArchivesService {
   </div>
 
   <div class="doc-title">
-    <h2>${dto.title}</h2>
-    <div class="meta">Hujjat №: ${dto.docNumber} | Versiya: v${version}</div>
+    <h2>${escapeHtml(dto.title)}</h2>
+    <div class="meta">Hujjat №: ${escapeHtml(dto.docNumber)} | Versiya: v${version}</div>
     <div style="font-size: 11px; color: #444; margin-top: 4px;">Sana: ${new Date().toLocaleDateString('uz-UZ')}</div>
   </div>
 
   <div class="parties">
-    <p><b>Hujjat turi:</b> ${dto.docType}</p>
-    ${meta.sourceLocation ? `<p><b>Jo‘natuvchi / Chiqim joylashuvi:</b> ${meta.sourceLocation}</p>` : ''}
-    ${meta.targetLocation ? `<p><b>Qabul qiluvchi / Manzil:</b> ${meta.targetLocation}</p>` : ''}
-    ${meta.reason ? `<p><b>Asos:</b> ${meta.reason}</p>` : ''}
+    <p><b>Hujjat turi:</b> ${escapeHtml(dto.docType)}</p>
+    ${meta.sourceLocation ? `<p><b>Jo‘natuvchi / Chiqim joylashuvi:</b> ${escapeHtml(meta.sourceLocation)}</p>` : ''}
+    ${meta.targetLocation ? `<p><b>Qabul qiluvchi / Manzil:</b> ${escapeHtml(meta.targetLocation)}</p>` : ''}
+    ${meta.reason ? `<p><b>Asos:</b> ${escapeHtml(meta.reason)}</p>` : ''}
   </div>
 
   <table>
@@ -523,12 +524,12 @@ export class DocumentArchivesService {
           return `
             <tr>
               <td style="border:1px solid #000;padding:6px;text-align:center;">${idx + 1}</td>
-              <td style="border:1px solid #000;padding:6px;font-family:monospace;font-weight:bold;">${invNum}</td>
-              <td style="border:1px solid #000;padding:6px;"><b>${itemName}</b></td>
-              <td style="border:1px solid #000;padding:6px;font-family:monospace;">${serial}</td>
-              <td style="border:1px solid #000;padding:6px;text-align:right;">${cost}</td>
-              <td style="border:1px solid #000;padding:6px;text-align:center;">${cond}</td>
-              <td style="border:1px solid #000;padding:6px;"><b>${actionText}</b> (${destination})</td>
+              <td style="border:1px solid #000;padding:6px;font-family:monospace;font-weight:bold;">${escapeHtml(invNum)}</td>
+              <td style="border:1px solid #000;padding:6px;"><b>${escapeHtml(itemName)}</b></td>
+              <td style="border:1px solid #000;padding:6px;font-family:monospace;">${escapeHtml(serial)}</td>
+              <td style="border:1px solid #000;padding:6px;text-align:right;">${escapeHtml(cost)}</td>
+              <td style="border:1px solid #000;padding:6px;text-align:center;">${escapeHtml(cond)}</td>
+              <td style="border:1px solid #000;padding:6px;"><b>${escapeHtml(actionText)}</b> (${escapeHtml(destination)})</td>
             </tr>
           `;
         }).join('')
@@ -538,7 +539,7 @@ export class DocumentArchivesService {
 <html lang="uz">
 <head>
   <meta charset="UTF-8" />
-  <title>Dalolatnoma OS-1 - ${handover.handoverNumber} (v${version})</title>
+  <title>Dalolatnoma OS-1 - ${escapeHtml(handover.handoverNumber)} (v${version})</title>
   <style>
     @page { size: A4 portrait; margin: 12mm; }
     body {
@@ -615,18 +616,18 @@ export class DocumentArchivesService {
 
   <div class="doc-title">
     <h2>MODDIY JAVOBGARLIKNI TOPSHIRISH-QABUL QILISH DALOLATNOMASI (OS-1)</h2>
-    <div class="meta">Hujjat №: ${handover.handoverNumber} | Versiya: v${version} | Sana: ${new Date(handover.createdAt).toLocaleDateString('uz-UZ')}</div>
+    <div class="meta">Hujjat №: ${escapeHtml(handover.handoverNumber)} | Versiya: v${version} | Sana: ${new Date(handover.createdAt).toLocaleDateString('uz-UZ')}</div>
   </div>
 
   <div class="info-grid">
     <div>
-      <p><b>Topshirish Turi:</b> ${typeLabels[handover.type] || handover.type}</p>
-      <p><b>Bino:</b> ${handover.building?.name || 'OTM hududi'}</p>
-      <p><b>Xona / Auditoriya:</b> ${handover.room ? `${handover.room.number}-xona (${handover.room.name})` : 'Umumiy'}</p>
+      <p><b>Topshirish Turi:</b> ${escapeHtml(typeLabels[handover.type] || handover.type)}</p>
+      <p><b>Bino:</b> ${escapeHtml(handover.building?.name || 'OTM hududi')}</p>
+      <p><b>Xona / Auditoriya:</b> ${escapeHtml(handover.room ? `${handover.room.number}-xona (${handover.room.name})` : 'Umumiy')}</p>
     </div>
     <div>
-      <p><b>Topshiruvchi mas’ul (Eski MOL):</b> ${handover.departingUser?.fullName} (${handover.departingUser?.position || 'MOL'})</p>
-      <p><b>Qabul qiluvchi mas’ul:</b> ${handover.targetUser?.fullName || handover.targetWarehouse?.name || 'Taqsimot bo‘yicha'}</p>
+      <p><b>Topshiruvchi mas’ul (Eski MOL):</b> ${escapeHtml(handover.departingUser?.fullName || '—')} (${escapeHtml(handover.departingUser?.position || 'MOL')})</p>
+      <p><b>Qabul qiluvchi mas’ul:</b> ${escapeHtml(handover.targetUser?.fullName || handover.targetWarehouse?.name || 'Taqsimot bo‘yicha')}</p>
       <p><b>Holati:</b> <b>${handover.status === 'COMPLETED' ? 'YAKUNLANGAN (TASDIQLANGAN)' : 'JARAYONDA (IMZOLANMOQDA)'}</b></p>
     </div>
   </div>
@@ -653,25 +654,25 @@ export class DocumentArchivesService {
   <div class="signatures-grid">
     <div class="sig-card">
       <div class="sig-role">1. Topshiruvchi Shaxs (Eski MOL):</div>
-      <div class="sig-name">${handover.departingUser?.fullName || '—'}</div>
+      <div class="sig-name">${escapeHtml(handover.departingUser?.fullName || '—')}</div>
       <div class="sig-status ${isDepartingSigned ? 'signed' : 'pending'}">${isDepartingSigned ? '✔ RASMIY TOPSHIRILDI VA IMZOLANDI' : '⏳ IMZOLASH KUTILMOQDA'}</div>
     </div>
 
     <div class="sig-card">
       <div class="sig-role">2. Qabul Qiluvchi Shaxs (Yangi MOL / Omborchi):</div>
-      <div class="sig-name">${handover.targetUser?.fullName || handover.targetWarehouse?.name || 'Taqsimot bo‘yicha mas’ullar'}</div>
+      <div class="sig-name">${escapeHtml(handover.targetUser?.fullName || handover.targetWarehouse?.name || 'Taqsimot bo‘yicha mas’ullar')}</div>
       <div class="sig-status ${isTargetSigned ? 'signed' : 'pending'}">${isTargetSigned ? '✔ QABUL QILINDI VA IMZOLANDI' : '⏳ IMZOLASH KUTILMOQDA'}</div>
     </div>
 
     <div class="sig-card">
       <div class="sig-role">3. Bino Nazoratchisi (Komendant):</div>
-      <div class="sig-name">${handover.commandantUser?.fullName || 'Biriktirilgan komendant'}</div>
+      <div class="sig-name">${escapeHtml(handover.commandantUser?.fullName || 'Biriktirilgan komendant')}</div>
       <div class="sig-status ${isCommandantSigned ? 'signed' : 'pending'}">${isCommandantSigned ? '✔ XONA VA BUTUNLIK TASDIQLANDI' : '⏳ TEKSHIRUV KUTILMOQDA'}</div>
     </div>
 
     <div class="sig-card">
       <div class="sig-role">4. Buxgalteriya Vakili (Moddiy Hisobchi):</div>
-      <div class="sig-name">${handover.accountantUser?.fullName || 'Bosh / Moddiy buxgalter'}</div>
+      <div class="sig-name">${escapeHtml(handover.accountantUser?.fullName || 'Bosh / Moddiy buxgalter')}</div>
       <div class="sig-status ${isAccountantSigned ? 'signed' : 'pending'}">${isAccountantSigned ? '✔ BALANSGA O‘TKAZISH TASDIQLANDI' : '⏳ TASDIQ KUTILMOQDA'}</div>
     </div>
   </div>
@@ -679,7 +680,7 @@ export class DocumentArchivesService {
   <div style="margin-top: 14px; border: 1px solid #999; padding: 8px 12px; background: #fff;">
     <div class="sig-role">Tasdiqladi (OTM Rahbariyati):</div>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-      <div>${handover.approvedByUser?.fullName || 'Moliya-iqtisodiyot ishlari bo‘yicha prorektor'}</div>
+      <div>${escapeHtml(handover.approvedByUser?.fullName || 'Moliya-iqtisodiyot ishlari bo‘yicha prorektor')}</div>
       <div class="sig-status ${isSigned ? 'signed' : 'pending'}">${isSigned ? '✔ TASDIQLANDI VA KUCHGA KIRDI' : '⏳ PROREKTOR TASDIQI KUTILMOQDA'}</div>
     </div>
   </div>
