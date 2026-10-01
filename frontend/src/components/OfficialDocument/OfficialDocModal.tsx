@@ -832,7 +832,7 @@ export const OfficialDocModal: React.FC<OfficialDocProps> = ({
             </table>
 
             {/* Participating Signers - Official Electronic Digital Signature Stamps */}
-            <div style={{ marginTop: 32 }}>
+            <div style={{ marginTop: 20 }}>
               <div
                 style={{
                   fontSize: 11,
@@ -1019,7 +1019,7 @@ export const OfficialDocModal: React.FC<OfficialDocProps> = ({
             {/* Cryptographic Verification Stamp Banner */}
             <div
               style={{
-                marginTop: 40,
+                marginTop: 20,
                 padding: '12px 16px',
                 border: '2px dashed #4E5969',
                 display: 'flex',

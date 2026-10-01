@@ -31,7 +31,7 @@ export function printDocument(contentHtml: string, options: PrintDocumentOptions
   const baseStyles = `
     @page {
       size: A4 portrait;
-      margin: 12mm 14mm;
+      margin: 8mm 12mm;
     }
     * {
       box-sizing: border-box;
@@ -42,42 +42,66 @@ export function printDocument(contentHtml: string, options: PrintDocumentOptions
       padding: 0;
       background: #ffffff;
       color: #000000;
-      font-size: 13px;
-      line-height: 1.45;
+      font-size: 12.5px;
+      line-height: 1.38;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .header { text-align: center; margin-bottom: 16px; }
-    .header .ministry { font-size: 11.5px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: #111; }
-    .header .org { font-size: 13.5px; font-weight: bold; text-transform: uppercase; margin-top: 4px; color: #1e3a8a; }
-    .divider { border-bottom: 2px solid #000000; margin: 10px auto; width: 96%; }
-    .doc-title { text-align: center; margin: 14px 0 16px; }
-    .doc-title h2, .doc-title h3 { margin: 0; font-size: 15px; font-weight: bold; text-transform: uppercase; color: #000; }
-    .doc-title .meta { margin-top: 6px; font-weight: bold; font-size: 12px; color: #333333; }
+    /* Restrict all SVG and Arco icons to strict font-size proportions (never giant) */
+    .arco-icon,
+    svg {
+      display: inline-block !important;
+      color: inherit !important;
+      font-style: normal !important;
+      width: 1em !important;
+      height: 1em !important;
+      max-width: 1.2em !important;
+      max-height: 1.2em !important;
+      vertical-align: -0.15em !important;
+    }
+    img {
+      max-width: 100%;
+    }
+    .print-area,
+    .os-document-sheet {
+      padding: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+      max-width: 100% !important;
+      width: 100% !important;
+    }
+    .header { text-align: center; margin-bottom: 12px; }
+    .header .ministry { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: #111; }
+    .header .org { font-size: 13px; font-weight: bold; text-transform: uppercase; margin-top: 3px; color: #1e3a8a; }
+    .divider { border-bottom: 2px solid #000000; margin: 8px auto; width: 96%; }
+    .doc-title { text-align: center; margin: 12px 0 14px; }
+    .doc-title h2, .doc-title h3 { margin: 0; font-size: 14.5px; font-weight: bold; text-transform: uppercase; color: #000; }
+    .doc-title .meta { margin-top: 5px; font-weight: bold; font-size: 11.5px; color: #333333; }
     .info-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 16px;
-      font-size: 12.5px;
+      gap: 10px;
+      margin-bottom: 12px;
+      font-size: 12px;
       background-color: #fafbfc;
       border: 1px solid #d9d9d9;
-      padding: 10px 14px;
+      padding: 8px 12px;
     }
-    .info-grid p { margin: 3px 0; }
-    .parties { margin: 12px 0; font-size: 13px; background-color: #fafbfc; border: 1px solid #e0e0e0; padding: 10px 14px; }
-    .parties p { margin: 3px 0; }
+    .info-grid p { margin: 2px 0; }
+    .parties { margin: 10px 0; font-size: 12.5px; background-color: #fafbfc; border: 1px solid #e0e0e0; padding: 8px 12px; }
+    .parties p { margin: 2px 0; }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin: 14px 0;
-      font-size: 11.5px;
+      margin: 12px 0;
+      font-size: 11px;
       border: 1.5px solid #000000;
       background-color: #ffffff;
     }
     th, td {
       border: 1px solid #000000;
-      padding: 6px 8px;
+      padding: 5px 6px;
     }
     th {
       background-color: #f0f2f5 !important;
@@ -86,32 +110,32 @@ export function printDocument(contentHtml: string, options: PrintDocumentOptions
       color: #000000;
     }
     .signatures-title {
-      margin-top: 24px;
+      margin-top: 18px;
       font-weight: bold;
       text-transform: uppercase;
-      font-size: 12px;
+      font-size: 11.5px;
       border-bottom: 1.5px solid #000000;
-      padding-bottom: 5px;
+      padding-bottom: 4px;
       color: #000000;
     }
     .signatures-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      margin-top: 14px;
+      gap: 10px;
+      margin-top: 10px;
     }
     .sig-card {
       border: 1px solid #b8bcc4;
-      padding: 10px 14px;
+      padding: 8px 12px;
       border-radius: 4px;
       background-color: #fdfdfd;
     }
-    .sig-role { font-weight: bold; font-size: 11px; text-transform: uppercase; color: #1d2129; }
-    .sig-name { margin-top: 4px; font-size: 13px; font-weight: 600; color: #111; }
+    .sig-role { font-weight: bold; font-size: 10.5px; text-transform: uppercase; color: #1d2129; }
+    .sig-name { margin-top: 3px; font-size: 12.5px; font-weight: 600; color: #111; }
     .sig-status {
-      margin-top: 6px;
-      padding: 3px 8px;
-      font-size: 10.5px;
+      margin-top: 4px;
+      padding: 2px 6px;
+      font-size: 10px;
       font-weight: bold;
       border-radius: 3px;
       display: inline-block;
@@ -119,11 +143,11 @@ export function printDocument(contentHtml: string, options: PrintDocumentOptions
     }
     .sig-status.signed { background-color: #E8FFEA !important; color: #00B42A !important; border: 1px solid #B7EB8F !important; }
     .sig-status.pending { background-color: #FFF7E8 !important; color: #FF7D00 !important; border: 1px solid #FFE7BA !important; }
-    .signatures { margin-top: 32px; display: flex; justify-content: space-between; }
+    .signatures { margin-top: 24px; display: flex; justify-content: space-between; }
     .sig-box { width: 30%; }
     .stamp-badge {
-      margin-top: 24px;
-      padding: 12px 16px;
+      margin-top: 18px;
+      padding: 10px 14px;
       border: 2px dashed #4E5969;
       background-color: #fafbfc;
       display: flex;
@@ -150,7 +174,7 @@ export function printDocument(contentHtml: string, options: PrintDocumentOptions
   <style>${baseStyles}</style>
 </head>
 <body>
-  <div class="os-document-sheet" style="border:none!important;box-shadow:none!important;padding:0!important;max-width:100%!important;">
+  <div class="os-document-sheet" style="border:none!important;box-shadow:none!important;padding:0!important;max-width:100%!important;margin:0!important;">
     ${contentHtml}
   </div>
 </body>
