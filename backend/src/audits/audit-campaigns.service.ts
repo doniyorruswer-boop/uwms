@@ -13,7 +13,7 @@ import {
 } from '@prisma/client';
 import { CreateCampaignDto, QueryCampaignsDto, CompleteCampaignDto, StartCampaignDto } from './dto/audit-campaigns.dto';
 import * as crypto from 'crypto';
-import * as XLSX from 'xlsx';
+import { createStyledWorkbook, addStyledWorksheet } from '../common/utils/excel.util';
 
 @Injectable()
 export class AuditCampaignsService {
@@ -827,7 +827,10 @@ export class AuditCampaignsService {
       where: { docNumber: campaign.campaignNumber },
     });
 
-    const wb = XLSX.utils.book_new();
+    const wb = createStyledWorkbook({
+      creator: 'UWMS — Universitet Ombor va Aktivlarni Boshqarish Tizimi',
+      lastModifiedBy: 'UWMS Inventarizatsiya Auditorlik Xizmati',
+    });
 
     // -------------------------------------------------------------
     // VARAQ 1: INV-19 Solishtirma Dalolatnomasi (Xulosa va Imzolar)
@@ -850,34 +853,33 @@ export class AuditCampaignsService {
       : new Date().toISOString().slice(0, 10);
 
     const sheet1Data = [
-      { 'Ko‘rsatkich / Parametr': 'Davlat Standarti Hujjat Shakli', 'Qiymat / Ma’lumot': 'INV-19 (Yalpi Inventarizatsiya va Solishtirma Dalolatnomasi)' },
-      { 'Ko‘rsatkich / Parametr': 'Tashkilot / Muassasa', 'Qiymat / Ma’lumot': 'O‘zbekiston Respublikasi Oliy Ta’lim Muassasasi' },
-      { 'Ko‘rsatkich / Parametr': 'Inventarizatsiya Reja Kodi', 'Qiymat / Ma’lumot': campaign.campaignNumber },
-      { 'Ko‘rsatkich / Parametr': 'Kampaniya Nomi', 'Qiymat / Ma’lumot': campaign.title },
-      { 'Ko‘rsatkich / Parametr': 'O‘tkazilish Davri', 'Qiymat / Ma’lumot': periodStr },
-      { 'Ko‘rsatkich / Parametr': 'Kampaniya Holati', 'Qiymat / Ma’lumot': statusLabel },
-      { 'Ko‘rsatkich / Parametr': 'Qamrovdagi Jami Xonalar Soni', 'Qiymat / Ma’lumot': `${progress.totals.totalRooms} ta` },
-      { 'Ko‘rsatkich / Parametr': 'Tekshiruv Bajarilgan Xonalar', 'Qiymat / Ma’lumot': `${progress.totals.completedRooms} ta (${progress.totals.progressPercent}%)` },
-      { 'Ko‘rsatkich / Parametr': 'Jami Rejadagi Kutilgan Asosiy Vositalar', 'Qiymat / Ma’lumot': `${progress.totals.totalExpected} ta` },
-      { 'Ko‘rsatkich / Parametr': 'Mavjud Topilgan Asosiy Vositalar', 'Qiymat / Ma’lumot': `${progress.totals.totalMatched} ta` },
-      { 'Ko‘rsatkich / Parametr': 'Aniqlangan Kamomadlar Soni (MISSING)', 'Qiymat / Ma’lumot': `${progress.totals.totalMissing} ta` },
-      { 'Ko‘rsatkich / Parametr': 'Kamomad Bo‘yicha Jami Zarar / Qiymat', 'Qiymat / Ma’lumot': `${missingReport.totalMissingValue.toLocaleString()} so‘m` },
-      { 'Ko‘rsatkich / Parametr': 'Begona Xonadan Topilgan Vositalar', 'Qiymat / Ma’lumot': `${progress.totals.totalRelocated} ta` },
-      { 'Ko‘rsatkich / Parametr': 'Tekshirgan Mas’ul (Auditor / Komissiya Raisi)', 'Qiymat / Ma’lumot': signerName },
-      { 'Ko‘rsatkich / Parametr': 'Auditor Lavozimi / Roli', 'Qiymat / Ma’lumot': signerRole },
-      { 'Ko‘rsatkich / Parametr': 'Elektron Imzo Holati', 'Qiymat / Ma’lumot': stamp ? 'IMZOLANDI VA HUQUQIY TASDIQLANDI' : 'KUTILMOQDA' },
-      { 'Ko‘rsatkich / Parametr': 'Kriptografik SHA-256 Muhr Xeshi', 'Qiymat / Ma’lumot': stampHash },
-      { 'Ko‘rsatkich / Parametr': 'Imzolangan / Rasmiylashtirilgan Sana', 'Qiymat / Ma’lumot': stampDate },
-      { 'Ko‘rsatkich / Parametr': 'Auditorlik Dalolatnomasi Xulosasi', 'Qiymat / Ma’lumot': campaign.notes || 'Kampaniya rejaga muvofiq to‘liq o‘tkazildi.' },
+      { '№': 1, 'Ko‘rsatkich / Parametr': 'Davlat Standarti Hujjat Shakli', 'Qiymat / Ma’lumot': 'INV-19 (Yalpi Inventarizatsiya va Solishtirma Dalolatnomasi)' },
+      { '№': 2, 'Ko‘rsatkich / Parametr': 'Tashkilot / Muassasa', 'Qiymat / Ma’lumot': 'Namangan Davlat Texnika Universiteti — UWMS' },
+      { '№': 3, 'Ko‘rsatkich / Parametr': 'Inventarizatsiya Reja Kodi', 'Qiymat / Ma’lumot': campaign.campaignNumber },
+      { '№': 4, 'Ko‘rsatkich / Parametr': 'Kampaniya Nomi', 'Qiymat / Ma’lumot': campaign.title },
+      { '№': 5, 'Ko‘rsatkich / Parametr': 'O‘tkazilish Davri', 'Qiymat / Ma’lumot': periodStr },
+      { '№': 6, 'Ko‘rsatkich / Parametr': 'Kampaniya Holati', 'Qiymat / Ma’lumot': statusLabel },
+      { '№': 7, 'Ko‘rsatkich / Parametr': 'Qamrovdagi Jami Xonalar Soni', 'Qiymat / Ma’lumot': `${progress.totals.totalRooms} ta` },
+      { '№': 8, 'Ko‘rsatkich / Parametr': 'Tekshiruv Bajarilgan Xonalar', 'Qiymat / Ma’lumot': `${progress.totals.completedRooms} ta (${progress.totals.progressPercent}%)` },
+      { '№': 9, 'Ko‘rsatkich / Parametr': 'Jami Rejadagi Kutilgan Asosiy Vositalar', 'Qiymat / Ma’lumot': `${progress.totals.totalExpected} ta` },
+      { '№': 10, 'Ko‘rsatkich / Parametr': 'Mavjud Topilgan Asosiy Vositalar', 'Qiymat / Ma’lumot': `${progress.totals.totalMatched} ta` },
+      { '№': 11, 'Ko‘rsatkich / Parametr': 'Aniqlangan Kamomadlar Soni (MISSING)', 'Qiymat / Ma’lumot': `${progress.totals.totalMissing} ta` },
+      { '№': 12, 'Ko‘rsatkich / Parametr': 'Kamomad Bo‘yicha Jami Zarar / Qiymat', 'Qiymat / Ma’lumot': `${missingReport.totalMissingValue.toLocaleString()} so‘m` },
+      { '№': 13, 'Ko‘rsatkich / Parametr': 'Begona Xonadan Topilgan Vositalar', 'Qiymat / Ma’lumot': `${progress.totals.totalRelocated} ta` },
+      { '№': 14, 'Ko‘rsatkich / Parametr': 'Tekshirgan Mas’ul (Auditor / Komissiya Raisi)', 'Qiymat / Ma’lumot': signerName },
+      { '№': 15, 'Ko‘rsatkich / Parametr': 'Auditor Lavozimi / Roli', 'Qiymat / Ma’lumot': signerRole },
+      { '№': 16, 'Ko‘rsatkich / Parametr': 'Elektron Imzo Holati', 'Qiymat / Ma’lumot': stamp ? 'IMZOLANDI VA HUQUQIY TASDIQLANDI' : 'KUTILMOQDA' },
+      { '№': 17, 'Ko‘rsatkich / Parametr': 'Kriptografik SHA-256 Muhr Xeshi', 'Qiymat / Ma’lumot': stampHash },
+      { '№': 18, 'Ko‘rsatkich / Parametr': 'Imzolangan / Rasmiylashtirilgan Sana', 'Qiymat / Ma’lumot': stampDate },
+      { '№': 19, 'Ko‘rsatkich / Parametr': 'Auditorlik Dalolatnomasi Xulosasi', 'Qiymat / Ma’lumot': campaign.notes || 'Kampaniya rejaga muvofiq to‘liq o‘tkazildi.' },
     ];
 
-    const ws1 = XLSX.utils.json_to_sheet(sheet1Data);
-    XLSX.utils.book_append_sheet(wb, ws1, '1. INV-19 Dalolatnoma');
+    addStyledWorksheet(wb, '1. INV-19 Dalolatnoma', sheet1Data);
 
     // -------------------------------------------------------------
     // VARAQ 2: Kamomadlar Qaydnomasi (Topilmagan vositalar)
     // -------------------------------------------------------------
-    const sheet2Data =
+    const sheet2Data: Record<string, any>[] =
       missingReport.items.length > 0
         ? missingReport.items.map((item, idx) => ({
             '№': idx + 1,
@@ -908,8 +910,23 @@ export class AuditCampaignsService {
             },
           ];
 
-    const ws2 = XLSX.utils.json_to_sheet(sheet2Data);
-    XLSX.utils.book_append_sheet(wb, ws2, '2. Kamomadlar Qaydnomasi');
+    if (missingReport.items.length > 0) {
+      sheet2Data.push({
+        '№': 'Jami',
+        'Inventar Raqami': `${missingReport.items.length} ta kamomad`,
+        'Asosiy Vosita Nomi': 'JAMI ANIQLANGAN KAMOMADLAR QIYMATI',
+        'Model / Turi': '—',
+        'Seriya Raqami': '—',
+        'Boshlang‘ich Qiymati (so‘m)': missingReport.totalMissingValue,
+        'Kutilgan Joylashuv (Xona)': '—',
+        'Moddiy Javobgar Shaxs (MOL)': '—',
+        'MOL Telefoni': '—',
+        'Holati': 'KAMOMAD',
+        'Auditorlik Izohi': 'Undirish choralari ko‘riladi',
+      });
+    }
+
+    addStyledWorksheet(wb, '2. Kamomadlar Qaydnomasi', sheet2Data);
 
     // -------------------------------------------------------------
     // VARAQ 3: Xonalar Kesimida Ijro Progressi
@@ -930,10 +947,9 @@ export class AuditCampaignsService {
       'Audit Holati': r.isCompleted ? 'Tugallangan (COMPLETED)' : r.auditStatus === 'IN_PROGRESS' ? 'Jarayonda' : 'Boshlanmagan',
     }));
 
-    const ws3 = XLSX.utils.json_to_sheet(sheet3Data);
-    XLSX.utils.book_append_sheet(wb, ws3, '3. Xonalar Ijro Vedomosti');
+    addStyledWorksheet(wb, '3. Xonalar Ijro Vedomosti', sheet3Data);
 
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
     const filename = `UWMS_INV19_${campaign.campaignNumber}_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
     await this.systemAuditService.log({

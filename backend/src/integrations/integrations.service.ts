@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import * as XLSX from 'xlsx';
 import { PrismaService } from '../prisma/prisma.service';
+import { createStyledWorkbook, addStyledWorksheet } from '../common/utils/excel.util';
 import { SystemAuditService } from '../system-audit/system-audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { HemisSyncDto, HemisTestConnectionDto, UzAsboExportQueryDto } from './integrations.dto';
@@ -650,7 +650,7 @@ export class IntegrationsService {
     ]);
 
     const organizationInfo = {
-      organizationName: "O'zbekiston Davlat Universiteti",
+      organizationName: process.env.ORGANIZATION_NAME || 'Namangan Davlat Texnika Universiteti',
       inn: '301245789',
       treasuryAccount: '23402000300100001010',
       period,
@@ -725,7 +725,7 @@ export class IntegrationsService {
     }
 
     if (query.format === 'xlsx') {
-      return this.convertToUzAsboXlsx(uzasboPayload, period);
+      return await this.convertToUzAsboXlsx(uzasboPayload, period);
     }
 
     return uzasboPayload;
@@ -814,60 +814,204 @@ export class IntegrationsService {
 </UzASBOExport>`;
   }
 
-  private convertToUzAsboXlsx(data: any, period: string) {
-    const wb = XLSX.utils.book_new();
+  private async convertToUzAsboXlsx(data: any, period: string) {
+    const wb = createStyledWorkbook({
+      creator: 'UWMS — Universitet Ombor va Aktivlarni Boshqarish Tizimi',
+      lastModifiedBy: 'UWMS UzASBO / 1C Integratsiya Shlyuzi',
+    });
 
-    // Sheet 1: Tashkilot
+    // 1. Sheet 1: Tashkilot (Tashkilot rekvizitlari va sub-hisoblar balansi)
+    const totalAssetCount =
+      data.chartOfAccounts?.find((c: any) => c.accountCode === '013')?.itemCount ||
+      data.assetRegister?.length ||
+      0;
+    const totalAssetCost =
+      data.chartOfAccounts?.find((c: any) => c.accountCode === '013')?.totalPurchasePrice ||
+      data.assetRegister?.reduce((acc: number, cur: any) => acc + Number(cur.initialCost || 0), 0) ||
+      0;
+    const totalStockQty =
+      data.chartOfAccounts?.find((c: any) => c.accountCode === '060')?.totalQuantity || 0;
+
     const orgRows = [
-      ['Tashkilot Nomi', data.header.organizationName],
-      ['INN (STIR)', data.header.inn],
-      ['G‘aznachilik Hisob Raqami', data.header.treasuryAccount],
-      ['Hisobot Davri', data.header.period],
-      ['Standart', data.header.exportStandard],
-      ['Shakllantirilgan Sana', data.header.generatedAt],
+      {
+        '№': 1,
+        'Ko‘rsatkich / Tashkilot Rekviziti': 'Tashkilot Nomi',
+        'Qiymat': data.header.organizationName,
+        'Izoh / Standart': 'Oliy Ta’lim Muassasasi',
+      },
+      {
+        '№': 2,
+        'Ko‘rsatkich / Tashkilot Rekviziti': 'INN (STIR)',
+        'Qiymat': data.header.inn,
+        'Izoh / Standart': 'Davlat Soliq Qo‘mitasi STIR',
+      },
+      {
+        '№': 3,
+        'Ko‘rsatkich / Tashkilot Rekviziti': 'G‘aznachilik Hisob Raqami',
+        'Qiymat': data.header.treasuryAccount,
+        'Izoh / Standart': 'Iqtisodiyot va Moliya Vazirligi G‘aznachiligi',
+      },
+      {
+        '№': 4,
+        'Ko‘rsatkich / Tashkilot Rekviziti': 'Hisobot Davri',
+        'Qiymat': data.header.period,
+        'Izoh / Standart': 'Oylik buxgalteriya balansi',
+      },
+      {
+        '№': 5,
+        'Ko‘rsatkich / Tashkilot Rekviziti': 'Standart',
+        'Qiymat': data.header.exportStandard,
+        'Izoh / Standart': 'UzASBO 2.0 / 1C Korxona 8.3 OTM',
+      },
+      {
+        '№': 6,
+        'Ko‘rsatkich / Tashkilot Rekviziti': 'Shakllantirilgan Sana',
+        'Qiymat': new Date(data.header.generatedAt).toLocaleString('uz-UZ'),
+        'Izoh / Standart': 'Server UTC+5 tizim vaqti',
+      },
+      {
+        '№': 7,
+        'Ko‘rsatkich / Tashkilot Rekviziti': '010-Sub-hisob (Bino va inshootlar)',
+        'Qiymat': '0 so‘m (0 ta bino)',
+        'Izoh / Standart': 'Ko‘chmas mulk va inshootlar balansi',
+      },
+      {
+        '№': 8,
+        'Ko‘rsatkich / Tashkilot Rekviziti': '013-Sub-hisob (Mashina va asbob-uskunalar)',
+        'Qiymat': `${totalAssetCount} ta asosiy vosita (${Number(totalAssetCost).toLocaleString('uz-UZ')} so‘m)`,
+        'Izoh / Standart': 'Kompyuter va AKT jihozlari balansi',
+      },
+      {
+        '№': 9,
+        'Ko‘rsatkich / Tashkilot Rekviziti': '060-Sub-hisob (Material zaxiralar)',
+        'Qiymat': `${totalStockQty} birlik moddiy qoldiq`,
+        'Izoh / Standart': 'Ombor va kafedralar sarf ashyolari',
+      },
+      {
+        '№': 10,
+        'Ko‘rsatkich / Tashkilot Rekviziti': 'Ma’lumotlar Butunligi (WORM Arxiv)',
+        'Qiymat': 'HMAC-SHA256 Muhrlangan',
+        'Izoh / Standart': 'O‘zgartirib bo‘lmas davlat elektron reyestri',
+      },
     ];
-    const wsOrg = XLSX.utils.aoa_to_sheet(orgRows);
-    XLSX.utils.book_append_sheet(wb, wsOrg, 'Tashkilot');
+    addStyledWorksheet(wb, 'Tashkilot', orgRows);
 
-    // Sheet 2: Asosiy Vositalar (013)
-    const assetRows = data.assetRegister.map((a: any) => ({
-      'Inventar №': a.inventoryNumber,
-      'Nomi': a.assetName,
-      'Kategoriya': a.category,
-      'Moliyalashtirish Manbasi': a.fundingSource,
-      'Boshlang‘ich Qiymati (so‘m)': a.initialCost || 0,
-      'Amortizatsiya Me’yori': a.annualDepreciationRate,
-      'Joylashuvi (Xona)': a.room,
-      'Moddiy Javobgar Shaxs (MOL)': a.responsiblePerson,
-      'Holati': a.status,
-    }));
-    const wsAssets = XLSX.utils.json_to_sheet(assetRows);
-    XLSX.utils.book_append_sheet(wb, wsAssets, 'Asosiy_Vositalar_013');
+    // 2. Sheet 2: Asosiy_Vositalar_013
+    const assetRows: Record<string, any>[] =
+      data.assetRegister && data.assetRegister.length > 0
+        ? data.assetRegister.map((a: any, idx: number) => ({
+            '№': idx + 1,
+            'Inventar №': a.inventoryNumber || '—',
+            'Nomi': a.assetName || '—',
+            'Kategoriya': a.category || '—',
+            'Moliyalashtirish Manbasi': a.fundingSource || '—',
+            'Boshlang‘ich Qiymati (so‘m)': Number(a.initialCost) || 0,
+            'Amortizatsiya Me’yori': a.annualDepreciationRate || '—',
+            'Joylashuvi (Xona)': a.room || '—',
+            'Moddiy Javobgar Shaxs (MOL)': a.responsiblePerson || '—',
+            'Holati': a.status || '—',
+          }))
+        : [
+            {
+              '№': 1,
+              'Inventar №': '—',
+              'Nomi': 'Ushbu davrda 013 sub-hisob bo‘yicha aktivlar mavjud emas',
+              'Kategoriya': '—',
+              'Moliyalashtirish Manbasi': '—',
+              'Boshlang‘ich Qiymati (so‘m)': 0,
+              'Amortizatsiya Me’yori': '—',
+              'Joylashuvi (Xona)': '—',
+              'Moddiy Javobgar Shaxs (MOL)': '—',
+              'Holati': '—',
+            },
+          ];
 
-    // Sheet 3: Harakatlar Jurnali
-    const movementRows = data.monthlyMovements.flatMap((m: any) =>
-      m.items.map((i: any) => ({
-        'Harakat №': m.movementNumber,
-        'Turi': m.type,
-        'Sana': m.date ? new Date(m.date).toLocaleDateString('uz-UZ') : '—',
-        'Moliyalashtirish': m.fundingSource || '—',
-        'Asos Hujjat': m.referenceDoc || '—',
-        'Bajaruvchi': m.executor,
-        'Yo‘nalish (Manzil)': m.destination,
-        'Mahsulot Nomi': i.itemName,
-        'Miqdor': i.quantity,
-        'Birlik': i.unit,
-      })),
-    );
-    const wsMovements = XLSX.utils.json_to_sheet(movementRows);
-    XLSX.utils.book_append_sheet(wb, wsMovements, 'Harakatlar_Jurnali');
+    if (data.assetRegister && data.assetRegister.length > 0) {
+      const totalCost = data.assetRegister.reduce(
+        (sum: number, a: any) => sum + Number(a.initialCost || 0),
+        0,
+      );
+      assetRows.push({
+        '№': 'Jami',
+        'Inventar №': `${data.assetRegister.length} ta aktiv`,
+        'Nomi': 'JAMI ASOSIY VOSITALAR BALANSI (013)',
+        'Kategoriya': '—',
+        'Moliyalashtirish Manbasi': '—',
+        'Boshlang‘ich Qiymati (so‘m)': totalCost,
+        'Amortizatsiya Me’yori': '—',
+        'Joylashuvi (Xona)': '—',
+        'Moddiy Javobgar Shaxs (MOL)': '—',
+        'Holati': '—',
+      });
+    }
+    addStyledWorksheet(wb, 'Asosiy_Vositalar_013', assetRows);
 
-    const buffer = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+    // 3. Sheet 3: Harakatlar_Jurnali
+    const rawMovements =
+      data.monthlyMovements?.flatMap((m: any) =>
+        m.items.map((i: any) => ({
+          'Harakat №': m.movementNumber || '—',
+          'Turi': m.type || '—',
+          'Sana': m.date ? new Date(m.date).toLocaleDateString('uz-UZ') : '—',
+          'Moliyalashtirish Manbasi': m.fundingSource || '—',
+          'Asos Hujjat': m.referenceDoc || '—',
+          'Bajaruvchi Mas’ul': m.executor || '—',
+          'Yo‘nalish (Manzil)': m.destination || '—',
+          'Mahsulot Nomi': i.itemName || '—',
+          'Miqdor': Number(i.quantity) || 0,
+          'O‘lchov Birligi': i.unit || 'dona',
+        })),
+      ) || [];
+
+    const movementRows: Record<string, any>[] =
+      rawMovements.length > 0
+        ? rawMovements.map((r: any, idx: number) => ({
+            '№': idx + 1,
+            ...r,
+          }))
+        : [
+            {
+              '№': 1,
+              'Harakat №': '—',
+              'Turi': '—',
+              'Sana': '—',
+              'Moliyalashtirish Manbasi': '—',
+              'Asos Hujjat': '—',
+              'Bajaruvchi Mas’ul': '—',
+              'Yo‘nalish (Manzil)': '—',
+              'Mahsulot Nomi': 'Ushbu davrda ombor harakatlari qayd etilmagan',
+              'Miqdor': 0,
+              'O‘lchov Birligi': '—',
+            },
+          ];
+
+    if (rawMovements.length > 0) {
+      const totalQty = rawMovements.reduce(
+        (sum: number, r: any) => sum + Number(r['Miqdor'] || 0),
+        0,
+      );
+      movementRows.push({
+        '№': 'Jami',
+        'Harakat №': `${rawMovements.length} ta yozuv`,
+        'Turi': '—',
+        'Sana': '—',
+        'Moliyalashtirish Manbasi': '—',
+        'Asos Hujjat': '—',
+        'Bajaruvchi Mas’ul': '—',
+        'Yo‘nalish (Manzil)': '—',
+        'Mahsulot Nomi': 'JAMI HARAKATLAR MIQDORI',
+        'Miqdor': totalQty,
+        'O‘lchov Birligi': 'birlik',
+      });
+    }
+    addStyledWorksheet(wb, 'Harakatlar_Jurnali', movementRows);
+
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
     return {
       format: 'xlsx',
       fileName: `UzASBO_Hisoboti_${period}.xlsx`,
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      base64: buffer,
+      base64: buffer.toString('base64'),
     };
   }
 

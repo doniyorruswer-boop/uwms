@@ -360,7 +360,7 @@ describe('IntegrationsService (Unit Tests)', () => {
     });
 
     it('exportUzAsbo XLSX formatida 3-varaqli Excel kitobini to‘g‘ri shakllantirishi kerak', async () => {
-      const XLSX = require('xlsx');
+      const ExcelJS = require('exceljs');
       const res = await service.exportUzAsbo(
         { period: '2026-03', format: 'xlsx' },
         'admin-user-id',
@@ -370,12 +370,31 @@ describe('IntegrationsService (Unit Tests)', () => {
       expect(res).toHaveProperty('fileName', 'UzASBO_Hisoboti_2026-03.xlsx');
       expect(res).toHaveProperty('base64');
 
-      const workbook = XLSX.read(Buffer.from((res as any).base64, 'base64'), { type: 'buffer' });
-      expect(workbook.SheetNames).toEqual([
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(Buffer.from((res as any).base64, 'base64'));
+
+      const sheetNames = workbook.worksheets.map((ws: any) => ws.name);
+      expect(sheetNames).toEqual([
         'Tashkilot',
         'Asosiy_Vositalar_013',
         'Harakatlar_Jurnali',
       ]);
+
+      // Check Tashkilot sheet styling
+      const wsOrg = workbook.getWorksheet('Tashkilot');
+      expect(wsOrg.getRow(1).height).toBe(28);
+      expect((wsOrg.getRow(1).getCell(1).fill as any)?.fgColor?.argb).toBe('FF165DFF');
+
+      // Check Asosiy_Vositalar_013 sheet styling & content
+      const wsAssets = workbook.getWorksheet('Asosiy_Vositalar_013');
+      expect(wsAssets.getRow(1).height).toBe(28);
+      expect((wsAssets.getRow(1).getCell(1).fill as any)?.fgColor?.argb).toBe('FF165DFF');
+      expect(wsAssets.rowCount).toBeGreaterThanOrEqual(2);
+
+      // Check Harakatlar_Jurnali sheet styling
+      const wsMovements = workbook.getWorksheet('Harakatlar_Jurnali');
+      expect(wsMovements.getRow(1).height).toBe(28);
+      expect((wsMovements.getRow(1).getCell(1).fill as any)?.fgColor?.argb).toBe('FF165DFF');
     });
 
     it('exportUzAsbo JSON formatida to‘liq ob’ektni qaytarishi kerak', async () => {
