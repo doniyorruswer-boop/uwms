@@ -17,6 +17,7 @@
     "prisma:seed": "ts-node prisma/seed.system.ts",
     "prisma:seed:system": "ts-node prisma/seed.system.ts",
     "prisma:seed:demo": "ts-node prisma/seed.demo.ts",
+    "prisma:seed:all": "ts-node prisma/seed.ts",
     "generate:secret": "node ../scripts/generate-jwt-secret.js",
     "package:clean": "node ../scripts/package-clean.js"
   },

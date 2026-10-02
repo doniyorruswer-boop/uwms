@@ -1,0 +1,97 @@
+WEBVTT
+
+1
+00:00:03.116 --> 00:00:08.616
+KIRISH: UWMS — Bosh Hisobchi (Moddiy Buxgalter) Qo‘llanmasi
+Ushbu qo‘llanmada har bir sahifa, barcha rangli boshqaruv tugmalari, moliya vizalari, OS-1 kirim, OS-2 chiqim, amortizatsiya va UzASBO davlat integratsiyasi to‘liq tushuntiriladi. (Amal: Sichqoncha ko‘rsatkichini kuzating)
+
+2
+00:00:08.919 --> 00:00:12.919
+1-BOSQICH / 14: 1-BOSQICH: Tizimga kirish va avtorizatsiya
+Bosh hisobchi o‘z logini (bosh_hisobchi) va maxfiy parolini kiritadi hamda ko‘k rangli "Tizimga Kirish" tugmasini bosadi. (Amal: Login va parolni kiritib tizimga kiring)
+
+3
+00:00:19.459 --> 00:00:24.959
+2-BOSQICH / 14: 2-BOSQICH: Boshqaruv Paneli va Yuqori Rangli Asboblar
+Yuqori paneldagi tezkor qidiruv (Ctrl+K), til tanlash, tungi rejim, bildirishnomalar hamda ko‘k rangli "+ Yangi Zayavka" va "Video Qo‘llanma" tugmalari. (Amal: Yuqori boshqaruv tugmalarini ko‘zdan kechiring)
+
+4
+00:00:35.120 --> 00:00:40.320
+3-BOSQICH / 14: 3-BOSQICH: Vazifalarim — Moliya Vizasi va Yangi Kirim Tasdig‘i
+Sidebar orqali "Vazifalarim"ga o‘tiladi. Bu yerda buxgalter tasdiqlashi lozim bo‘lgan arizalar va ko‘k rangli "Ko‘rib chiqish" tugmasi joylashgan. (Amal: Chap menyudan «Vazifalarim»ni bosing)
+
+5
+00:00:50.205 --> 00:00:55.605
+4-BOSQICH / 14: 4-BOSQICH: Asosiy Vositalar Reestri va Davlat Hisobi
+Universitetning barcha aktivlari, ko‘k rangli "Aktivlarni Topshirish (OS-1)" vizardi, manbalar filtri va har bir ashyoning "QR Pasport" tugmasi. (Amal: Chap menyudan «Asosiy Vositalar»ni bosing)
+
+6
+00:01:01.858 --> 00:01:07.058
+5-BOSQICH / 14: 5-BOSQICH: Ta’minot & Shartnomalar — Kontragentlar Reestri
+G‘aznachilik shartnomalari, ta’minotchi korxonalar reestri va ko‘k rangli "+ Yangi Ta’minotchi" tugmasi orqali yangi kontragent kiritish oynasi. (Amal: Chap menyudan «Ta’minot & Shartnomalar»ni bosing)
+
+7
+00:01:09.715 --> 00:01:15.115
+6-BOSQICH / 14: 6-BOSQICH: Talabnomalar — Xarid Zanjiri va Moliya Bosqichlari
+Kafedralar ehtiyoj arizalari, "+ Yangi Talabnoma" tugmasi hamda har bir talabnomaning ko‘k rangli "Batafsil" xarid monitoringi tugmasi. (Amal: Chap menyudan «Talabnomalar»ni bosing)
+
+8
+00:01:23.647 --> 00:01:29.047
+7-BOSQICH / 14: 7-BOSQICH: Spisanie (OS-4) — Hisobdan Chiqarish Komissiyasi
+Yaroqsiz vositalarni balansdan chiqarish. Bosh hisobchi komissiya a’zosi sifatida qoldiq qiymatni tekshiradi va ko‘k "Batafsil & Ovoz berish" orqali ovoz beradi. (Amal: Chap menyudan «Spisanie (OS-4)»ni bosing)
+
+9
+00:01:36.143 --> 00:01:41.343
+8-BOSQICH / 14: 8-BOSQICH: Amortizatsiya & Qoldiq Qiymat Dvigateli
+Asosiy vositalarning oylik chiziqli eskirish hisob-kitobi. "Davriy Eskirishni Hisoblash" ko‘k kartasi hamda sub-hisoblar normasi jurnali (013 — 15%, 01 — 10%). (Amal: Chap menyudan «Amortizatsiya»ni bosing)
+
+10
+00:01:45.857 --> 00:01:51.357
+9-BOSQICH / 14: 9-BOSQICH: Bosh Hisobchi Daftari — Kirim Reestri (OS-1)
+Sub-hisoblar (013, 071, 01) bo‘yicha davlat OS-1 kirim aktlari. Ko‘k rangli "OS-1 Hujjatini Ko‘rish" tugmasi bosilib, rasmiy davlat shakli tekshiriladi. (Amal: Chap menyudan «Bosh Hisobchi Daftari»ni bosing)
+
+11
+00:02:01.374 --> 00:02:06.574
+10-BOSQICH / 14: 10-BOSQICH: Manbalar Hisoboti — Byudjet, Kontrakt va Grant
+Moliyalashtirish manbalari (Davlat Byudjeti, To‘lov-Kontrakt maxsus hisobi, Rivojlantirish jamg‘armasi) kesimidagi xarajatlar tahlili va Excel yuklab olish tugmasi. (Amal: Chap menyudan «Manbalar Hisoboti»ni bosing)
+
+12
+00:02:10.680 --> 00:02:16.080
+11-BOSQICH / 14: 11-BOSQICH: Tuzilma & Xonalar — Daraxtsimon Menyuni Boshqarish
+Universitet binolari, fakultet va kafedralar iyerarxik daraxti (Tree). Daraxt tugmasi bosilib, kafedra va xonalarning moddiy mas’ullari ko‘rsatiladi. (Amal: Chap menyudan «Tuzilma & Xonalar»ni bosing)
+
+13
+00:02:21.468 --> 00:02:26.668
+12-BOSQICH / 14: 12-BOSQICH: Kafedralar Kvotasi — Oylik Sarf Limitlari Nazorati
+Kafedralar oylik sarf-xarajat kvotalari, sarflangan summa, qoldiq limit va rangli progress barlar. Buxgalteriya smetadan ortiqcha xarajatlarga chek qo‘yadi. (Amal: Chap menyudan «Kafedralar va Bo‘limlar Kvotasi»ni bosing)
+
+14
+00:02:29.447 --> 00:02:34.847
+13-BOSQICH / 14: 13-BOSQICH: Integratsiyalar — HEMIS va UzASBO / 1C Shlyuzi
+Universitet aktivlari va 010/013 sub-hisoblarni Davlat G‘aznachiligi (DMBAT / UzASBO) va 1C:Korxona tizimiga eksport qilish markazi. (Amal: Chap menyudan «Integratsiyalar»ni bosing)
+
+15
+00:02:42.405 --> 00:02:47.905
+13.1-BOSQICH / 14: 13.1-BOSQICH: UzASBO XML va Excel Hisobotini Shakllantirish
+Hisobot davri (2026-10), Asosiy vositalar reestri (010/013) va Davlat standarti XML formati tanlanib, ko‘k rangli "Hisobotni Shakllantirish" tugmasi bosiladi. (Amal: «Hisobotni Shakllantirish» ko‘k tugmasini bosing)
+
+16
+00:02:51.621 --> 00:02:57.121
+13.2-BOSQICH / 14: 13.2-BOSQICH: Davlat UzASBO XML Natijasi va Yuklab Olish
+Generatsiya qilingan XML kod DMBAT UzASBO dasturiga to‘g‘ridan-to‘g‘ri import qilinadi. Buxgalter ko‘k "Faylni Yuklab Olish (.xml)" va "Nusxa Olish" tugmalaridan foydalanadi. (Amal: XML kodini ko‘zdan kechiring va yuklab oling)
+
+17
+00:03:02.278 --> 00:03:07.478
+14-BOSQICH / 14: 14-BOSQICH: Audit Rejalari — INV-19 Solishtirma Qaydnoma
+Yillik inventarizatsiya rejalari, komissiya a’zolari tarkibi va INV-19 solishtirma dalolatnomalari orqali haqiqiy qoldiqlar solishtiriladi. (Amal: Chap menyudan «Audit Rejalari»ni bosing)
+
+18
+00:03:13.294 --> 00:03:18.494
+KIRISH: Boshqaruv Panelida "Video Qo‘llanma" Markazi
+Dashboarddagi ko‘k rangli [▶ Video Qo‘llanma] tugmasi bosilib, Bosh Hisobchi darsligi, boblar bo‘yicha tezkor sakrash va boshqa rollarga o‘tish tushuntiriladi. (Amal: «Video Qo‘llanma» tugmasini bosing)
+
+19
+00:03:30.480 --> 00:03:35.980
+KIRISH: YAKUN: Bosh Hisobchi Uchun Yakuniy Qoidalar
+1. Har bir kirim qonuniy faktura va shartnoma bilan; 2. Sub-hisoblar va eskirishni oylik uzluksiz yuritish; 3. UzASBO davlat tizimiga hisobotlarni o‘z vaqtida jo‘natish. (Amal: E’tiboringiz uchun rahmat! (UWMS Tizimi))
+

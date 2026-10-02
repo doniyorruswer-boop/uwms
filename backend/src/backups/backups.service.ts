@@ -174,7 +174,9 @@ export class BackupsService {
   /**
    * Har kuni soat 02:00 da (UTC+5) avtomatik zaxira nusxasi olish (Task 6.3 Cron Scheduler)
    */
-  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  @Cron(CronExpression.EVERY_DAY_AT_2AM, {
+    timeZone: 'Asia/Tashkent',
+  })
   async handleAutomaticDailyBackup() {
     this.logger.log('Rejali avtomatik zaxira nusxasi yaratilishi boshlanmoqda (Cron 02:00)...');
     try {

@@ -1,6 +1,12 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import {
+  NAMDTU_FACULTIES,
+  NAMDTU_CHAIRS,
+  NAMDTU_CENTERS,
+  NAMDTU_ADMIN_DEPARTMENTS,
+} from './namdtu-structure';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -61,8 +67,79 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       this.logger.warn(`Could not verify "backup_records" S3 columns: ${err?.message || err}`);
     }
 
-    // 5. Bootstrap: Agar hech qanday foydalanuvchi yo'q bo'lsa, asosiy admin yaratish
+    // 5. Bootstrap: NamDTU rasmiy tashkiliy tuzilmasini (8 ta fakultet, 36 ta kafedra, 4 ta markaz, 21 ta bo'lim) avtomatik sinxronlashtirish
+    await this.bootstrapNamDTUStructure();
+
+    // 6. Bootstrap: Agar hech qanday foydalanuvchi yo'q bo'lsa, asosiy admin yaratish
     await this.bootstrapAdminIfEmpty();
+  }
+
+  private async bootstrapNamDTUStructure() {
+    try {
+      // 1. Fakultetlar (8 ta)
+      const facultyMap = new Map<string, string>(); // code -> id
+      for (const fac of NAMDTU_FACULTIES) {
+        const record = await (this as any).department.upsert({
+          where: { code: fac.code },
+          update: { name: fac.name, type: 'FACULTY' },
+          create: {
+            code: fac.code,
+            name: fac.name,
+            type: 'FACULTY',
+          },
+        });
+        facultyMap.set(fac.code, record.id);
+      }
+
+      // 2. Kafedralar (36 ta)
+      for (const chair of NAMDTU_CHAIRS) {
+        const parentFacultyId = facultyMap.get(chair.facultyCode) || null;
+        await (this as any).department.upsert({
+          where: { code: chair.code },
+          update: {
+            name: chair.name,
+            type: 'CHAIR',
+            parentId: parentFacultyId,
+          },
+          create: {
+            code: chair.code,
+            name: chair.name,
+            type: 'CHAIR',
+            parentId: parentFacultyId,
+          },
+        });
+      }
+
+      // 3. Markazlar (4 ta)
+      for (const center of NAMDTU_CENTERS) {
+        await (this as any).department.upsert({
+          where: { code: center.code },
+          update: { name: center.name, type: center.type },
+          create: {
+            code: center.code,
+            name: center.name,
+            type: center.type,
+          },
+        });
+      }
+
+      // 4. Ma'muriy bo'limlar (21 ta)
+      for (const adm of NAMDTU_ADMIN_DEPARTMENTS) {
+        await (this as any).department.upsert({
+          where: { code: adm.code },
+          update: { name: adm.name, type: adm.type },
+          create: {
+            code: adm.code,
+            name: adm.name,
+            type: adm.type,
+          },
+        });
+      }
+
+      this.logger.log('NamDTU organizational hierarchy bootstrap verified: 69 departments in sync.');
+    } catch (err: any) {
+      this.logger.warn(`NamDTU structure bootstrap warning: ${err?.message || err}`);
+    }
   }
 
   private async bootstrapAdminIfEmpty() {
@@ -75,13 +152,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
       this.logger.warn('No users found in database. Creating bootstrap admin user...');
 
-      // Department yaratish (yo'q bo'lsa)
+      // Department: Raqamli ta'lim texnologiyalari markazi (yoki ATM)
       const dept = await (this as any).department.upsert({
-        where: { code: 'ATM_CENTER' },
+        where: { code: 'MARKAZ_RAQAMLI_TALIM_TEXNOLOGIYALARI' },
         update: {},
         create: {
-          name: 'Axborot Texnologiyalari Markazi',
-          code: 'ATM_CENTER',
+          name: "Raqamli ta'lim texnologiyalari markazi",
+          code: 'MARKAZ_RAQAMLI_TALIM_TEXNOLOGIYALARI',
           type: 'DIVISION',
         },
       });

@@ -638,6 +638,16 @@ export class TransfersService {
    * Yangi Moddiy Javobgarlikni Topshirish (ResponsibilityHandover) arizasini yaratish
    */
   async createResponsibilityHandover(dto: CreateResponsibilityHandoverDto, creatorId: string) {
+    if (creatorId && creatorId !== dto.departingUserId) {
+      const creator = await this.prisma.user.findUnique({ where: { id: creatorId } });
+      const isSuperAdmin = creator?.role === 'SUPER_ADMIN' || creator?.role === 'ADMIN';
+      if (!isSuperAdmin) {
+        throw new ForbiddenException(
+          'Faqat ashyo yoki xona biriktirilgan mas’ul shaxs (MOL) topshirish arizasini shakllantirishi mumkin!'
+        );
+      }
+    }
+
     const departingUser = await this.prisma.user.findUnique({
       where: { id: dto.departingUserId },
     });

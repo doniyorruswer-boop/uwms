@@ -37,6 +37,7 @@ import {
   IconClockCircle,
   IconCalendar,
   IconWifi,
+  IconPlayCircle,
 } from '@arco-design/web-react/icon';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -49,6 +50,7 @@ import { StatHeroCard } from '../../components/Common/StatHeroCard';
 import { StockLevelGauge } from '../../components/Common/StockLevelGauge';
 import { formatMoney, formatMln, formatPercent } from '../../utils/formatters';
 import { StatusTag } from '../../components/Common/StatusTag';
+import { VideoTutorialModal } from '../../components/Common/VideoTutorialModal';
 
 const { Title, Text } = Typography;
 const { Row, Col } = Grid;
@@ -60,6 +62,7 @@ export const DashboardPage: React.FC = () => {
   const [isMobile, setIsMobile] = useState<boolean>(() => {
     return typeof window !== 'undefined' ? window.innerWidth < 768 : false;
   });
+  const [tutorialModalVisible, setTutorialModalVisible] = useState<boolean>(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -232,6 +235,21 @@ export const DashboardPage: React.FC = () => {
             style={{ borderRadius: isMobile ? 6 : 0, flex: isMobile ? 1 : 'none', minHeight: 38 }}
           >
             Yangi Zayavka
+          </Button>
+          <Button
+            type="outline"
+            icon={<IconPlayCircle style={{ color: '#165DFF', fontSize: 16 }} />}
+            onClick={() => setTutorialModalVisible(true)}
+            style={{
+              borderRadius: isMobile ? 6 : 0,
+              flex: isMobile ? 1 : 'none',
+              minHeight: 38,
+              borderColor: '#165DFF',
+              color: '#165DFF',
+              fontWeight: 600,
+            }}
+          >
+            Video Qo‘llanma
           </Button>
           {(isLeadership || isWarehouse) && !isMobile && (
             <Button
@@ -1108,6 +1126,11 @@ export const DashboardPage: React.FC = () => {
           />
         )}
       </Card>
+
+      <VideoTutorialModal
+        visible={tutorialModalVisible}
+        onClose={() => setTutorialModalVisible(false)}
+      />
     </div>
   );
 };

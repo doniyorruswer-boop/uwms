@@ -1,5 +1,6 @@
 import { PrismaClient, RoleType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { seedNamDTUDepartments } from './seed-departments';
 
 const prisma = new PrismaClient();
 
@@ -9,69 +10,17 @@ async function main() {
   const defaultPassword = process.env.SYSTEM_DEFAULT_PASSWORD || 'Admin123!@#';
   const passwordHash = await bcrypt.hash(defaultPassword, 10);
 
-  // 1. Fakultetlar va Ma'muriy Bo'limlar
-  console.log('1. Setting up core organizational structure...');
-
-  const rectorate = await prisma.department.upsert({
-    where: { code: 'REKTORAT' },
-    update: { name: 'Universitet Rektorati va Rahbariyat' },
-    create: {
-      name: 'Universitet Rektorati va Rahbariyat',
-      code: 'REKTORAT',
-      type: 'RECTORATE',
-    },
-  });
-
-  const accountingDept = await prisma.department.upsert({
-    where: { code: 'BUXGALTERIYA' },
-    update: { name: 'Buxgalteriya va Moliya-iqtisodiyot bo‘limi' },
-    create: {
-      name: 'Buxgalteriya va Moliya-iqtisodiyot bo‘limi',
-      code: 'BUXGALTERIYA',
-      type: 'DEPARTMENT',
-    },
-  });
-
-  const itCenter = await prisma.department.upsert({
-    where: { code: 'ATM_CENTER' },
-    update: { name: 'Axborot Texnologiyalari Markazi (ATM)' },
-    create: {
-      name: 'Axborot Texnologiyalari Markazi (ATM)',
-      code: 'ATM_CENTER',
-      type: 'DIVISION',
-    },
-  });
-
-  const facilitiesDept = await prisma.department.upsert({
-    where: { code: 'XOJALIK' },
-    update: { name: 'Xo‘jalik Bo‘limi va Komendantlik' },
-    create: {
-      name: 'Xo‘jalik Bo‘limi va Komendantlik',
-      code: 'XOJALIK',
-      type: 'DEPARTMENT',
-    },
-  });
-
-  const itFaculty = await prisma.department.upsert({
-    where: { code: 'IT_FACULTY' },
-    update: { name: 'Kompyuter Injiniringi Fakulteti', type: 'FACULTY' },
-    create: {
-      name: 'Kompyuter Injiniringi Fakulteti',
-      code: 'IT_FACULTY',
-      type: 'FACULTY',
-    },
-  });
-
-  const seChair = await prisma.department.upsert({
-    where: { code: 'SE_CHAIR' },
-    update: { name: 'Dasturiy Injiniring Kafedrasi', parentId: itFaculty.id },
-    create: {
-      name: 'Dasturiy Injiniring Kafedrasi',
-      code: 'SE_CHAIR',
-      type: 'CHAIR',
-      parentId: itFaculty.id,
-    },
-  });
+  // 1. Fakultetlar va Ma'muriy Bo'limlar (NamDTU rasmiy tuzilmasi)
+  const {
+    itFaculty,
+    econFaculty,
+    scienceFaculty,
+    seChair,
+    rectorate,
+    accountingDept,
+    itCenter,
+    facilitiesDept,
+  } = await seedNamDTUDepartments(prisma);
 
   // 2. Tizim Asosiy Omborxonalari
   console.log('2. Setting up central warehouses...');

@@ -53,8 +53,11 @@ const { Row, Col } = Grid;
 export const IntegrationsPage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isChiefAccountant = user?.role === 'CHIEF_ACCOUNTANT';
+  const isAdmin = user?.role === 'ADMIN';
+  const hasAccess = isSuperAdmin || isAdmin || isChiefAccountant;
 
-  const [activeTab, setActiveTab] = useState<string>('hemis');
+  const [activeTab, setActiveTab] = useState<string>(isChiefAccountant ? 'uzasbo' : 'hemis');
   const [exportPeriod, setExportPeriod] = useState<string>(
     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
   );
@@ -92,12 +95,12 @@ export const IntegrationsPage: React.FC = () => {
   const hemisTestConnectionMutation = useHemisTestConnectionMutation();
 
   // Permission Denied State (Rule 3 & Rule 6.3)
-  if (!user || !isSuperAdmin) {
+  if (!user || !hasAccess) {
     return (
       <ForbiddenView
         title="403 — Kirish Cheklangan"
-        subTitle="Tashqi tizimlar (HEMIS REST API, UzASBO/1C) integratsiyasini sozlash va sinxronizatsiya qilish faqat Bosh Administrator (SUPER_ADMIN) vakolatiga kiradi."
-        requiredRoles={['SUPER_ADMIN']}
+        subTitle="Tashqi tizimlar (HEMIS REST API, UzASBO/1C) integratsiyasini ko‘rish va eksport qilish Bosh Hisobchi yoki Administrator vakolatiga kiradi."
+        requiredRoles={['SUPER_ADMIN', 'ADMIN', 'CHIEF_ACCOUNTANT']}
       />
     );
   }

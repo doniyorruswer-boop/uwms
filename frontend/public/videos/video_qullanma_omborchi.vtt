@@ -1,0 +1,72 @@
+WEBVTT
+
+1
+00:00:01.828 --> 00:00:07.328
+KIRISH: UWMS — Bosh Ombor Mudiri (Omborchi) Uchun To‘liq Video Qo‘llanma
+Ushbu qo‘llanmada ombor zaxiralarini boshqarish, tovar kirimi (OS-1), kafedralar talabnomalarini ijro etish, tovarlarni tarqatish va audit jarayonlari to‘liq o‘rgatiladi. (Amal: Bosh ombor mudiri imkoniyatlari bilan tanishing)
+
+2
+00:00:07.684 --> 00:00:11.684
+1-BOSQICH / 9: 1-BOSQICH: Tizimga kirish va avtorizatsiya
+Bosh ombor mudiri o‘z logini (omborchi) va maxfiy parolini kiritadi hamda "Tizimga Kirish" tugmasini bosadi. (Amal: Login va parolni kiritib tizimga kiring)
+
+3
+00:00:18.439 --> 00:00:23.439
+2-BOSQICH / 9: 2-BOSQICH: Boshqaruv Paneli — Ombor operativ ko‘rsatkichlari
+Universitet bo‘yicha jami sarf zaxirasi (448 ta), kam qolgan tovarlar (Low Stock ogohlantirishlari) va ijrodagi talabnomalar real vaqtda aks etadi. (Amal: Omborning operativ ko‘rsatkichlarini ko‘zdan kechiring)
+
+4
+00:00:28.325 --> 00:00:33.325
+3-BOSQICH / 9: 3-BOSQICH: Sarf Tovarlari & Qoldiq — Asosiy Ombor Reestri
+Universitet omborlaridagi barcha materiallar (qog‘oz, toner, kanselyariya) ro‘yxati, minimal qoldiq chegaralari va joriy zaxira miqdori. (Amal: Chap menyudan "Sarf Tovarlari & Qoldiq" bo‘limiga o‘ting)
+
+5
+00:00:41.322 --> 00:00:46.822
+3-BOSQICH / 9: 3.1-BOSQICH: Ta’minotchidan Yangi Tovar Kirimi (OS-1 Kirim Hujjati)
+Yangi xarid qilingan tovarlarni qabul qilish oynasi. Ombor, ta’minotchi, schyot-faktura raqami va mahsulotlar kiritiladi. Saqlangach, qoldiq avtomatik oshadi. (Amal: "Ta’minotchidan Kirim (OS-1)" tugmasini bosing)
+
+6
+00:00:53.601 --> 00:00:58.601
+3-BOSQICH / 9: 3.2-BOSQICH: Omborlararo Ko‘chirish (Inter-Warehouse Transfer)
+Markaziy omborxona va filial sarf omborlari o‘rtasida tovarlarni siljitish. Tranzaksiya orqali balans va audit tarixi buzilmasdan saqlanadi. (Amal: "Omborlararo Ko‘chirish" tugmasini bosing)
+
+7
+00:01:05.304 --> 00:01:10.304
+4-BOSQICH / 9: 4-BOSQICH: Kafedralar Talabnomalari (Zayavkalar)
+Fakultet va kafedralardan sarf materiallari olish uchun kelib tushgan so‘rovlar. Bosh hisobchi tasdiqlagach, omborchiga ijro uchun yetib keladi. (Amal: Chap menyudan "Talabnomalar (Zayavka)" bo‘limiga o‘ting)
+
+8
+00:01:13.199 --> 00:01:18.699
+4-BOSQICH / 9: 4.1-BOSQICH: Talabnomani Ijro Etish va 7-Bosqichli Monitoring
+Omborchi arizani ko‘rib chiqib, ombordan kerakli miqdorda tovar ajratadi (FULFILL). Qoldiq avtomatik kamayadi va tarqatish nakladnoyi shakllanadi. (Amal: Talabnoma qatoridagi "Batafsil" tugmasini bosing)
+
+9
+00:01:25.754 --> 00:01:30.754
+5-BOSQICH / 9: 5-BOSQICH: Kirim / Siljish Tarixi (Audit Log)
+Universitetda sodir bo‘lgan barcha ombor harakatlari: Kirim, Kafedraga berish, Spisanie va Ko‘chirish operatsiyalarining rasmiy jurnali. (Amal: Chap menyudan "Kirim / Siljish Tarixi" bo‘limiga o‘ting)
+
+10
+00:01:36.008 --> 00:01:40.808
+6-BOSQICH / 9: 6-BOSQICH: Ta’minot & Shartnomalar (Kontragentlar)
+Universitetga mahsulot yetkazib beruvchi korxonalar reestri, shartnoma raqamlari, hisobvaraq-fakturalar va yetkazilgan tovarlar hajmi. (Amal: Chap menyudan "Ta’minot & Shartnomalar" sahifasiga o‘ting)
+
+11
+00:01:43.902 --> 00:01:48.902
+7-BOSQICH / 9: 7-BOSQICH: Asosiy Vositalar Reestri va QR-Stikerlar
+Omborga yangi kelgan kompyuter va texnikalarga universitet inventar raqami beriladi hamda rasmiy QR-kodli yorliq (stiker) chop etiladi. (Amal: Chap menyudan "Asosiy Vositalar" sahifasiga o‘ting)
+
+12
+00:01:58.436 --> 00:02:03.236
+8-BOSQICH / 9: 8-BOSQICH: QR Inventarizatsiya — Tezkor Ombor Sanog‘i
+Shtrix-kod yoki QR skaner yordamida ombordagi mahsulotlarni bir soniyada solishtirish va faktik qoldiqni tasdiqlash moduli. (Amal: Chap menyudan "QR Inventarizatsiya" bo‘limiga o‘ting)
+
+13
+00:02:06.789 --> 00:02:11.789
+9-BOSQICH / 9: 9-BOSQICH: Tezkor Boshqaruv va «Video Qo‘llanma» Tugmasi
+Boshqaruv panelida tezkor harakatlar va istalgan vaqtda tizim bo‘yicha qo‘llanmani ochish uchun maxsus "Video Qo‘llanma" tugmasi mavjud. (Amal: Boshqaruv panelidagi "Video Qo‘llanma" tugmasini bosing)
+
+14
+00:02:21.353 --> 00:02:26.853
+KIRISH: YAKUN: Bosh Ombor Mudiri Uchun Yakuniy Qoidalar
+1. Tovarlarni faqat tasdiqlangan talabnoma bilan bering; 2. Har bir kirimni vaqtida rasmiylashtiring; 3. Minimal qoldiqni doimo nazorat qiling. (Amal: E’tiboringiz uchun rahmat! (UWMS Tizimi))
+

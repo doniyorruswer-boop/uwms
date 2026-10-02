@@ -30,12 +30,14 @@ import {
   IconCalendar,
   IconCompass,
   IconClockCircle,
+  IconPlayCircle,
 } from '@arco-design/web-react/icon';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useInboxQuery } from '../../hooks/useInboxQuery';
 import type { RoleType } from '../../types';
 import { AppLogo } from '../Common/AppLogo';
+import { VideoTutorialModal } from '../Common/VideoTutorialModal';
 import { APP_CONFIG, ROLE_CONFIG, getPageTitleByPath, DESIGN_TOKENS, NAVIGATION_ITEMS } from '../../constants';
 import { NotificationPopover } from '../Notifications/NotificationPopover';
 import { LanguageSwitcher } from './LanguageSwitcher';
@@ -67,6 +69,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const { t } = useTranslation();
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
+  const [tutorialModalVisible, setTutorialModalVisible] = useState(false);
   const { data: inbox } = useInboxQuery({ refetchInterval: 60000 });
   const pendingTasksCount = inbox?.summary?.totalPendingCount || 0;
 
@@ -431,6 +434,18 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               </Tooltip>
             )}
 
+            {/* Video Tutorial Modal Button (Quick Help) */}
+            {!isMobile && (
+              <Tooltip content="Mas’ul xodimlar uchun video qo‘llanma (3:24)">
+                <Button
+                  shape="circle"
+                  type="secondary"
+                  icon={<IconPlayCircle style={{ color: '#165DFF', fontSize: 16 }} />}
+                  onClick={() => setTutorialModalVisible(true)}
+                />
+              </Tooltip>
+            )}
+
             {/* Notification Center Popover */}
             <NotificationPopover />
 
@@ -519,6 +534,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       <GlobalSearchModal
         visible={searchModalVisible}
         onClose={() => setSearchModalVisible(false)}
+      />
+
+      {/* Global Video Tutorial Modal */}
+      <VideoTutorialModal
+        visible={tutorialModalVisible}
+        onClose={() => setTutorialModalVisible(false)}
       />
     </Layout>
   );

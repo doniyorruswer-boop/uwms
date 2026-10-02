@@ -1,0 +1,117 @@
+WEBVTT
+
+1
+00:00:01.890 --> 00:00:06.890
+KIRISH: UWMS — Mas’ul Xodimlar (Kafedra Mudirlari, Bo‘lim Boshliqlari, O‘qituvchilar, MOL)
+Ushbu keng qamrovli video qo‘llanmada tizimning barcha asosiy sahifalari, modallari va headerdagi boshqaruv tugmalari to‘liq o‘rgatiladi. (Amal: Tizim imkoniyatlari bilan tanishing)
+
+2
+00:00:07.296 --> 00:00:10.796
+1-BOSQICH / 9: 1-BOSQICH: Tizimga kirish va avtorizatsiya
+Xodim o‘z login (kafedra_mudiri) va maxfiy parolini kiritadi hamda "Tizimga Kirish" tugmasini bosadi. (Amal: Login va parolni kiritib tizimga kiring)
+
+3
+00:00:16.465 --> 00:00:19.965
+2-BOSQICH / 9: 2.1-BOSQICH: Yon panelni yig‘ish va kengaytirish (Sidebar)
+Ushbu tugma yon menyuni yig‘ib, ekranda katta jadvallar va hisobotlar bilan ishlash maydonini kengaytiradi. (Amal: Yuqori chapdagi menyu tugmasini bosing)
+
+4
+00:00:25.257 --> 00:00:29.257
+2-BOSQICH / 9: 2.2-BOSQICH: Universal tezkor qidiruv (Ctrl + K)
+Butun universitet bo‘yicha istalgan invertar raqami, xona, jihoz yoki xodimni bir zumda topish imkonini beradi. (Amal: Qidiruv maydoniga bosing va universal modalni oching)
+
+5
+00:00:35.030 --> 00:00:38.530
+2-BOSQICH / 9: 2.3-BOSQICH: Tezkor yaratish menyusi (+ Yangi)
+Istalgan sahifada turgan holda bir marta bosish orqali yangi talabnoma (zayavka) yaratish mumkin. (Amal: Ko‘k rangli "+ Yangi" tugmasini bosing)
+
+6
+00:00:42.792 --> 00:00:46.292
+2-BOSQICH / 9: 2.4-BOSQICH: Tizim tilini tanlash (O‘zbekcha, Ruscha, Inglizcha)
+Tizim to‘liq ko‘p tilli bo‘lib, xodim o‘zi uchun qulay bo‘lgan tilni bir zumda tanlashi mumkin. (Amal: Til tanlash menyusini bosing)
+
+7
+00:00:50.290 --> 00:00:53.790
+2-BOSQICH / 9: 2.5-BOSQICH: Tungi (Dark) va Kunduzgi (Light) rejim
+Ko‘z charchashining oldini olish uchun yorug‘ yoki to‘q fon rejimiga bir tugma orqali o‘tish mumkin. (Amal: Mavzu (Oy / Quyosh) tugmasini bosing)
+
+8
+00:00:58.561 --> 00:01:02.061
+2-BOSQICH / 9: 2.6-BOSQICH: Jonli bildirishnomalar markazi (Qo‘ng‘iroqcha)
+Talabnomalar holati, tasdiqlangan hujjatlar va eslatmalar real vaqtda shu yerda aks etadi. (Amal: Qo‘ng‘iroqcha ikonkasi ustiga bosing)
+
+9
+00:01:06.172 --> 00:01:09.672
+2-BOSQICH / 9: 2.7-BOSQICH: Mas’ul xodim profili va xavfsiz chiqish
+Foydalanuvchining F.I.Sh., kafedrasi ko‘rsatiladi hamda qizil tugma orqali tizimdan xavfsiz chiqiladi. (Amal: Profil ma’lumotlari va qizil chiqish tugmasi)
+
+10
+00:01:12.261 --> 00:01:16.261
+3-BOSQICH / 9: 3-BOSQICH: Asosiy boshqaruv paneli (Dashboard)
+Kafedra yoki bo‘limga biriktirilgan jami aktivlar, xonalar soni va so‘nggi harakatlar tahlili. (Amal: Kafedraning statistik ko‘rsatkichlarini ko‘zdan kechiring)
+
+11
+00:01:21.127 --> 00:01:25.127
+4-BOSQICH / 9: 4-BOSQICH: Vazifalarim (Inbox) — Mas’ul xodim topshiriqlari
+Sizga topshirilayotgan aktivlarni qabul qilish dalolatnomalari va tasdiqlash vazifalari shu yerda jamlangan. (Amal: Chap menyudan "Vazifalarim" sahifasiga o‘ting)
+
+12
+00:01:27.887 --> 00:01:32.887
+4-BOSQICH / 9: 4.1-BOSQICH: Ashyolarni tekshirish va Qabul qilish amali
+Yashil/Ko‘k "Ko‘rib chiqish va Qabul qilish" tugmasi bosiladi. Ochilgan oynada vositalar ro‘yxati tekshirilib, dalolatnoma imzolanadi. (Amal: "Ko‘rib chiqish va Qabul qilish" tugmasini bosing)
+
+13
+00:01:40.014 --> 00:01:44.014
+5-BOSQICH / 9: 5-BOSQICH: Asosiy vositalar reestri va QR-kod pasporti
+Kafedra hisobidagi barcha kompyuter va texnikalar ro‘yxati. Har bir vositaning individual QR-kodi mavjud. (Amal: Chap menyudan "Asosiy Vositalar" bandini tanlang)
+
+14
+00:01:46.701 --> 00:01:51.701
+5-BOSQICH / 9: 5.1-BOSQICH: Aktivlarni boshqa shaxsga topshirish (MOL Almashinuvi)
+Mas’ul xodim mehnat ta’tiliga chiqqanda yoki ashyoni boshqa o‘qituvchiga o‘tkazishda "Aktivlarni topshirish" tugmasi bosiladi va rasmiy dalolatnoma tuziladi. (Amal: Yashil rangli "Aktivlarni topshirish" tugmasini bosing)
+
+15
+00:01:59.585 --> 00:02:03.585
+6-BOSQICH / 9: 6-BOSQICH: Yangi talabnomani to‘liq shakllantirish va yuborish
+Kafedra ehtiyojlari uchun sarf materiallari (qog‘oz, toner) so‘rash va omborga rasman yuborish. (Amal: "Yangi Zayavka Yaratish" tugmasini bosing)
+
+16
+00:02:15.948 --> 00:02:19.948
+6-BOSQICH / 9: 6.1-BOSQICH: Mahsulot nomini kiritish va ro‘yxatga qo‘shish
+Mahsulot nomi (A4 SvetoCopy qog‘ozi) yozilib, miqdori belgilanadi va "+ Qo‘shish" tugmasi bosiladi. (Amal: Mahsulotni savatchaga qo‘shing)
+
+17
+00:02:20.354 --> 00:02:24.854
+6-BOSQICH / 9: 6.2-BOSQICH: Talabnomani rasman omborga yuborish
+Pastdagi ko‘k rangli "Talabnomani Shakllantirish va Yuborish" tugmasi bosiladi va so‘rov zudlik bilan omborga yetkaziladi. (Amal: "Talabnomani Shakllantirish va Yuborish" tugmasini bosing)
+
+18
+00:02:30.520 --> 00:02:36.020
+6-BOSQICH / 9: 6.3-BOSQICH: "Batafsil" — 7-Bosqichli Jonli Xarid Zanjiri
+Har bir talabnoma 7 bosqichli monitoring zanjiri (Yaratildi -> Tasdiqlandi -> Xarid -> Omborga qabul -> Mas’ulga tarqatildi) orqali to‘liq kuzatiladi. (Amal: Talabnoma qatoridagi "Batafsil" tugmasini bosing)
+
+19
+00:02:44.218 --> 00:02:48.718
+7-BOSQICH / 9: 7-BOSQICH: Ta’mirlash & Servis jurnali
+Kafedrada nosoz bo‘lib qolgan texnikalarni (kompyuter, printer) ta’mirlashga topshirish va injener servis xulosasini kuzatish. (Amal: Chap menyudan "Ta’mirlash & Servis" sahifasiga o‘ting)
+
+20
+00:02:52.371 --> 00:02:56.871
+8-BOSQICH / 9: 8-BOSQICH: Spisanie (OS-4) — Hisobdan chiqarish jurnali
+Butunlay eskirgan va yaroqsiz ashyolarni universitet komissiyasi xulosasi bilan rasmiy balansdan chiqarish bo‘limi. (Amal: Chap menyudan "Spisanie (OS-4)" sahifasiga o‘ting)
+
+21
+00:03:00.479 --> 00:03:04.979
+9-BOSQICH / 9: 9-BOSQICH: Tashkiliy tuzilma va Xonalar (Daraxtsimon Tree)
+Chap tomondagi Daraxtsimon (Tree) tuzilma orqali barcha korpuslar, kafedralar va auditoriyalarni birma-bir ko‘rish mumkin. (Amal: Chap tarafdagi daraxt (Tree) tugunini bosing)
+
+22
+00:03:08.046 --> 00:03:12.546
+9-BOSQICH / 9: 9.1-BOSQICH: Bino va xonalar tarkibini ko‘rish
+Bino yoki kafedra tanlanganda, o‘ng tomonda unga tegishli auditoriyalar, ularning mas’ul shaxsi (MOL) va undagi barcha ashyolar ko‘rinadi. (Amal: Daraxtdan Bosh bino yoki kafedrani tanlang)
+
+23
+00:03:19.386 --> 00:03:24.386
+KIRISH: YAKUNIY BOSQICH: Qo‘llanma muvaffaqiyatli yakunlandi!
+Kafedra mudirlari, bo‘lim boshliqlari, o‘qituvchilar va barcha mas’ul shaxslar UWMS orqali o‘z moddiy vositalarini to‘liq nazorat qilishlari mumkin. (Amal: Omborchi, Buxgalter va Admin uchun alohida videolar taqdim etiladi)
+

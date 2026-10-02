@@ -1,15 +1,953 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+model User {
+  id                         String                   @id @default(uuid())
+  fullName                   String
+  username                   String                   @unique
+  email                      String?                  @unique
+  password                   String
+  phone                      String?
+  position                   String?
+  role                       RoleType                 @default(EMPLOYEE)
+  isActive                   Boolean                  @default(true)
+  departmentId               String?
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+  mustChangePassword         Boolean                  @default(true)
+  deletedAt                  DateTime?
+  hashedRefreshToken         String?
+  permissions                String[]                 @default([])
+  executedHistories          AssetHistory[]           @relation("HistoryExecutor")
+  backups                    BackupRecord[]           @relation("UserBackups")
+  commendantBuildings        Building[]               @relation("BuildingCommendant")
+  depreciationRuns           DepreciationRun[]        @relation("DepreciationExecutors")
+  cancelledArchives          DocumentArchive[]        @relation("UserDocumentCancelled")
+  signedArchives             DocumentArchive[]        @relation("UserDocumentSigned")
+  revokedStamps              DocumentStamp[]          @relation("DocumentStampRevoker")
+  createdAudits              InventoryAudit[]         @relation("AuditCreator")
+  approvedCampaigns          InventoryCampaign[]      @relation("CampaignApprover")
+  assignedCampaigns          InventoryCampaign[]      @relation("CampaignAssignedAuditor")
+  createdCampaigns           InventoryCampaign[]      @relation("CampaignCreator")
+  responsibleInstances       ItemInstance[]           @relation("UserResponsibleInstances")
+  labelReprints              LabelReprintLog[]        @relation("LabelReprints")
+  notifications              Notification[]
+  approvedRepairs            RepairRecord[]           @relation("RepairApprover")
+  repairRequests             RepairRecord[]           @relation("RepairRequester")
+  accountantFinancedRequests Request[]                @relation("AccountantFinancedRequests")
+  approvedRequests           Request[]                @relation("ApproverRequests")
+  assignedEngineerRequests   Request[]                @relation("AssignedEngineerRequests")
+  commendantHandedRequests   Request[]                @relation("CommendantHandedRequests")
+  commendantRequests         Request[]                @relation("CommendantRequests")
+  engineerInspectedRequests  Request[]                @relation("EngineerInspectedRequests")
+  prorektorApprovedRequests  Request[]                @relation("ProrektorApprovedRequests")
+  rectorApprovedRequests     Request[]                @relation("RectorApprovedRequests")
+  submittedRequests          Request[]                @relation("UserRequests")
+  warehouseReceivedRequests  Request[]                @relation("WarehouseReceivedRequests")
+  accountantHandovers        ResponsibilityHandover[] @relation("AccountantHandovers")
+  approvedHandovers          ResponsibilityHandover[] @relation("ApprovedHandovers")
+  commandantHandovers        ResponsibilityHandover[] @relation("CommandantHandovers")
+  departingHandovers         ResponsibilityHandover[] @relation("DepartingHandovers")
+  targetHandovers            ResponsibilityHandover[] @relation("TargetHandovers")
+  responsibleRooms           Room[]                   @relation("RoomResponsible")
+  createdSigningSessions     SigningSession[]         @relation("CreatedSigningSessions")
+  signingSessions            SigningSession[]         @relation("UserSigningSessions")
+  executedMovements          StockMovement[]          @relation("MovementExecutor")
+  systemLogs                 SystemAuditLog[]
+  receivedTransfers          TransferAcceptance[]     @relation("TransferReceiver")
+  sentTransfers              TransferAcceptance[]     @relation("TransferSender")
+  department                 Department?              @relation(fields: [departmentId], references: [id])
+  managedWarehouses          Warehouse[]              @relation("WarehouseManager")
+  writeOffVotes              WriteOffMemberVote[]
+  createdWriteOffs           WriteOffRequest[]        @relation("WriteOffCreator")
+
+  @@index([role])
+  @@index([departmentId])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model Department {
+  id         String            @id @default(uuid())
+  name       String
+  code       String?           @unique
+  type       String            @default("DEPARTMENT")
+  parentId   String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  deletedAt  DateTime?
+  buildingId String?
+  quotas     DepartmentQuota[]
+  building   Building?         @relation(fields: [buildingId], references: [id])
+  parent     Department?       @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children   Department[]      @relation("DepartmentHierarchy")
+  requests   Request[]
+  rooms      Room[]
+  users      User[]
+
+  @@index([deletedAt])
+  @@index([buildingId])
+  @@map("departments")
+}
+
+model Building {
+  id           String                   @id @default(uuid())
+  name         String                   @unique
+  code         String?                  @unique
+  floorsCount  Int                      @default(4)
+  address      String?
+  description  String?
+  commendantId String?
+  deletedAt    DateTime?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  commendant   User?                    @relation("BuildingCommendant", fields: [commendantId], references: [id])
+  departments  Department[]
+  handovers    ResponsibilityHandover[] @relation("BuildingHandovers")
+  rooms        Room[]
+  warehouses   Warehouse[]
+
+  @@index([deletedAt])
+  @@index([commendantId])
+  @@map("buildings")
+}
+
+model Room {
+  id                String                   @id @default(uuid())
+  number            String
+  name              String
+  floor             Int                      @default(1)
+  building          String                   @default("Bosh bino")
+  departmentId      String?
+  responsibleUserId String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  buildingId        String?
+  deletedAt         DateTime?
+  audits            InventoryAudit[]
+  campaignScopes    InventoryCampaignScope[]
+  itemInstances     ItemInstance[]
+  targetRequests    Request[]                @relation("RequestTargetRoom")
+  handovers         ResponsibilityHandover[] @relation("RoomHandovers")
+  buildingRelation  Building?                @relation(fields: [buildingId], references: [id])
+  department        Department?              @relation(fields: [departmentId], references: [id])
+  responsibleUser   User?                    @relation("RoomResponsible", fields: [responsibleUserId], references: [id])
+  fromMovements     StockMovement[]          @relation("MoveFromRoom")
+  toMovements       StockMovement[]          @relation("MoveToRoom")
+  fromTransfers     TransferAcceptance[]     @relation("TransferFromRoom")
+  toTransfers       TransferAcceptance[]     @relation("TransferToRoom")
+
+  @@unique([buildingId, number])
+  @@index([departmentId])
+  @@index([buildingId])
+  @@index([building])
+  @@index([responsibleUserId])
+  @@index([deletedAt])
+  @@map("rooms")
+}
+
+model Supplier {
+  id             String          @id @default(uuid())
+  name           String
+  inn            String?
+  contractNumber String?
+  contractDate   DateTime?
+  contactPerson  String?
+  phone          String?
+  email          String?
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  invoices       Invoice[]
+  itemInstances  ItemInstance[]
+  movements      StockMovement[]
+
+  @@index([deletedAt])
+  @@map("suppliers")
+}
+
+model Invoice {
+  id            String         @id @default(uuid())
+  invoiceNumber String         @unique
+  invoiceDate   DateTime       @default(now())
+  totalAmount   Decimal?       @db.Decimal(14, 2)
+  notes         String?
+  supplierId    String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id])
+  instances     ItemInstance[]
+
+  @@index([supplierId])
+  @@map("invoices")
+}
+
+model Warehouse {
+  id            String                   @id @default(uuid())
+  name          String
+  location      String?
+  isMain        Boolean                  @default(false)
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  buildingId    String?
+  code          String?                  @unique
+  deletedAt     DateTime?
+  managerId     String?
+  handovers     ResponsibilityHandover[] @relation("WarehouseHandovers")
+  fromMovements StockMovement[]          @relation("MoveFromWarehouse")
+  toMovements   StockMovement[]          @relation("MoveToWarehouse")
+  stocks        Stock[]
+  transfers     TransferAcceptance[]
+  building      Building?                @relation(fields: [buildingId], references: [id])
+  manager       User?                    @relation("WarehouseManager", fields: [managerId], references: [id])
+
+  @@index([buildingId])
+  @@index([managerId])
+  @@index([deletedAt])
+  @@map("warehouses")
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  items       Item[]
+
+  @@index([deletedAt])
+  @@map("categories")
+}
+
+model Item {
+  id            String              @id @default(uuid())
+  name          String
+  model         String?
+  sku           String?             @unique
+  itemType      ItemType            @default(FIXED_ASSET)
+  unit          String              @default("DONA")
+  minStockLimit Int                 @default(5)
+  description   String?
+  categoryId    String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  deletedAt     DateTime?
+  quotas        DepartmentQuota[]
+  instances     ItemInstance[]
+  category      Category            @relation(fields: [categoryId], references: [id])
+  requestItems  RequestItem[]
+  movementItems StockMovementItem[]
+  stocks        Stock[]
+
+  @@index([categoryId])
+  @@index([itemType])
+  @@index([deletedAt])
+  @@map("items")
+}
+
+model ItemInstance {
+  id                      String                 @id @default(uuid())
+  inventoryNumber         String                 @unique
+  serialNumber            String?
+  qrCode                  String                 @unique
+  status                  AssetStatus            @default(NEW)
+  fundingSource           FundingSource          @default(BYUDJET)
+  purchaseDate            DateTime?
+  purchasePrice           Decimal?               @db.Decimal(12, 2)
+  warrantyMonths          Int                    @default(12)
+  depreciationRate        Float                  @default(20.0)
+  notes                   String?
+  itemId                  String
+  roomId                  String?
+  responsibleUserId       String?
+  supplierId              String?
+  invoiceId               String?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  lastReprintReason       String?
+  lastReprintedAt         DateTime?
+  reprintCount            Int                    @default(0)
+  accumulatedDepreciation Decimal                @default(0) @db.Decimal(12, 2)
+  currentBookValue        Decimal?               @db.Decimal(12, 2)
+  lastDepreciatedAt       DateTime?
+  histories               AssetHistory[]
+  depreciationRecords     DepreciationRecord[]
+  handoverActions         HandoverItemAction[]   @relation("HandoverItemInstances")
+  auditRecords            InventoryAuditRecord[]
+  invoice                 Invoice?               @relation(fields: [invoiceId], references: [id])
+  item                    Item                   @relation(fields: [itemId], references: [id])
+  responsibleUser         User?                  @relation("UserResponsibleInstances", fields: [responsibleUserId], references: [id])
+  room                    Room?                  @relation(fields: [roomId], references: [id])
+  supplier                Supplier?              @relation(fields: [supplierId], references: [id])
+  reprintLogs             LabelReprintLog[]
+  repairRecords           RepairRecord[]
+  movementItems           StockMovementItem[]
+  transfers               TransferAcceptance[]
+  writeOffRequests        WriteOffRequest[]
+
+  @@index([itemId])
+  @@index([responsibleUserId])
+  @@index([fundingSource])
+  @@index([roomId])
+  @@index([status])
+  @@map("item_instances")
+}
+
+model LabelReprintLog {
+  id            String       @id @default(uuid())
+  assetId       String
+  reason        String
+  reprintNumber Int
+  printedById   String?
+  createdAt     DateTime     @default(now())
+  asset         ItemInstance @relation(fields: [assetId], references: [id])
+  printedBy     User?        @relation("LabelReprints", fields: [printedById], references: [id])
+
+  @@index([assetId])
+  @@index([printedById])
+  @@map("label_reprint_logs")
+}
+
+model AssetHistory {
+  id           String       @id @default(uuid())
+  assetId      String
+  action       String
+  fromLocation String?
+  toLocation   String?
+  fromUser     String?
+  toUser       String?
+  referenceDoc String?
+  note         String?
+  executedById String?
+  createdAt    DateTime     @default(now())
+  asset        ItemInstance @relation(fields: [assetId], references: [id])
+  executedBy   User?        @relation("HistoryExecutor", fields: [executedById], references: [id])
+
+  @@index([assetId])
+  @@index([executedById])
+  @@index([createdAt])
+  @@map("asset_histories")
+}
+
+model TransferAcceptance {
+  id            String         @id @default(uuid())
+  assetId       String
+  status        TransferStatus @default(PENDING)
+  note          String?
+  isReturn      Boolean        @default(false)
+  fromRoomId    String?
+  toRoomId      String?
+  toWarehouseId String?
+  senderId      String
+  receiverId    String?
+  acceptedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  asset         ItemInstance   @relation(fields: [assetId], references: [id])
+  fromRoom      Room?          @relation("TransferFromRoom", fields: [fromRoomId], references: [id])
+  receiver      User?          @relation("TransferReceiver", fields: [receiverId], references: [id])
+  sender        User           @relation("TransferSender", fields: [senderId], references: [id])
+  toRoom        Room?          @relation("TransferToRoom", fields: [toRoomId], references: [id])
+  toWarehouse   Warehouse?     @relation(fields: [toWarehouseId], references: [id])
+
+  @@index([assetId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+  @@map("transfer_acceptances")
+}
+
+model Stock {
+  id            String        @id @default(uuid())
+  warehouseId   String
+  itemId        String
+  quantity      Int           @default(0)
+  fundingSource FundingSource @default(BYUDJET)
+  updatedAt     DateTime      @updatedAt
+  item          Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  warehouse     Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@unique([warehouseId, itemId, fundingSource])
+  @@index([warehouseId])
+  @@index([itemId])
+  @@index([fundingSource])
+  @@map("stocks")
+}
+
+model Request {
+  id                          String         @id @default(uuid())
+  requestNumber               String         @unique
+  purpose                     String
+  status                      RequestStatus  @default(SUBMITTED)
+  isOverQuota                 Boolean        @default(false)
+  specialApprovalNeeded       Boolean        @default(false)
+  notes                       String?
+  approvalNote                String?
+  requesterId                 String
+  departmentId                String?
+  approvedById                String?
+  createdAt                   DateTime       @default(now())
+  updatedAt                   DateTime       @updatedAt
+  accountantFinancedAt        DateTime?
+  accountantFinancedById      String?
+  allocatedAmount             Decimal?       @db.Decimal(14, 2)
+  commendantHandedAt          DateTime?
+  commendantHandedById        String?
+  commendantId                String?
+  fulfilledAt                 DateTime?
+  fundingSource               FundingSource?
+  prorektorApprovedAt         DateTime?
+  prorektorApprovedById       String?
+  rectorApprovedAt            DateTime?
+  rectorApprovedById          String?
+  subAccountCode              String?
+  submittedAt                 DateTime?      @default(now())
+  targetRoomId                String?
+  warehouseReceivedAt         DateTime?
+  warehouseReceivedById       String?
+  assignedEngineerId          String?
+  engineerInspectedAt         DateTime?
+  engineerInspectedById       String?
+  inspectionChecklist         Json?
+  requiresTechnicalInspection Boolean        @default(false)
+  items                       RequestItem[]
+  accountantFinancedBy        User?          @relation("AccountantFinancedRequests", fields: [accountantFinancedById], references: [id])
+  approvedBy                  User?          @relation("ApproverRequests", fields: [approvedById], references: [id])
+  assignedEngineer            User?          @relation("AssignedEngineerRequests", fields: [assignedEngineerId], references: [id])
+  commendantHandedBy          User?          @relation("CommendantHandedRequests", fields: [commendantHandedById], references: [id])
+  commendant                  User?          @relation("CommendantRequests", fields: [commendantId], references: [id])
+  department                  Department?    @relation(fields: [departmentId], references: [id])
+  engineerInspectedBy         User?          @relation("EngineerInspectedRequests", fields: [engineerInspectedById], references: [id])
+  prorektorApprovedBy         User?          @relation("ProrektorApprovedRequests", fields: [prorektorApprovedById], references: [id])
+  rectorApprovedBy            User?          @relation("RectorApprovedRequests", fields: [rectorApprovedById], references: [id])
+  requester                   User           @relation("UserRequests", fields: [requesterId], references: [id])
+  targetRoom                  Room?          @relation("RequestTargetRoom", fields: [targetRoomId], references: [id])
+  warehouseReceivedBy         User?          @relation("WarehouseReceivedRequests", fields: [warehouseReceivedById], references: [id])
+
+  @@index([requesterId])
+  @@index([departmentId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("requests")
+}
+
+model RequestItem {
+  id           String  @id @default(uuid())
+  requestId    String
+  itemId       String
+  requestedQty Int
+  approvedQty  Int?
+  item         Item    @relation(fields: [itemId], references: [id])
+  request      Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([itemId])
+  @@map("request_items")
+}
+
+model StockMovement {
+  id              String              @id @default(uuid())
+  movementNumber  String              @unique
+  movementType    MovementType
+  referenceDoc    String?
+  note            String?
+  executedById    String
+  fromRoomId      String?
+  toRoomId        String?
+  fromWarehouseId String?
+  toWarehouseId   String?
+  supplierId      String?
+  invoiceNumber   String?
+  fundingSource   FundingSource       @default(BYUDJET)
+  createdAt       DateTime            @default(now())
+  items           StockMovementItem[]
+  executedBy      User                @relation("MovementExecutor", fields: [executedById], references: [id])
+  fromRoom        Room?               @relation("MoveFromRoom", fields: [fromRoomId], references: [id])
+  fromWarehouse   Warehouse?          @relation("MoveFromWarehouse", fields: [fromWarehouseId], references: [id])
+  supplier        Supplier?           @relation(fields: [supplierId], references: [id])
+  toRoom          Room?               @relation("MoveToRoom", fields: [toRoomId], references: [id])
+  toWarehouse     Warehouse?          @relation("MoveToWarehouse", fields: [toWarehouseId], references: [id])
+
+  @@index([executedById])
+  @@index([fromWarehouseId])
+  @@index([toWarehouseId])
+  @@index([movementType])
+  @@index([fundingSource])
+  @@index([createdAt])
+  @@map("stock_movements")
+}
+
+model StockMovementItem {
+  id             String        @id @default(uuid())
+  movementId     String
+  itemId         String
+  itemInstanceId String?
+  quantity       Int           @default(1)
+  note           String?
+  item           Item          @relation(fields: [itemId], references: [id])
+  itemInstance   ItemInstance? @relation(fields: [itemInstanceId], references: [id])
+  movement       StockMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+
+  @@index([movementId])
+  @@index([itemId])
+  @@index([itemInstanceId])
+  @@map("stock_movement_items")
+}
+
+model InventoryAudit {
+  id          String                 @id @default(uuid())
+  auditNumber String                 @unique
+  title       String
+  status      AuditStatus            @default(DRAFT)
+  notes       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdById String
+  roomId      String?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  campaignId  String?
+  records     InventoryAuditRecord[]
+  campaign    InventoryCampaign?     @relation(fields: [campaignId], references: [id])
+  createdBy   User                   @relation("AuditCreator", fields: [createdById], references: [id])
+  room        Room?                  @relation(fields: [roomId], references: [id])
+
+  @@index([roomId])
+  @@index([createdById])
+  @@index([campaignId])
+  @@index([status])
+  @@map("inventory_audits")
+}
+
+model InventoryAuditRecord {
+  id             String            @id @default(uuid())
+  auditId        String
+  itemInstanceId String
+  expectedRoomId String?
+  foundRoomId    String?
+  status         AuditRecordStatus @default(MATCHED)
+  scannedAt      DateTime          @default(now())
+  notes          String?
+  audit          InventoryAudit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  itemInstance   ItemInstance      @relation(fields: [itemInstanceId], references: [id])
+
+  @@index([auditId])
+  @@index([itemInstanceId])
+  @@index([status])
+  @@map("inventory_audit_records")
+}
+
+model InventoryCampaign {
+  id                String                   @id @default(uuid())
+  campaignNumber    String                   @unique
+  title             String
+  periodStart       DateTime
+  periodEnd         DateTime
+  status            CampaignStatus           @default(PLANNED)
+  notes             String?
+  createdById       String
+  orderNumber       String?
+  orderDate         DateTime?
+  assignedAuditorId String?
+  approvedById      String?
+  approvedAt        DateTime?
+  signatureHash     String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  audits            InventoryAudit[]
+  scopes            InventoryCampaignScope[]
+  approvedBy        User?                    @relation("CampaignApprover", fields: [approvedById], references: [id])
+  assignedAuditor   User?                    @relation("CampaignAssignedAuditor", fields: [assignedAuditorId], references: [id])
+  createdBy         User                     @relation("CampaignCreator", fields: [createdById], references: [id])
+
+  @@index([status])
+  @@index([createdById])
+  @@index([assignedAuditorId])
+  @@index([approvedById])
+  @@map("inventory_campaigns")
+}
+
+model InventoryCampaignScope {
+  id         String            @id @default(uuid())
+  campaignId String
+  roomId     String
+  createdAt  DateTime          @default(now())
+  campaign   InventoryCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  room       Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, roomId])
+  @@index([campaignId])
+  @@index([roomId])
+  @@map("inventory_campaign_scopes")
+}
+
+model RepairRecord {
+  id               String       @id @default(uuid())
+  repairNumber     String       @unique
+  assetId          String
+  issueDescription String
+  status           RepairStatus @default(PENDING)
+  serviceProvider  String?
+  cost             Decimal?     @db.Decimal(12, 2)
+  startDate        DateTime?
+  completionDate   DateTime?
+  actNumber        String?
+  notes            String?
+  requestedById    String
+  approvedById     String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  approvedBy       User?        @relation("RepairApprover", fields: [approvedById], references: [id])
+  asset            ItemInstance @relation(fields: [assetId], references: [id])
+  requestedBy      User         @relation("RepairRequester", fields: [requestedById], references: [id])
+
+  @@index([assetId])
+  @@index([requestedById])
+  @@index([status])
+  @@map("repair_records")
+}
+
+model WriteOffRequest {
+  id                  String               @id @default(uuid())
+  actNumber           String               @unique
+  assetId             String
+  reason              String
+  technicalConclusion String?
+  status              WriteOffStatus       @default(IN_REVIEW)
+  approvedAt          DateTime?
+  createdById         String
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  members             WriteOffMemberVote[]
+  asset               ItemInstance         @relation(fields: [assetId], references: [id])
+  createdBy           User                 @relation("WriteOffCreator", fields: [createdById], references: [id])
+
+  @@index([assetId])
+  @@index([createdById])
+  @@index([status])
+  @@map("write_off_requests")
+}
+
+model WriteOffMemberVote {
+  id              String          @id @default(uuid())
+  writeOffId      String
+  userId          String
+  roleName        String
+  vote            VoteStatus      @default(PENDING)
+  comment         String?
+  votedAt         DateTime?
+  user            User            @relation(fields: [userId], references: [id])
+  writeOffRequest WriteOffRequest @relation(fields: [writeOffId], references: [id], onDelete: Cascade)
+
+  @@unique([writeOffId, userId])
+  @@index([writeOffId])
+  @@index([userId])
+  @@map("write_off_member_votes")
+}
+
+model DepartmentQuota {
+  id           String     @id @default(uuid())
+  departmentId String
+  itemId       String
+  monthlyLimit Int        @default(10)
+  period       String
+  usedQuantity Int        @default(0)
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  item         Item       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([departmentId, itemId, period])
+  @@index([departmentId])
+  @@index([itemId])
+  @@index([period])
+  @@map("department_quotas")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType @default(INFO)
+  link      String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model SystemAuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("system_audit_logs")
+}
+
+model DocumentStamp {
+  id               String            @id @default(uuid())
+  docType          String
+  docNumber        String            @unique
+  verificationHash String            @unique
+  title            String
+  signerName       String
+  signerRole       String
+  metadataJson     String
+  isValid          Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  revokedAt        DateTime?
+  revokedById      String?
+  revokedReason    String?
+  archives         DocumentArchive[]
+  revokedBy        User?             @relation("DocumentStampRevoker", fields: [revokedById], references: [id])
+  signingSessions  SigningSession[]
+
+  @@index([docType])
+  @@index([docNumber])
+  @@index([signerRole])
+  @@index([createdAt])
+  @@map("document_stamps")
+}
+
+model DocumentArchive {
+  id            String                   @id @default(uuid())
+  docType       String
+  entityId      String
+  docNumber     String
+  title         String
+  version       Int                      @default(1)
+  status        DocumentArchiveStatus    @default(SIGNED)
+  pdfPath       String?
+  fileSize      Int?                     @default(0)
+  checksum      String?
+  metadata      Json?
+  stampId       String?
+  signedById    String?
+  signedAt      DateTime?                @default(now())
+  cancelledById String?
+  cancelledAt   DateTime?
+  cancelReason  String?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  cancelledBy   User?                    @relation("UserDocumentCancelled", fields: [cancelledById], references: [id])
+  signedBy      User?                    @relation("UserDocumentSigned", fields: [signedById], references: [id])
+  stamp         DocumentStamp?           @relation(fields: [stampId], references: [id])
+  handovers     ResponsibilityHandover[] @relation("HandoverDocumentArchive")
+
+  @@index([entityId])
+  @@index([docType])
+  @@index([docNumber])
+  @@index([stampId])
+  @@index([signedById])
+  @@index([status])
+  @@map("document_archives")
+}
+
+model SigningSession {
+  id             String               @id @default(uuid())
+  sessionToken   String               @unique
+  docNumber      String
+  docType        String
+  title          String
+  departmentName String?
+  roomName       String?
+  itemSummary    String
+  metadataJson   String?
+  status         SigningSessionStatus @default(PENDING)
+  expiresAt      DateTime
+  signedAt       DateTime?
+  signedById     String?
+  signerName     String?
+  signerRole     String?
+  biometricType  String?
+  deviceInfo     String?
+  ipAddress      String?
+  stampId        String?
+  createdById    String
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  createdBy      User                 @relation("CreatedSigningSessions", fields: [createdById], references: [id])
+  signedBy       User?                @relation("UserSigningSessions", fields: [signedById], references: [id])
+  stamp          DocumentStamp?       @relation(fields: [stampId], references: [id])
+
+  @@index([docNumber])
+  @@index([createdById])
+  @@index([stampId])
+  @@index([status])
+  @@map("signing_sessions")
+}
+
+model BackupRecord {
+  id              String       @id @default(uuid())
+  filename        String
+  filePath        String
+  fileSizeBytes   BigInt       @default(0)
+  backupType      BackupType   @default(MANUAL)
+  status          BackupStatus @default(COMPLETED)
+  checksum        String?
+  notes           String?
+  triggeredById   String?
+  createdAt       DateTime     @default(now())
+  completedAt     DateTime?
+  s3Bucket        String?
+  s3Key           String?
+  storageLocation String       @default("LOCAL")
+  triggeredBy     User?        @relation("UserBackups", fields: [triggeredById], references: [id])
+
+  @@index([status])
+  @@index([triggeredById])
+  @@index([createdAt])
+  @@map("backup_records")
+}
+
+model DepreciationRun {
+  id                      String               @id @default(uuid())
+  batchNumber             String               @unique
+  period                  String
+  totalAssetsCount        Int                  @default(0)
+  totalDepreciationAmount Decimal              @default(0) @db.Decimal(14, 2)
+  totalBookValue          Decimal              @default(0) @db.Decimal(14, 2)
+  status                  String               @default("COMPLETED")
+  notes                   String?
+  executedById            String?
+  createdAt               DateTime             @default(now())
+  records                 DepreciationRecord[]
+  executedBy              User?                @relation("DepreciationExecutors", fields: [executedById], references: [id])
+
+  @@index([period])
+  @@index([executedById])
+  @@index([createdAt])
+  @@map("depreciation_runs")
+}
+
+model DepreciationRecord {
+  id                 String          @id @default(uuid())
+  runId              String
+  assetId            String
+  period             String
+  initialCost        Decimal         @db.Decimal(12, 2)
+  openingBookValue   Decimal         @db.Decimal(12, 2)
+  depreciationAmount Decimal         @db.Decimal(12, 2)
+  closingBookValue   Decimal         @db.Decimal(12, 2)
+  accumulatedTotal   Decimal         @db.Decimal(12, 2)
+  annualRate         Float
+  calculatedAt       DateTime        @default(now())
+  asset              ItemInstance    @relation(fields: [assetId], references: [id])
+  run                DepreciationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, period])
+  @@index([runId])
+  @@index([assetId])
+  @@index([period])
+  @@map("depreciation_records")
+}
+
+model IdempotencyKey {
+  id           String   @id @default(uuid())
+  key          String   @unique
+  endpoint     String
+  statusCode   Int      @default(200)
+  responseJson String
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("idempotency_keys")
+}
+
+model DocumentSequence {
+  id         String   @id @default(uuid())
+  prefix     String
+  year       Int
+  currentVal Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([prefix, year])
+  @@index([prefix, year])
+  @@map("document_sequences")
+}
+
+model ResponsibilityHandover {
+  id                String               @id @default(uuid())
+  handoverNumber    String               @unique
+  type              HandoverType
+  status            HandoverStatus       @default(DRAFT)
+  departingUserId   String
+  targetUserId      String?
+  targetWarehouseId String?
+  buildingId        String?
+  commandantUserId  String?
+  accountantUserId  String?
+  approvedByUserId  String?
+  roomId            String?
+  note              String?
+  docArchiveId      String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  completedAt       DateTime?
+  items             HandoverItemAction[]
+  accountantUser    User?                @relation("AccountantHandovers", fields: [accountantUserId], references: [id])
+  approvedByUser    User?                @relation("ApprovedHandovers", fields: [approvedByUserId], references: [id])
+  building          Building?            @relation("BuildingHandovers", fields: [buildingId], references: [id])
+  commandantUser    User?                @relation("CommandantHandovers", fields: [commandantUserId], references: [id])
+  departingUser     User                 @relation("DepartingHandovers", fields: [departingUserId], references: [id])
+  docArchive        DocumentArchive?     @relation("HandoverDocumentArchive", fields: [docArchiveId], references: [id])
+  room              Room?                @relation("RoomHandovers", fields: [roomId], references: [id])
+  targetUser        User?                @relation("TargetHandovers", fields: [targetUserId], references: [id])
+  targetWarehouse   Warehouse?           @relation("WarehouseHandovers", fields: [targetWarehouseId], references: [id])
+
+  @@index([departingUserId])
+  @@index([targetUserId])
+  @@index([buildingId])
+  @@index([commandantUserId])
+  @@index([accountantUserId])
+  @@index([status])
+  @@map("responsibility_handovers")
+}
+
+model HandoverItemAction {
+  id                String                 @id @default(uuid())
+  handoverId        String
+  itemInstanceId    String
+  actionType        HandoverItemActionType
+  targetUserId      String?
+  targetWarehouseId String?
+  conditionNote     String?
+  investigationNote String?
+  createdAt         DateTime               @default(now())
+  handover          ResponsibilityHandover @relation(fields: [handoverId], references: [id], onDelete: Cascade)
+  itemInstance      ItemInstance           @relation("HandoverItemInstances", fields: [itemInstanceId], references: [id])
+
+  @@index([handoverId])
+  @@index([itemInstanceId])
+  @@index([actionType])
+  @@map("handover_item_actions")
 }
 
 enum RoleType {
   SUPER_ADMIN
-  ADMIN
   HEAD_WAREHOUSE
   MOL
   EMPLOYEE
@@ -18,6 +956,7 @@ enum RoleType {
   COMMENDANT
   RECTOR
   VICE_RECTOR_FINANCE
+  ADMIN
   ENGINEER
 }
 
@@ -35,18 +974,18 @@ enum AssetStatus {
 }
 
 enum RequestStatus {
-  SUBMITTED
   PENDING
+  APPROVED_BY_HEAD
+  APPROVED_BY_WAREHOUSE
+  REJECTED
+  FULFILLED
+  CANCELLED
+  SUBMITTED
   APPROVED_BY_PRORECTOR
   APPROVED_BY_RECTOR
   FINANCED_BY_ACCOUNTANT
   RECEIVED_AT_WAREHOUSE
   HANDED_TO_COMMENDANT
-  FULFILLED
-  REJECTED
-  CANCELLED
-  APPROVED_BY_HEAD
-  APPROVED_BY_WAREHOUSE
 }
 
 enum MovementType {
@@ -90,680 +1029,11 @@ enum FundingSource {
   GRANT
 }
 
-model User {
-  id           String      @id @default(uuid())
-  fullName     String
-  username     String      @unique
-  email        String?     @unique
-  password           String
-  hashedRefreshToken String?
-  mustChangePassword Boolean     @default(true)
-  phone              String?
-  position           String?     // Lavozim (Dekan, Kafedra mudiri, Laborant, Omborchi)
-  role               RoleType    @default(EMPLOYEE)
-  permissions        String[]    @default([])
-  isActive           Boolean     @default(true)
-  departmentId String?
-  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-
-  responsibleRooms      Room[]               @relation("RoomResponsible")
-  responsibleInstances  ItemInstance[]       @relation("UserResponsibleInstances")
-  submittedRequests     Request[]            @relation("UserRequests")
-  approvedRequests      Request[]            @relation("ApproverRequests")
-  executedMovements     StockMovement[]      @relation("MovementExecutor")
-  executedHistories     AssetHistory[]       @relation("HistoryExecutor")
-  createdAudits         InventoryAudit[]     @relation("AuditCreator")
-  sentTransfers         TransferAcceptance[] @relation("TransferSender")
-  receivedTransfers     TransferAcceptance[] @relation("TransferReceiver")
-  repairRequests        RepairRecord[]       @relation("RepairRequester")
-  approvedRepairs       RepairRecord[]       @relation("RepairApprover")
-  createdWriteOffs      WriteOffRequest[]    @relation("WriteOffCreator")
-  writeOffVotes         WriteOffMemberVote[]
-  notifications         Notification[]
-  systemLogs            SystemAuditLog[]
-  backups               BackupRecord[]       @relation("UserBackups")
-  labelReprints         LabelReprintLog[]    @relation("LabelReprints")
-  depreciationRuns      DepreciationRun[]    @relation("DepreciationExecutors")
-  signedArchives        DocumentArchive[]    @relation("UserDocumentSigned")
-  cancelledArchives     DocumentArchive[]    @relation("UserDocumentCancelled")
-  revokedStamps         DocumentStamp[]      @relation("DocumentStampRevoker")
-  createdCampaigns      InventoryCampaign[]  @relation("CampaignCreator")
-  assignedCampaigns     InventoryCampaign[]  @relation("CampaignAssignedAuditor")
-  approvedCampaigns     InventoryCampaign[]  @relation("CampaignApprover")
-  signingSessions       SigningSession[]     @relation("UserSigningSessions")
-  createdSigningSessions SigningSession[]    @relation("CreatedSigningSessions")
-  commendantRequests    Request[]            @relation("CommendantRequests")
-  prorektorApprovedRequests  Request[]       @relation("ProrektorApprovedRequests")
-  rectorApprovedRequests     Request[]       @relation("RectorApprovedRequests")
-  accountantFinancedRequests Request[]       @relation("AccountantFinancedRequests")
-  warehouseReceivedRequests  Request[]       @relation("WarehouseReceivedRequests")
-  commendantHandedRequests   Request[]       @relation("CommendantHandedRequests")
-  assignedEngineerRequests   Request[]       @relation("AssignedEngineerRequests")
-  engineerInspectedRequests  Request[]       @relation("EngineerInspectedRequests")
-  commendantBuildings        Building[]       @relation("BuildingCommendant")
-  managedWarehouses          Warehouse[]      @relation("WarehouseManager")
-  departingHandovers         ResponsibilityHandover[] @relation("DepartingHandovers")
-  targetHandovers            ResponsibilityHandover[] @relation("TargetHandovers")
-  commandantHandovers        ResponsibilityHandover[] @relation("CommandantHandovers")
-  accountantHandovers        ResponsibilityHandover[] @relation("AccountantHandovers")
-  approvedHandovers          ResponsibilityHandover[] @relation("ApprovedHandovers")
-
-  deletedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([role])
-  @@index([departmentId])
-  @@index([deletedAt])
-  @@map("users")
-}
-
-model Department {
-  id          String       @id @default(uuid())
-  name        String
-  code        String?      @unique
-  type        String       @default("DEPARTMENT") // FACULTY, CHAIR, DIVISION, LAB
-  parentId    String?
-  parent      Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children    Department[] @relation("DepartmentHierarchy")
-
-  buildingId  String?
-  building    Building?    @relation(fields: [buildingId], references: [id], onDelete: SetNull)
-
-  users     User[]
-  rooms     Room[]
-  requests  Request[]
-  quotas    DepartmentQuota[]
-
-  deletedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([deletedAt])
-  @@index([buildingId])
-  @@map("departments")
-}
-
-model Building {
-  id           String      @id @default(uuid())
-  name         String      @unique
-  code         String?     @unique
-  floorsCount  Int         @default(4)
-  address      String?
-  description  String?
-  commendantId String?
-  commendant   User?       @relation("BuildingCommendant", fields: [commendantId], references: [id], onDelete: SetNull)
-
-  rooms        Room[]
-  departments  Department[]
-  warehouses   Warehouse[]
-  handovers    ResponsibilityHandover[] @relation("BuildingHandovers")
-
-  deletedAt    DateTime?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-
-  @@index([deletedAt])
-  @@index([commendantId])
-  @@map("buildings")
-}
-
-model Room {
-  id                String       @id @default(uuid())
-  number            String
-  name              String
-  floor             Int          @default(1)
-  buildingId        String?
-  buildingRelation  Building?    @relation(fields: [buildingId], references: [id], onDelete: SetNull)
-  building          String       @default("Bosh bino")
-  departmentId      String?
-  department        Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  responsibleUserId String?
-  responsibleUser   User?        @relation("RoomResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
-
-  itemInstances ItemInstance[]
-  fromMovements StockMovement[]      @relation("MoveFromRoom")
-  toMovements   StockMovement[]      @relation("MoveToRoom")
-  fromTransfers TransferAcceptance[] @relation("TransferFromRoom")
-  toTransfers   TransferAcceptance[] @relation("TransferToRoom")
-  audits        InventoryAudit[]
-  campaignScopes InventoryCampaignScope[]
-  targetRequests Request[]            @relation("RequestTargetRoom")
-  handovers      ResponsibilityHandover[] @relation("RoomHandovers")
-
-  deletedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([buildingId, number])
-  @@index([departmentId])
-  @@index([buildingId])
-  @@index([building])
-  @@index([responsibleUserId])
-  @@index([deletedAt])
-  @@map("rooms")
-}
-
-model Supplier {
-  id             String         @id @default(uuid())
-  name           String         // Korxona nomi
-  inn            String?        // STIR / INN
-  contractNumber String?        // Shartnoma raqami
-  contractDate   DateTime?      // Shartnoma sanasi
-  contactPerson  String?        // Mas'ul vakil
-  phone          String?
-  email          String?
-  notes          String?
-
-  invoices       Invoice[]
-  itemInstances  ItemInstance[]
-  movements      StockMovement[]
-
-  deletedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([deletedAt])
-  @@map("suppliers")
-}
-
-model Invoice {
-  id            String         @id @default(uuid())
-  invoiceNumber String         @unique // Hisob-faktura raqami
-  invoiceDate   DateTime       @default(now())
-  totalAmount   Decimal?       @db.Decimal(14, 2)
-  notes         String?
-
-  supplierId    String?
-  supplier      Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  instances     ItemInstance[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([supplierId])
-  @@map("invoices")
-}
-
-model Warehouse {
-  id          String       @id @default(uuid())
-  name        String
-  code        String?      @unique
-  buildingId  String?
-  building    Building?    @relation(fields: [buildingId], references: [id], onDelete: SetNull)
-  managerId   String?
-  manager     User?        @relation("WarehouseManager", fields: [managerId], references: [id], onDelete: SetNull)
-  location    String?
-  isMain      Boolean      @default(false)
-  deletedAt   DateTime?
-
-  stocks        Stock[]
-  fromMovements StockMovement[] @relation("MoveFromWarehouse")
-  toMovements   StockMovement[] @relation("MoveToWarehouse")
-  transfers     TransferAcceptance[]
-  handovers     ResponsibilityHandover[] @relation("WarehouseHandovers")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([buildingId])
-  @@index([managerId])
-  @@index([deletedAt])
-  @@map("warehouses")
-}
-
-model Category {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-  items       Item[]
-
-  deletedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([deletedAt])
-  @@map("categories")
-}
-
-model Item {
-  id            String    @id @default(uuid())
-  name          String
-  model         String?
-  sku           String?   @unique
-  itemType      ItemType  @default(FIXED_ASSET)
-  unit          String    @default("DONA")
-  minStockLimit Int       @default(5)
-  description   String?
-  categoryId    String
-  category      Category  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-
-  instances     ItemInstance[]
-  stocks        Stock[]
-  requestItems  RequestItem[]
-  movementItems StockMovementItem[]
-  quotas        DepartmentQuota[]
-
-  deletedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([categoryId])
-  @@index([itemType])
-  @@index([deletedAt])
-  @@map("items")
-}
-
-model ItemInstance {
-  id                String      @id @default(uuid())
-  inventoryNumber   String      @unique
-  serialNumber      String?
-  qrCode            String      @unique
-  status            AssetStatus   @default(NEW)
-  fundingSource     FundingSource @default(BYUDJET)
-  purchaseDate      DateTime?
-  purchasePrice     Decimal?      @db.Decimal(12, 2)
-  warrantyMonths    Int         @default(12)
-  depreciationRate  Float       @default(20.0) // Yillik amortizatsiya foizi
-  notes             String?
-
-  itemId            String
-  item              Item        @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  roomId            String?
-  room              Room?       @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  responsibleUserId String?
-  responsibleUser   User?       @relation("UserResponsibleInstances", fields: [responsibleUserId], references: [id], onDelete: SetNull)
-  supplierId        String?
-  supplier          Supplier?   @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  invoiceId         String?
-  invoice           Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-
-  reprintCount      Int                  @default(0)
-  lastReprintReason String?
-  lastReprintedAt   DateTime?
-
-  currentBookValue        Decimal?             @db.Decimal(12, 2)
-  accumulatedDepreciation Decimal              @default(0) @db.Decimal(12, 2)
-  lastDepreciatedAt       DateTime?
-
-  histories           AssetHistory[]
-  transfers           TransferAcceptance[]
-  repairRecords       RepairRecord[]
-  writeOffRequests    WriteOffRequest[]
-  movementItems       StockMovementItem[]
-  auditRecords        InventoryAuditRecord[]
-  reprintLogs         LabelReprintLog[]
-  depreciationRecords DepreciationRecord[]
-  handoverActions     HandoverItemAction[] @relation("HandoverItemInstances")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([itemId])
-  @@index([responsibleUserId])
-  @@index([fundingSource])
-  @@index([roomId])
-  @@index([status])
-  @@map("item_instances")
-}
-
-model LabelReprintLog {
-  id            String       @id @default(uuid())
-  assetId       String
-  asset         ItemInstance @relation(fields: [assetId], references: [id], onDelete: Restrict)
-  reason        String
-  reprintNumber Int
-  printedById   String?
-  printedBy     User?        @relation("LabelReprints", fields: [printedById], references: [id], onDelete: SetNull)
-  createdAt     DateTime     @default(now())
-
-  @@index([assetId])
-  @@index([printedById])
-  @@map("label_reprint_logs")
-}
-
-model AssetHistory {
-  id             String       @id @default(uuid())
-  assetId        String
-  asset          ItemInstance @relation(fields: [assetId], references: [id], onDelete: Restrict)
-  action         String       // KIRIM, BIRIKTIRILDI, KO'CHIRILDI, TAMIRLANDI, SPISANIE, QAYTARILDI
-  fromLocation   String?
-  toLocation     String?
-  fromUser       String?
-  toUser         String?
-  referenceDoc   String?
-  note           String?
-
-  executedById   String?
-  executedBy     User?        @relation("HistoryExecutor", fields: [executedById], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now())
-
-  @@index([assetId])
-  @@index([executedById])
-  @@index([createdAt])
-  @@map("asset_histories")
-}
-
-model TransferAcceptance {
-  id            String         @id @default(uuid())
-  assetId       String
-  asset         ItemInstance   @relation(fields: [assetId], references: [id], onDelete: Restrict)
-  status        TransferStatus @default(PENDING)
-  note          String?
-  isReturn      Boolean        @default(false)
-
-  fromRoomId    String?
-  fromRoom      Room?          @relation("TransferFromRoom", fields: [fromRoomId], references: [id])
-  toRoomId      String?
-  toRoom        Room?          @relation("TransferToRoom", fields: [toRoomId], references: [id])
-  toWarehouseId String?
-  toWarehouse   Warehouse?     @relation(fields: [toWarehouseId], references: [id])
-
-  senderId      String
-  sender        User           @relation("TransferSender", fields: [senderId], references: [id])
-  receiverId    String?
-  receiver      User?          @relation("TransferReceiver", fields: [receiverId], references: [id])
-
-  acceptedAt    DateTime?
-  createdAt     DateTime       @default(now())
-
-  @@index([assetId])
-  @@index([senderId])
-  @@index([receiverId])
-  @@index([status])
-  @@map("transfer_acceptances")
-}
-
-
-model Stock {
-  id          String    @id @default(uuid())
-  warehouseId String
-  warehouse   Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
-  itemId      String
-  item        Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  quantity    Int           @default(0)
-  fundingSource FundingSource @default(BYUDJET)
-
-  updatedAt DateTime @updatedAt
-
-  @@unique([warehouseId, itemId, fundingSource])
-  @@index([warehouseId])
-  @@index([itemId])
-  @@index([fundingSource])
-  @@map("stocks")
-}
-
-model Request {
-  id            String        @id @default(uuid())
-  requestNumber String        @unique
-  purpose       String
-  status        RequestStatus @default(SUBMITTED)
-  isOverQuota   Boolean       @default(false)
-  specialApprovalNeeded Boolean @default(false)
-  notes         String?
-  approvalNote  String?
-
-  // Financial and accounting allocations (Phase L1)
-  fundingSource   FundingSource?
-  subAccountCode  String?       // Masalan: "013", "060", "212"
-  allocatedAmount Decimal?      @db.Decimal(14, 2)
-  targetRoomId    String?
-  targetRoom      Room?         @relation("RequestTargetRoom", fields: [targetRoomId], references: [id], onDelete: SetNull)
-  commendantId    String?
-  commendant      User?         @relation("CommendantRequests", fields: [commendantId], references: [id], onDelete: SetNull)
-
-  // Technical engineer inspection (AKT-TEX)
-  requiresTechnicalInspection Boolean   @default(false)
-  assignedEngineerId          String?
-  assignedEngineer            User?     @relation("AssignedEngineerRequests", fields: [assignedEngineerId], references: [id], onDelete: SetNull)
-  engineerInspectedAt         DateTime?
-  engineerInspectedById       String?
-  engineerInspectedBy         User?     @relation("EngineerInspectedRequests", fields: [engineerInspectedById], references: [id], onDelete: SetNull)
-  inspectionChecklist         Json?
-
-  // 7-step Workflow timestamps & signer IDs
-  submittedAt            DateTime?     @default(now())
-  prorektorApprovedAt    DateTime?
-  prorektorApprovedById  String?
-  prorektorApprovedBy    User?         @relation("ProrektorApprovedRequests", fields: [prorektorApprovedById], references: [id], onDelete: SetNull)
-  rectorApprovedAt       DateTime?
-  rectorApprovedById     String?
-  rectorApprovedBy       User?         @relation("RectorApprovedRequests", fields: [rectorApprovedById], references: [id], onDelete: SetNull)
-  accountantFinancedAt   DateTime?
-  accountantFinancedById String?
-  accountantFinancedBy   User?         @relation("AccountantFinancedRequests", fields: [accountantFinancedById], references: [id], onDelete: SetNull)
-  warehouseReceivedAt    DateTime?
-  warehouseReceivedById  String?
-  warehouseReceivedBy    User?         @relation("WarehouseReceivedRequests", fields: [warehouseReceivedById], references: [id], onDelete: SetNull)
-  commendantHandedAt     DateTime?
-  commendantHandedById   String?
-  commendantHandedBy     User?         @relation("CommendantHandedRequests", fields: [commendantHandedById], references: [id], onDelete: SetNull)
-  fulfilledAt            DateTime?
-
-  requesterId   String
-  requester     User          @relation("UserRequests", fields: [requesterId], references: [id])
-  departmentId  String?
-  department    Department?   @relation(fields: [departmentId], references: [id])
-  approvedById  String?
-  approvedBy    User?         @relation("ApproverRequests", fields: [approvedById], references: [id])
-
-  items RequestItem[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([requesterId])
-  @@index([departmentId])
-  @@index([status])
-  @@index([createdAt])
-  @@map("requests")
-}
-
-model RequestItem {
-  id           String  @id @default(uuid())
-  requestId    String
-  request      Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  itemId       String
-  item         Item    @relation(fields: [itemId], references: [id])
-  requestedQty Int
-  approvedQty  Int?
-
-  @@index([requestId])
-  @@index([itemId])
-  @@map("request_items")
-}
-
-model StockMovement {
-  id              String       @id @default(uuid())
-  movementNumber  String       @unique
-  movementType    MovementType
-  referenceDoc    String?
-  note            String?
-
-  executedById    String
-  executedBy      User         @relation("MovementExecutor", fields: [executedById], references: [id])
-
-  fromRoomId      String?
-  fromRoom        Room?        @relation("MoveFromRoom", fields: [fromRoomId], references: [id])
-  toRoomId        String?
-  toRoom          Room?        @relation("MoveToRoom", fields: [toRoomId], references: [id])
-
-  fromWarehouseId String?
-  fromWarehouse   Warehouse?   @relation("MoveFromWarehouse", fields: [fromWarehouseId], references: [id])
-  toWarehouseId   String?
-  toWarehouse     Warehouse?   @relation("MoveToWarehouse", fields: [toWarehouseId], references: [id])
-
-  supplierId      String?
-  supplier        Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  invoiceNumber   String?
-  fundingSource   FundingSource @default(BYUDJET)
-
-  items StockMovementItem[]
-
-  createdAt DateTime @default(now())
-
-  @@index([executedById])
-  @@index([fromWarehouseId])
-  @@index([toWarehouseId])
-  @@index([movementType])
-  @@index([fundingSource])
-  @@index([createdAt])
-  @@map("stock_movements")
-}
-
-model StockMovementItem {
-  id             String        @id @default(uuid())
-  movementId     String
-  movement       StockMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
-  itemId         String
-  item           Item          @relation(fields: [itemId], references: [id])
-  itemInstanceId String?
-  itemInstance   ItemInstance? @relation(fields: [itemInstanceId], references: [id])
-  quantity       Int           @default(1)
-  note           String?
-
-  @@index([movementId])
-  @@index([itemId])
-  @@index([itemInstanceId])
-  @@map("stock_movement_items")
-}
-
-model InventoryAudit {
-  id           String      @id @default(uuid())
-  auditNumber  String      @unique
-  title        String
-  status       AuditStatus @default(DRAFT)
-  notes        String?
-  startedAt    DateTime?
-  completedAt  DateTime?
-
-  createdById  String
-  createdBy    User        @relation("AuditCreator", fields: [createdById], references: [id])
-  roomId       String?
-  room         Room?       @relation(fields: [roomId], references: [id])
-
-  campaignId   String?
-  campaign     InventoryCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-
-  records InventoryAuditRecord[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([roomId])
-  @@index([createdById])
-  @@index([campaignId])
-  @@index([status])
-  @@map("inventory_audits")
-}
-
-model InventoryAuditRecord {
-  id             String            @id @default(uuid())
-  auditId        String
-  audit          InventoryAudit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
-  itemInstanceId String
-  itemInstance   ItemInstance      @relation(fields: [itemInstanceId], references: [id])
-  expectedRoomId String?
-  foundRoomId    String?
-  status         AuditRecordStatus @default(MATCHED)
-  scannedAt      DateTime          @default(now())
-  notes          String?
-
-  @@index([auditId])
-  @@index([itemInstanceId])
-  @@index([status])
-  @@map("inventory_audit_records")
-}
-
-model InventoryCampaign {
-  id             String                   @id @default(uuid())
-  campaignNumber String                   @unique // CMP-YYYY-XXXX
-  title          String
-  periodStart    DateTime
-  periodEnd      DateTime
-  status         CampaignStatus           @default(PLANNED)
-  notes          String?
-
-  createdById        String
-  createdBy          User                     @relation("CampaignCreator", fields: [createdById], references: [id])
-
-  orderNumber        String?                  // Rektor Farmoyishi / Buyrug'i raqami
-  orderDate          DateTime?                // Rektor Buyrug'i sanasi
-  assignedAuditorId  String?                  // Tayinlangan Mas'ul Auditor
-  assignedAuditor    User?                    @relation("CampaignAssignedAuditor", fields: [assignedAuditorId], references: [id])
-  approvedById       String?                  // Tasdiqlagan Rektor
-  approvedBy         User?                    @relation("CampaignApprover", fields: [approvedById], references: [id])
-  approvedAt         DateTime?                // Rektor QR orqali tasdiqlagan vaqt
-  signatureHash      String?                  // Kriptografik imzo muhr xeshi
-
-  scopes             InventoryCampaignScope[]
-  audits             InventoryAudit[]
-
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
-
-  @@index([status])
-  @@index([createdById])
-  @@index([assignedAuditorId])
-  @@index([approvedById])
-  @@map("inventory_campaigns")
-}
-
-model InventoryCampaignScope {
-  id         String            @id @default(uuid())
-  campaignId String
-  campaign   InventoryCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  roomId     String
-  room       Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
-
-  createdAt  DateTime          @default(now())
-
-  @@unique([campaignId, roomId])
-  @@index([campaignId])
-  @@index([roomId])
-  @@map("inventory_campaign_scopes")
-}
-
 enum RepairStatus {
   PENDING
   IN_REPAIR
   COMPLETED
   UNREPAIRABLE
-}
-
-model RepairRecord {
-  id               String       @id @default(uuid())
-  repairNumber     String       @unique // REP-YYYY-XXXX
-  assetId          String
-  asset            ItemInstance @relation(fields: [assetId], references: [id], onDelete: Restrict)
-  issueDescription String
-  status           RepairStatus @default(PENDING)
-  serviceProvider  String?      // Masalan: "TexnoServis MCHJ" yoki "OTM ustaxonasi"
-  cost             Decimal?     @db.Decimal(12, 2)
-  startDate        DateTime?
-  completionDate   DateTime?
-  actNumber        String?      // Ta'mirlash dalolatnomasi
-  notes            String?
-
-  requestedById    String
-  requestedBy      User         @relation("RepairRequester", fields: [requestedById], references: [id])
-  approvedById     String?
-  approvedBy       User?        @relation("RepairApprover", fields: [approvedById], references: [id])
-
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-
-  @@index([assetId])
-  @@index([requestedById])
-  @@index([status])
-  @@map("repair_records")
 }
 
 enum WriteOffStatus {
@@ -776,47 +1046,6 @@ enum VoteStatus {
   PENDING
   APPROVED
   REJECTED
-}
-
-model WriteOffRequest {
-  id                  String               @id @default(uuid())
-  actNumber           String               @unique // OS4-YYYY-XXXX
-  assetId             String
-  asset               ItemInstance         @relation(fields: [assetId], references: [id], onDelete: Restrict)
-  reason              String
-  technicalConclusion String?              // Texnik ekspertiza xulosasi
-  status              WriteOffStatus       @default(IN_REVIEW)
-  approvedAt          DateTime?
-
-  createdById         String
-  createdBy           User                 @relation("WriteOffCreator", fields: [createdById], references: [id])
-
-  members             WriteOffMemberVote[]
-
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-
-  @@index([assetId])
-  @@index([createdById])
-  @@index([status])
-  @@map("write_off_requests")
-}
-
-model WriteOffMemberVote {
-  id              String          @id @default(uuid())
-  writeOffId      String
-  writeOffRequest WriteOffRequest @relation(fields: [writeOffId], references: [id], onDelete: Cascade)
-  userId          String
-  user            User            @relation(fields: [userId], references: [id])
-  roleName        String          // Masalan: "Komissiya raisi", "Bosh buxgalter", "Yurist", "Bosh mexanik"
-  vote            VoteStatus      @default(PENDING)
-  comment         String?
-  votedAt         DateTime?
-
-  @@unique([writeOffId, userId])
-  @@index([writeOffId])
-  @@index([userId])
-  @@map("write_off_member_votes")
 }
 
 enum NotificationType {
@@ -832,130 +1061,11 @@ enum NotificationType {
   QUOTA
 }
 
-model DepartmentQuota {
-  id           String     @id @default(uuid())
-  departmentId String
-  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  itemId       String
-  item         Item       @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  monthlyLimit Int        @default(10)
-  period       String     // YYYY-MM masalan "2026-09"
-  usedQuantity Int        @default(0)
-  notes        String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-
-  @@unique([departmentId, itemId, period])
-  @@index([departmentId])
-  @@index([itemId])
-  @@index([period])
-  @@map("department_quotas")
-}
-
-model Notification {
-  id        String           @id @default(uuid())
-  userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String
-  message   String
-  type      NotificationType @default(INFO)
-  link      String?          // e.g. "/requests", "/repairs", "/quotas"
-  isRead    Boolean          @default(false)
-  createdAt DateTime         @default(now())
-
-  @@index([userId, isRead])
-  @@index([createdAt])
-  @@map("notifications")
-}
-
-model SystemAuditLog {
-  id        String   @id @default(uuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action    String   // LOGIN, LOGOUT, CREATE, UPDATE, DELETE, APPROVE, REJECT, FULFILL, TRANSFER, RETURN, REPAIR, WRITE_OFF, QUOTA, HEMIS_SYNC, EXPORT
-  entity    String   // Request, ItemInstance, DepartmentQuota, User, Room, Warehouse
-  entityId  String?
-  details   String?  // JSON text with parameters or changes
-  ipAddress String?
-  userAgent String?
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-  @@index([action])
-  @@index([entity])
-  @@index([createdAt])
-  @@map("system_audit_logs")
-}
-
-model DocumentStamp {
-  id               String            @id @default(uuid())
-  docType          String            // OS_1, OS_2, INV_19, OS_4, MOL_TRANSFER, RETURN_ACT
-  docNumber        String            @unique
-  verificationHash String            @unique
-  title            String
-  signerName       String
-  signerRole       String
-  metadataJson     String            // JSON text with verified payload details
-  isValid          Boolean           @default(true)
-  revokedAt        DateTime?
-  revokedReason    String?
-  revokedById      String?
-  revokedBy        User?             @relation("DocumentStampRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
-  createdAt        DateTime          @default(now())
-
-  archives         DocumentArchive[]
-  signingSessions  SigningSession[]
-
-  @@index([docType])
-  @@index([docNumber])
-  @@index([signerRole])
-  @@index([createdAt])
-  @@map("document_stamps")
-}
-
 enum DocumentArchiveStatus {
   DRAFT
   SIGNED
   CANCELLED
   ARCHIVED
-}
-
-model DocumentArchive {
-  id            String                @id @default(uuid())
-  docType       String                // OS_1, OS_2, OS_4, INV_19, MOL_TRANSFER, RETURN
-  entityId      String                // ID of Request, ItemInstance, WriteOffRequest, etc.
-  docNumber     String
-  title         String
-  version       Int                   @default(1)
-  status        DocumentArchiveStatus @default(SIGNED)
-  pdfPath       String?               // Stored file path (HTML/PDF snapshot)
-  fileSize      Int?                  @default(0)
-  checksum      String?               // SHA-256 xesh
-  metadata      Json?                 // Rekvizitlar, buyumlar, tomonlar
-
-  stampId       String?
-  stamp         DocumentStamp?        @relation(fields: [stampId], references: [id], onDelete: SetNull)
-
-  signedById    String?
-  signedBy      User?                 @relation("UserDocumentSigned", fields: [signedById], references: [id], onDelete: SetNull)
-  signedAt      DateTime?             @default(now())
-
-  cancelledById String?
-  cancelledBy   User?                 @relation("UserDocumentCancelled", fields: [cancelledById], references: [id], onDelete: SetNull)
-  cancelledAt   DateTime?
-  cancelReason  String?
-  handovers     ResponsibilityHandover[] @relation("HandoverDocumentArchive")
-
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
-
-  @@index([entityId])
-  @@index([docType])
-  @@index([docNumber])
-  @@index([stampId])
-  @@index([signedById])
-  @@index([status])
-  @@map("document_archives")
 }
 
 enum SigningSessionStatus {
@@ -964,44 +1074,6 @@ enum SigningSessionStatus {
   SIGNED
   EXPIRED
   CANCELLED
-}
-
-model SigningSession {
-  id             String               @id @default(uuid())
-  sessionToken   String               @unique
-  docNumber      String
-  docType        String               // OS_1, OS_2, OS_4, INV_19, REQUEST, TRANSFER
-  title          String
-  departmentName String?
-  roomName       String?
-  itemSummary    String
-  metadataJson   String?
-  status         SigningSessionStatus @default(PENDING)
-  expiresAt      DateTime
-
-  signedAt       DateTime?
-  signedById     String?
-  signedBy       User?                @relation("UserSigningSessions", fields: [signedById], references: [id], onDelete: SetNull)
-  signerName     String?
-  signerRole     String?
-  biometricType  String?              // TOUCH_ID, FACE_ID, WEBAUTHN
-  deviceInfo     String?
-  ipAddress      String?
-
-  stampId        String?
-  stamp          DocumentStamp?       @relation(fields: [stampId], references: [id], onDelete: SetNull)
-
-  createdById    String
-  createdBy      User                 @relation("CreatedSigningSessions", fields: [createdById], references: [id])
-
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-
-  @@index([docNumber])
-  @@index([createdById])
-  @@index([stampId])
-  @@index([status])
-  @@map("signing_sessions")
 }
 
 enum BackupType {
@@ -1014,96 +1086,6 @@ enum BackupStatus {
   COMPLETED
   FAILED
   RESTORED
-}
-
-model BackupRecord {
-  id            String       @id @default(uuid())
-  filename      String
-  filePath      String
-  fileSizeBytes BigInt       @default(0)
-  backupType    BackupType   @default(MANUAL)
-  status        BackupStatus @default(COMPLETED)
-  checksum      String?      // SHA-256 xesh
-  notes         String?
-  storageLocation String     @default("LOCAL") // LOCAL | REMOTE_S3 | BOTH
-  s3Key         String?      // Masalan: "backups/uwms_backup_2026_09_24.dump.enc"
-  s3Bucket      String?      // Masalan: "uwms-backups"
-  triggeredById String?
-  triggeredBy   User?        @relation("UserBackups", fields: [triggeredById], references: [id], onDelete: SetNull)
-  createdAt     DateTime     @default(now())
-  completedAt   DateTime?
-
-  @@index([status])
-  @@index([triggeredById])
-  @@index([createdAt])
-  @@map("backup_records")
-}
-
-model DepreciationRun {
-  id                      String               @id @default(uuid())
-  batchNumber             String               @unique // Masalan: DEP-2026-09-001
-  period                  String               // Masalan: 2026-09
-  totalAssetsCount        Int                  @default(0)
-  totalDepreciationAmount Decimal              @default(0) @db.Decimal(14, 2)
-  totalBookValue          Decimal              @default(0) @db.Decimal(14, 2)
-  status                  String               @default("COMPLETED")
-  notes                   String?
-  executedById            String?
-  executedBy              User?                @relation("DepreciationExecutors", fields: [executedById], references: [id], onDelete: SetNull)
-  createdAt               DateTime             @default(now())
-
-  records                 DepreciationRecord[]
-
-  @@index([period])
-  @@index([executedById])
-  @@index([createdAt])
-  @@map("depreciation_runs")
-}
-
-model DepreciationRecord {
-  id                 String          @id @default(uuid())
-  runId              String
-  run                DepreciationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  assetId            String
-  asset              ItemInstance    @relation(fields: [assetId], references: [id], onDelete: Restrict)
-  period             String          // Masalan: 2026-09
-  initialCost        Decimal         @db.Decimal(12, 2)
-  openingBookValue   Decimal         @db.Decimal(12, 2)
-  depreciationAmount Decimal         @db.Decimal(12, 2)
-  closingBookValue   Decimal         @db.Decimal(12, 2)
-  accumulatedTotal   Decimal         @db.Decimal(12, 2)
-  annualRate         Float           // Yillik stavka foizi (masalan 20.0)
-  calculatedAt       DateTime        @default(now())
-
-  @@unique([assetId, period])
-  @@index([runId])
-  @@index([assetId])
-  @@index([period])
-  @@map("depreciation_records")
-}
-
-model IdempotencyKey {
-  id           String   @id @default(uuid())
-  key          String   @unique
-  endpoint     String
-  statusCode   Int      @default(200)
-  responseJson String   @db.Text
-  createdAt    DateTime @default(now())
-
-  @@index([createdAt])
-  @@map("idempotency_keys")
-}
-
-model DocumentSequence {
-  id         String   @id @default(uuid())
-  prefix     String   // REQ, MOV, INV, OS1, OS2, OS4, INV19, HF, SH, REP, TRF, AKT
-  year       Int      // 2026
-  currentVal Int      @default(0)
-  updatedAt  DateTime @updatedAt
-
-  @@unique([prefix, year])
-  @@index([prefix, year])
-  @@map("document_sequences")
 }
 
 enum HandoverType {
@@ -1135,80 +1117,3 @@ enum HandoverItemActionType {
   WRITE_OFF
   SHORTAGE
 }
-
-model ResponsibilityHandover {
-  id                String                 @id @default(uuid())
-  handoverNumber    String                 @unique // e.g. "ACT-2026-0001"
-  type              HandoverType
-  status            HandoverStatus         @default(DRAFT)
-
-  // Ishtirokchilar
-  departingUserId   String
-  departingUser     User                   @relation("DepartingHandovers", fields: [departingUserId], references: [id])
-
-  targetUserId      String?
-  targetUser        User?                  @relation("TargetHandovers", fields: [targetUserId], references: [id])
-
-  targetWarehouseId String?
-  targetWarehouse   Warehouse?             @relation("WarehouseHandovers", fields: [targetWarehouseId], references: [id])
-
-  buildingId        String?
-  building          Building?              @relation("BuildingHandovers", fields: [buildingId], references: [id])
-
-  commandantUserId  String?
-  commandantUser    User?                  @relation("CommandantHandovers", fields: [commandantUserId], references: [id])
-
-  accountantUserId  String?
-  accountantUser    User?                  @relation("AccountantHandovers", fields: [accountantUserId], references: [id])
-
-  approvedByUserId  String?
-  approvedByUser    User?                  @relation("ApprovedHandovers", fields: [approvedByUserId], references: [id])
-
-  roomId            String?
-  room              Room?                  @relation("RoomHandovers", fields: [roomId], references: [id])
-
-  note              String?
-  docArchiveId      String?
-  docArchive        DocumentArchive?       @relation("HandoverDocumentArchive", fields: [docArchiveId], references: [id])
-
-  items             HandoverItemAction[]
-
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
-  completedAt       DateTime?
-
-  @@index([departingUserId])
-  @@index([targetUserId])
-  @@index([buildingId])
-  @@index([commandantUserId])
-  @@index([accountantUserId])
-  @@index([status])
-  @@map("responsibility_handovers")
-}
-
-model HandoverItemAction {
-  id                String                 @id @default(uuid())
-  handoverId        String
-  handover          ResponsibilityHandover @relation(fields: [handoverId], references: [id], onDelete: Cascade)
-
-  itemInstanceId    String
-  itemInstance      ItemInstance           @relation("HandoverItemInstances", fields: [itemInstanceId], references: [id])
-
-  actionType        HandoverItemActionType
-  targetUserId      String?
-  targetWarehouseId String?
-
-  conditionNote     String?                // Jihoz holati (Soz / Siniq / Topilmadi)
-  investigationNote String?                // Kamomad bo'lsa komissiya xulosasi
-
-  createdAt         DateTime               @default(now())
-
-  @@index([handoverId])
-  @@index([itemInstanceId])
-  @@index([actionType])
-  @@map("handover_item_actions")
-}
-
-
-
-

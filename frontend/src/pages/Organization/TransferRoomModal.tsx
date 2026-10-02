@@ -67,6 +67,9 @@ export const TransferRoomModal: React.FC<TransferRoomModalProps> = ({
   const createHandoverMutation = useCreateHandoverMutation();
   const { allDepartments, buildings } = useOrganizationQuery();
   const { data: usersData } = useUsersQuery({ pageSize: 150, isActive: true });
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN';
+  const isMyRoom = Boolean(room?.responsibleUserId && room.responsibleUserId === currentUser?.id);
+  const canSubmitTransfer = isSuperAdmin || isMyRoom;
 
   // 1. Load active assets assigned to this room
   const { assets: allRoomAssets, isLoading: isLoadingRoomAssets } = useAssetsQuery(
@@ -143,6 +146,10 @@ export const TransferRoomModal: React.FC<TransferRoomModalProps> = ({
 
   const handleSubmit = async () => {
     if (!room) return;
+    if (!canSubmitTransfer) {
+      Message.error('Faqat ushbu xona mas’ul shaxsi javobgarlikni topshira oladi!');
+      return;
+    }
     try {
       const values = await form.validate();
       const targetDept = allDepartments.find((d) => d.id === values.departmentId);
@@ -277,6 +284,7 @@ export const TransferRoomModal: React.FC<TransferRoomModalProps> = ({
         onClose();
       }}
       confirmLoading={updateRoomMutation.isPending || createHandoverMutation.isPending}
+      okButtonProps={{ disabled: !canSubmitTransfer }}
       okText={
         roomAssets.length > 0
           ? `Topshirish arizasini yaratish (${roomAssets.length} ta aktiv)`
@@ -296,6 +304,15 @@ export const TransferRoomModal: React.FC<TransferRoomModalProps> = ({
             paddingRight: 6,
           }}
         >
+          {!canSubmitTransfer && (
+            <Alert
+              type="error"
+              title="Ruxsat cheklangan (Faqat xona mas’uli topshira oladi)"
+              content={`Siz ushbu xonaning biriktirilgan mas’ul shaxsi (MOL) emassiz. Xona hozirda "${room.responsibleUserName || 'belgilanmagan'}"ga biriktirilgan. Xona va undagi ashyolarni topshirish faqat uning o‘ziga tegishli bo‘lganda yoki Super Admin tomonidan amalga oshirilishi mumkin.`}
+              style={{ borderRadius: 0 }}
+            />
+          )}
+
           {/* Current Room Information Card */}
           <div
             style={{

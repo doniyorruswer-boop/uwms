@@ -115,7 +115,25 @@ export const OrganizationPage: React.FC = () => {
   const { user } = useAuthStore();
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
-  const canTransferRoom = isSuperAdmin || user?.role === 'COMMENDANT' || user?.role === 'HEAD_WAREHOUSE';
+
+  const canTransferSpecificRoom = (r: RoomItem | null): boolean => {
+    if (!r) return false;
+    if (isSuperAdmin) return true;
+    if (user?.id && r.responsibleUserId === user.id) return true;
+    return false;
+  };
+
+  const getTransferTooltip = (r: RoomItem | null): string => {
+    if (!r) return '';
+    if (canTransferSpecificRoom(r)) {
+      return 'Xona va jihozlar javobgarligini topshirish (OS-1)';
+    }
+    if (r.responsibleUserId && r.responsibleUserId !== user?.id) {
+      const molName = r.responsibleUserName || 'boshqa mas’ul shaxs';
+      return `Ushbu xona sizga biriktirilmagan (Mas’ul: ${molName}). Faqat biriktirilgan mas’ul shaxs topshira oladi`;
+    }
+    return 'Xona javobgarligini topshirish faqat ushbu xona mas’uli yoki Super Admin uchun ruxsat etilgan';
+  };
 
   // Tabs state
   const [activeTab, setActiveTab] = useState<'TREE' | 'BUILDINGS' | 'DEPARTMENTS' | 'ROOMS'>('TREE');
@@ -150,33 +168,85 @@ export const OrganizationPage: React.FC = () => {
   const restoreDeptMutation = useRestoreDepartmentMutation();
   const restoreRoomMutation = useRestoreRoomMutation();
 
+  // Helper to extract clean room ID from hierarchical or plain key
+  const getRoomIdFromKey = (key: string): string | null => {
+    if (!key) return null;
+    if (key.includes('__room-')) {
+      return key.split('__room-')[1];
+    }
+    if (key.startsWith('room-')) {
+      return key.replace('room-', '');
+    }
+    if (rooms.some((r) => r.id === key)) {
+      return key;
+    }
+    return null;
+  };
+
   // Multi-entity resolution for Tree view
   const selectedRoom = useMemo(() => {
-    return rooms.find((r) => r.id === selectedKey) || null;
+    const roomId = getRoomIdFromKey(selectedKey);
+    if (!roomId) return null;
+    return rooms.find((r) => r.id === roomId) || null;
   }, [rooms, selectedKey]);
 
   const selectedDepartment = useMemo(() => {
     if (!selectedKey) return null;
+    if (getRoomIdFromKey(selectedKey)) return null;
+
     let deptId: string | null = null;
-    if (selectedKey.startsWith('dep-')) {
-      deptId = selectedKey.replace('dep-', '');
-    } else if (selectedKey.includes('__chair-')) {
-      deptId = selectedKey.split('__chair-')[1];
+    if (selectedKey.includes('__chair-')) {
+      deptId = selectedKey.split('__chair-')[1].split('__')[0];
     } else if (selectedKey.includes('__dept-')) {
       deptId = selectedKey.split('__dept-')[1].split('__')[0];
+    } else if (selectedKey.startsWith('dept-')) {
+      deptId = selectedKey.replace('dept-', '').split('__')[0];
+    } else if (selectedKey.startsWith('dep-')) {
+      deptId = selectedKey.replace('dep-', '').split('__')[0];
     }
     if (!deptId) return null;
     return allDepartments.find((d) => d.id === deptId || d.name === deptId) || null;
-  }, [allDepartments, selectedKey]);
+  }, [allDepartments, selectedKey, rooms]);
 
   const selectedBuilding = useMemo(() => {
     if (!selectedKey) return null;
+    if (getRoomIdFromKey(selectedKey)) return null;
     if (selectedKey.startsWith('bld-') && !selectedKey.includes('__dept-') && !selectedKey.includes('__unassigned')) {
       const bldId = selectedKey.replace('bld-', '');
       return buildings.find((b) => b.id === bldId) || null;
     }
     return null;
-  }, [buildings, selectedKey]);
+  }, [buildings, selectedKey, rooms]);
+
+  const selectRoomInTree = (room: RoomItem) => {
+    const findRoomKey = (nodes: any[]): string | null => {
+      for (const node of nodes) {
+        if (node.key && (node.key === room.id || node.key.endsWith(`__room-${room.id}`))) {
+          return node.key;
+        }
+        if (node.children) {
+          const found = findRoomKey(node.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    const roomTreeKey = findRoomKey(treeData) || room.id;
+    setSelectedKey(roomTreeKey);
+
+    if (roomTreeKey.includes('__')) {
+      const segments = roomTreeKey.split('__');
+      let prefix = '';
+      const rootKey = treeViewMode === 'BUILDING_FIRST' ? 'root-university' : 'root-dept';
+      const ancestorKeys: string[] = [rootKey];
+      for (let i = 0; i < segments.length - 1; i++) {
+        prefix = prefix ? `${prefix}__${segments[i]}` : segments[i];
+        ancestorKeys.push(prefix);
+      }
+      setExpandedKeys((prev) => Array.from(new Set([...prev, ...ancestorKeys])));
+    }
+  };
 
   const roomAssets = useMemo(() => {
     if (!selectedRoom) return [];
@@ -209,7 +279,7 @@ export const OrganizationPage: React.FC = () => {
     return assets.filter((a) => a.roomId && roomIds.has(a.roomId)).length;
   }, [assets, selectedBuildingRooms]);
 
-  // Accordion Expand Handler (Supports both +/- icon and clicking on the node title text)
+  // Accordion Expand Handler (Supports +/- icon and clicking on the node title text)
   const handleExpand = (
     keys: string[],
     extra?: { expanded: boolean; node: any }
@@ -219,15 +289,27 @@ export const OrganizationPage: React.FC = () => {
       return;
     }
 
-    // Determine clicked key from extra or from keys diff
-    let clickedKey = String(extra?.node?.props?._key || extra?.node?.props?.dataRef?.key || extra?.node?.key || '');
     let isExpanded = extra?.expanded;
+    let clickedKey = '';
+
+    if (extra?.node) {
+      clickedKey = String(
+        extra.node.props?.eventKey ||
+        extra.node.props?._key ||
+        extra.node.props?.dataRef?.key ||
+        extra.node.key ||
+        ''
+      );
+    }
 
     if (!clickedKey) {
-      const added = keys.find((k) => !expandedKeys.includes(k));
-      const removed = expandedKeys.find((k) => !keys.includes(k));
-      clickedKey = added || removed || '';
-      isExpanded = Boolean(added);
+      if (keys.length > expandedKeys.length) {
+        clickedKey = keys.find((k) => !expandedKeys.includes(k)) || '';
+        isExpanded = true;
+      } else {
+        clickedKey = expandedKeys.find((k) => !keys.includes(k)) || '';
+        isExpanded = false;
+      }
     }
 
     if (!clickedKey) {
@@ -243,71 +325,42 @@ export const OrganizationPage: React.FC = () => {
       return;
     }
 
-    // User expanded a node in accordion mode:
-    if (treeViewMode === 'BUILDING_FIRST') {
-      // 1. Root University Node
-      if (clickedKey === 'root-university') {
-        setExpandedKeys((prev) => Array.from(new Set([...prev, 'root-university'])));
-        return;
+    // User expanded a node:
+    const rootKey = treeViewMode === 'BUILDING_FIRST' ? 'root-university' : 'root-dept';
+    const lastDelim = clickedKey.lastIndexOf('__');
+    const parentPrefix = lastDelim > -1 ? clickedKey.slice(0, lastDelim) : '';
+
+    setExpandedKeys((prev) => {
+      const nextSet = new Set<string>();
+      nextSet.add(rootKey);
+
+      // Add all ancestor prefixes of clickedKey
+      if (parentPrefix) {
+        let currentPrefix = '';
+        const segments = parentPrefix.split('__');
+        for (let i = 0; i < segments.length; i++) {
+          currentPrefix = currentPrefix ? `${currentPrefix}__${segments[i]}` : segments[i];
+          nextSet.add(currentPrefix);
+        }
       }
 
-      // 2. Building Node ('bld-...')
-      if (clickedKey.startsWith('bld-') && !clickedKey.includes('__dept-') && !clickedKey.includes('__unassigned')) {
-        setExpandedKeys((prev) => {
-          const nonBuildings = prev.filter((k) => !k.startsWith('bld-'));
-          return [...nonBuildings, clickedKey];
-        });
-        return;
+      // Filter previous expanded keys
+      for (const k of prev) {
+        if (k === rootKey || k === clickedKey) continue;
+        if (clickedKey.startsWith(k + '__')) {
+          nextSet.add(k);
+          continue;
+        }
+        const kLastDelim = k.lastIndexOf('__');
+        const kParentPrefix = kLastDelim > -1 ? k.slice(0, kLastDelim) : '';
+        if (kParentPrefix !== parentPrefix && !k.startsWith(parentPrefix + '__')) {
+          continue;
+        }
       }
 
-      // 3. Department / Faculty Node ('bld-...__dept-...' without '__chair-' and '__dekanat')
-      if (clickedKey.includes('__dept-') && !clickedKey.includes('__chair-') && !clickedKey.includes('__dekanat')) {
-        const bldPrefix = clickedKey.split('__dept-')[0]; // 'bld-{bldId}'
-        setExpandedKeys((prev) => {
-          const filtered = prev.filter((k) => {
-            if (k.startsWith(bldPrefix + '__dept-') || k.startsWith(bldPrefix + '__unassigned')) {
-              return false;
-            }
-            return true;
-          });
-          return [...filtered, clickedKey];
-        });
-        return;
-      }
-
-      // 4. Chair / Sub-unit Node ('...__chair-...' or '...__dekanat')
-      if (clickedKey.includes('__chair-') || clickedKey.includes('__dekanat')) {
-        const deptPrefix = clickedKey.includes('__chair-')
-          ? clickedKey.split('__chair-')[0]
-          : clickedKey.split('__dekanat')[0];
-        setExpandedKeys((prev) => {
-          const filtered = prev.filter((k) => {
-            if (k.startsWith(deptPrefix + '__chair-') || k.startsWith(deptPrefix + '__dekanat')) {
-              return false;
-            }
-            return true;
-          });
-          return [...filtered, clickedKey];
-        });
-        return;
-      }
-
-      setExpandedKeys(keys);
-    } else {
-      // DEPARTMENT_FIRST mode:
-      if (clickedKey === 'root-dept') {
-        setExpandedKeys((prev) => Array.from(new Set([...prev, 'root-dept'])));
-        return;
-      }
-      if (clickedKey.startsWith('dep-')) {
-        setExpandedKeys((prev) => {
-          const nonDepts = prev.filter((k) => !k.startsWith('dep-'));
-          return [...nonDepts, clickedKey];
-        });
-        return;
-      }
-      setExpandedKeys(keys);
-    }
+      nextSet.add(clickedKey);
+      return Array.from(nextSet);
+    });
   };
 
   // Tree data calculation: Default is 4-tier hierarchy: Bino -> Fakultet/Bo'lim -> Kafedra -> Xonalar
@@ -324,11 +377,11 @@ export const OrganizationPage: React.FC = () => {
               const chRooms = rooms.filter((r) => r.departmentId === chair.id || r.departmentName === chair.name);
               return {
                 title: `${chair.name} (${departmentTypeLabels[chair.type] || chair.type}${chRooms.length > 0 ? ` • ${chRooms.length} ta xona` : ''})`,
-                key: `dep-${chair.id}`,
+                key: `dept-${dep.id}__chair-${chair.id}`,
                 icon: <IconApps />,
                 children: chRooms.map((room) => ({
                   title: getRoomTreeTitle(room, true),
-                  key: room.id,
+                  key: `dept-${dep.id}__chair-${chair.id}__room-${room.id}`,
                   icon: <IconHome />,
                 })),
               };
@@ -338,7 +391,7 @@ export const OrganizationPage: React.FC = () => {
               .filter((r) => r.departmentId === dep.id || r.departmentName === dep.name)
               .map((room) => ({
                 title: getRoomTreeTitle(room, true),
-                key: room.id,
+                key: `dept-${dep.id}__room-${room.id}`,
                 icon: <IconHome />,
               }));
 
@@ -348,7 +401,7 @@ export const OrganizationPage: React.FC = () => {
 
             return {
               title: `${dep.name} (${departmentTypeLabels[dep.type] || dep.type || 'Tuzilma'}${depTotalRooms > 0 ? ` • ${depTotalRooms} ta xona` : ''})`,
-              key: `dep-${dep.id}`,
+              key: `dept-${dep.id}`,
               icon: <IconBranch />,
               children: [...chairNodes, ...directRoomNodes],
             };
@@ -497,14 +550,14 @@ export const OrganizationPage: React.FC = () => {
           icon: <IconApps />,
           children: chairRooms.map((r) => ({
             title: getRoomTreeTitle(r, false),
-            key: r.id,
+            key: `bld-${bld.id}__dept-${dept.id}__chair-${chair.id}__room-${r.id}`,
             icon: <IconHome />,
           })),
         }));
 
         const directRoomNodes = directRooms.map((r) => ({
           title: getRoomTreeTitle(r, false),
-          key: r.id,
+          key: `bld-${bld.id}__dept-${dept.id}__room-${r.id}`,
           icon: <IconHome />,
         }));
 
@@ -549,7 +602,7 @@ export const OrganizationPage: React.FC = () => {
                 icon: <IconBranch />,
                 children: unassignedRooms.map((r) => ({
                   title: getRoomTreeTitle(r, false),
-                  key: r.id,
+                  key: `bld-${bld.id}__unassigned__room-${r.id}`,
                   icon: <IconHome />,
                 })),
               },
@@ -1041,13 +1094,13 @@ export const OrganizationPage: React.FC = () => {
             deleteTooltip={isSuperAdmin ? 'O‘chirish' : 'O‘chirish faqat Super Admin uchun'}
             rightPadding={16}
           >
-            <Tooltip content={canTransferRoom ? 'Xona va jihozlar javobgarligini topshirish (OS-1)' : 'Topshirish faqat Komendant yoki Super Admin uchun'}>
+            <Tooltip content={getTransferTooltip(record)}>
               <Button
                 size="small"
                 type="outline"
                 icon={<IconSwap />}
                 style={{ borderRadius: 0 }}
-                disabled={!canTransferRoom}
+                disabled={!canTransferSpecificRoom(record)}
                 onClick={() => setTransferringRoom(record)}
               />
             </Tooltip>
@@ -1284,7 +1337,13 @@ export const OrganizationPage: React.FC = () => {
                     <Switch
                       size="small"
                       checked={accordionMode}
-                      onChange={(val) => setAccordionMode(val)}
+                      onChange={(val) => {
+                        setAccordionMode(val);
+                        if (val) {
+                          const rootKey = treeViewMode === 'BUILDING_FIRST' ? 'root-university' : 'root-dept';
+                          setExpandedKeys([rootKey]);
+                        }
+                      }}
                     />
                   </Space>
                 </div>
@@ -1298,6 +1357,7 @@ export const OrganizationPage: React.FC = () => {
               </div>
 
               <Tree
+                key={treeViewMode}
                 treeData={treeData}
                 selectedKeys={selectedKey ? [selectedKey] : []}
                 expandedKeys={expandedKeys}
@@ -1349,13 +1409,13 @@ export const OrganizationPage: React.FC = () => {
                       </div>
 
                       <Space wrap>
-                        <Tooltip content={canTransferRoom ? 'Xona va jihozlar javobgarligini topshirish (OS-1)' : 'Faqat Komendant yoki Super Admin uchun'}>
+                        <Tooltip content={getTransferTooltip(selectedRoom)}>
                           <Button
                             size="small"
                             type="primary"
                             icon={<IconSwap />}
                             style={{ borderRadius: 0 }}
-                            disabled={!canTransferRoom}
+                            disabled={!canTransferSpecificRoom(selectedRoom)}
                             onClick={() => setTransferringRoom(selectedRoom)}
                           >
                             Xona javobgarligini topshirish
@@ -1652,18 +1712,18 @@ export const OrganizationPage: React.FC = () => {
                                     size="mini"
                                     type="primary"
                                     style={{ borderRadius: 0 }}
-                                    onClick={() => setSelectedKey(r.id)}
+                                    onClick={() => selectRoomInTree(r)}
                                   >
                                     Ko‘rish
                                   </Button>
                                 </Tooltip>
-                                <Tooltip content={canTransferRoom ? 'Xona va jihozlar javobgarligini topshirish (OS-1)' : 'Faqat Komendant yoki Super Admin uchun'}>
+                                <Tooltip content={getTransferTooltip(r)}>
                                   <Button
                                     size="mini"
                                     type="outline"
                                     icon={<IconSwap />}
                                     style={{ borderRadius: 0 }}
-                                    disabled={!canTransferRoom}
+                                    disabled={!canTransferSpecificRoom(r)}
                                     onClick={() => setTransferringRoom(r)}
                                   />
                                 </Tooltip>
@@ -1942,18 +2002,18 @@ export const OrganizationPage: React.FC = () => {
                                     size="mini"
                                     type="primary"
                                     style={{ borderRadius: 0 }}
-                                    onClick={() => setSelectedKey(r.id)}
+                                    onClick={() => selectRoomInTree(r)}
                                   >
                                     Ko‘rish
                                   </Button>
                                 </Tooltip>
-                                <Tooltip content={canTransferRoom ? 'Xona va jihozlar javobgarligini topshirish (OS-1)' : 'Faqat Komendant yoki Super Admin uchun'}>
+                                <Tooltip content={getTransferTooltip(r)}>
                                   <Button
                                     size="mini"
                                     type="outline"
                                     icon={<IconSwap />}
                                     style={{ borderRadius: 0 }}
-                                    disabled={!canTransferRoom}
+                                    disabled={!canTransferSpecificRoom(r)}
                                     onClick={() => setTransferringRoom(r)}
                                   />
                                 </Tooltip>

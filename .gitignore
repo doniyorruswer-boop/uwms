@@ -95,3 +95,4 @@ Thumbs.db
 *.sln
 *.sw?
 *.bak
+/recordings/

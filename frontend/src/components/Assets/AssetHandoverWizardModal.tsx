@@ -585,13 +585,13 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
       }
       visible={visible}
       onCancel={onClose}
-      style={{ width: 840 }}
+      style={{ width: 840, maxWidth: '95vw', top: 32, borderRadius: 0 }}
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Button onClick={onClose}>Bekor qilish</Button>
+          <Button onClick={onClose} style={{ borderRadius: 0 }}>Bekor qilish</Button>
           <Space>
             {currentStep === 1 && (
-              <Button icon={<IconLeft />} onClick={() => setCurrentStep(0)}>
+              <Button icon={<IconLeft />} onClick={() => setCurrentStep(0)} style={{ borderRadius: 0 }}>
                 Orqaga (Yo‘nalishni o‘zgartirish)
               </Button>
             )}
@@ -600,6 +600,7 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
                 type="primary"
                 icon={<IconRight />}
                 onClick={handleProceedToStep2}
+                style={{ borderRadius: 0 }}
               >
                 Keyingi: Ishtirokchilar va Izoh
               </Button>
@@ -610,6 +611,7 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
                 icon={<IconCheckCircle />}
                 loading={createHandoverMutation.isPending}
                 onClick={handleSubmit}
+                style={{ borderRadius: 0 }}
               >
                 Topshirish arizasini yuborish (SUBMIT)
               </Button>
@@ -618,15 +620,22 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
         </div>
       }
     >
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 16 }}>
         <Steps current={currentStep} size="small">
           <Step title="1-Qadam: Aktivlar va Harakat (Destination)" description="Aktivlar va yo‘nalishni tanlash" />
           <Step title="2-Qadam: Ishtirokchilar va Izoh" description="Komendant, hisobchi va topshirish asosi" />
         </Steps>
       </div>
 
-      {/* 1-QADAM: AKTIVLAR VA HARAKAT */}
-      {currentStep === 0 && (
+      <div
+        style={{
+          maxHeight: 'calc(82vh - 180px)',
+          overflowY: 'auto',
+          paddingRight: 8,
+        }}
+      >
+        {/* 1-QADAM: AKTIVLAR VA HARAKAT */}
+        {currentStep === 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Alert
             type="info"
@@ -1447,6 +1456,7 @@ export const AssetHandoverWizardModal: React.FC<AssetHandoverWizardModalProps> =
           />
         </div>
       )}
+      </div>
     </Modal>
   );
 };

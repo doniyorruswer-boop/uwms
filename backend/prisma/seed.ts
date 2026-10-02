@@ -14,6 +14,7 @@ import {
   BackupStatus,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { seedNamDTUDepartments } from './seed-departments';
 
 const prisma = new PrismaClient();
 
@@ -467,200 +468,28 @@ async function main() {
   }
 
   // =========================================================================
-  // 1. TASHKILIY TUZILMA (FAKULTETLAR, KAFEDRALAR VA BO'LIMLAR)
+  // 1. TASHKILIY TUZILMA (NAMDTU RASMIY FAKULTETLARI, KAFEDRALARI VA BO'LIMLARI)
   // =========================================================================
-  console.log('1. Seeding faculties, departments and administration...');
-
-  // 1.1 Fakultetlar
-  const itFaculty = await prisma.department.upsert({
-    where: { code: 'IT_FACULTY' },
-    update: { name: 'Kompyuter Injiniringi Fakulteti', type: 'FACULTY' },
-    create: {
-      name: 'Kompyuter Injiniringi Fakulteti',
-      code: 'IT_FACULTY',
-      type: 'FACULTY',
-    },
-  });
-
-  const econFaculty = await prisma.department.upsert({
-    where: { code: 'ECON_FACULTY' },
-    update: { name: 'Raqamli Iqtisodiyot va Moliya Fakulteti', type: 'FACULTY' },
-    create: {
-      name: 'Raqamli Iqtisodiyot va Moliya Fakulteti',
-      code: 'ECON_FACULTY',
-      type: 'FACULTY',
-    },
-  });
-
-  const scienceFaculty = await prisma.department.upsert({
-    where: { code: 'SCIENCE_FACULTY' },
-    update: { name: 'Tabiiy va Aniq Fanlar Fakulteti', type: 'FACULTY' },
-    create: {
-      name: 'Tabiiy va Aniq Fanlar Fakulteti',
-      code: 'SCIENCE_FACULTY',
-      type: 'FACULTY',
-    },
-  });
-
-  // 1.2 Kafedralar
-  const seChair = await prisma.department.upsert({
-    where: { code: 'SE_CHAIR' },
-    update: { name: 'Dasturiy Injiniring Kafedrasi', parentId: itFaculty.id },
-    create: {
-      name: 'Dasturiy Injiniring Kafedrasi',
-      code: 'SE_CHAIR',
-      type: 'CHAIR',
-      parentId: itFaculty.id,
-    },
-  });
-
-  const cyberChair = await prisma.department.upsert({
-    where: { code: 'CYBER_CHAIR' },
-    update: { name: 'Kiberxavfsizlik Kafedrasi', parentId: itFaculty.id },
-    create: {
-      name: 'Kiberxavfsizlik Kafedrasi',
-      code: 'CYBER_CHAIR',
-      type: 'CHAIR',
-      parentId: itFaculty.id,
-    },
-  });
-
-  const aiChair = await prisma.department.upsert({
-    where: { code: 'AI_CHAIR' },
-    update: { name: 'Sun’iy Intellekt va Katta Ma’lumotlar Kafedrasi', parentId: itFaculty.id },
-    create: {
-      name: 'Sun’iy Intellekt va Katta Ma’lumotlar Kafedrasi',
-      code: 'AI_CHAIR',
-      type: 'CHAIR',
-      parentId: itFaculty.id,
-    },
-  });
-
-  const accChair = await prisma.department.upsert({
-    where: { code: 'ACC_CHAIR' },
-    update: { name: 'Buxgalteriya Hisobi va Audit Kafedrasi', parentId: econFaculty.id },
-    create: {
-      name: 'Buxgalteriya Hisobi va Audit Kafedrasi',
-      code: 'ACC_CHAIR',
-      type: 'CHAIR',
-      parentId: econFaculty.id,
-    },
-  });
-
-  const finChair = await prisma.department.upsert({
-    where: { code: 'FIN_CHAIR' },
-    update: { name: 'Moliya va Bank Ishi Kafedrasi', parentId: econFaculty.id },
-    create: {
-      name: 'Moliya va Bank Ishi Kafedrasi',
-      code: 'FIN_CHAIR',
-      type: 'CHAIR',
-      parentId: econFaculty.id,
-    },
-  });
-
-  const mathChair = await prisma.department.upsert({
-    where: { code: 'MATH_CHAIR' },
-    update: { name: 'Oliy Matematika va Matematik Modellashtirish Kafedrasi', parentId: scienceFaculty.id },
-    create: {
-      name: 'Oliy Matematika va Matematik Modellashtirish Kafedrasi',
-      code: 'MATH_CHAIR',
-      type: 'CHAIR',
-      parentId: scienceFaculty.id,
-    },
-  });
-
-  const physChair = await prisma.department.upsert({
-    where: { code: 'PHYS_CHAIR' },
-    update: { name: 'Umumiy Fizika va Yarimo‘tkazgichlar Kafedrasi', parentId: scienceFaculty.id },
-    create: {
-      name: 'Umumiy Fizika va Yarimo‘tkazgichlar Kafedrasi',
-      code: 'PHYS_CHAIR',
-      type: 'CHAIR',
-      parentId: scienceFaculty.id,
-    },
-  });
-
-  const chemChair = await prisma.department.upsert({
-    where: { code: 'CHEM_CHAIR' },
-    update: { name: 'Noorganik Kimyo va Ekologiya Kafedrasi', parentId: scienceFaculty.id },
-    create: {
-      name: 'Noorganik Kimyo va Ekologiya Kafedrasi',
-      code: 'CHEM_CHAIR',
-      type: 'CHAIR',
-      parentId: scienceFaculty.id,
-    },
-  });
-
-  // 1.3 Ma'muriy bo'limlar
-  const rectorate = await prisma.department.upsert({
-    where: { code: 'REKTORAT' },
-    update: { name: 'Universitet Rektorati va Rahbariyat' },
-    create: {
-      name: 'Universitet Rektorati va Rahbariyat',
-      code: 'REKTORAT',
-      type: 'RECTORATE',
-    },
-  });
-
-  const accountingDept = await prisma.department.upsert({
-    where: { code: 'BUXGALTERIYA' },
-    update: { name: 'Buxgalteriya va Moliya-iqtisodiyot bo‘limi' },
-    create: {
-      name: 'Buxgalteriya va Moliya-iqtisodiyot bo‘limi',
-      code: 'BUXGALTERIYA',
-      type: 'DEPARTMENT',
-    },
-  });
-
-  const itCenter = await prisma.department.upsert({
-    where: { code: 'ATM_CENTER' },
-    update: { name: 'Axborot Texnologiyalari Markazi (ATM)' },
-    create: {
-      name: 'Axborot Texnologiyalari Markazi (ATM)',
-      code: 'ATM_CENTER',
-      type: 'DIVISION',
-    },
-  });
-
-  const hrDept = await prisma.department.upsert({
-    where: { code: 'KADRLAR' },
-    update: { name: 'Inson Resurslari va Kadrlar bo‘limi' },
-    create: {
-      name: 'Inson Resurslari va Kadrlar bo‘limi',
-      code: 'KADRLAR',
-      type: 'DEPARTMENT',
-    },
-  });
-
-  const chancelleryDept = await prisma.department.upsert({
-    where: { code: 'DEVONXONA' },
-    update: { name: 'Devonxona va Tashkiliy Nazorat bo‘limi' },
-    create: {
-      name: 'Devonxona va Tashkiliy Nazorat bo‘limi',
-      code: 'DEVONXONA',
-      type: 'DEPARTMENT',
-    },
-  });
-
-  const facilitiesDept = await prisma.department.upsert({
-    where: { code: 'XOJALIK' },
-    update: { name: 'Xo‘jalik Bo‘limi va Komendantlik' },
-    create: {
-      name: 'Xo‘jalik Bo‘limi va Komendantlik',
-      code: 'XOJALIK',
-      type: 'DEPARTMENT',
-    },
-  });
-
-  const libraryDept = await prisma.department.upsert({
-    where: { code: 'ARM_LIBRARY' },
-    update: { name: 'Axborot-Resurs Markazi (ARM / Kutubxona)' },
-    create: {
-      name: 'Axborot-Resurs Markazi (ARM / Kutubxona)',
-      code: 'ARM_LIBRARY',
-      type: 'LIBRARY',
-    },
-  });
+  const {
+    itFaculty,
+    econFaculty,
+    scienceFaculty,
+    seChair,
+    cyberChair,
+    aiChair,
+    accChair,
+    finChair,
+    mathChair,
+    physChair,
+    chemChair,
+    rectorate,
+    accountingDept,
+    itCenter,
+    hrDept,
+    chancelleryDept,
+    facilitiesDept,
+    libraryDept,
+  } = await seedNamDTUDepartments(prisma);
 
   // =========================================================================
   // 2. FOYDALANUVCHILAR VA ROLLAR (RBAC)

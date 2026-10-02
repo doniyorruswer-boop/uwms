@@ -14,35 +14,35 @@ export class IntegrationsController {
   constructor(private readonly integrationsService: IntegrationsService) {}
 
   @Get('hemis/status')
-  @Roles('SUPER_ADMIN')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'CHIEF_ACCOUNTANT')
   @ApiOperation({ summary: 'HEMIS integratsiyasi holati va statistikasi' })
   async getHemisStatus() {
     return this.integrationsService.getHemisStatus();
   }
 
   @Post('hemis/test-connection')
-  @Roles('SUPER_ADMIN')
+  @Roles('SUPER_ADMIN', 'ADMIN')
   @ApiOperation({ summary: 'HEMIS serveriga ulanishni tekshirish (Ping)' })
   async testHemisConnection(@Body() dto: HemisTestConnectionDto) {
     return this.integrationsService.testHemisConnection(dto);
   }
 
   @Post('hemis/sync')
-  @Roles('SUPER_ADMIN')
+  @Roles('SUPER_ADMIN', 'ADMIN')
   @ApiOperation({ summary: 'HEMIS tizimi bilan kafedra va xonalarni sinxronlashtirish' })
   async syncHemis(@Request() req: any, @Body() dto: HemisSyncDto) {
     return this.integrationsService.syncHemis(dto, req.user.id);
   }
 
   @Get('hemis/logs')
-  @Roles('SUPER_ADMIN')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'CHIEF_ACCOUNTANT')
   @ApiOperation({ summary: 'HEMIS sinxronizatsiya loglari tarixi' })
   async getHemisLogs(@Query('limit') limit?: number) {
     return this.integrationsService.getHemisSyncLogs(limit);
   }
 
   @Get('uzasbo/export')
-  @Roles('SUPER_ADMIN')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'CHIEF_ACCOUNTANT')
   @ApiOperation({ summary: '1C / UzASBO buxgalteriya formati bo‘yicha eksport qilish' })
   async exportUzAsbo(@Request() req: any, @Query() query: UzAsboExportQueryDto) {
     return this.integrationsService.exportUzAsbo(query, req.user.id);

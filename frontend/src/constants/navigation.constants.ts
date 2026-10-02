@@ -64,7 +64,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     path: '/write-offs',
     label: 'Spisanie (OS-4)',
     pageTitle: 'Hisobdan Chiqarish Komissiyasi (OS-4 Spisanie)',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'HEAD_WAREHOUSE', 'MOL', 'AUDITOR'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'HEAD_WAREHOUSE', 'MOL', 'AUDITOR', 'CHIEF_ACCOUNTANT'],
   },
   {
     key: 'depreciation',
@@ -113,7 +113,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     path: '/quotas',
     label: 'Kafedralar va Bo‘limlar Kvotasi',
     pageTitle: 'Kafedralar va Bo‘limlar Oylik Sarf Kvotalari Nazorati',
-    allowedRoles: ['VICE_RECTOR_FINANCE', 'SUPER_ADMIN', 'ADMIN'],
+    allowedRoles: ['VICE_RECTOR_FINANCE', 'SUPER_ADMIN', 'ADMIN', 'CHIEF_ACCOUNTANT'],
   },
   {
     key: 'systemAudit',
@@ -127,7 +127,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     path: '/integrations',
     label: 'Integratsiyalar',
     pageTitle: 'HEMIS va 1C / UzASBO Integratsiya Shlyuzi',
-    allowedRoles: ['SUPER_ADMIN'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'CHIEF_ACCOUNTANT'],
   },
   {
     key: 'suppliers',
