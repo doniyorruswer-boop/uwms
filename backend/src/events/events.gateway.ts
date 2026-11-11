@@ -54,13 +54,16 @@ import { PrismaService } from '../prisma/prisma.service';
         return callback(null, true);
       }
 
-      // 4. Railway deploy muhiti (*.up.railway.app, *.railway.app)
+      // 4. Railway, Render, Vercel deploy muhitlari (*.onrender.com, *.railway.app, *.vercel.app)
       try {
         const url = new URL(origin);
         if (
+          url.hostname.endsWith('.onrender.com') ||
           url.hostname.endsWith('.railway.app') ||
           url.hostname.endsWith('.up.railway.app') ||
-          url.hostname === 'localhost'
+          url.hostname.endsWith('.vercel.app') ||
+          url.hostname === 'localhost' ||
+          url.hostname === '127.0.0.1'
         ) {
           return callback(null, true);
         }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Modal,
   Typography,
@@ -60,13 +60,19 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
   const [connectedDevice, setConnectedDevice] = useState<string | null>(null);
 
   const timerIntervalRef = useRef<any>(null);
+  const pollingIntervalRef = useRef<any>(null);
   const autoCloseTimeoutRef = useRef<any>(null);
   const currentRoomsRef = useRef<string[]>([]);
+  const isCompletedRef = useRef<boolean>(false);
 
-  const cleanupTimers = () => {
+  const cleanupTimers = useCallback(() => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
+    }
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
     if (autoCloseTimeoutRef.current) {
       clearTimeout(autoCloseTimeoutRef.current);
@@ -74,9 +80,54 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
     }
     currentRoomsRef.current.forEach((room) => leaveRoom(room));
     currentRoomsRef.current = [];
-  };
+  }, [leaveRoom]);
+
+  const handleClose = useCallback(() => {
+    if (session?.sessionId && status?.status !== 'SIGNED') {
+      apiClient.post(API_ENDPOINTS.SIGNING_SESSIONS.CANCEL(session.sessionId)).catch(() => {});
+    }
+    cleanupTimers();
+    onClose();
+  }, [session?.sessionId, status?.status, cleanupTimers, onClose]);
+
+  const handleSignatureCompleted = useCallback(
+    (data: any) => {
+      if (isCompletedRef.current) return;
+      isCompletedRef.current = true;
+      cleanupTimers();
+
+      const signedStatusResult: SigningSessionStatusResult = {
+        sessionId: session?.sessionId || data.sessionId,
+        status: 'SIGNED',
+        remainingSeconds: 0,
+        docNumber: session?.docNumber || data.docNumber,
+        title: session?.title || data.title,
+        docType: session?.docType || data.docType,
+        ...data,
+      };
+
+      setStatus(signedStatusResult);
+      Message.success('Hujjat mobil biometrika orqali muvaffaqiyatli imzolandi!');
+
+      if (onSuccess) {
+        onSuccess(signedStatusResult);
+      }
+      if (onOpenOfficialDoc) {
+        onOpenOfficialDoc(signedStatusResult);
+      }
+
+      // Ssenariy 5: Kompyuterda QR modal avtomatik yopilib rasmiy hujjatga yo‘naltirish
+      if (autoCloseOnSuccess) {
+        autoCloseTimeoutRef.current = setTimeout(() => {
+          handleClose();
+        }, 1000);
+      }
+    },
+    [cleanupTimers, session, onSuccess, onOpenOfficialDoc, autoCloseOnSuccess, handleClose],
+  );
 
   const startSession = async () => {
+    isCompletedRef.current = false;
     cleanupTimers();
     setInitLoading(true);
     setError(null);
@@ -107,7 +158,7 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
     }
   };
 
-  // Dedicated Socket Room & Listener Subscription lifecycle
+  // 1. Dedicated Socket Room & Listener Subscription lifecycle
   useEffect(() => {
     if (!socket || !session?.sessionId) return;
 
@@ -121,7 +172,7 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
       currentRoomsRef.current.push(tokenRoom);
     }
 
-    // 1. Instant Handshake: Mobil telefon QR-kodni skanerlagan zahoti
+    // Handshake: Mobil telefon QR-kodni skanerlagan zahoti
     const handleDeviceConnected = (data: any) => {
       setStatus((prev) => ({
         sessionId: session.sessionId,
@@ -138,38 +189,7 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
       Message.info('📱 Mobil telefon ulandi, biometrik tasdiq kutilmoqda...');
     };
 
-    // 2. Instant Handshake: Mobil biometrika (TouchID / FaceID) tasdiqlanganda
-    const handleSignatureCompleted = (data: any) => {
-      cleanupTimers();
-      const signedStatusResult: SigningSessionStatusResult = {
-        sessionId: session.sessionId,
-        status: 'SIGNED',
-        remainingSeconds: session.remainingSeconds || 60,
-        docNumber: session.docNumber,
-        title: session.title,
-        docType: session.docType,
-        ...data,
-      };
-
-      setStatus(signedStatusResult);
-      Message.success('Hujjat mobil biometrika orqali muvaffaqiyatli imzolandi!');
-
-      if (onSuccess) {
-        onSuccess(signedStatusResult);
-      }
-      if (onOpenOfficialDoc) {
-        onOpenOfficialDoc(signedStatusResult);
-      }
-
-      // Ssenariy 5: Kompyuterda QR modal avtomatik yopilib rasmiy hujjatga yo‘naltirish
-      if (autoCloseOnSuccess) {
-        autoCloseTimeoutRef.current = setTimeout(() => {
-          handleClose();
-        }, 1200);
-      }
-    };
-
-    // 3. Sessiya bekor qilinganda
+    // Sessiya bekor qilinganda
     const handleSessionCancelled = () => {
       cleanupTimers();
       setStatus((prev) => (prev ? { ...prev, status: 'CANCELLED' } : null));
@@ -186,7 +206,38 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
       if (tokenRoom) leaveRoom(tokenRoom);
       leaveRoom(sessionRoom);
     };
-  }, [socket, session?.sessionId, session?.sessionToken]);
+  }, [socket, session?.sessionId, session?.sessionToken, handleSignatureCompleted, cleanupTimers, joinRoom, leaveRoom]);
+
+  // 2. Continuous Polling Fallback (every 1.2s) - guarantees instant update even if WebSockets disconnect
+  useEffect(() => {
+    if (!session?.sessionId || !visible) return;
+
+    pollingIntervalRef.current = setInterval(async () => {
+      if (isCompletedRef.current) return;
+      try {
+        const res = await apiClient.get(API_ENDPOINTS.SIGNING_SESSIONS.STATUS(session.sessionId));
+        const data = res.data;
+        if (data?.status === 'SCANNED') {
+          setStatus((prev) => (prev?.status === 'SIGNED' ? prev : { ...(prev || {}), ...data }));
+          if (data?.deviceInfo) setConnectedDevice(data.deviceInfo);
+        } else if (data?.status === 'SIGNED') {
+          handleSignatureCompleted(data);
+        } else if (data?.status === 'CANCELLED' || data?.status === 'EXPIRED') {
+          cleanupTimers();
+          setStatus(data);
+        }
+      } catch {
+        // Silent catch during periodic polling
+      }
+    }, 1200);
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [session?.sessionId, visible, handleSignatureCompleted, cleanupTimers]);
 
   useEffect(() => {
     if (visible) {
@@ -199,14 +250,6 @@ export const QRPairingModal: React.FC<QRPairingModalProps> = ({
     }
     return () => cleanupTimers();
   }, [visible, payload.docNumber]);
-
-  const handleClose = () => {
-    if (session?.sessionId && status?.status !== 'SIGNED') {
-      apiClient.post(API_ENDPOINTS.SIGNING_SESSIONS.CANCEL(session.sessionId)).catch(() => {});
-    }
-    cleanupTimers();
-    onClose();
-  };
 
   const isSigned = status?.status === 'SIGNED';
   const isScanned = status?.status === 'SCANNED';
