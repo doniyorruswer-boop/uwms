@@ -134,7 +134,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     path: '/suppliers',
     label: 'Ta’minotchilar',
     pageTitle: 'Ta’minotchilar va Kontragentlar Shartnomalari',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'HEAD_WAREHOUSE', 'CHIEF_ACCOUNTANT', 'AUDITOR'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'HEAD_WAREHOUSE', 'PROCUREMENT_OFFICER', 'CHIEF_ACCOUNTANT', 'AUDITOR', 'RECTOR', 'VICE_RECTOR_FINANCE'],
   },
   {
     key: 'users',

@@ -5,6 +5,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SystemAuditService } from '../system-audit/system-audit.service';
 import { EventsGateway } from '../events/events.gateway';
 import * as bcrypt from 'bcrypt';
+import {
+  generateBase32Secret,
+  generateOtpAuthUri,
+  verifyTotpToken,
+  generateRecoveryCodes,
+} from './utils/totp.util';
 
 @Injectable()
 export class AuthService {
@@ -223,5 +229,158 @@ export class AuthService {
       message: 'Parol muvaffaqiyatli yangilandi',
       mustChangePassword: false,
     };
+  }
+
+  // =========================================================================
+  // GOOGLE AUTHENTICATOR (TOTP RFC 6238) 2FA METHODS
+  // =========================================================================
+
+  async getTwoFactorStatus(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true, fullName: true, role: true, twoFactorEnabled: true, twoFactorRecoveryCodes: true },
+    });
+    if (!user) throw new UnauthorizedException('Foydalanuvchi topilmadi');
+    return {
+      enabled: user.twoFactorEnabled,
+      recoveryCodesCount: user.twoFactorRecoveryCodes?.length || 0,
+      username: user.username,
+      fullName: user.fullName,
+      role: user.role,
+    };
+  }
+
+  async setupTwoFactor(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Foydalanuvchi topilmadi');
+
+    const secret = generateBase32Secret(20);
+    const otpAuthUri = generateOtpAuthUri(
+      `${user.username} (${user.fullName})`,
+      'UWMS Universitet',
+      secret,
+    );
+
+    return {
+      secret,
+      otpAuthUri,
+      qrCodeUri: otpAuthUri,
+      issuer: 'UWMS Universitet',
+      account: user.username,
+    };
+  }
+
+  async enableTwoFactor(userId: string, secret: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Foydalanuvchi topilmadi');
+
+    const isValid = verifyTotpToken(code, secret);
+    if (!isValid) {
+      throw new BadRequestException('Google Authenticator kodi noto‘g‘ri yoki muddati o‘tgan!');
+    }
+
+    const recoveryCodes = generateRecoveryCodes(8);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        twoFactorEnabled: true,
+        twoFactorSecret: secret,
+        twoFactorRecoveryCodes: recoveryCodes,
+      },
+    });
+
+    await this.systemAuditService.log({
+      action: 'TWO_FACTOR_ENABLED',
+      entity: 'User',
+      entityId: userId,
+      userId,
+      details: {
+        username: user.username,
+        role: user.role,
+        message: 'Foydalanuvchi Google Authenticator 2FA himoyasini yoqdi',
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Google Authenticator 2FA muvaffaqiyatli yoqildi!',
+      recoveryCodes,
+    };
+  }
+
+  async disableTwoFactor(userId: string, password: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Foydalanuvchi topilmadi');
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      throw new BadRequestException('Parol noto‘g‘ri kiritildi!');
+    }
+
+    if (user.twoFactorSecret) {
+      const isTotpValid = verifyTotpToken(code, user.twoFactorSecret);
+      const isRecoveryValid = user.twoFactorRecoveryCodes?.includes(code.trim().toUpperCase());
+      if (!isTotpValid && !isRecoveryValid) {
+        throw new BadRequestException('Google Authenticator yoki zaxira kodi noto‘g‘ri!');
+      }
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        twoFactorEnabled: false,
+        twoFactorSecret: null,
+        twoFactorRecoveryCodes: [],
+      },
+    });
+
+    await this.systemAuditService.log({
+      action: 'TWO_FACTOR_DISABLED',
+      entity: 'User',
+      entityId: userId,
+      userId,
+      details: {
+        username: user.username,
+        role: user.role,
+        message: 'Google Authenticator 2FA o‘chirildi',
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Google Authenticator 2FA o‘chirildi',
+    };
+  }
+
+  async verifyTwoFactorForAction(userId: string, code?: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { twoFactorEnabled: true, twoFactorSecret: true, twoFactorRecoveryCodes: true },
+    });
+    if (!user || !user.twoFactorEnabled) {
+      return true; // 2FA is not enabled on this account
+    }
+
+    if (!code || !code.trim()) {
+      throw new BadRequestException('Ushbu amalni tasdiqlash uchun Google Authenticator 2FA kodi kiritilishi shart!');
+    }
+
+    const cleanCode = code.trim();
+    if (user.twoFactorSecret && verifyTotpToken(cleanCode, user.twoFactorSecret)) {
+      return true;
+    }
+
+    // Check if recovery code was used
+    if (user.twoFactorRecoveryCodes?.includes(cleanCode.toUpperCase())) {
+      const updatedCodes = user.twoFactorRecoveryCodes.filter((c) => c !== cleanCode.toUpperCase());
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { twoFactorRecoveryCodes: updatedCodes },
+      });
+      return true;
+    }
+
+    throw new BadRequestException('Google Authenticator 2FA kodi noto‘g‘ri yoki muddati o‘tgan!');
   }
 }

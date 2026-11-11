@@ -24,7 +24,14 @@ import { QuerySuppliersDto } from './dto/query-suppliers.dto';
 @ApiTags('Suppliers')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.CHIEF_ACCOUNTANT, RoleType.AUDITOR)
+@Roles(
+  RoleType.HEAD_WAREHOUSE,
+  RoleType.SUPER_ADMIN,
+  RoleType.ADMIN,
+  RoleType.CHIEF_ACCOUNTANT,
+  RoleType.AUDITOR,
+  RoleType.PROCUREMENT_OFFICER,
+)
 @Controller('api/suppliers')
 export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
@@ -42,7 +49,7 @@ export class SuppliersController {
   }
 
   @Get('next-codes')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.PROCUREMENT_OFFICER)
   @ApiOperation({ summary: 'Navbatdagi unikal INN, shartnoma va faktura kodlarini olish' })
   async getNextCodes() {
     return this.suppliersService.getNextCodes();
@@ -55,14 +62,14 @@ export class SuppliersController {
   }
 
   @Post()
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.PROCUREMENT_OFFICER)
   @ApiOperation({ summary: 'Yangi ta’minotchi qo‘shish' })
   async createSupplier(@Body() dto: CreateSupplierDto, @Request() req: any) {
     return this.suppliersService.createSupplier(dto, req.user?.id);
   }
 
   @Put(':id')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.PROCUREMENT_OFFICER)
   @ApiOperation({ summary: 'Ta’minotchi ma’lumotlarini tahrirlash' })
   async updateSupplier(
     @Param('id') id: string,
@@ -93,7 +100,7 @@ export class SuppliersController {
   }
 
   @Post(':id/invoices')
-  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  @Roles(RoleType.HEAD_WAREHOUSE, RoleType.SUPER_ADMIN, RoleType.ADMIN, RoleType.PROCUREMENT_OFFICER)
   @ApiOperation({ summary: 'Shartnoma doirasida yangi hisob-faktura kiritish' })
   async createInvoice(
     @Param('id') id: string,

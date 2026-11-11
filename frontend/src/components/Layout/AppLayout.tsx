@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Button, Tag, Avatar, Tooltip, Space, Popconfirm, Input, Dropdown, Badge } from '@arco-design/web-react';
+import { Layout, Menu, Button, Tag, Avatar, Tooltip, Space, Popconfirm, Input, Dropdown, Badge, Divider } from '@arco-design/web-react';
 import {
   IconDashboard,
   IconDesktop,
@@ -42,6 +42,7 @@ import { APP_CONFIG, ROLE_CONFIG, getPageTitleByPath, DESIGN_TOKENS, NAVIGATION_
 import { NotificationPopover } from '../Notifications/NotificationPopover';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ForcePasswordChangeModal } from '../Auth/ForcePasswordChangeModal';
+import { TwoFactorSetupModal } from '../Auth/TwoFactorSetupModal';
 import { GlobalSearchModal } from '../Search/GlobalSearchModal';
 import { useTranslation } from 'react-i18next';
 
@@ -70,6 +71,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const [tutorialModalVisible, setTutorialModalVisible] = useState(false);
+  const [twoFactorModalVisible, setTwoFactorModalVisible] = useState(false);
   const { data: inbox } = useInboxQuery({ refetchInterval: 60000 });
   const pendingTasksCount = inbox?.summary?.totalPendingCount || 0;
 
@@ -454,24 +456,65 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             )}
 
             {/* User profile */}
-            <div
-              onClick={() => {
-                if (isMobile) setProfileDrawerVisible(true);
-              }}
-              style={{ cursor: isMobile ? 'pointer' : 'default', display: 'flex', alignItems: 'center' }}
-            >
-              <Space size="small">
-                <Avatar size={34} style={{ backgroundColor: '#165DFF', borderRadius: 0 }}>
-                  <IconUser />
-                </Avatar>
-                <div className="uwms-header-user-info" style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-                  <span style={{ fontSize: '13px', fontWeight: 600 }}>{user?.fullName || 'Foydalanuvchi'}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--color-text-3)' }}>
-                    {user?.departmentName || 'Markaziy Bo‘lim'}
-                  </span>
+            {isMobile ? (
+              <div
+                onClick={() => setProfileDrawerVisible(true)}
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              >
+                <Space size="small">
+                  <Avatar size={34} style={{ backgroundColor: '#165DFF', borderRadius: 0 }}>
+                    <IconUser />
+                  </Avatar>
+                  <div className="uwms-header-user-info" style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600 }}>{user?.fullName || 'Foydalanuvchi'}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-3)' }}>
+                      {user?.departmentName || 'Markaziy Bo‘lim'}
+                    </span>
+                  </div>
+                </Space>
+              </div>
+            ) : (
+              <Dropdown
+                trigger="click"
+                position="br"
+                droplist={
+                  <Menu style={{ borderRadius: 0, minWidth: 220 }}>
+                    <div style={{ padding: '8px 12px 6px 12px' }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-1)' }}>
+                        {user?.fullName || 'Foydalanuvchi'}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2 }}>
+                        {user?.departmentName || 'Markaziy Bo‘lim'}
+                      </div>
+                    </div>
+                    <Divider style={{ margin: '4px 0' }} />
+                    <Menu.Item
+                      key="2fa"
+                      onClick={() => setTwoFactorModalVisible(true)}
+                    >
+                      <Space>
+                        <IconSafe style={{ color: '#165DFF', fontSize: 16 }} />
+                        <span style={{ fontWeight: 500 }}>Xavfsizlik (2FA)</span>
+                      </Space>
+                    </Menu.Item>
+                  </Menu>
+                }
+              >
+                <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                  <Space size="small">
+                    <Avatar size={34} style={{ backgroundColor: '#165DFF', borderRadius: 0 }}>
+                      <IconUser />
+                    </Avatar>
+                    <div className="uwms-header-user-info" style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600 }}>{user?.fullName || 'Foydalanuvchi'}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-3)' }}>
+                        {user?.departmentName || 'Markaziy Bo‘lim'}
+                      </span>
+                    </div>
+                  </Space>
                 </div>
-              </Space>
-            </div>
+              </Dropdown>
+            )}
 
             {/* Logout button */}
             <Tooltip
@@ -524,11 +567,18 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         <MobileProfileDrawer
           visible={profileDrawerVisible}
           onClose={() => setProfileDrawerVisible(false)}
+          onOpenTwoFactor={() => setTwoFactorModalVisible(true)}
         />
       </Layout>
 
       {/* Majburiy Parol O‘zgartirish Modali (Xavfsizlik talabi) */}
       <ForcePasswordChangeModal visible={!!user?.mustChangePassword} />
+
+      {/* Google Authenticator (2FA) Setup Modal */}
+      <TwoFactorSetupModal
+        visible={twoFactorModalVisible}
+        onClose={() => setTwoFactorModalVisible(false)}
+      />
 
       {/* Global Command Palette Search Modal (Ctrl + K) */}
       <GlobalSearchModal

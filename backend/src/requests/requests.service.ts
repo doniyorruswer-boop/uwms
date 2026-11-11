@@ -15,6 +15,7 @@ import { SequenceService } from '../common/services/sequence.service';
 import { WarehouseService } from '../warehouse/warehouse.service';
 import { EventsGateway } from '../events/events.gateway';
 import { RequestStatus, RoleType, NotificationType, FundingSource, Prisma } from '@prisma/client';
+import { verifyTotpToken } from '../auth/utils/totp.util';
 
 @Injectable()
 export class RequestsService {
@@ -106,6 +107,8 @@ export class RequestsService {
       approvedBy: { select: { id: true, fullName: true, role: true } },
       prorektorApprovedBy: { select: { id: true, fullName: true } },
       rectorApprovedBy: { select: { id: true, fullName: true } },
+      procurementSignedBy: { select: { id: true, fullName: true, role: true } },
+      supplier: { select: { id: true, name: true, inn: true } },
       accountantFinancedBy: { select: { id: true, fullName: true } },
       warehouseReceivedBy: { select: { id: true, fullName: true } },
       commendantHandedBy: { select: { id: true, fullName: true } },
@@ -150,6 +153,18 @@ export class RequestsService {
       fundingSource: r.fundingSource,
       subAccountCode: r.subAccountCode,
       allocatedAmount: r.allocatedAmount ? Number(r.allocatedAmount) : undefined,
+      procurementType: r.procurementType ?? undefined,
+      lotNumber: r.lotNumber ?? undefined,
+      contractNumber: r.contractNumber ?? undefined,
+      contractDate: r.contractDate?.toISOString(),
+      contractAmount: r.contractAmount ? Number(r.contractAmount) : undefined,
+      supplierId: r.supplierId ?? undefined,
+      supplierName: r.supplierName ?? r.supplier?.name ?? undefined,
+      supplierInn: r.supplierInn ?? r.supplier?.inn ?? undefined,
+      procurementNotes: r.procurementNotes ?? undefined,
+      procurementSignedAt: r.procurementSignedAt?.toISOString(),
+      procurementSignedById: r.procurementSignedById ?? undefined,
+      procurementSignedByName: r.procurementSignedBy?.fullName,
       targetRoomId: r.targetRoomId,
       targetRoomName: r.targetRoom?.name,
       targetRoomNumber: r.targetRoom?.number,
@@ -411,21 +426,43 @@ export class RequestsService {
       allocatedAmount?: number;
       commendantId?: string;
       targetRoomId?: string;
+      procurementType?: string;
+      lotNumber?: string;
+      contractNumber?: string;
+      contractDate?: string;
+      contractAmount?: number;
+      supplierName?: string;
+      supplierInn?: string;
+      supplierId?: string;
+      totpCode?: string;
     },
   ) {
-    // 1. Role verification for 7-step sequence (no role bypass, each step requires designated role)
+    // 1. Role verification for 8-step sequence (no role bypass, each step requires designated role)
     if (targetStatus === RequestStatus.APPROVED_BY_PRORECTOR) {
       if (user.role !== RoleType.VICE_RECTOR_FINANCE) {
         throw new ForbiddenException('Ushbu bosqichni faqat Moliya-iqtisod prorektori tasdiqlashi mumkin!');
       }
+      await this.verifyUser2FA(user.id, payload?.totpCode);
     } else if (targetStatus === RequestStatus.APPROVED_BY_RECTOR) {
       if (user.role !== RoleType.RECTOR) {
         throw new ForbiddenException('Ushbu bosqichni faqat Universitet Rektori tasdiqlashi mumkin!');
       }
+      await this.verifyUser2FA(user.id, payload?.totpCode);
+    } else if (targetStatus === RequestStatus.CONTRACT_SIGNED) {
+      if (
+        user.role !== RoleType.PROCUREMENT_OFFICER &&
+        user.role !== RoleType.HEAD_WAREHOUSE &&
+        user.role !== RoleType.ADMIN &&
+        user.role !== RoleType.SUPER_ADMIN
+      ) {
+        throw new ForbiddenException('Davlat xaridlari va auksion shartnomasini biriktirish faqat Xaridlar bo‘limi mutaxassisi yoki Administrator vakolatiga kiradi!');
+      }
+      await this.verifyUser2FA(user.id, payload?.totpCode);
     } else if (targetStatus === RequestStatus.FINANCED_BY_ACCOUNTANT) {
       if (user.role !== RoleType.CHIEF_ACCOUNTANT) {
         throw new ForbiddenException('Moliyalashtirishni faqat Bosh hisobchi tasdiqlashi mumkin!');
       }
+      await this.verifyUser2FA(user.id, payload?.totpCode);
     } else if (targetStatus === RequestStatus.RECEIVED_AT_WAREHOUSE) {
       if (user.role !== RoleType.HEAD_WAREHOUSE) {
         throw new ForbiddenException('Ombor kirimini faqat Bosh ombor mudiri tasdiqlashi mumkin!');
@@ -474,6 +511,14 @@ export class RequestsService {
       allocatedAmount: payload?.allocatedAmount,
       commendantId: payload?.commendantId,
       targetRoomId: payload?.targetRoomId,
+      procurementType: payload?.procurementType,
+      lotNumber: payload?.lotNumber,
+      contractNumber: payload?.contractNumber,
+      contractDate: payload?.contractDate,
+      contractAmount: payload?.contractAmount,
+      supplierName: payload?.supplierName,
+      supplierInn: payload?.supplierInn,
+      supplierId: payload?.supplierId,
       currentUser: user,
     });
   }
@@ -489,9 +534,28 @@ export class RequestsService {
       allocatedAmount?: number;
       commendantId?: string;
       targetRoomId?: string;
+      procurementType?: string;
+      lotNumber?: string;
+      contractNumber?: string;
+      contractDate?: string;
+      contractAmount?: number;
+      supplierName?: string;
+      supplierInn?: string;
+      supplierId?: string;
+      totpCode?: string;
       currentUser?: any;
     },
   ) {
+    if (
+      status === RequestStatus.APPROVED_BY_PRORECTOR ||
+      status === RequestStatus.APPROVED_BY_RECTOR
+    ) {
+      const actingUserId = dto?.currentUser?.id || dto?.approvedById;
+      if (actingUserId) {
+        await this.verifyUser2FA(actingUserId, dto?.totpCode);
+      }
+    }
+
     let fulfilledRequest: any = null;
     let outgoingMovement: any = null;
     const lowStockAlerts: { name: string; remainingQty: number; minLimit: number; unit: string }[] = [];
@@ -524,7 +588,11 @@ export class RequestsService {
           RequestStatus.PENDING,
           RequestStatus.SUBMITTED,
         ],
-        [RequestStatus.FINANCED_BY_ACCOUNTANT]: [RequestStatus.APPROVED_BY_RECTOR],
+        [RequestStatus.CONTRACT_SIGNED]: [RequestStatus.APPROVED_BY_RECTOR],
+        [RequestStatus.FINANCED_BY_ACCOUNTANT]: [
+          RequestStatus.CONTRACT_SIGNED,
+          RequestStatus.APPROVED_BY_RECTOR,
+        ],
         [RequestStatus.RECEIVED_AT_WAREHOUSE]: [RequestStatus.FINANCED_BY_ACCOUNTANT, RequestStatus.APPROVED_BY_HEAD],
         [RequestStatus.HANDED_TO_COMMENDANT]: [RequestStatus.RECEIVED_AT_WAREHOUSE],
         [RequestStatus.FULFILLED]: [
@@ -537,6 +605,7 @@ export class RequestsService {
           RequestStatus.APPROVED_BY_HEAD,
           RequestStatus.APPROVED_BY_PRORECTOR,
           RequestStatus.APPROVED_BY_RECTOR,
+          RequestStatus.CONTRACT_SIGNED,
           RequestStatus.FINANCED_BY_ACCOUNTANT,
           RequestStatus.RECEIVED_AT_WAREHOUSE,
         ],
@@ -649,6 +718,57 @@ export class RequestsService {
       } else if (status === RequestStatus.APPROVED_BY_RECTOR) {
         updateData.rectorApprovedAt = new Date();
         updateData.rectorApprovedById = dto?.approvedById;
+      } else if (status === RequestStatus.CONTRACT_SIGNED) {
+        updateData.procurementSignedAt = new Date();
+        updateData.procurementSignedById = dto?.approvedById;
+        if (dto?.procurementType) updateData.procurementType = dto.procurementType;
+        if (dto?.lotNumber) updateData.lotNumber = dto.lotNumber;
+        if (dto?.contractNumber) updateData.contractNumber = dto.contractNumber;
+        if (dto?.contractDate) updateData.contractDate = new Date(dto.contractDate);
+        if (dto?.contractAmount !== undefined) updateData.contractAmount = new Prisma.Decimal(dto.contractAmount);
+        if (dto?.supplierName) updateData.supplierName = dto.supplierName;
+        if (dto?.supplierInn) updateData.supplierInn = dto.supplierInn;
+        if (dto?.note) updateData.procurementNotes = dto.note;
+
+        // Ta'minotchilar va Shartnomalar reestri (Suppliers) bilan uzviy sinxronizatsiya
+        if (dto?.supplierId) {
+          updateData.supplierId = dto.supplierId;
+        } else if (dto?.supplierName) {
+          let matchedSupplier = null;
+          if (dto.supplierInn) {
+            matchedSupplier = await tx.supplier.findFirst({
+              where: { inn: dto.supplierInn, deletedAt: null },
+            });
+          }
+          if (!matchedSupplier) {
+            matchedSupplier = await tx.supplier.findFirst({
+              where: { name: { equals: dto.supplierName, mode: 'insensitive' }, deletedAt: null },
+            });
+          }
+          if (matchedSupplier) {
+            updateData.supplierId = matchedSupplier.id;
+            if (!matchedSupplier.contractNumber && dto.contractNumber) {
+              await tx.supplier.update({
+                where: { id: matchedSupplier.id },
+                data: {
+                  contractNumber: dto.contractNumber,
+                  contractDate: dto.contractDate ? new Date(dto.contractDate) : new Date(),
+                },
+              });
+            }
+          } else {
+            const newSupplier = await tx.supplier.create({
+              data: {
+                name: dto.supplierName,
+                inn: dto.supplierInn || null,
+                contractNumber: dto.contractNumber || null,
+                contractDate: dto.contractDate ? new Date(dto.contractDate) : new Date(),
+                notes: `Davlat xaridlari / auksion orqali qo‘shildi (Lot: ${dto.lotNumber || '—'})`,
+              },
+            });
+            updateData.supplierId = newSupplier.id;
+          }
+        }
       } else if (status === RequestStatus.FINANCED_BY_ACCOUNTANT) {
         updateData.accountantFinancedAt = new Date();
         updateData.accountantFinancedById = dto?.approvedById;
@@ -698,6 +818,8 @@ export class RequestsService {
           accountantFinancedBy: true,
           prorektorApprovedBy: true,
           rectorApprovedBy: true,
+          procurementSignedBy: true,
+          supplier: true,
         },
       });
 
@@ -709,6 +831,7 @@ export class RequestsService {
       SUBMITTED: 'Xodim Talabnomasi Yuborildi',
       APPROVED_BY_PRORECTOR: 'Moliya Prorektori Vizasi Berildi',
       APPROVED_BY_RECTOR: 'Rektor Vizasi Berildi (Xaridga Ruxsat)',
+      CONTRACT_SIGNED: 'Auksion O‘tkazildi va Shartnoma Biriktirildi',
       FINANCED_BY_ACCOUNTANT: 'Bosh Hisobchi Moliyalashtirdi (Sub-hisob biriktirildi)',
       RECEIVED_AT_WAREHOUSE: 'Mahsulot Omborga Qabul Qilindi (OS-1 Kirim)',
       HANDED_TO_COMMENDANT: 'Komendantga Topshirildi (OS-2 Chiqim)',
@@ -1018,6 +1141,16 @@ export class RequestsService {
         rectorApprovedAt: result.rectorApprovedAt?.toISOString(),
         rectorApprovedById: result.rectorApprovedById,
         rectorApprovedByName: result.rectorApprovedBy?.fullName,
+        procurementType: result.procurementType,
+        lotNumber: result.lotNumber,
+        contractNumber: result.contractNumber,
+        contractDate: result.contractDate?.toISOString(),
+        contractAmount: result.contractAmount ? Number(result.contractAmount) : undefined,
+        supplierName: result.supplierName ?? result.supplier?.name,
+        supplierInn: result.supplierInn ?? result.supplier?.inn,
+        procurementSignedAt: result.procurementSignedAt?.toISOString(),
+        procurementSignedById: result.procurementSignedById,
+        procurementSignedByName: result.procurementSignedBy?.fullName,
         accountantFinancedAt: result.accountantFinancedAt?.toISOString(),
         accountantFinancedById: result.accountantFinancedById,
         accountantFinancedByName: result.accountantFinancedBy?.fullName,
@@ -1041,6 +1174,9 @@ export class RequestsService {
       if (status === RequestStatus.APPROVED_BY_PRORECTOR) {
         this.eventsGateway.emitToRole('RECTOR', 'REQUEST_UPDATED', eventPayload);
       } else if (status === RequestStatus.APPROVED_BY_RECTOR) {
+        this.eventsGateway.emitToRole('PROCUREMENT_OFFICER', 'REQUEST_UPDATED', eventPayload);
+        this.eventsGateway.emitToRole('HEAD_WAREHOUSE', 'REQUEST_UPDATED', eventPayload);
+      } else if (status === RequestStatus.CONTRACT_SIGNED) {
         this.eventsGateway.emitToRole('CHIEF_ACCOUNTANT', 'REQUEST_UPDATED', eventPayload);
       } else if (status === RequestStatus.FINANCED_BY_ACCOUNTANT) {
         this.eventsGateway.emitToRole('HEAD_WAREHOUSE', 'REQUEST_UPDATED', eventPayload);
@@ -1263,5 +1399,37 @@ export class RequestsService {
     }
 
     return updated;
+  }
+
+  private async verifyUser2FA(userId: string, code?: string) {
+    if (!userId) return true;
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { twoFactorEnabled: true, twoFactorSecret: true, twoFactorRecoveryCodes: true },
+    });
+    if (!user || !user.twoFactorEnabled) {
+      return true; // 2FA is not enabled on this user account
+    }
+
+    if (!code || !code.trim()) {
+      throw new BadRequestException('Ushbu viza/tasdiqni amalga oshirish uchun Google Authenticator (2FA) kodi kiritilishi shart!');
+    }
+
+    const cleanCode = code.trim();
+    if (user.twoFactorSecret && verifyTotpToken(cleanCode, user.twoFactorSecret)) {
+      return true;
+    }
+
+    // Support recovery codes
+    if (user.twoFactorRecoveryCodes?.includes(cleanCode.toUpperCase())) {
+      const remaining = user.twoFactorRecoveryCodes.filter((c) => c !== cleanCode.toUpperCase());
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { twoFactorRecoveryCodes: remaining },
+      });
+      return true;
+    }
+
+    throw new BadRequestException('Google Authenticator 2FA kodi noto‘g‘ri yoki muddati o‘tgan!');
   }
 }

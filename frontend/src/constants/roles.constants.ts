@@ -141,6 +141,13 @@ export const ROLE_CONFIG: Record<RoleType, RoleMeta> = {
     color: 'teal',
     allowedRoutes: ['/dashboard', '/requests', '/assets', '/repairs', '/organization'],
   },
+  PROCUREMENT_OFFICER: {
+    code: 'PROCUREMENT_OFFICER',
+    label: 'Davlat Xaridlari Mutaxassisi',
+    description: 'Auksion (xarid.uzex.uz), elektron do‘kon va shartnomalar tuzuvchi mas’ul',
+    color: 'green',
+    allowedRoutes: ['/dashboard', '/inbox', '/requests', '/suppliers', '/reports', '/organization'],
+  },
 };
 
 /**

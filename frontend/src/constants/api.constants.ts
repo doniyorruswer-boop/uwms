@@ -12,6 +12,10 @@ export const API_ENDPOINTS = {
     LOGOUT: '/auth/logout',
     ME: '/auth/me',
     CHANGE_PASSWORD: '/auth/change-password',
+    TWO_FACTOR_STATUS: '/auth/2fa/status',
+    TWO_FACTOR_SETUP: '/auth/2fa/setup',
+    TWO_FACTOR_ENABLE: '/auth/2fa/enable',
+    TWO_FACTOR_DISABLE: '/auth/2fa/disable',
   },
 
   // Boshqaruv Tahlili (Dashboard Analytics)

@@ -10,6 +10,7 @@ export const RoleType = {
   RECTOR: 'RECTOR',
   VICE_RECTOR_FINANCE: 'VICE_RECTOR_FINANCE',
   ENGINEER: 'ENGINEER',
+  PROCUREMENT_OFFICER: 'PROCUREMENT_OFFICER',
 } as const;
 
 export type RoleType = typeof RoleType[keyof typeof RoleType];
@@ -25,6 +26,7 @@ export type RequestStatus =
   | 'PENDING'
   | 'APPROVED_BY_PRORECTOR'
   | 'APPROVED_BY_RECTOR'
+  | 'CONTRACT_SIGNED'
   | 'FINANCED_BY_ACCOUNTANT'
   | 'RECEIVED_AT_WAREHOUSE'
   | 'HANDED_TO_COMMENDANT'
@@ -249,6 +251,18 @@ export interface RequestRecord {
   rectorApprovedAt?: string;
   rectorApprovedById?: string;
   rectorApprovedByName?: string;
+  procurementType?: string;
+  lotNumber?: string;
+  contractNumber?: string;
+  contractDate?: string;
+  contractAmount?: number;
+  supplierId?: string;
+  supplierName?: string;
+  supplierInn?: string;
+  procurementNotes?: string;
+  procurementSignedAt?: string;
+  procurementSignedById?: string;
+  procurementSignedByName?: string;
   accountantFinancedAt?: string;
   accountantFinancedById?: string;
   accountantFinancedByName?: string;

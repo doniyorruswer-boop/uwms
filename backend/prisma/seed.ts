@@ -856,6 +856,29 @@ async function main() {
     },
   });
 
+  // 2.11 Davlat Xaridlari Mutaxassisi (Auksion va Shartnoma)
+  await prisma.user.upsert({
+    where: { username: 'xarid' },
+    update: {
+      password: passwordHash,
+      isActive: true,
+      role: RoleType.PROCUREMENT_OFFICER,
+      departmentId: facilitiesDept.id,
+      position: 'Davlat xaridlari va marketing mutaxassisi',
+    },
+    create: {
+      fullName: 'Qodirov Anvar (Davlat xaridlari)',
+      username: 'xarid',
+      email: 'xarid@university.uz',
+      password: passwordHash,
+      phone: '+998 90 123 45 67',
+      position: 'Davlat xaridlari va marketing mutaxassisi',
+      role: RoleType.PROCUREMENT_OFFICER,
+      departmentId: facilitiesDept.id,
+      mustChangePassword: false,
+    },
+  });
+
   // =========================================================================
   // 3. XONALAR VA AUDITORIYALAR (25 TA XONA)
   // =========================================================================

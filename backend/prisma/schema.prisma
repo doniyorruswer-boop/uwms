@@ -24,6 +24,9 @@ model User {
   deletedAt                  DateTime?
   hashedRefreshToken         String?
   permissions                String[]                 @default([])
+  twoFactorEnabled           Boolean                  @default(false)
+  twoFactorSecret            String?
+  twoFactorRecoveryCodes     String[]                 @default([])
   executedHistories          AssetHistory[]           @relation("HistoryExecutor")
   backups                    BackupRecord[]           @relation("UserBackups")
   commendantBuildings        Building[]               @relation("BuildingCommendant")
@@ -49,6 +52,7 @@ model User {
   prorektorApprovedRequests  Request[]                @relation("ProrektorApprovedRequests")
   rectorApprovedRequests     Request[]                @relation("RectorApprovedRequests")
   submittedRequests          Request[]                @relation("UserRequests")
+  procurementSignedRequests  Request[]                @relation("ProcurementSignedRequests")
   warehouseReceivedRequests  Request[]                @relation("WarehouseReceivedRequests")
   accountantHandovers        ResponsibilityHandover[] @relation("AccountantHandovers")
   approvedHandovers          ResponsibilityHandover[] @relation("ApprovedHandovers")
@@ -168,6 +172,7 @@ model Supplier {
   invoices       Invoice[]
   itemInstances  ItemInstance[]
   movements      StockMovement[]
+  requests       Request[]
 
   @@index([deletedAt])
   @@map("suppliers")
@@ -430,6 +435,19 @@ model Request {
   requester                   User           @relation("UserRequests", fields: [requesterId], references: [id])
   targetRoom                  Room?          @relation("RequestTargetRoom", fields: [targetRoomId], references: [id])
   warehouseReceivedBy         User?          @relation("WarehouseReceivedRequests", fields: [warehouseReceivedById], references: [id])
+  procurementType             String?
+  lotNumber                   String?
+  contractNumber              String?
+  contractDate                DateTime?
+  contractAmount              Decimal?       @db.Decimal(14, 2)
+  supplierId                  String?
+  supplierName                String?
+  supplierInn                 String?
+  procurementNotes            String?
+  procurementSignedAt         DateTime?
+  procurementSignedById       String?
+  procurementSignedBy         User?          @relation("ProcurementSignedRequests", fields: [procurementSignedById], references: [id])
+  supplier                    Supplier?      @relation(fields: [supplierId], references: [id])
 
   @@index([requesterId])
   @@index([departmentId])
@@ -958,6 +976,7 @@ enum RoleType {
   VICE_RECTOR_FINANCE
   ADMIN
   ENGINEER
+  PROCUREMENT_OFFICER
 }
 
 enum ItemType {
@@ -983,6 +1002,7 @@ enum RequestStatus {
   SUBMITTED
   APPROVED_BY_PRORECTOR
   APPROVED_BY_RECTOR
+  CONTRACT_SIGNED
   FINANCED_BY_ACCOUNTANT
   RECEIVED_AT_WAREHOUSE
   HANDED_TO_COMMENDANT

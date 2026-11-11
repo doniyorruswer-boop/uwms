@@ -14,6 +14,7 @@ import {
   HandoverWorkflowDto,
   FulfillWorkflowDto,
   SubmitTechnicalInspectionDto,
+  AttachContractDto,
 } from './dto/request.dto';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 
@@ -78,6 +79,18 @@ export class RequestsController {
           throw new ForbiddenException('Ushbu bosqichni faqat Universitet Rektori tasdiqlashi mumkin!');
         }
         break;
+      case RequestStatus.CONTRACT_SIGNED:
+        if (
+          user.role !== RoleType.PROCUREMENT_OFFICER &&
+          user.role !== RoleType.HEAD_WAREHOUSE &&
+          user.role !== RoleType.ADMIN &&
+          user.role !== RoleType.SUPER_ADMIN
+        ) {
+          throw new ForbiddenException(
+            'Davlat xaridlari va auksion shartnomasini biriktirish faqat Xaridlar bo‘limi mutaxassisi yoki Administrator vakolatiga kiradi!',
+          );
+        }
+        break;
       case RequestStatus.FINANCED_BY_ACCOUNTANT:
         if (user.role !== RoleType.CHIEF_ACCOUNTANT) {
           throw new ForbiddenException('Moliyalashtirishni faqat Bosh hisobchi tasdiqlashi mumkin!');
@@ -135,11 +148,12 @@ export class RequestsController {
       note: dto.note,
       approvedById: user.id,
       currentUser: user,
+      totpCode: dto.totpCode,
     });
   }
 
   @Post(':id/workflow-advance')
-  @ApiOperation({ summary: '7 Bosqichli Xarid Zanjirini navbatdagi bosqichga o‘tkazish' })
+  @ApiOperation({ summary: '8 Bosqichli Xarid Zanjirini navbatdagi bosqichga o‘tkazish' })
   async advanceWorkflow(
     @Param('id') id: string,
     @Body() dto: WorkflowAdvanceDto,
@@ -152,6 +166,45 @@ export class RequestsController {
       allocatedAmount: dto.allocatedAmount,
       commendantId: dto.commendantId,
       targetRoomId: dto.targetRoomId,
+      procurementType: dto.procurementType,
+      lotNumber: dto.lotNumber,
+      contractNumber: dto.contractNumber,
+      contractDate: dto.contractDate,
+      contractAmount: dto.contractAmount,
+      supplierName: dto.supplierName,
+      supplierInn: dto.supplierInn,
+      supplierId: dto.supplierId,
+      totpCode: dto.totpCode,
+    });
+  }
+
+  @Post(':id/attach-contract')
+  @ApiOperation({ summary: 'Davlat xaridlari: Lot raqami va shartnoma biriktirish (4-bosqich)' })
+  async attachContract(
+    @Param('id') id: string,
+    @Body() dto: AttachContractDto,
+    @CurrentUser() user: any,
+  ) {
+    if (
+      user.role !== RoleType.PROCUREMENT_OFFICER &&
+      user.role !== RoleType.HEAD_WAREHOUSE &&
+      user.role !== RoleType.ADMIN &&
+      user.role !== RoleType.SUPER_ADMIN
+    ) {
+      throw new ForbiddenException(
+        'Davlat xaridlari va auksion shartnomasini biriktirish faqat Xaridlar bo‘limi mutaxassisi yoki Administrator vakolatiga kiradi!',
+      );
+    }
+    return this.requestsService.advanceWorkflowStage(id, RequestStatus.CONTRACT_SIGNED, user, {
+      note: dto.note || 'xarid.uzex.uz auksion shartnomasi biriktirildi',
+      procurementType: dto.procurementType,
+      lotNumber: dto.lotNumber,
+      contractNumber: dto.contractNumber,
+      contractDate: dto.contractDate,
+      contractAmount: dto.contractAmount,
+      supplierName: dto.supplierName,
+      supplierInn: dto.supplierInn,
+      supplierId: dto.supplierId,
     });
   }
 

@@ -44,9 +44,9 @@ const { Row, Col } = Grid;
 
 export const SuppliersPage: React.FC = () => {
   const { user } = useAuthStore();
-  const canManage = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'HEAD_WAREHOUSE';
+  const canManage = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'HEAD_WAREHOUSE' || user?.role === 'PROCUREMENT_OFFICER';
   const isSuperAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
-  const canView = canManage || user?.role === 'CHIEF_ACCOUNTANT' || user?.role === 'AUDITOR';
+  const canView = canManage || user?.role === 'CHIEF_ACCOUNTANT' || user?.role === 'AUDITOR' || user?.role === 'RECTOR' || user?.role === 'VICE_RECTOR_FINANCE';
 
   const [search, setSearch] = useState('');
   const [showDeleted, setShowDeleted] = useState(false);
@@ -99,7 +99,7 @@ export const SuppliersPage: React.FC = () => {
       <ForbiddenView
         title="403 — Kirish Cheklangan"
         subTitle="Ta’minotchilar va shartnomalar reestrini ko‘rish uchun sizda yetarli ruxsat mavjud emas."
-        requiredRoles={['HEAD_WAREHOUSE', 'SUPER_ADMIN', 'ADMIN', 'CHIEF_ACCOUNTANT', 'AUDITOR']}
+        requiredRoles={['HEAD_WAREHOUSE', 'PROCUREMENT_OFFICER', 'SUPER_ADMIN', 'ADMIN', 'CHIEF_ACCOUNTANT', 'AUDITOR', 'RECTOR', 'VICE_RECTOR_FINANCE']}
       />
     );
   }

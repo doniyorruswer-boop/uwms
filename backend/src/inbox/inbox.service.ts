@@ -28,6 +28,7 @@ export class InboxService {
     const isProrector = role === RoleType.VICE_RECTOR_FINANCE;
     const isRector = role === RoleType.RECTOR;
     const isAccountant = role === RoleType.CHIEF_ACCOUNTANT;
+    const isProcurement = role === RoleType.PROCUREMENT_OFFICER;
     const isWarehouse = role === RoleType.HEAD_WAREHOUSE;
     const isCommendant = role === RoleType.COMMENDANT;
     const isMol = role === RoleType.MOL;
@@ -107,6 +108,7 @@ export class InboxService {
               RequestStatus.APPROVED_BY_HEAD,
               RequestStatus.APPROVED_BY_PRORECTOR,
               RequestStatus.APPROVED_BY_RECTOR,
+              RequestStatus.CONTRACT_SIGNED,
               RequestStatus.FINANCED_BY_ACCOUNTANT,
               RequestStatus.RECEIVED_AT_WAREHOUSE,
               RequestStatus.HANDED_TO_COMMENDANT,
@@ -155,11 +157,25 @@ export class InboxService {
         orderBy: { createdAt: 'desc' },
         take: 30,
       });
-    } else if (isAccountant) {
-      // Bosh hisobchi: Rektor ruxsat bergan va moliyalashtirish/sub-hisob kutayotgan arizalar
+    } else if (isProcurement) {
+      // Davlat xaridlari / auksion bo‘limi: Rektor ruxsat bergan va auksion/shartnoma kutayotgan arizalar
       pendingRequestsPromise = this.prisma.request.findMany({
         where: {
           status: RequestStatus.APPROVED_BY_RECTOR,
+        },
+        include: {
+          requester: { select: { id: true, fullName: true, department: true } },
+          department: true,
+          items: { include: { item: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      });
+    } else if (isAccountant) {
+      // Bosh hisobchi: Shartnoma tuzilgan (yoki to‘g‘ridan-to‘g‘ri ma’qullangan) va moliyalashtirish/sub-hisob kutayotgan arizalar
+      pendingRequestsPromise = this.prisma.request.findMany({
+        where: {
+          status: { in: [RequestStatus.CONTRACT_SIGNED, RequestStatus.APPROVED_BY_RECTOR] },
         },
         include: {
           requester: { select: { id: true, fullName: true, department: true } },

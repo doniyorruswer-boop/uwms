@@ -75,6 +75,7 @@ const roleTagColors: Record<RoleType, string> = {
   [RoleType.RECTOR]: 'magenta',
   [RoleType.VICE_RECTOR_FINANCE]: 'green',
   [RoleType.ENGINEER]: 'teal',
+  [RoleType.PROCUREMENT_OFFICER]: 'lime',
 };
 
 const roleLabels: Record<RoleType, string> = {
@@ -89,6 +90,7 @@ const roleLabels: Record<RoleType, string> = {
   [RoleType.RECTOR]: 'Universitet Rektori',
   [RoleType.VICE_RECTOR_FINANCE]: 'Moliya Prorektori',
   [RoleType.ENGINEER]: 'Texnik Injener (IT / Muhandis)',
+  [RoleType.PROCUREMENT_OFFICER]: 'Davlat Xaridlari Mutaxassisi',
 };
 
 const moduleIcons: Record<string, React.ReactNode> = {

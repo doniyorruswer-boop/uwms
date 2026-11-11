@@ -80,7 +80,9 @@ export const InboxPage: React.FC = () => {
   }, []);
 
   // Action Center In-Place Modals State
-  const [selectedOverQuota, setSelectedOverQuota] = useState<OverQuotaRequestItem | null>(null);
+  const [selectedVisaRequest, setSelectedVisaRequest] = useState<PendingRequestItem | OverQuotaRequestItem | null>(null);
+  const [qrCustomNote, setQrCustomNote] = useState<string | null>(null);
+  const [qrTotpCode, setQrTotpCode] = useState<string | undefined>(undefined);
   const [rejectingRequest, setRejectingRequest] = useState<PendingRequestItem | null>(null);
   const [rejectingTransfer, setRejectingTransfer] = useState<PendingTransferItem | null>(null);
   const [rejectingVote, setRejectingVote] = useState<PendingWriteOffVoteItem | null>(null);
@@ -247,12 +249,19 @@ export const InboxPage: React.FC = () => {
       return;
     }
 
+    const finalNote =
+      qrCustomNote ||
+      `${user?.role === RoleType.RECTOR ? 'Rektor' : 'Moliya-iqtisod prorektori'} tomonidan mobil QR-imzo orqali tasdiqlandi (Sessiya: ${result.sessionId || 'MOBI_SIGN'})`;
+
     try {
       await updateRequestStatus({
         id: item.id,
         status: nextStatus,
-        note: `${user?.role === RoleType.RECTOR ? 'Rektor' : 'Moliya-iqtisod prorektori'} tomonidan mobil QR-imzo orqali tasdiqlandi (Sessiya: ${result.sessionId || 'MOBI_SIGN'})`,
+        note: finalNote,
+        totpCode: qrTotpCode,
       });
+      setQrCustomNote(null);
+      setQrTotpCode(undefined);
       Message.success('Talabnoma mobil QR-imzo orqali navbatdagi bosqichga tasdiqlandi!');
       queryClient.invalidateQueries({ queryKey: ['inbox'] });
       queryClient.invalidateQueries({ queryKey: ['requests'] });
@@ -628,24 +637,43 @@ export const InboxPage: React.FC = () => {
             {canApproveRequest(item) && (
               <Button
                 type="primary"
-                status="success"
-                icon={<IconMobile />}
-                style={{ flex: isMobile ? '1 1 140px' : 'none', minHeight: 38, borderRadius: 6 }}
-                onClick={() => handleOpenRequestQrSign(item)}
+                icon={<IconCheckCircle />}
+                style={{
+                  flex: isMobile ? '1 1 150px' : 'none',
+                  minHeight: 38,
+                  borderRadius: 6,
+                  backgroundColor: user?.role === RoleType.RECTOR ? '#722ED1' : '#165DFF',
+                  borderColor: user?.role === RoleType.RECTOR ? '#722ED1' : '#165DFF',
+                }}
+                onClick={() => setSelectedVisaRequest(item)}
               >
-                QR bilan Tasdiqlash
+                {user?.role === RoleType.VICE_RECTOR_FINANCE
+                  ? 'Prorektor Vizasi'
+                  : user?.role === RoleType.RECTOR
+                  ? 'Rektor Vizasi'
+                  : 'Ko‘rib chiqish va Viza'}
               </Button>
             )}
 
-            {item.isOverQuota && canGiveRectorVisa && (
+            {!canApproveRequest(item) && item.isOverQuota && canGiveRectorVisa && (
               <Button
                 type="primary"
                 status="warning"
                 icon={<IconCheckCircle />}
-                style={{ flex: isMobile ? '1 1 140px' : 'none', minHeight: 38, borderRadius: 6 }}
-                onClick={() => setSelectedOverQuota(item)}
+                style={{
+                  flex: isMobile ? '1 1 150px' : 'none',
+                  minHeight: 38,
+                  borderRadius: 6,
+                  backgroundColor: user?.role === RoleType.RECTOR ? '#722ED1' : undefined,
+                  borderColor: user?.role === RoleType.RECTOR ? '#722ED1' : undefined,
+                }}
+                onClick={() => setSelectedVisaRequest(item)}
               >
-                Rektorat Vizasi
+                {user?.role === RoleType.VICE_RECTOR_FINANCE
+                  ? 'Prorektor Vizasi'
+                  : user?.role === RoleType.RECTOR
+                  ? 'Rektor Vizasi'
+                  : 'Rektorat Vizasi'}
               </Button>
             )}
 
@@ -1082,11 +1110,21 @@ export const InboxPage: React.FC = () => {
                 type="primary"
                 status="warning"
                 icon={<IconCheckCircle />}
-                style={{ flex: isMobile ? '1 1 140px' : 'none', minHeight: 38, borderRadius: 6 }}
+                style={{
+                  flex: isMobile ? '1 1 140px' : 'none',
+                  minHeight: 38,
+                  borderRadius: 6,
+                  backgroundColor: user?.role === RoleType.RECTOR ? '#722ED1' : undefined,
+                  borderColor: user?.role === RoleType.RECTOR ? '#722ED1' : undefined,
+                }}
                 disabled={!canGiveRectorVisa}
-                onClick={() => setSelectedOverQuota(item)}
+                onClick={() => setSelectedVisaRequest(item)}
               >
-                Rektorat Vizasini Qo‘yish
+                {user?.role === RoleType.VICE_RECTOR_FINANCE
+                  ? 'Prorektor Vizasi'
+                  : user?.role === RoleType.RECTOR
+                  ? 'Rektor Vizasi'
+                  : 'Rektorat Vizasi'}
               </Button>
             </Tooltip>
 
@@ -1385,12 +1423,24 @@ export const InboxPage: React.FC = () => {
       )}
 
       {/* MODALS */}
-      <RectorVisaModal
-        visible={!!selectedOverQuota}
-        request={selectedOverQuota}
-        onClose={() => setSelectedOverQuota(null)}
-        onApproved={() => refetch()}
-      />
+      {selectedVisaRequest && (
+        <RectorVisaModal
+          visible={!!selectedVisaRequest}
+          request={selectedVisaRequest}
+          onClose={() => setSelectedVisaRequest(null)}
+          onApproved={() => refetch()}
+          onOpenQrSign={(req, note, totpCode) => {
+            setSelectedVisaRequest(null);
+            setQrCustomNote(note);
+            setQrTotpCode(totpCode);
+            handleOpenRequestQrSign(req);
+          }}
+          onReject={(req) => {
+            setSelectedVisaRequest(null);
+            setRejectingRequest(req);
+          }}
+        />
+      )}
 
       <RejectReasonModal
         visible={!!rejectingRequest}

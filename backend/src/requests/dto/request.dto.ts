@@ -94,6 +94,11 @@ export class UpdateRequestStatusDto {
   @IsString()
   @IsOptional()
   note?: string;
+
+  @ApiPropertyOptional({ example: '123456', description: 'Google Authenticator 6 xonali 2FA kodi' })
+  @IsString()
+  @IsOptional()
+  totpCode?: string;
 }
 
 export class QueryRequestsDto {
@@ -183,6 +188,53 @@ export class FulfillWorkflowDto {
   note?: string;
 }
 
+export class AttachContractDto {
+  @ApiProperty({ example: 'AUCTION', description: 'Xarid turi (AUCTION, ELECTRONIC_SHOP, NATIONAL_SHOP, TENDER, DIRECT_CONTRACT)' })
+  @IsNotEmpty({ message: 'Xarid turi tanlanishi shart!' })
+  @IsString()
+  procurementType: string;
+
+  @ApiProperty({ example: '1428579', description: 'Davlat xaridlari maxsus portali lot raqami' })
+  @IsNotEmpty({ message: 'Lot raqami kiritilishi shart!' })
+  @IsString()
+  lotNumber: string;
+
+  @ApiProperty({ example: 'SH-2026-089', description: 'Rasmiy shartnoma raqami' })
+  @IsNotEmpty({ message: 'Shartnoma raqami kiritilishi shart!' })
+  @IsString()
+  contractNumber: string;
+
+  @ApiProperty({ example: '2026-11-15', description: 'Shartnoma tuzilgan sana' })
+  @IsNotEmpty({ message: 'Shartnoma sanasi kiritilishi shart!' })
+  @IsString()
+  contractDate: string;
+
+  @ApiProperty({ example: 45000000, description: 'Shartnoma bo‘yicha yakuniy summa (so‘m)' })
+  @IsNumber()
+  @Min(0, { message: 'Summa 0 dan kam bo‘lishi mumkin emas!' })
+  contractAmount: number;
+
+  @ApiProperty({ example: 'OOO "Texno-Ta’minot Fayz"', description: 'G‘olib yetkazib beruvchi nomi' })
+  @IsNotEmpty({ message: 'Yetkazib beruvchi korxona nomi kiritilishi shart!' })
+  @IsString()
+  supplierName: string;
+
+  @ApiProperty({ example: '305123456', description: 'Yetkazib beruvchi STIR / INN raqami' })
+  @IsNotEmpty({ message: 'Yetkazib beruvchi INN raqami kiritilishi shart!' })
+  @IsString()
+  supplierInn: string;
+
+  @ApiPropertyOptional({ description: 'Yetkazib beruvchi ID si (agar tizimda mavjud bo‘lsa)' })
+  @IsOptional()
+  @IsString()
+  supplierId?: string;
+
+  @ApiPropertyOptional({ example: 'xarid.uzex.uz auksionida g‘olib aniqlandi va shartnoma imzolandi', description: 'Qo‘shimcha izoh' })
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
 export class WorkflowAdvanceDto {
   @ApiProperty({ enum: RequestStatus, description: 'Keyingi o‘tish statusi' })
   @IsEnum(RequestStatus)
@@ -217,6 +269,51 @@ export class WorkflowAdvanceDto {
   @IsOptional()
   @IsString()
   targetRoomId?: string;
+
+  @ApiPropertyOptional({ description: 'Xarid turi' })
+  @IsOptional()
+  @IsString()
+  procurementType?: string;
+
+  @ApiPropertyOptional({ description: 'Lot raqami' })
+  @IsOptional()
+  @IsString()
+  lotNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Shartnoma raqami' })
+  @IsOptional()
+  @IsString()
+  contractNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Shartnoma sanasi' })
+  @IsOptional()
+  @IsString()
+  contractDate?: string;
+
+  @ApiPropertyOptional({ description: 'Shartnoma summasi' })
+  @IsOptional()
+  @IsNumber()
+  contractAmount?: number;
+
+  @ApiPropertyOptional({ description: 'Yetkazib beruvchi nomi' })
+  @IsOptional()
+  @IsString()
+  supplierName?: string;
+
+  @ApiPropertyOptional({ description: 'Yetkazib beruvchi INN si' })
+  @IsOptional()
+  @IsString()
+  supplierInn?: string;
+
+  @ApiPropertyOptional({ description: 'Yetkazib beruvchi ID si' })
+  @IsOptional()
+  @IsString()
+  supplierId?: string;
+
+  @ApiPropertyOptional({ example: '123456', description: 'Google Authenticator 6 xonali 2FA kodi' })
+  @IsOptional()
+  @IsString()
+  totpCode?: string;
 }
 
 

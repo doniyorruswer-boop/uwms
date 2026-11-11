@@ -50,15 +50,17 @@ export function useRequestsQuery() {
       id,
       status,
       note,
+      totpCode,
     }: {
       id: string;
       status: RequestStatus;
       note?: string;
+      totpCode?: string;
     }) => {
       const idempotencyKey = crypto.randomUUID();
       const res = await apiClient.patch(
         API_ENDPOINTS.REQUESTS.STATUS(id),
-        { status, note },
+        { status, note, totpCode },
         {
           headers: {
             'Idempotency-Key': idempotencyKey,
@@ -91,6 +93,15 @@ export function useRequestsQuery() {
       allocatedAmount,
       commendantId,
       targetRoomId,
+      procurementType,
+      lotNumber,
+      contractNumber,
+      contractDate,
+      contractAmount,
+      supplierName,
+      supplierInn,
+      supplierId,
+      totpCode,
     }: {
       id: string;
       status: RequestStatus;
@@ -100,6 +111,15 @@ export function useRequestsQuery() {
       allocatedAmount?: number;
       commendantId?: string;
       targetRoomId?: string;
+      procurementType?: string;
+      lotNumber?: string;
+      contractNumber?: string;
+      contractDate?: string;
+      contractAmount?: number;
+      supplierName?: string;
+      supplierInn?: string;
+      supplierId?: string;
+      totpCode?: string;
     }) => {
       const idempotencyKey = crypto.randomUUID();
       const res = await apiClient.post(
@@ -112,6 +132,15 @@ export function useRequestsQuery() {
           allocatedAmount,
           commendantId,
           targetRoomId,
+          procurementType,
+          lotNumber,
+          contractNumber,
+          contractDate,
+          contractAmount,
+          supplierName,
+          supplierInn,
+          supplierId,
+          totpCode,
         },
         {
           headers: {

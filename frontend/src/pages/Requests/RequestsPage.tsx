@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   Select,
+  AutoComplete,
   InputNumber,
   Message,
   Notification,
@@ -21,6 +22,7 @@ import {
   Progress,
   Dropdown,
   Menu,
+  DatePicker,
 } from '@arco-design/web-react';
 import {
   IconPlus,
@@ -45,6 +47,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useRequestsQuery } from '../../hooks/useRequestsQuery';
 import { useWarehouseQuery } from '../../hooks/useWarehouseQuery';
+import { useSuppliersQuery } from '../../hooks/useSuppliersQuery';
 import { useSocket } from '../../hooks/useSocket';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
@@ -81,6 +84,7 @@ export const RequestsPage: React.FC = () => {
     submitTechnicalInspection,
   } = useRequestsQuery();
   const { stocks } = useWarehouseQuery();
+  const { suppliers } = useSuppliersQuery();
   const { user } = useAuthStore();
 
   const [activeTab, setActiveTab] = useState('ALL');
@@ -105,6 +109,12 @@ export const RequestsPage: React.FC = () => {
   // Phase L1: Workflow & Finance State
   const [isFinanceModalVisible, setIsFinanceModalVisible] = useState<boolean>(false);
   const [requestToFinance, setRequestToFinance] = useState<RequestRecord | null>(null);
+
+  // Phase L2: Davlat Xaridlari (Auksion va Shartnoma) State
+  const [isProcurementModalVisible, setIsProcurementModalVisible] = useState<boolean>(false);
+  const [requestToProcure, setRequestToProcure] = useState<RequestRecord | null>(null);
+  const [procurementForm] = Form.useForm();
+
   const [pendingWorkflowAction, setPendingWorkflowAction] = useState<{
     req: RequestRecord;
     targetStatus: RequestStatus;
@@ -176,11 +186,20 @@ export const RequestsPage: React.FC = () => {
         });
       } else if (
         payload.status === 'APPROVED_BY_RECTOR' &&
+        (user?.role === 'PROCUREMENT_OFFICER' || user?.role === 'SUPER_ADMIN')
+      ) {
+        Notification.info({
+          title: 'Davlat Xaridlari Kutilmoqda (Auksion va Shartnoma)',
+          content: `${payload.requestNumber} talabnomasi Rektor tomonidan tasdiqlandi. Auksion loti va shartnoma ma’lumotlarini biriktirishingiz kutilmoqda.`,
+          duration: 5,
+        });
+      } else if (
+        payload.status === 'CONTRACT_SIGNED' &&
         (user?.role === 'CHIEF_ACCOUNTANT' || user?.role === 'SUPER_ADMIN')
       ) {
         Notification.info({
           title: 'Moliyalashtirish Kutilmoqda (Bosh Hisobchi)',
-          content: `${payload.requestNumber} talabnomasi Rektor tomonidan tasdiqlandi. Sub-hisob biriktirishingiz kutilmoqda.`,
+          content: `${payload.requestNumber} talabnomasiga shartnoma biriktirildi. Smeta va sub-hisob biriktirishingiz kutilmoqda.`,
           duration: 5,
         });
       } else if (
@@ -238,7 +257,7 @@ export const RequestsPage: React.FC = () => {
     }
   }, [searchParams, location.state]);
 
-  // 7-step Purchase Chain Progress calculation
+  // 8-step Purchase Chain Progress calculation
   const getStepCurrent = (status: RequestStatus) => {
     switch (status) {
       case 'SUBMITTED':
@@ -249,15 +268,17 @@ export const RequestsPage: React.FC = () => {
         return 3;
       case 'APPROVED_BY_RECTOR':
         return 4;
-      case 'FINANCED_BY_ACCOUNTANT':
+      case 'CONTRACT_SIGNED':
         return 5;
+      case 'FINANCED_BY_ACCOUNTANT':
+        return 6;
       case 'RECEIVED_AT_WAREHOUSE':
       case 'APPROVED_BY_WAREHOUSE':
-        return 6;
-      case 'HANDED_TO_COMMENDANT':
         return 7;
-      case 'FULFILLED':
+      case 'HANDED_TO_COMMENDANT':
         return 8;
+      case 'FULFILLED':
+        return 9;
       case 'REJECTED':
       case 'CANCELLED':
         return 1;
@@ -273,9 +294,9 @@ export const RequestsPage: React.FC = () => {
       case 'APPROVED_BY_HEAD':
         return {
           step: 2,
-          total: 7,
-          percent: 14,
-          title: '2/7: Prorektor Vizasi',
+          total: 8,
+          percent: 12,
+          title: '2/8: Prorektor Vizasi',
           currentActor: record?.prorektorApprovedByName
             ? `Moliya-iqtisod prorektori (${record.prorektorApprovedByName})`
             : 'Moliya-iqtisod prorektori',
@@ -286,9 +307,9 @@ export const RequestsPage: React.FC = () => {
       case 'APPROVED_BY_PRORECTOR':
         return {
           step: 3,
-          total: 7,
-          percent: 28,
-          title: '3/7: Rektor Vizasi',
+          total: 8,
+          percent: 25,
+          title: '3/8: Rektor Vizasi',
           currentActor: record?.rectorApprovedByName
             ? `Universitet Rektori (${record.rectorApprovedByName})`
             : 'Universitet Rektori',
@@ -299,22 +320,37 @@ export const RequestsPage: React.FC = () => {
       case 'APPROVED_BY_RECTOR':
         return {
           step: 4,
-          total: 7,
-          percent: 42,
-          title: '4/7: Bosh Hisobchi Moliyalash',
+          total: 8,
+          percent: 38,
+          title: '4/8: Davlat Xaridlari (Auksion va Shartnoma)',
+          currentActor: record?.procurementSignedByName
+            ? `Davlat xaridlari mutaxassisi (${record.procurementSignedByName})`
+            : 'Davlat xaridlari bo‘limi mas’uli',
+          color: '#722ed1',
+          badgeStatus: 'processing' as const,
+          description: 'Rektor ruxsat berdi, auksion (xarid.uzex.uz) yoki elektron do‘kon shartnomasi rasmiylashtirilmoqda',
+        };
+      case 'CONTRACT_SIGNED':
+        return {
+          step: 5,
+          total: 8,
+          percent: 50,
+          title: '5/8: Bosh Hisobchi Moliyalash',
           currentActor: record?.accountantFinancedByName
             ? `Bosh hisobchi (${record.accountantFinancedByName})`
             : 'Bosh hisobchi',
           color: '#165dff',
           badgeStatus: 'processing' as const,
-          description: 'Rektor ruxsat berdi, byudjet/kontrakt smetasi va sub-hisob biriktirilmoqda',
+          description: record?.contractNumber
+            ? `Shartnoma tuzildi (${record.contractNumber}). Bosh hisobchi tomonidan smeta va sub-hisob biriktirilmoqda`
+            : 'Shartnoma tuzildi, moliyalashtirish kutilmoqda',
         };
       case 'FINANCED_BY_ACCOUNTANT':
         return {
-          step: 5,
-          total: 7,
-          percent: 57,
-          title: '5/7: Ombor Kirimi (OS-1)',
+          step: 6,
+          total: 8,
+          percent: 63,
+          title: '6/8: Ombor Kirimi (OS-1)',
           currentActor: record?.warehouseReceivedByName
             ? `Bosh ombor mudiri (${record.warehouseReceivedByName})`
             : 'Bosh ombor mudiri',
@@ -326,10 +362,10 @@ export const RequestsPage: React.FC = () => {
       case 'APPROVED_BY_WAREHOUSE': {
         if (record?.requiresTechnicalInspection && !record?.engineerInspectedAt) {
           return {
-            step: 6,
-            total: 7,
-            percent: 64,
-            title: '6/7: Mas’ul Injener Texnik Ko‘rigi (AKT-TEX)',
+            step: 7,
+            total: 8,
+            percent: 70,
+            title: '7/8: Mas’ul Injener Texnik Ko‘rigi (AKT-TEX)',
             currentActor: record?.assignedEngineerName
               ? `Mas’ul Injener (${record.assignedEngineerName})`
               : 'Mas’ul Texnik Injener',
@@ -340,10 +376,10 @@ export const RequestsPage: React.FC = () => {
         }
         const hasRoom = Boolean(record?.targetRoomId || record?.targetRoomName || record?.targetRoomNumber);
         return {
-          step: 6,
-          total: 7,
-          percent: 71,
-          title: hasRoom ? '6/7: Komendantga Topshirish (OS-2)' : '6/7: Bo‘lim Mas’uliga Topshirish (OS-2 — Komendantsiz)',
+          step: 7,
+          total: 8,
+          percent: 75,
+          title: hasRoom ? '7/8: Komendantga Topshirish (OS-2)' : '7/8: Bo‘lim Mas’uliga Topshirish (OS-2 — Komendantsiz)',
           currentActor: hasRoom
             ? (record?.commendantHandedByName || record?.commendantName
                 ? `Bosh omborchi va Bino komendanti (${record.commendantHandedByName || record.commendantName})`
@@ -358,10 +394,10 @@ export const RequestsPage: React.FC = () => {
       }
       case 'HANDED_TO_COMMENDANT':
         return {
-          step: 7,
-          total: 7,
-          percent: 86,
-          title: '7/7: Xonada Qabul Qilish',
+          step: 8,
+          total: 8,
+          percent: 88,
+          title: '8/8: Xonada Qabul Qilish',
           currentActor: record?.requesterName
             ? `Bino komendanti va Talabgor (${record.requesterName})`
             : 'Bino komendanti va Talabgor',
@@ -372,10 +408,10 @@ export const RequestsPage: React.FC = () => {
       case 'FULFILLED': {
         const isDirect = !record?.commendantHandedAt;
         return {
-          step: 7,
-          total: 7,
+          step: 8,
+          total: 8,
           percent: 100,
-          title: isDirect ? 'To‘liq Topshirildi (Komendantsiz)' : '7/7: To‘liq Topshirildi (Balansda)',
+          title: isDirect ? 'To‘liq Topshirildi (Komendantsiz)' : '8/8: To‘liq Topshirildi (Balansda)',
           currentActor: record?.requesterName || 'Talabgor (Mas’ul)',
           color: '#00b42a',
           badgeStatus: 'success' as const,
@@ -387,7 +423,7 @@ export const RequestsPage: React.FC = () => {
       case 'REJECTED':
         return {
           step: 1,
-          total: 7,
+          total: 8,
           percent: 100,
           title: 'Rad Etildi',
           currentActor: 'Rad etilgan',
@@ -398,8 +434,8 @@ export const RequestsPage: React.FC = () => {
       default:
         return {
           step: 1,
-          total: 7,
-          percent: 14,
+          total: 8,
+          percent: 12,
           title: String(status),
           currentActor: 'Mas’ul xodim',
           color: '#86909c',
@@ -412,7 +448,8 @@ export const RequestsPage: React.FC = () => {
   const myActionCount = requests.filter((r) => {
     if (user?.role === 'VICE_RECTOR_FINANCE') return r.status === 'SUBMITTED' || r.status === 'PENDING' || r.status === 'APPROVED_BY_HEAD';
     if (user?.role === 'RECTOR') return r.status === 'APPROVED_BY_PRORECTOR';
-    if (user?.role === 'CHIEF_ACCOUNTANT') return r.status === 'APPROVED_BY_RECTOR';
+    if (user?.role === 'PROCUREMENT_OFFICER') return r.status === 'APPROVED_BY_RECTOR';
+    if (user?.role === 'CHIEF_ACCOUNTANT') return r.status === 'CONTRACT_SIGNED' || r.status === 'APPROVED_BY_RECTOR';
     if (user?.role === 'HEAD_WAREHOUSE') return r.status === 'FINANCED_BY_ACCOUNTANT';
     if (user?.role === 'COMMENDANT') return r.status === 'RECEIVED_AT_WAREHOUSE';
     if (user?.role === 'MOL') return r.status === 'HANDED_TO_COMMENDANT';
@@ -431,7 +468,8 @@ export const RequestsPage: React.FC = () => {
     if (activeTab === 'MY_ACTION') {
       if (user?.role === 'VICE_RECTOR_FINANCE') matchesTab = r.status === 'SUBMITTED' || r.status === 'PENDING' || r.status === 'APPROVED_BY_HEAD';
       else if (user?.role === 'RECTOR') matchesTab = r.status === 'APPROVED_BY_PRORECTOR';
-      else if (user?.role === 'CHIEF_ACCOUNTANT') matchesTab = r.status === 'APPROVED_BY_RECTOR';
+      else if (user?.role === 'PROCUREMENT_OFFICER') matchesTab = r.status === 'APPROVED_BY_RECTOR';
+      else if (user?.role === 'CHIEF_ACCOUNTANT') matchesTab = r.status === 'CONTRACT_SIGNED' || r.status === 'APPROVED_BY_RECTOR';
       else if (user?.role === 'HEAD_WAREHOUSE') matchesTab = r.status === 'FINANCED_BY_ACCOUNTANT';
       else if (user?.role === 'COMMENDANT') matchesTab = r.status === 'RECEIVED_AT_WAREHOUSE';
       else if (user?.role === 'MOL') matchesTab = r.status === 'HANDED_TO_COMMENDANT';
@@ -496,13 +534,68 @@ export const RequestsPage: React.FC = () => {
     setIsQrModalVisible(true);
   };
 
+  const handleOpenProcureModal = (req: RequestRecord, e?: any) => {
+    e?.stopPropagation?.();
+    setRequestToProcure(req);
+    procurementForm.setFieldsValue({
+      procurementType: req.procurementType || 'AUCTION',
+      lotNumber: req.lotNumber || '',
+      supplierName: req.supplierName || '',
+      supplierInn: req.supplierInn || '',
+      contractNumber: req.contractNumber || '',
+      contractDate: req.contractDate ? req.contractDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
+      contractAmount: req.contractAmount || undefined,
+      note: req.procurementNotes || 'Davlat xaridlari natijasida auksion shartnomasi biriktirildi',
+    });
+    setIsProcurementModalVisible(true);
+  };
+
+  const handleProcurementSubmit = () => {
+    procurementForm.validate().then((values) => {
+      if (!requestToProcure) return;
+      setPendingWorkflowAction({
+        req: requestToProcure,
+        targetStatus: 'CONTRACT_SIGNED',
+        payload: {
+          procurementType: values.procurementType,
+          lotNumber: values.lotNumber,
+          contractNumber: values.contractNumber,
+          contractDate: values.contractDate,
+          contractAmount: Number(values.contractAmount),
+          supplierName: values.supplierName,
+          supplierInn: values.supplierInn,
+          note: values.note || 'Auksion shartnomasi biriktirildi',
+        },
+      });
+      setQrSignPayload({
+        docNumber: values.contractNumber || requestToProcure.requestNumber,
+        docType: 'OS_1',
+        title: `Davlat Xaridlari Shartnomasi (${values.contractNumber || 'Auksion'})`,
+        departmentName: requestToProcure.departmentName || undefined,
+        itemSummary: requestToProcure.items.map((i) => `${i.itemName} (${i.requestedQty} ${i.unit})`).join(', '),
+        targetSignerRole: 'Davlat xaridlari mutaxassisi',
+        targetSignerName: user?.fullName,
+        metadata: {
+          stage: 'CONTRACT_SIGNED',
+          procurementType: values.procurementType,
+          lotNumber: values.lotNumber,
+          contractNumber: values.contractNumber,
+          contractAmount: values.contractAmount,
+          supplierName: values.supplierName,
+        },
+      });
+      setIsProcurementModalVisible(false);
+      setIsQrModalVisible(true);
+    });
+  };
+
   const handleOpenFinanceModal = (req: RequestRecord, e?: any) => {
     e?.stopPropagation?.();
     setRequestToFinance(req);
     financeForm.setFieldsValue({
       fundingSource: req.fundingSource || 'BYUDJET',
       subAccountCode: req.subAccountCode || '013',
-      allocatedAmount: req.allocatedAmount || undefined,
+      allocatedAmount: req.allocatedAmount || req.contractAmount || undefined,
       note: req.approvalNote || '',
     });
     setIsFinanceModalVisible(true);
@@ -673,10 +766,7 @@ export const RequestsPage: React.FC = () => {
         await advanceWorkflow({
           id: pendingWorkflowAction.req.id,
           status: pendingWorkflowAction.targetStatus,
-          note: pendingWorkflowAction.payload?.note,
-          fundingSource: pendingWorkflowAction.payload?.fundingSource,
-          subAccountCode: pendingWorkflowAction.payload?.subAccountCode,
-          allocatedAmount: pendingWorkflowAction.payload?.allocatedAmount,
+          ...pendingWorkflowAction.payload,
         });
         Message.success('Bosqich QR-kod orqali muvaffaqiyatli imzolandi va keyingi bosqichga o‘tkazildi!');
 
@@ -929,7 +1019,7 @@ export const RequestsPage: React.FC = () => {
         tabs={[
           { key: 'ALL', title: 'Barcha Zayavkalar', count: requests.length },
           { key: 'MY_ACTION', title: 'Mening Vizam Kutilmoqda', count: myActionCount },
-          { key: 'IN_PROGRESS', title: 'Jarayonda (7 Bosqich)', count: inProgressCount },
+          { key: 'IN_PROGRESS', title: 'Jarayonda (8 Bosqich)', count: inProgressCount },
           { key: 'FULFILLED', title: 'Yakunlangan (Balansda)', count: fulfilledCount },
           { key: 'REJECTED', title: 'Rad Etilganlar', count: rejectedCount },
         ]}
@@ -1092,13 +1182,13 @@ export const RequestsPage: React.FC = () => {
             ),
           },
           {
-            title: 'Jarayon Bosqichi (7-Qadam)',
+            title: 'Jarayon Bosqichi (8-Qadam)',
             dataIndex: 'status',
             width: 270,
             render: (status: RequestStatus, record: RequestRecord) => {
               const stage = getStageDetails(status, record);
               return (
-                <Tooltip content="Jarayon tafsilotlari va 7-bosqichli xronologiyani ko‘rish uchun bosing">
+                <Tooltip content="Jarayon tafsilotlari va 8-bosqichli xronologiyani ko‘rish uchun bosing">
                   <div
                     style={{
                       display: 'flex',
@@ -1249,8 +1339,15 @@ export const RequestsPage: React.FC = () => {
                 record.status === 'APPROVED_BY_PRORECTOR' &&
                 user?.role === 'RECTOR';
 
-              const canAccountantFinance =
+              const canProcureContract =
                 record.status === 'APPROVED_BY_RECTOR' &&
+                (user?.role === 'PROCUREMENT_OFFICER' ||
+                 user?.role === 'HEAD_WAREHOUSE' ||
+                 user?.role === 'SUPER_ADMIN' ||
+                 user?.role === 'ADMIN');
+
+              const canAccountantFinance =
+                (record.status === 'CONTRACT_SIGNED' || record.status === 'APPROVED_BY_RECTOR') &&
                 user?.role === 'CHIEF_ACCOUNTANT';
 
               const canWarehouseReceive =
@@ -1305,6 +1402,8 @@ export const RequestsPage: React.FC = () => {
                  (record.status === 'APPROVED_BY_PRORECTOR' &&
                   user?.role === 'RECTOR') ||
                  (record.status === 'APPROVED_BY_RECTOR' &&
+                  (user?.role === 'PROCUREMENT_OFFICER' || user?.role === 'SUPER_ADMIN')) ||
+                 ((record.status === 'CONTRACT_SIGNED' || record.status === 'APPROVED_BY_RECTOR') &&
                   user?.role === 'CHIEF_ACCOUNTANT') ||
                  (record.status === 'FINANCED_BY_ACCOUNTANT' &&
                   user?.role === 'HEAD_WAREHOUSE'));
@@ -1338,6 +1437,21 @@ export const RequestsPage: React.FC = () => {
                         style={{ borderRadius: 0, padding: '0 8px' }}
                       >
                         2-Viza
+                      </Button>
+                    </Tooltip>
+                  );
+                }
+                if (canProcureContract) {
+                  return (
+                    <Tooltip content="Davlat xaridlari: Auksion loti va shartnoma biriktirish (QR)">
+                      <Button
+                        size="small"
+                        type="primary"
+                        icon={<IconFile />}
+                        onClick={(e) => handleOpenProcureModal(record, e)}
+                        style={{ borderRadius: 0, padding: '0 8px', background: '#00b42a', borderColor: '#00b42a' }}
+                      >
+                        Shartnoma
                       </Button>
                     </Tooltip>
                   );
@@ -1602,7 +1716,7 @@ export const RequestsPage: React.FC = () => {
         style={{ width: 840, maxWidth: '95vw', top: 30 }}
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span>Talabnoma Holati va 7-Bosqichli Xarid Zanjiri: {selectedRequest?.requestNumber}</span>
+            <span>Talabnoma Holati va 8-Bosqichli Xarid Zanjiri: {selectedRequest?.requestNumber}</span>
             {isSocketConnected && (
               <Tag color="green" icon={<IconWifi />} style={{ borderRadius: 0, fontWeight: 600 }}>
                 Jonli Stepper (0ms)
@@ -1624,6 +1738,34 @@ export const RequestsPage: React.FC = () => {
             }}
           >
             <Space wrap size="small">
+              {selectedRequest?.status === 'APPROVED_BY_RECTOR' &&
+                (user?.role === 'PROCUREMENT_OFFICER' || user?.role === 'HEAD_WAREHOUSE' || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+                <Button
+                  type="primary"
+                  icon={<IconFile />}
+                  onClick={() => {
+                    setIsDetailModalVisible(false);
+                    handleOpenProcureModal(selectedRequest);
+                  }}
+                  style={{ borderRadius: 0, backgroundColor: '#00b42a', borderColor: '#00b42a' }}
+                >
+                  Auksion & Shartnoma Biriktirish
+                </Button>
+              )}
+              {(selectedRequest?.status === 'CONTRACT_SIGNED' || selectedRequest?.status === 'APPROVED_BY_RECTOR') &&
+                (user?.role === 'CHIEF_ACCOUNTANT' || user?.role === 'SUPER_ADMIN') && (
+                <Button
+                  type="primary"
+                  icon={<IconCheckCircle />}
+                  onClick={() => {
+                    setIsDetailModalVisible(false);
+                    handleOpenFinanceModal(selectedRequest);
+                  }}
+                  style={{ borderRadius: 0, backgroundColor: '#722ed1', borderColor: '#722ed1' }}
+                >
+                  Moliyalash va Sub-hisob
+                </Button>
+              )}
               {(selectedRequest?.status === 'RECEIVED_AT_WAREHOUSE' ||
                 selectedRequest?.status === 'HANDED_TO_COMMENDANT' ||
                 selectedRequest?.status === 'FULFILLED') && (
@@ -1744,7 +1886,7 @@ export const RequestsPage: React.FC = () => {
               )}
             </div>
 
-            {/* 7-Step Workflow Tracker */}
+            {/* 8-Step Workflow Tracker */}
             <div style={{ marginBottom: 24, padding: '16px 20px', background: 'var(--color-fill-1)', borderRadius: 4 }}>
               <Steps
                 direction="vertical"
@@ -1803,10 +1945,51 @@ export const RequestsPage: React.FC = () => {
                   }
                 />
                 <Step
-                  title="4. Bosh Hisobchi Moliyaviy Tasdig‘i"
+                  title="4. Davlat Xaridlari (Auksion va Shartnoma)"
                   description={
                     <div style={{ fontSize: 13, marginTop: 4 }}>
-                      <div><b>Holat:</b> {selectedRequest.accountantFinancedAt || getStepCurrent(selectedRequest.status) > 4 ? '✅ Moliyalashtirildi va sub-hisob biriktirildi' : getStepCurrent(selectedRequest.status) === 4 ? '⏳ Moliyaviy tasdiq kutilmoqda' : '⏳ Kutilmoqda'}</div>
+                      <div>
+                        <b>Holat:</b>{' '}
+                        {selectedRequest.procurementSignedAt || getStepCurrent(selectedRequest.status) > 4
+                          ? '✅ Auksion o‘tkazildi va shartnoma biriktirildi'
+                          : getStepCurrent(selectedRequest.status) === 4
+                          ? '⏳ Davlat xaridlari / auksion jarayonida'
+                          : '⏳ Kutilmoqda'}
+                      </div>
+                      {(selectedRequest.contractNumber || selectedRequest.lotNumber) && (
+                        <div style={{ marginTop: 4 }}>
+                          {selectedRequest.lotNumber && (
+                            <Tag color="blue" style={{ marginRight: 6 }}>Lot №: {selectedRequest.lotNumber}</Tag>
+                          )}
+                          {selectedRequest.contractNumber && (
+                            <Tag color="cyan" style={{ marginRight: 6 }}>Shartnoma: {selectedRequest.contractNumber}</Tag>
+                          )}
+                          {selectedRequest.contractAmount && (
+                            <Tag color="green" style={{ marginRight: 6 }}>
+                              Summa: {Number(selectedRequest.contractAmount).toLocaleString()} so‘m
+                            </Tag>
+                          )}
+                          {selectedRequest.supplierName && (
+                            <div style={{ fontSize: 12, color: 'var(--color-text-2)', marginTop: 3 }}>
+                              <b>Yetkazib beruvchi:</b> {selectedRequest.supplierName} {selectedRequest.supplierInn ? `(INN: ${selectedRequest.supplierInn})` : ''}
+                            </div>
+                          )}
+                          {selectedRequest.procurementSignedAt && (
+                            <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 2 }}>
+                              Tasdiqlangan sana: {new Date(selectedRequest.procurementSignedAt).toLocaleString()}
+                              {selectedRequest.procurementSignedByName ? ` (${selectedRequest.procurementSignedByName})` : ''}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  }
+                />
+                <Step
+                  title="5. Bosh Hisobchi Moliyaviy Tasdig‘i"
+                  description={
+                    <div style={{ fontSize: 13, marginTop: 4 }}>
+                      <div><b>Holat:</b> {selectedRequest.accountantFinancedAt || getStepCurrent(selectedRequest.status) > 5 ? '✅ Moliyalashtirildi va sub-hisob biriktirildi' : getStepCurrent(selectedRequest.status) === 5 ? '⏳ Moliyaviy tasdiq kutilmoqda' : '⏳ Kutilmoqda'}</div>
                       {selectedRequest.accountantFinancedAt && (
                         <div style={{ marginTop: 4 }}>
                           <Tag color="purple" style={{ marginRight: 6 }}>Manba: {selectedRequest.fundingSource || 'BYUDJET'}</Tag>
@@ -1823,10 +2006,10 @@ export const RequestsPage: React.FC = () => {
                   }
                 />
                 <Step
-                  title="5. Ombor Kirimi (OS-1 Kirim Akti)"
+                  title="6. Ombor Kirimi (OS-1 Kirim Akti)"
                   description={
                     <div style={{ fontSize: 13, marginTop: 4 }}>
-                      <div><b>Holat:</b> {selectedRequest.warehouseReceivedAt || getStepCurrent(selectedRequest.status) > 5 ? '✅ Mahsulot omborga qabul qilindi (OS-1 muhrlandi)' : getStepCurrent(selectedRequest.status) === 5 ? '⏳ Xarid va ombor kirimi kutilmoqda' : '⏳ Kutilmoqda'}</div>
+                      <div><b>Holat:</b> {selectedRequest.warehouseReceivedAt || getStepCurrent(selectedRequest.status) > 6 ? '✅ Mahsulot omborga qabul qilindi (OS-1 muhrlandi)' : getStepCurrent(selectedRequest.status) === 6 ? '⏳ Xarid va ombor kirimi kutilmoqda' : '⏳ Kutilmoqda'}</div>
                       {selectedRequest.warehouseReceivedAt && (
                         <div><b>Sana:</b> {new Date(selectedRequest.warehouseReceivedAt).toLocaleString()}</div>
                       )}
@@ -1836,8 +2019,8 @@ export const RequestsPage: React.FC = () => {
                 <Step
                   title={
                     !hasRoom
-                      ? "6. Bo‘lim Mas’uliga To‘g‘ridan-to‘g‘ri Topshirish (OS-2 Chiqim — Komendantsiz)"
-                      : "6. Bino Komendantiga Topshirish (OS-2 Nakladnoy)"
+                      ? "7. Bo‘lim Mas’uliga To‘g‘ridan-to‘g‘ri Topshirish (OS-2 Chiqim — Komendantsiz)"
+                      : "7. Bino Komendantiga Topshirish (OS-2 Nakladnoy)"
                   }
                   description={
                     <div style={{ fontSize: 13, marginTop: 4 }}>
@@ -1845,12 +2028,12 @@ export const RequestsPage: React.FC = () => {
                         !hasRoom
                           ? (selectedRequest.status === 'FULFILLED'
                               ? '✅ Ombordan to‘g‘ridan-to‘g‘ri bo‘lim mas’uliga topshirildi (Komendant ishtirok etmadi)'
-                              : getStepCurrent(selectedRequest.status) === 6
+                              : getStepCurrent(selectedRequest.status) === 7
                               ? '⏳ Ombordan to‘g‘ridan-to‘g‘ri bo‘lim mas’uliga topshirish kutilmoqda (Komendantsiz)'
                               : '⏳ Kutilmoqda (Komendant ishtirok etmaydi, to‘g‘ridan-to‘g‘ri bo‘limga)')
-                          : (selectedRequest.commendantHandedAt || getStepCurrent(selectedRequest.status) > 6
+                          : (selectedRequest.commendantHandedAt || getStepCurrent(selectedRequest.status) > 7
                               ? '✅ Omborchi va Komendant o‘rtasida OS-2 nakladnoyi imzolandi'
-                              : getStepCurrent(selectedRequest.status) === 6
+                              : getStepCurrent(selectedRequest.status) === 7
                               ? '⏳ Ombordan bino komendantiga topshirish kutilmoqda'
                               : '⏳ Kutilmoqda')
                       }</div>
@@ -1863,8 +2046,8 @@ export const RequestsPage: React.FC = () => {
                 <Step
                   title={
                     !hasRoom
-                      ? `7. ${selectedRequest.requesterName || 'Bo‘lim Mas’uli'} — Balansga Biriktirish va Yakunlash`
-                      : `7. ${selectedRequest.requesterName || 'Mas\'ul Xodim'} — Xonada Qabul Qilish Dalolatnomasi`
+                      ? `8. ${selectedRequest.requesterName || 'Bo‘lim Mas’uli'} — Balansga Biriktirish va Yakunlash`
+                      : `8. ${selectedRequest.requesterName || 'Mas\'ul Xodim'} — Xonada Qabul Qilish Dalolatnomasi`
                   }
                   description={
                     <div style={{ fontSize: 13, marginTop: 4 }}>
@@ -1873,7 +2056,7 @@ export const RequestsPage: React.FC = () => {
                           ? (!selectedRequest.commendantHandedAt
                               ? '🎉 Ombordan to‘g‘ridan-to‘g‘ri qabul qilib olindi va bo‘lim balansiga biriktirildi'
                               : '🎉 Komendant va Talabgor o‘rtasida o‘zaro topshirish-qabul qilish dalolatnomasi imzolandi')
-                          : getStepCurrent(selectedRequest.status) === 7
+                          : getStepCurrent(selectedRequest.status) === 8
                           ? '⏳ Qabul qilib olish va tasdiqlash kutilmoqda'
                           : (!hasRoom ? '⏳ Kutilmoqda (Ombordan qabul qilingach avtomatik yakunlanadi)' : '⏳ Kutilmoqda')
                       }</div>
@@ -1985,6 +2168,44 @@ export const RequestsPage: React.FC = () => {
                     </div>
                   ),
                 },
+                ...(selectedRequest.contractNumber || selectedRequest.lotNumber || selectedRequest.procurementType
+                  ? [
+                      {
+                        label: 'Davlat Xaridi & Shartnoma',
+                        value: (
+                          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                            <Space wrap size={6}>
+                              {selectedRequest.procurementType && (
+                                <Tag color="purple">Xarid: {selectedRequest.procurementType}</Tag>
+                              )}
+                              {selectedRequest.lotNumber && (
+                                <Tag color="blue">Lot №: {selectedRequest.lotNumber}</Tag>
+                              )}
+                              {selectedRequest.contractNumber && (
+                                <Tag color="cyan">Shartnoma №: {selectedRequest.contractNumber}</Tag>
+                              )}
+                              {selectedRequest.contractDate && (
+                                <Tag color="gray">Sana: {new Date(selectedRequest.contractDate).toLocaleDateString()}</Tag>
+                              )}
+                              {selectedRequest.contractAmount && (
+                                <Tag color="green">Summa: {Number(selectedRequest.contractAmount).toLocaleString()} so‘m</Tag>
+                              )}
+                            </Space>
+                            {selectedRequest.supplierName && (
+                              <div style={{ fontSize: 13, color: 'var(--color-text-1)' }}>
+                                Yetkazib beruvchi: <b>{selectedRequest.supplierName}</b> {selectedRequest.supplierInn ? `(INN: ${selectedRequest.supplierInn})` : ''}
+                              </div>
+                            )}
+                            {selectedRequest.procurementNotes && (
+                              <div style={{ fontSize: 12, color: 'var(--color-text-3)' }}>
+                                Izoh: {selectedRequest.procurementNotes}
+                              </div>
+                            )}
+                          </Space>
+                        ),
+                      },
+                    ]
+                  : []),
                 {
                   label: 'Moliyalashtirish Holati',
                   value: selectedRequest.fundingSource ? (
@@ -2022,6 +2243,130 @@ export const RequestsPage: React.FC = () => {
         initialPurpose={initialPurpose}
       />
 
+      {/* DAVLAT XARIDLARI (AUKSION VA SHARTNOMA) MODAL */}
+      <Modal
+        title={`Davlat Xaridlari: Auksion va Shartnoma Biriktirish (${requestToProcure?.requestNumber})`}
+        visible={isProcurementModalVisible}
+        style={{ width: 640, maxWidth: '95vw' }}
+        onOk={handleProcurementSubmit}
+        onCancel={() => {
+          setIsProcurementModalVisible(false);
+          setRequestToProcure(null);
+        }}
+        okText="Shartnomani Tasdiqlash va QR-Imzolash"
+        cancelText="Bekor qilish"
+      >
+        <Alert
+          type="info"
+          style={{ marginBottom: 16, borderRadius: 0 }}
+          title="Davlat Xaridlari To‘g‘risidagi Qonunchilikka Muvoofiq"
+          content="Rektor ruxsat bergan mazkur talabnoma bo‘yicha xarid.uzex.uz auksion loti yoki elektron do‘kon shartnomasi ma’lumotlarini to‘ldiring. Tasdiqlashdan so‘ng talabnoma bosh hisobchiga moliyalash uchun yuboriladi."
+        />
+        <Form form={procurementForm} layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}>
+              <FormItem
+                label="Xarid Turi"
+                field="procurementType"
+                rules={[{ required: true, message: 'Xarid turini tanlang!' }]}
+              >
+                <Select placeholder="Xarid turini tanlang">
+                  <Select.Option value="AUCTION">Auksion (xarid.uzex.uz)</Select.Option>
+                  <Select.Option value="ELECTRONIC_SHOP">Elektron do‘kon</Select.Option>
+                  <Select.Option value="NATIONAL_SHOP">Milliy do‘kon</Select.Option>
+                  <Select.Option value="TENDER">Tender / Eng yaxshi takliflar</Select.Option>
+                  <Select.Option value="DIRECT_CONTRACT">To‘g‘ridan-to‘g‘ri shartnoma</Select.Option>
+                </Select>
+              </FormItem>
+            </Col>
+            <Col span={12}>
+              <FormItem
+                label="Auksion Lot Raqami (xarid.uzex.uz)"
+                field="lotNumber"
+                rules={[{ required: true, message: 'Lot raqamini kiriting!' }]}
+              >
+                <Input placeholder="Masalan: 1428579" />
+              </FormItem>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={14}>
+              <FormItem
+                label="Yetkazib Beruvchi Nomi"
+                field="supplierName"
+                rules={[{ required: true, message: 'Yetkazib beruvchi nomini kiriting!' }]}
+              >
+                <AutoComplete
+                  placeholder="Ta’minotchi nomini yozing yoki ro‘yxatdan tanlang"
+                  data={suppliers.map((s) => s.name)}
+                  allowClear
+                  onSelect={(val: string) => {
+                    const match = suppliers.find((s) => s.name.toLowerCase() === val.toLowerCase());
+                    if (match) {
+                      if (match.inn) procurementForm.setFieldValue('supplierInn', match.inn);
+                      if (match.contractNumber) procurementForm.setFieldValue('contractNumber', match.contractNumber);
+                    }
+                  }}
+                />
+              </FormItem>
+            </Col>
+            <Col span={10}>
+              <FormItem
+                label="STIR (INN)"
+                field="supplierInn"
+                rules={[{ required: true, message: 'INN raqamini kiriting!' }]}
+              >
+                <Input placeholder="Masalan: 305123456" maxLength={9} />
+              </FormItem>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <FormItem
+                label="Shartnoma Raqami"
+                field="contractNumber"
+                rules={[{ required: true, message: 'Shartnoma raqamini kiriting!' }]}
+              >
+                <Input placeholder="Masalan: SH-2026-089" />
+              </FormItem>
+            </Col>
+            <Col span={12}>
+              <FormItem
+                label="Shartnoma Sanasi"
+                field="contractDate"
+                rules={[{ required: true, message: 'Shartnoma sanasini tanlang!' }]}
+              >
+                <DatePicker style={{ width: '100%' }} placeholder="Sanani tanlang" />
+              </FormItem>
+            </Col>
+          </Row>
+
+          <FormItem
+            label="Shartnoma Yakuniy Summasi (so‘m)"
+            field="contractAmount"
+            rules={[{ required: true, message: 'Shartnoma summasini kiriting!' }]}
+          >
+            <InputNumber
+              min={1000}
+              max={10000000000}
+              step={100000}
+              style={{ width: '100%' }}
+              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
+              placeholder="Masalan: 9 500 000"
+            />
+          </FormItem>
+
+          <FormItem label="Xarid Bo‘limi Izohi" field="note">
+            <Input.TextArea
+              placeholder="Qo‘shimcha shartlar yoki yetkazib berish muddati haqida izoh"
+              rows={2}
+            />
+          </FormItem>
+        </Form>
+      </Modal>
+
       {/* PHASE L1: CHIEF ACCOUNTANT FINANCE MODAL */}
       <Modal
         title={`Bosh Hisobchi: Moliyalashtirish va Sub-hisob Biriktirish (${requestToFinance?.requestNumber})`}
@@ -2035,6 +2380,29 @@ export const RequestsPage: React.FC = () => {
         okText="Tasdiqlash va QR-Imzolashga O‘tish"
         cancelText="Bekor qilish"
       >
+        {requestToFinance && (requestToFinance.contractNumber || requestToFinance.lotNumber) && (
+          <Alert
+            type="success"
+            style={{ marginBottom: 16, borderRadius: 0 }}
+            title="Auksion va Shartnoma Ma’lumotlari (Davlat Xaridlari)"
+            content={
+              <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                {requestToFinance.contractNumber && (
+                  <div><b>Shartnoma №:</b> {requestToFinance.contractNumber} {requestToFinance.contractDate ? `(${new Date(requestToFinance.contractDate).toLocaleDateString()})` : ''}</div>
+                )}
+                {requestToFinance.lotNumber && (
+                  <div><b>Auksion lot №:</b> {requestToFinance.lotNumber} ({requestToFinance.procurementType || 'AUCTION'})</div>
+                )}
+                {requestToFinance.supplierName && (
+                  <div><b>Yetkazib beruvchi:</b> {requestToFinance.supplierName} {requestToFinance.supplierInn ? `(STIR: ${requestToFinance.supplierInn})` : ''}</div>
+                )}
+                {requestToFinance.contractAmount && (
+                  <div><b>Shartnoma summasi:</b> <b style={{ color: '#00b42a' }}>{Number(requestToFinance.contractAmount).toLocaleString()} so‘m</b></div>
+                )}
+              </div>
+            }
+          />
+        )}
         <Alert
           type="info"
           style={{ marginBottom: 16, borderRadius: 0 }}

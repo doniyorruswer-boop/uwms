@@ -108,12 +108,20 @@ export const REQUEST_STATUS_CONFIG: Record<string, StatusMeta> = {
     description: 'Talabnoma kafedra tomonidan taqdim etilgan, prorektor vizasi kutilmoqda',
   },
   APPROVED_BY_RECTOR: {
-    label: 'Moliyalashtirish Kutilmoqda',
-    color: 'cyan',
+    label: 'Auksion & Shartnoma Kutilmoqda',
+    color: 'purple',
+    badgeStatus: 'processing',
+    iconName: 'check',
+    stepIndex: 3,
+    description: 'Rektor tasdiqlagan, davlat xaridlari bo‘limi auksion va shartnomani biriktirishi kutilmoqda',
+  },
+  CONTRACT_SIGNED: {
+    label: 'Shartnoma Tuzildi (Moliyalash Kutilmoqda)',
+    color: 'arcoblue',
     badgeStatus: 'processing',
     iconName: 'check',
     stepIndex: 4,
-    description: 'Rektor tasdiqlagan, bosh hisobchi tomonidan moliyalashtirish kutilmoqda',
+    description: 'Auksion natijasi va shartnoma biriktirilgan, bosh hisobchi moliyalashi kutilmoqda',
   },
   FINANCED_BY_ACCOUNTANT: {
     label: 'Ombor Kirimi (OS-1) Kutilmoqda',
@@ -147,11 +155,11 @@ export const REQUEST_STATUS_CONFIG: Record<string, StatusMeta> = {
     description: 'Bino komendanti qabul qilgan, xonada talabgor bilan dalolatnoma imzosi kutilmoqda',
   },
   FULFILLED: {
-    label: '7/7: To‘liq Bajarildi (Topshirildi)',
+    label: '8/8: To‘liq Bajarildi (Topshirildi)',
     color: 'green',
     badgeStatus: 'success',
     iconName: 'check',
-    stepIndex: 7,
+    stepIndex: 8,
   },
   REJECTED: {
     label: 'Rad Etildi',

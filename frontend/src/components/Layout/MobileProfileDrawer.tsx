@@ -6,6 +6,7 @@ import {
   IconSun,
   IconMoon,
   IconExclamationCircleFill,
+  IconSafe,
 } from '@arco-design/web-react/icon';
 import { useAuthStore } from '../../store/authStore';
 import { formatRoleName } from '../../constants/roles.constants';
@@ -17,11 +18,13 @@ const { Title, Text } = Typography;
 interface MobileProfileDrawerProps {
   visible: boolean;
   onClose: () => void;
+  onOpenTwoFactor?: () => void;
 }
 
 export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   visible,
   onClose,
+  onOpenTwoFactor,
 }) => {
   const { user, isDarkMode, toggleDarkMode, logout } = useAuthStore();
   const { t } = useTranslation();
@@ -145,6 +148,36 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
             </Text>
             <LanguageSwitcher />
           </div>
+
+          {/* 2FA Security */}
+          {onOpenTwoFactor && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '6px 4px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <IconSafe style={{ fontSize: 18, color: '#165DFF' }} />
+                <Text bold style={{ fontSize: 14 }}>
+                  Xavfsizlik (2FA)
+                </Text>
+              </div>
+              <Button
+                size="small"
+                type="outline"
+                onClick={() => {
+                  onClose();
+                  onOpenTwoFactor();
+                }}
+                style={{ borderRadius: 6 }}
+              >
+                Sozlash
+              </Button>
+            </div>
+          )}
         </div>
 
         <Divider style={{ margin: '20px 0 16px 0' }} />

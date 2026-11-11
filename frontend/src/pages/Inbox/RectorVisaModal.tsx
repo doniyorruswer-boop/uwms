@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   Form,
@@ -15,21 +15,28 @@ import {
 import {
   IconCheckCircle,
   IconExclamationCircle,
+  IconMobile,
+  IconLock,
+  IconSafe,
 } from '@arco-design/web-react/icon';
-import type { OverQuotaRequestItem } from '../../hooks/useInboxQuery';
+import type { PendingRequestItem, OverQuotaRequestItem } from '../../hooks/useInboxQuery';
 import { useRequestsQuery } from '../../hooks/useRequestsQuery';
+import { useTwoFactorStatusQuery } from '../../hooks/useTwoFactorQuery';
+import { TwoFactorSetupModal } from '../../components/Auth/TwoFactorSetupModal';
 import { useAuthStore } from '../../store/authStore';
 import { useQueryClient } from '@tanstack/react-query';
-import { RoleType } from '../../types';
+import { RoleType, type RequestStatus } from '../../types';
 
 const { Text } = Typography;
 const FormItem = Form.Item;
 
 export interface RectorVisaModalProps {
   visible: boolean;
-  request: OverQuotaRequestItem | null;
+  request: PendingRequestItem | OverQuotaRequestItem | null;
   onClose: () => void;
   onApproved?: () => void;
+  onOpenQrSign?: (request: PendingRequestItem, note: string, totpCode?: string) => void;
+  onReject?: (request: PendingRequestItem) => void;
 }
 
 export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
@@ -37,39 +44,74 @@ export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
   request,
   onClose,
   onApproved,
+  onOpenQrSign,
+  onReject,
 }) => {
   const [form] = Form.useForm();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const { updateRequestStatus } = useRequestsQuery();
+  const { data: twoFactorStatus } = useTwoFactorStatusQuery();
+  const [isTwoFactorModalOpen, setIsTwoFactorModalOpen] = useState(false);
 
-  const isRector = user?.role === RoleType.RECTOR || user?.role === RoleType.SUPER_ADMIN;
+  const isRector = user?.role === RoleType.RECTOR;
+  const isProrektor = user?.role === RoleType.VICE_RECTOR_FINANCE;
+  const isSuperAdmin = user?.role === RoleType.SUPER_ADMIN || user?.role === RoleType.ADMIN;
+
+  const defaultDecision: RequestStatus = isRector
+    ? 'APPROVED_BY_RECTOR'
+    : isProrektor
+    ? 'APPROVED_BY_PRORECTOR'
+    : request?.status === 'APPROVED_BY_PRORECTOR'
+    ? 'APPROVED_BY_RECTOR'
+    : 'APPROVED_BY_PRORECTOR';
 
   useEffect(() => {
     if (visible && request) {
       form.resetFields();
+      let defaultNote = '';
+      if (isRector) {
+        defaultNote = request.isOverQuota
+          ? 'Kafedra oylik limitidan ortiqcha talabnomaga Rektor farmoyishi bilan ruxsat berildi. Xarid va ta’minot amalga oshirilsin.'
+          : 'Universitet Rektori tomonidan xarid talabnomasiga ruxsat berildi (viza). Davlat xaridlari (auksion) bo‘limiga yo‘naltirilsin.';
+      } else if (isProrektor) {
+        defaultNote = request.isOverQuota
+          ? 'Kafedra oylik limitidan ortiqcha talabnoma Moliya-iqtisodiyot ishlari bo‘yicha prorektor tomonidan ko‘rib chiqildi va ma’qullandi.'
+          : 'Moliya-iqtisodiyot ishlari bo‘yicha prorektor tomonidan ko‘rib chiqildi va viza qo‘yildi. Rektorat tasdig‘iga yo‘naltirilsin.';
+      } else {
+        defaultNote = 'Rektorat vizasi berildi. Xarid talabnomasi ma’qullandi.';
+      }
+
       form.setFieldsValue({
-        decision: isRector ? 'APPROVED_BY_RECTOR' : 'APPROVED_BY_PRORECTOR',
-        note: `Kafedra oylik limitidan ortiqcha talabnoma Rektorat qarori bilan ma’qullandi. Ombor zaxirasidan ajratilsin.`,
+        decision: defaultDecision,
+        note: defaultNote,
+        totpCode: '',
       });
     }
-  }, [visible, request, form, isRector]);
+  }, [visible, request, form, isRector, isProrektor, defaultDecision]);
 
   if (!request) return null;
 
   const handleSubmit = async () => {
     try {
       const values = await form.validate();
-      await updateRequestStatus({
-        id: request.id,
-        status: values.decision,
-        note: values.note.trim(),
-      });
-      queryClient.invalidateQueries({ queryKey: ['inbox'] });
-      queryClient.invalidateQueries({ queryKey: ['requests'] });
-      queryClient.invalidateQueries({ queryKey: ['quotas'] });
-      onClose();
-      if (onApproved) onApproved();
+      const totpCode = values.totpCode?.trim() || undefined;
+      if (onOpenQrSign) {
+        onClose();
+        onOpenQrSign(request, values.note.trim(), totpCode);
+      } else {
+        await updateRequestStatus({
+          id: request.id,
+          status: values.decision || defaultDecision,
+          note: values.note.trim(),
+          totpCode,
+        });
+        queryClient.invalidateQueries({ queryKey: ['inbox'] });
+        queryClient.invalidateQueries({ queryKey: ['requests'] });
+        queryClient.invalidateQueries({ queryKey: ['quotas'] });
+        onClose();
+        if (onApproved) onApproved();
+      }
     } catch {
       // Form validation error
     }
@@ -84,22 +126,35 @@ export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
     {
       title: 'Mahsulot / Sarf Materiali',
       render: (_: any, record: any) => (
-        <Text bold>{record.item?.name || 'Mahsulot'}</Text>
+        <div>
+          <Text bold>{record.item?.name || record.itemName || 'Mahsulot'}</Text>
+          {record.item?.model && (
+            <div style={{ fontSize: 12, color: 'var(--color-text-3)' }}>
+              Model: {record.item.model}
+            </div>
+          )}
+        </div>
       ),
     },
     {
       title: 'So‘ralgan Miqdor',
-      width: 160,
+      width: 170,
       render: (_: any, record: any) => (
-        <Tag color="red" style={{ borderRadius: 0, fontWeight: 600 }}>
-          {record.requestedQty} {record.item?.unit || 'dona'}
+        <Tag
+          color={request.isOverQuota ? 'red' : 'arcoblue'}
+          style={{ borderRadius: 0, fontWeight: 600 }}
+        >
+          {record.requestedQty} {record.item?.unit || record.unit || 'dona'}
         </Tag>
       ),
     },
   ];
 
   const descriptionData = [
-    { label: 'Talabnoma №', value: <Tag color="blue" style={{ borderRadius: 0 }}>{request.requestNumber}</Tag> },
+    {
+      label: 'Talabnoma №',
+      value: <Tag color="blue" style={{ borderRadius: 0 }}>{request.requestNumber}</Tag>,
+    },
     { label: 'Kafedra / Bo‘lim', value: request.department?.name || '—' },
     { label: 'So‘rovchi xodim', value: request.requester?.fullName || '—' },
     { label: 'Talabnoma maqsadi', value: request.purpose },
@@ -110,39 +165,93 @@ export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
     <Modal
       title={
         <Space>
-          <IconExclamationCircle style={{ color: '#F7BA1E', fontSize: 18 }} />
-          <span>Rektorat Maxsus Vizasi (Kvotadan Ortgan Talabnoma)</span>
+          <IconCheckCircle
+            style={{
+              color: isRector ? '#722ED1' : '#165DFF',
+              fontSize: 18,
+            }}
+          />
+          <span>
+            {isRector
+              ? 'Universitet Rektori Vizasi (Ko‘rib Chiqish va Tasdiqlash)'
+              : isProrektor
+              ? 'Moliya-iqtisodiyot Prorektori Vizasi (Ko‘rib Chiqish va Tasdiqlash)'
+              : 'Rektorat Vizasi (Ko‘rib Chiqish va Tasdiqlash)'}
+          </span>
         </Space>
       }
       visible={visible}
       onCancel={onClose}
       footer={
-        <Space>
-          <Button onClick={onClose} style={{ borderRadius: 0 }}>
-            Bekor qilish
-          </Button>
-          <Button
-            type="primary"
-            icon={<IconCheckCircle />}
-            style={{ borderRadius: 0, backgroundColor: '#165DFF' }}
-            onClick={handleSubmit}
-          >
-            Viza Qo‘yish va Tasdiqlash
-          </Button>
-        </Space>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            width: '100%',
+            flexWrap: 'wrap',
+            gap: 8,
+          }}
+        >
+          {onReject ? (
+            <Button
+              status="danger"
+              style={{ borderRadius: 0 }}
+              onClick={() => {
+                onClose();
+                onReject(request);
+              }}
+            >
+              Rad etish
+            </Button>
+          ) : (
+            <div />
+          )}
+          <Space>
+            <Button onClick={onClose} style={{ borderRadius: 0 }}>
+              Bekor qilish
+            </Button>
+            <Button
+              type="primary"
+              icon={<IconMobile />}
+              style={{
+                borderRadius: 0,
+                backgroundColor: isRector ? '#722ED1' : '#165DFF',
+                borderColor: isRector ? '#722ED1' : '#165DFF',
+                fontWeight: 600,
+                padding: '0 20px',
+              }}
+              onClick={handleSubmit}
+            >
+              Viza Qo‘yish va QR-Imzolash
+            </Button>
+          </Space>
+        </div>
       }
-      style={{ width: 680, borderRadius: 0 }}
+      style={{ width: 720, maxWidth: '95vw', borderRadius: 0 }}
       unmountOnExit
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* Special Warning Banner */}
-        <Alert
-          type="warning"
-          showIcon
-          title="Kafedraning Oylik Kvota Limiti Oshirilgan"
-          content="Ushbu kafedra joriy oy uchun belgilangan sarflanuvchi materiallar limitidan oshirib so‘rov yuborgan. OTM nizomiga muvofiq, ortiqcha tovarlar ombordan faqat Rektorat rasmiy vizasi (Rektor yoki Moliya-iqtisod Prorektori roziligi) orqali chiqarilishi mumkin."
-          style={{ borderRadius: 0 }}
-        />
+        {/* Status Alert Banner */}
+        {request.isOverQuota ? (
+          <Alert
+            type="warning"
+            showIcon
+            title="Kafedraning Oylik Kvota Limiti Oshirilgan"
+            content={`Ushbu kafedra joriy oy uchun belgilangan sarflanuvchi materiallar limitidan oshirib so‘rov yuborgan. OTM nizomiga muvofiq, ortiqcha tovarlar ombordan faqat maxsus ruxsat (${
+              isRector ? 'Universitet Rektori' : 'Moliya-iqtisodiyot Prorektori'
+            } vizasi) orqali chiqarilishi mumkin.`}
+            style={{ borderRadius: 0 }}
+          />
+        ) : (
+          <Alert
+            type="info"
+            showIcon
+            title="Talabnoma Bo‘yicha Xarid Materiallari Tarkibi"
+            content="Talabnomani tasdiqlashdan oldin quyidagi ro‘yxatda ko‘rsatilgan mahsulotlar nomi, miqdori va kafedra ehtiyojini tekshirib chiqing."
+            style={{ borderRadius: 0 }}
+          />
+        )}
 
         {/* Request Details */}
         <Descriptions
@@ -156,7 +265,7 @@ export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
         {/* Requested Items Table */}
         <div>
           <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>
-            So‘ralayotgan sarf materiallari ro‘yxati:
+            So‘ralayotgan sarf materiallari va mahsulotlar ro‘yxati:
           </div>
           <Table
             rowKey={(r) => r.id || String(Math.random())}
@@ -171,37 +280,134 @@ export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
 
         {/* Approval Form */}
         <Form form={form} layout="vertical">
-          <FormItem
-            label="Rektorat Vizasi Turi"
-            field="decision"
-            rules={[{ required: true, message: 'Viza turini tanlang' }]}
-          >
-            <Select style={{ borderRadius: 0 }}>
-              <Select.Option value="APPROVED_BY_RECTOR">
-                Universitet Rektori Roziligi (APPROVED_BY_RECTOR)
-              </Select.Option>
-              <Select.Option value="APPROVED_BY_PRORECTOR">
-                Moliya-iqtisodiyot ishlari bo‘yicha prorektor Roziligi (APPROVED_BY_PRORECTOR)
-              </Select.Option>
-            </Select>
+          <FormItem label="Tasdiqlovchi Mas’ul va Viza Turi">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {isRector ? (
+                <Tag
+                  color="purple"
+                  size="large"
+                  style={{ borderRadius: 4, fontWeight: 600, padding: '6px 14px', fontSize: 13 }}
+                >
+                  🏛 Universitet Rektori Roziligi va Vizasi (APPROVED_BY_RECTOR)
+                </Tag>
+              ) : isProrektor ? (
+                <Tag
+                  color="arcoblue"
+                  size="large"
+                  style={{ borderRadius: 4, fontWeight: 600, padding: '6px 14px', fontSize: 13 }}
+                >
+                  💼 Moliya-iqtisodiyot ishlari bo‘yicha prorektor Vizasi (APPROVED_BY_PRORECTOR)
+                </Tag>
+              ) : (
+                <Tag
+                  color="gray"
+                  size="large"
+                  style={{ borderRadius: 4, fontWeight: 600, padding: '6px 14px', fontSize: 13 }}
+                >
+                  Bosh Administrator Vizasi
+                </Tag>
+              )}
+            </div>
           </FormItem>
 
+          {isSuperAdmin && (
+            <FormItem
+              label="Viza Bosqichini Tanlang (Faqat Administrator uchun)"
+              field="decision"
+              rules={[{ required: true, message: 'Viza turini tanlang' }]}
+            >
+              <Select style={{ borderRadius: 0 }}>
+                <Select.Option value="APPROVED_BY_PRORECTOR">
+                  Moliya-iqtisodiyot ishlari bo‘yicha prorektor Roziligi (APPROVED_BY_PRORECTOR)
+                </Select.Option>
+                <Select.Option value="APPROVED_BY_RECTOR">
+                  Universitet Rektori Roziligi (APPROVED_BY_RECTOR)
+                </Select.Option>
+              </Select>
+            </FormItem>
+          )}
+
           <FormItem
-            label="Rektorat Qarori / Asoslovchi Izoh"
+            label="Qaror / Asoslovchi Rezolyutsiya"
             field="note"
             rules={[
-              { required: true, message: 'Qaror yoki buyruq asosini kiriting' },
+              { required: true, message: 'Qaror yoki ko‘rsatmani kiriting' },
               { minLength: 5, message: 'Kamida 5 ta belgi kiriting' },
             ]}
           >
             <Input.TextArea
               rows={3}
-              placeholder="Masalan: Rektorat yig‘ilishi 12-sonli bayonnomasi qaroriga asosan limitdan ortiqcha berilishiga ruxsat etildi..."
+              placeholder="Qaror yoki ko‘rsatmani kiriting..."
               style={{ borderRadius: 0 }}
             />
           </FormItem>
+
+          {/* GOOGLE AUTHENTICATOR (2FA) SECTION */}
+          {twoFactorStatus?.enabled ? (
+            <FormItem
+              label={
+                <Space>
+                  <IconLock style={{ color: '#165DFF' }} />
+                  <span style={{ fontWeight: 600 }}>Google Authenticator (2FA) 6 Xonali Tasdiqlash Kodi</span>
+                </Space>
+              }
+              field="totpCode"
+              rules={[
+                { required: true, message: 'Google Authenticator ilovangizdagi 6 xonali kodni kiriting!' },
+                { match: /^\d{6}$/, message: 'Kod aynan 6 ta raqamdan iborat bo‘lishi kerak!' },
+              ]}
+              extra="Shaxsiy telefoningizdagi Google Authenticator ilovasini ochib, 6 xonali tasdiqlash kodini kiriting."
+            >
+              <Input
+                placeholder="Masalan: 384910"
+                maxLength={6}
+                prefix={<IconLock />}
+                style={{
+                  letterSpacing: 6,
+                  fontSize: 18,
+                  fontWeight: 700,
+                  borderRadius: 0,
+                  height: 42,
+                }}
+              />
+            </FormItem>
+          ) : (
+            <div
+              style={{
+                padding: '12px 16px',
+                backgroundColor: 'var(--color-fill-2)',
+                border: '1px dashed var(--color-border-3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                marginTop: 8,
+              }}
+            >
+              <Space>
+                <IconSafe style={{ color: '#FF7D00', fontSize: 18 }} />
+                <div style={{ fontSize: 12, color: 'var(--color-text-2)', lineHeight: 1.4 }}>
+                  Begona shaxslar nomingizdan viza qo‘ya olmasligi uchun <b>Google Authenticator (2FA)</b> himoyasini yoqish tavsiya etiladi.
+                </div>
+              </Space>
+              <Button
+                size="small"
+                type="outline"
+                style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
+                onClick={() => setIsTwoFactorModalOpen(true)}
+              >
+                2FA ni Yoqish
+              </Button>
+            </div>
+          )}
         </Form>
       </div>
+
+      {/* Two Factor Setup Modal */}
+      <TwoFactorSetupModal
+        visible={isTwoFactorModalOpen}
+        onClose={() => setIsTwoFactorModalOpen(false)}
+      />
     </Modal>
   );
 };
