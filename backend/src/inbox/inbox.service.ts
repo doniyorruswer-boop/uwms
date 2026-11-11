@@ -682,13 +682,17 @@ export class InboxService {
       }),
     ]);
 
+    // Deduplicate overQuotaRequests that are already present in pendingRequests
+    const pendingRequestIds = new Set(pendingRequests.map((r) => r.id));
+    const dedupedOverQuota = overQuotaRequests.filter((r) => !pendingRequestIds.has(r.id));
+
     const totalPendingCount =
       pendingTransfers.length +
       pendingRequests.length +
       pendingWriteOffVotes.length +
       openAudits.length +
       lowStockAlerts.length +
-      overQuotaRequests.length +
+      dedupedOverQuota.length +
       pendingHandovers.length;
 
     return {
@@ -699,7 +703,7 @@ export class InboxService {
         pendingWriteOffVotesCount: pendingWriteOffVotes.length,
         openAuditsCount: openAudits.length,
         lowStockAlertsCount: lowStockAlerts.length,
-        overQuotaRequestsCount: overQuotaRequests.length,
+        overQuotaRequestsCount: dedupedOverQuota.length,
         pendingHandoversCount: pendingHandovers.length,
       },
       pendingTransfers,
@@ -707,7 +711,7 @@ export class InboxService {
       pendingWriteOffVotes,
       openAudits,
       lowStockAlerts,
-      overQuotaRequests,
+      overQuotaRequests: dedupedOverQuota,
       pendingHandovers,
     };
   }

@@ -1296,7 +1296,9 @@ export const InboxPage: React.FC = () => {
                 {inbox?.pendingWriteOffVotes.map(renderWriteOffVoteCard)}
                 {inbox?.openAudits.map(renderAuditCard)}
                 {inbox?.lowStockAlerts.map(renderLowStockCard)}
-                {inbox?.overQuotaRequests.map(renderOverQuotaCard)}
+                {inbox?.overQuotaRequests
+                  ?.filter((oq) => !inbox?.pendingRequests?.some((pr) => pr.id === oq.id))
+                  .map(renderOverQuotaCard)}
               </div>
             </TabPane>
 
