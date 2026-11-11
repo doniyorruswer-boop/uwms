@@ -4,7 +4,8 @@ export const getApiBaseUrl = (): string => {
   const envUrl = (import.meta as any).env?.VITE_API_URL;
   // Agar aniq belgilangan bo'lsa va localhost bo'lmasa (masalan: '/api' yoki tashqi API URL)
   if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
-    return envUrl;
+    const cleanUrl = envUrl.trim().replace(/\/+$/, '');
+    return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
   }
 
   if (typeof window !== 'undefined' && window.location.hostname) {
