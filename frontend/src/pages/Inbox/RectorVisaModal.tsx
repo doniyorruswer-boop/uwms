@@ -11,6 +11,7 @@ import {
   Button,
   Tag,
   Descriptions,
+  Message,
 } from '@arco-design/web-react';
 import {
   IconCheckCircle,
@@ -19,6 +20,8 @@ import {
   IconLock,
   IconSafe,
 } from '@arco-design/web-react/icon';
+import { apiClient } from '../../api/client';
+import { API_ENDPOINTS } from '../../constants/api.constants';
 import type { PendingRequestItem, OverQuotaRequestItem } from '../../hooks/useInboxQuery';
 import { useRequestsQuery } from '../../hooks/useRequestsQuery';
 import { useTwoFactorStatusQuery } from '../../hooks/useTwoFactorQuery';
@@ -53,6 +56,7 @@ export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
   const { updateRequestStatus } = useRequestsQuery();
   const { data: twoFactorStatus } = useTwoFactorStatusQuery();
   const [isTwoFactorModalOpen, setIsTwoFactorModalOpen] = useState(false);
+  const [isVerifyingTotp, setIsVerifyingTotp] = useState(false);
 
   const isRector = user?.role === RoleType.RECTOR;
   const isProrektor = user?.role === RoleType.VICE_RECTOR_FINANCE;
@@ -94,8 +98,30 @@ export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
 
   const handleSubmit = async () => {
     try {
+      if (!twoFactorStatus?.enabled) {
+        Message.warning('Xavfsizlik talablariga ko‘ra viza qo‘yishdan oldin Google Authenticator (2FA) himoyasini yoqishingiz shart!');
+        setIsTwoFactorModalOpen(true);
+        return;
+      }
+
       const values = await form.validate();
-      const totpCode = values.totpCode?.trim() || undefined;
+      const totpCode = values.totpCode?.trim();
+
+      if (!totpCode) {
+        Message.error('Google Authenticator 2FA kodini kiriting!');
+        return;
+      }
+
+      setIsVerifyingTotp(true);
+      try {
+        await apiClient.post(API_ENDPOINTS.AUTH.TWO_FACTOR_VERIFY, { code: totpCode });
+      } catch (err: any) {
+        setIsVerifyingTotp(false);
+        Message.error(err?.response?.data?.message || 'Google Authenticator 2FA kodi noto‘g‘ri yoki muddati o‘tgan!');
+        return;
+      }
+      setIsVerifyingTotp(false);
+
       if (onOpenQrSign) {
         onClose();
         onOpenQrSign(request, values.note.trim(), totpCode);
@@ -214,6 +240,7 @@ export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
             <Button
               type="primary"
               icon={<IconMobile />}
+              loading={isVerifyingTotp}
               style={{
                 borderRadius: 0,
                 backgroundColor: isRector ? '#722ED1' : '#165DFF',
@@ -348,7 +375,7 @@ export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
               label={
                 <Space>
                   <IconLock style={{ color: '#165DFF' }} />
-                  <span style={{ fontWeight: 600 }}>Google Authenticator (2FA) 6 Xonali Tasdiqlash Kodi</span>
+                  <span style={{ fontWeight: 600 }}>Google Authenticator (2FA) 6 Xonali Tasdiqlash Kodi *</span>
                 </Space>
               }
               field="totpCode"
@@ -356,7 +383,7 @@ export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
                 { required: true, message: 'Google Authenticator ilovangizdagi 6 xonali kodni kiriting!' },
                 { match: /^\d{6}$/, message: 'Kod aynan 6 ta raqamdan iborat bo‘lishi kerak!' },
               ]}
-              extra="Shaxsiy telefoningizdagi Google Authenticator ilovasini ochib, 6 xonali tasdiqlash kodini kiriting."
+              extra="Shaxsiy telefoningizdagi Google Authenticator ilovasini ochib, joriy 6 xonali kodni kiriting. Kod tekshirilgach, QR-imzolash ochiladi."
             >
               <Input
                 placeholder="Masalan: 384910"
@@ -372,33 +399,24 @@ export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
               />
             </FormItem>
           ) : (
-            <div
-              style={{
-                padding: '12px 16px',
-                backgroundColor: 'var(--color-fill-2)',
-                border: '1px dashed var(--color-border-3)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-                marginTop: 8,
-              }}
-            >
-              <Space>
-                <IconSafe style={{ color: '#FF7D00', fontSize: 18 }} />
-                <div style={{ fontSize: 12, color: 'var(--color-text-2)', lineHeight: 1.4 }}>
-                  Begona shaxslar nomingizdan viza qo‘ya olmasligi uchun <b>Google Authenticator (2FA)</b> himoyasini yoqish tavsiya etiladi.
-                </div>
-              </Space>
-              <Button
-                size="small"
-                type="outline"
-                style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
-                onClick={() => setIsTwoFactorModalOpen(true)}
-              >
-                2FA ni Yoqish
-              </Button>
-            </div>
+            <Alert
+              type="error"
+              showIcon
+              title="Google Authenticator (2FA) Himoyasi Yoqilmagan!"
+              content="Universitet axborot xavfsizligi qoidalariga muvofiq, rektorat vizasini qo‘yish va QR-imzolash uchun Google Authenticator (2FA) yoqilgan bo‘lishi shart! Begona shaxslar hisobingizdan viza qo‘ya olmasligi uchun avval 2FA ni faollashtiring."
+              action={
+                <Button
+                  size="small"
+                  type="primary"
+                  status="danger"
+                  style={{ borderRadius: 0, whiteSpace: 'nowrap' }}
+                  onClick={() => setIsTwoFactorModalOpen(true)}
+                >
+                  2FA ni Yoqish
+                </Button>
+              }
+              style={{ borderRadius: 0, marginTop: 8 }}
+            />
           )}
         </Form>
       </div>

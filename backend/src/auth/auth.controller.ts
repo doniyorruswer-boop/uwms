@@ -4,7 +4,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LoginDto, ChangePasswordDto, RefreshTokenDto } from './dto/auth.dto';
-import { EnableTwoFactorDto, DisableTwoFactorDto } from './dto/two-factor.dto';
+import { EnableTwoFactorDto, DisableTwoFactorDto, VerifyTwoFactorDto } from './dto/two-factor.dto';
 
 @ApiTags('Auth')
 @Controller('api/auth')
@@ -88,6 +88,15 @@ export class AuthController {
   @ApiOperation({ summary: 'Google Authenticator 2FA ni tasdiqlab yoqish' })
   async enableTwoFactor(@Body() body: EnableTwoFactorDto, @Request() req: any) {
     return this.authService.enableTwoFactor(req.user.id, body.secret, body.code);
+  }
+
+  @Post('2fa/verify')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Google Authenticator 2FA kodini tekshirish' })
+  async verifyTwoFactor(@Body() body: VerifyTwoFactorDto, @Request() req: any) {
+    await this.authService.verifyTwoFactorForAction(req.user.id, body.code);
+    return { valid: true, message: 'Google Authenticator kodi to‘g‘ri!' };
   }
 
   @Post('2fa/disable')
