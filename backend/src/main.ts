@@ -59,12 +59,14 @@ async function bootstrap() {
         return callback(null, true);
       }
 
-      // 4. Railway deploy muhiti (*.up.railway.app, *.railway.app)
+      // 4. Render, Railway & Vercel deploy muhitlari (*.onrender.com, *.railway.app, *.vercel.app)
       try {
         const url = new URL(origin);
         if (
+          url.hostname.endsWith('.onrender.com') ||
           url.hostname.endsWith('.railway.app') ||
           url.hostname.endsWith('.up.railway.app') ||
+          url.hostname.endsWith('.vercel.app') ||
           url.hostname === 'localhost'
         ) {
           return callback(null, true);
