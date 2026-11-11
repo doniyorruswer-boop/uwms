@@ -36,6 +36,8 @@ export class SigningSessionsController {
     RoleType.COMMENDANT,
     RoleType.RECTOR,
     RoleType.VICE_RECTOR_FINANCE,
+    RoleType.ENGINEER,
+    RoleType.PROCUREMENT_OFFICER,
   )
   @ApiOperation({ summary: 'Desktopda 60 soniyalik dinamik QR imzolash sessiyasini boshlash' })
   async initSession(
@@ -59,6 +61,8 @@ export class SigningSessionsController {
     RoleType.COMMENDANT,
     RoleType.RECTOR,
     RoleType.VICE_RECTOR_FINANCE,
+    RoleType.ENGINEER,
+    RoleType.PROCUREMENT_OFFICER,
   )
   @ApiOperation({ summary: 'Moddiy topshirish arizasi bo‘yicha tomonlarga dinamik QR sessiya ochish' })
   async initHandoverSession(

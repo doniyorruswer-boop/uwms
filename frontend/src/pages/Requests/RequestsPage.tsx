@@ -43,12 +43,17 @@ import {
   IconEdit,
   IconPhone,
   IconTool,
+  IconLock,
 } from '@arco-design/web-react/icon';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRequestsQuery } from '../../hooks/useRequestsQuery';
 import { useWarehouseQuery } from '../../hooks/useWarehouseQuery';
 import { useSuppliersQuery } from '../../hooks/useSuppliersQuery';
 import { useSocket } from '../../hooks/useSocket';
+import { useTwoFactorStatusQuery } from '../../hooks/useTwoFactorQuery';
+import { apiClient } from '../../api/client';
+import { API_ENDPOINTS } from '../../constants/api.constants';
+import { TwoFactorSetupModal } from '../../components/Auth/TwoFactorSetupModal';
 import { PageTabs } from '../../components/Common/PageTabs';
 import { CategoryThumbnail } from '../../components/Common/CategoryThumbnail';
 import { StandardTable } from '../../components/Common/StandardTable';
@@ -132,6 +137,11 @@ export const RequestsPage: React.FC = () => {
   const [isRejectModalVisible, setIsRejectModalVisible] = useState<boolean>(false);
   const [requestToReject, setRequestToReject] = useState<RequestRecord | null>(null);
   const [isRejecting, setIsRejecting] = useState<boolean>(false);
+
+  // 2FA Security State for All Roles
+  const { data: twoFactorStatus } = useTwoFactorStatusQuery();
+  const [isTwoFactorModalOpen, setIsTwoFactorModalOpen] = useState<boolean>(false);
+  const [isVerifyingTotp, setIsVerifyingTotp] = useState<boolean>(false);
 
   const [form] = Form.useForm();
   const [financeForm] = Form.useForm();
@@ -546,13 +556,33 @@ export const RequestsPage: React.FC = () => {
       contractDate: req.contractDate ? req.contractDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
       contractAmount: req.contractAmount || undefined,
       note: req.procurementNotes || 'Davlat xaridlari natijasida auksion shartnomasi biriktirildi',
+      totpCode: '',
     });
     setIsProcurementModalVisible(true);
   };
 
-  const handleProcurementSubmit = () => {
-    procurementForm.validate().then((values) => {
+  const handleProcurementSubmit = async () => {
+    try {
+      const values = await procurementForm.validate();
       if (!requestToProcure) return;
+
+      const totpCode = values.totpCode?.trim();
+      if (twoFactorStatus?.enabled) {
+        if (!totpCode) {
+          Message.error('Google Authenticator 2FA kodini kiriting!');
+          return;
+        }
+        setIsVerifyingTotp(true);
+        try {
+          await apiClient.post(API_ENDPOINTS.AUTH.TWO_FACTOR_VERIFY, { code: totpCode });
+        } catch (err: any) {
+          setIsVerifyingTotp(false);
+          Message.error(err?.response?.data?.message || 'Google Authenticator 2FA kodi noto‘g‘ri yoki muddati o‘tgan!');
+          return;
+        }
+        setIsVerifyingTotp(false);
+      }
+
       setPendingWorkflowAction({
         req: requestToProcure,
         targetStatus: 'CONTRACT_SIGNED',
@@ -565,6 +595,7 @@ export const RequestsPage: React.FC = () => {
           supplierName: values.supplierName,
           supplierInn: values.supplierInn,
           note: values.note || 'Auksion shartnomasi biriktirildi',
+          totpCode: totpCode || undefined,
         },
       });
       setQrSignPayload({
@@ -586,7 +617,9 @@ export const RequestsPage: React.FC = () => {
       });
       setIsProcurementModalVisible(false);
       setIsQrModalVisible(true);
-    });
+    } catch {
+      // Form validation errors handled by Arco Design
+    }
   };
 
   const handleOpenFinanceModal = (req: RequestRecord, e?: any) => {
@@ -597,13 +630,33 @@ export const RequestsPage: React.FC = () => {
       subAccountCode: req.subAccountCode || '013',
       allocatedAmount: req.allocatedAmount || req.contractAmount || undefined,
       note: req.approvalNote || '',
+      totpCode: '',
     });
     setIsFinanceModalVisible(true);
   };
 
-  const handleFinanceSubmit = () => {
-    financeForm.validate().then((values) => {
+  const handleFinanceSubmit = async () => {
+    try {
+      const values = await financeForm.validate();
       if (!requestToFinance) return;
+
+      const totpCode = values.totpCode?.trim();
+      if (twoFactorStatus?.enabled) {
+        if (!totpCode) {
+          Message.error('Google Authenticator 2FA kodini kiriting!');
+          return;
+        }
+        setIsVerifyingTotp(true);
+        try {
+          await apiClient.post(API_ENDPOINTS.AUTH.TWO_FACTOR_VERIFY, { code: totpCode });
+        } catch (err: any) {
+          setIsVerifyingTotp(false);
+          Message.error(err?.response?.data?.message || 'Google Authenticator 2FA kodi noto‘g‘ri yoki muddati o‘tgan!');
+          return;
+        }
+        setIsVerifyingTotp(false);
+      }
+
       setPendingWorkflowAction({
         req: requestToFinance,
         targetStatus: 'FINANCED_BY_ACCOUNTANT',
@@ -612,6 +665,7 @@ export const RequestsPage: React.FC = () => {
           subAccountCode: values.subAccountCode,
           allocatedAmount: Number(values.allocatedAmount),
           note: values.note || 'Bosh hisobchi tomonidan moliyalashtirildi',
+          totpCode: totpCode || undefined,
         },
       });
       setQrSignPayload({
@@ -629,7 +683,9 @@ export const RequestsPage: React.FC = () => {
       });
       setIsFinanceModalVisible(false);
       setIsQrModalVisible(true);
-    });
+    } catch {
+      // Form validation errors handled by Arco Design
+    }
   };
 
   const handleWarehouseReceive = (req: RequestRecord, e?: any) => {
@@ -2255,6 +2311,7 @@ export const RequestsPage: React.FC = () => {
         }}
         okText="Shartnomani Tasdiqlash va QR-Imzolash"
         cancelText="Bekor qilish"
+        okButtonProps={{ loading: isVerifyingTotp }}
       >
         <Alert
           type="info"
@@ -2364,6 +2421,48 @@ export const RequestsPage: React.FC = () => {
               rows={2}
             />
           </FormItem>
+
+          {/* GOOGLE AUTHENTICATOR (2FA) SECTION */}
+          {twoFactorStatus?.enabled ? (
+            <FormItem
+              label={
+                <Space>
+                  <IconLock style={{ color: '#165DFF' }} />
+                  <span style={{ fontWeight: 600 }}>Google Authenticator (2FA) 6 Xonali Kodi *</span>
+                </Space>
+              }
+              field="totpCode"
+              rules={[
+                { required: true, message: 'Google Authenticator 6 xonali tasdiqlash kodini kiriting!' },
+                { match: /^\d{6}$/, message: 'Kod aynan 6 ta raqamdan iborat bo‘lishi kerak!' },
+              ]}
+              extra="Shaxsiy telefoningizdagi Google Authenticator ilovasini ochib, joriy 6 xonali kodni kiriting."
+            >
+              <Input
+                placeholder="Masalan: 384910"
+                maxLength={6}
+                prefix={<IconLock />}
+                style={{
+                  letterSpacing: 6,
+                  fontSize: 18,
+                  fontWeight: 700,
+                  height: 40,
+                }}
+              />
+            </FormItem>
+          ) : (
+            <Alert
+              type="info"
+              style={{ marginBottom: 16 }}
+              title="Google Authenticator (2FA) Himoyasi"
+              content="Xarid shartnomalarini xavfsiz tasdiqlash uchun hisobingizda 2FA ni yoqish tavsiya etiladi."
+              action={
+                <Button size="mini" type="outline" onClick={() => setIsTwoFactorModalOpen(true)}>
+                  2FA Yoqish
+                </Button>
+              }
+            />
+          )}
         </Form>
       </Modal>
 
@@ -2379,6 +2478,7 @@ export const RequestsPage: React.FC = () => {
         }}
         okText="Tasdiqlash va QR-Imzolashga O‘tish"
         cancelText="Bekor qilish"
+        okButtonProps={{ loading: isVerifyingTotp }}
       >
         {requestToFinance && (requestToFinance.contractNumber || requestToFinance.lotNumber) && (
           <Alert
@@ -2453,6 +2553,48 @@ export const RequestsPage: React.FC = () => {
               rows={2}
             />
           </FormItem>
+
+          {/* GOOGLE AUTHENTICATOR (2FA) SECTION */}
+          {twoFactorStatus?.enabled ? (
+            <FormItem
+              label={
+                <Space>
+                  <IconLock style={{ color: '#165DFF' }} />
+                  <span style={{ fontWeight: 600 }}>Google Authenticator (2FA) 6 Xonali Kodi *</span>
+                </Space>
+              }
+              field="totpCode"
+              rules={[
+                { required: true, message: 'Google Authenticator 6 xonali tasdiqlash kodini kiriting!' },
+                { match: /^\d{6}$/, message: 'Kod aynan 6 ta raqamdan iborat bo‘lishi kerak!' },
+              ]}
+              extra="Bosh hisobchi tasdig‘i uchun Google Authenticator ilovasidagi 6 xonali kodni kiriting."
+            >
+              <Input
+                placeholder="Masalan: 384910"
+                maxLength={6}
+                prefix={<IconLock />}
+                style={{
+                  letterSpacing: 6,
+                  fontSize: 18,
+                  fontWeight: 700,
+                  height: 40,
+                }}
+              />
+            </FormItem>
+          ) : (
+            <Alert
+              type="info"
+              style={{ marginBottom: 16 }}
+              title="Google Authenticator (2FA) Himoyasi"
+              content="Moliyalashtirish amallarini begona shaxslardan himoyalash uchun profilingizdan 2FA ni yoqish tavsiya etiladi."
+              action={
+                <Button size="mini" type="outline" onClick={() => setIsTwoFactorModalOpen(true)}>
+                  2FA Yoqish
+                </Button>
+              }
+            />
+          )}
         </Form>
       </Modal>
 
@@ -2560,6 +2702,12 @@ export const RequestsPage: React.FC = () => {
         request={selectedInspectionRequest}
         onConfirm={handleConfirmInspection}
         loading={isSubmittingInspection}
+      />
+
+      {/* Google Authenticator (2FA) O‘rnatish va Sozlash Modali */}
+      <TwoFactorSetupModal
+        visible={isTwoFactorModalOpen}
+        onClose={() => setIsTwoFactorModalOpen(false)}
       />
     </div>
   );
