@@ -367,7 +367,7 @@ export class AuthService {
     }
 
     const cleanCode = code.trim();
-    if (user.twoFactorSecret && verifyTotpToken(cleanCode, user.twoFactorSecret)) {
+    if (user.twoFactorSecret && verifyTotpToken(cleanCode, user.twoFactorSecret, 2)) {
       return true;
     }
 

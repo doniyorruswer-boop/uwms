@@ -813,8 +813,9 @@ export const RequestsPage: React.FC = () => {
   const handleQrSignSuccess = async () => {
     if (pendingWorkflowAction) {
       const targetReq = pendingWorkflowAction.req;
+      const targetStatus = pendingWorkflowAction.targetStatus;
       const targetDocType: DocType =
-        pendingWorkflowAction.targetStatus === 'RECEIVED_AT_WAREHOUSE'
+        targetStatus === 'RECEIVED_AT_WAREHOUSE'
           ? 'KIRIM'
           : 'TRANSFER';
 
@@ -824,12 +825,28 @@ export const RequestsPage: React.FC = () => {
           status: pendingWorkflowAction.targetStatus,
           ...pendingWorkflowAction.payload,
         });
-        Message.success('Bosqich QR-kod orqali muvaffaqiyatli imzolandi va keyingi bosqichga o‘tkazildi!');
 
-        // Ssenariy 5: Muhrlangan rasmiy elektron hujjatni (OS-1 / OS-2) avtomatik ochish
-        setSelectedDocRequest(targetReq);
-        setDocModalType(targetDocType);
-        setIsDocModalVisible(true);
+        if (targetStatus === 'CONTRACT_SIGNED') {
+          Message.success('Davlat xaridlari shartnomasi muvaffaqiyatli biriktirildi va Bosh hisobchiga moliyalash uchun yuborildi!');
+        } else if (targetStatus === 'FINANCED_BY_ACCOUNTANT') {
+          Message.success('Moliyalashtirish muvaffaqiyatli tasdiqlandi va Ombor mudiriga qabul qilish uchun yuborildi!');
+        } else {
+          Message.success('Bosqich QR-kod orqali muvaffaqiyatli imzolandi va keyingi bosqichga o‘tkazildi!');
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['requests'] });
+        queryClient.invalidateQueries({ queryKey: ['inbox'] });
+
+        // Ssenariy 5: Rasmiy hujjat (OS-1 / OS-2) faqat tegishli dalolatnoma bosqichlarida ochiladi
+        if (
+          targetStatus === 'RECEIVED_AT_WAREHOUSE' ||
+          targetStatus === 'HANDED_TO_COMMENDANT' ||
+          targetStatus === 'FULFILLED'
+        ) {
+          setSelectedDocRequest(targetReq);
+          setDocModalType(targetDocType);
+          setIsDocModalVisible(true);
+        }
       } catch (err: any) {
         Message.error(err?.response?.data?.message || 'Bosqichni o‘tkazishda xatolik yuz berdi');
       }

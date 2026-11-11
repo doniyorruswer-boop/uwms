@@ -1405,18 +1405,34 @@ export class RequestsService {
     if (!userId) return true;
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { twoFactorEnabled: true, twoFactorSecret: true, twoFactorRecoveryCodes: true },
+      select: { id: true, twoFactorEnabled: true, twoFactorSecret: true, twoFactorRecoveryCodes: true },
     });
     if (!user || !user.twoFactorEnabled) {
       return true; // 2FA is not enabled on this user account
     }
 
-    if (!code || !code.trim()) {
+    const cleanCode = code?.trim();
+
+    // 1. Agar foydalanuvchi so'nggi 5 daqiqa ichida biometrik QR-imzolash sessiyasini tasdiqlagan bo'lsa,
+    // jismoniy biometrik kriptografik dalil sifatida qabul qilinadi
+    const recentSignedSession = await this.prisma.signingSession.findFirst({
+      where: {
+        createdById: userId,
+        status: 'SIGNED',
+        signedAt: { gte: new Date(Date.now() - 5 * 60 * 1000) },
+      },
+      orderBy: { signedAt: 'desc' },
+    });
+    if (recentSignedSession) {
+      return true;
+    }
+
+    if (!cleanCode) {
       throw new BadRequestException('Ushbu viza/tasdiqni amalga oshirish uchun Google Authenticator (2FA) kodi kiritilishi shart!');
     }
 
-    const cleanCode = code.trim();
-    if (user.twoFactorSecret && verifyTotpToken(cleanCode, user.twoFactorSecret)) {
+    // 2. 60 soniyalik QR skanerlash davomini inobatga olgan holda window=4 (±120 soniya) qabul qilinadi
+    if (user.twoFactorSecret && verifyTotpToken(cleanCode, user.twoFactorSecret, 4)) {
       return true;
     }
 
