@@ -72,7 +72,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const [tutorialModalVisible, setTutorialModalVisible] = useState(false);
   const [twoFactorModalVisible, setTwoFactorModalVisible] = useState(false);
-  const { data: inbox } = useInboxQuery({ refetchInterval: 60000 });
+  const { data: inbox } = useInboxQuery({ refetchInterval: 15000 });
   const pendingTasksCount = inbox?.summary?.totalPendingCount || 0;
 
   // Auto-collapse sidebar on resize for tablets & mobile

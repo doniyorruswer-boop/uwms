@@ -187,6 +187,6 @@ export const useInboxQuery = (options?: { refetchInterval?: number; scope?: 'per
       return res.data;
     },
     refetchInterval: options?.refetchInterval ?? 60000,
-    staleTime: 30000,
+    staleTime: 5000,
   });
 };

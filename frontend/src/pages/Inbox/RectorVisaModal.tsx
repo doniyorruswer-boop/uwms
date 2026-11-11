@@ -28,18 +28,18 @@ import { useTwoFactorStatusQuery } from '../../hooks/useTwoFactorQuery';
 import { TwoFactorSetupModal } from '../../components/Auth/TwoFactorSetupModal';
 import { useAuthStore } from '../../store/authStore';
 import { useQueryClient } from '@tanstack/react-query';
-import { RoleType, type RequestStatus } from '../../types';
+import { RoleType, type RequestStatus, type RequestRecord } from '../../types';
 
 const { Text } = Typography;
 const FormItem = Form.Item;
 
 export interface RectorVisaModalProps {
   visible: boolean;
-  request: PendingRequestItem | OverQuotaRequestItem | null;
+  request: PendingRequestItem | OverQuotaRequestItem | RequestRecord | any | null;
   onClose: () => void;
   onApproved?: () => void;
-  onOpenQrSign?: (request: PendingRequestItem, note: string, totpCode?: string) => void;
-  onReject?: (request: PendingRequestItem) => void;
+  onOpenQrSign?: (request: any, note: string, totpCode?: string) => void;
+  onReject?: (request: any) => void;
 }
 
 export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
@@ -181,8 +181,8 @@ export const RectorVisaModal: React.FC<RectorVisaModalProps> = ({
       label: 'Talabnoma №',
       value: <Tag color="blue" style={{ borderRadius: 0 }}>{request.requestNumber}</Tag>,
     },
-    { label: 'Kafedra / Bo‘lim', value: request.department?.name || '—' },
-    { label: 'So‘rovchi xodim', value: request.requester?.fullName || '—' },
+    { label: 'Kafedra / Bo‘lim', value: request.department?.name || (request as any).departmentName || '—' },
+    { label: 'So‘rovchi xodim', value: request.requester?.fullName || (request as any).requesterName || '—' },
     { label: 'Talabnoma maqsadi', value: request.purpose },
     { label: 'Sana', value: new Date(request.createdAt).toLocaleString('uz-UZ') },
   ];

@@ -67,6 +67,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     console.log('[Socket.IO Fallback Sync] Server bilan ma’lumotlar to‘liq sinxronlashtirilmoqda...');
     queryClient.invalidateQueries({ queryKey: ['notifications'] });
     queryClient.invalidateQueries({ queryKey: ['unread-count'] });
+    queryClient.invalidateQueries({ queryKey: ['inbox'] });
     queryClient.invalidateQueries({ queryKey: ['requests'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     queryClient.invalidateQueries({ queryKey: ['warehouse'] });
@@ -171,16 +172,24 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         queryClient.invalidateQueries({ queryKey: ['unread-count'] });
       };
 
-      // 2. Talabnoma statusi o‘zgarganda
+      // 2. Talabnoma statusi o‘zgarganda yoki yangi zayavka kelganda
       const handleRequestUpdated = () => {
+        queryClient.invalidateQueries({ queryKey: ['inbox'] });
         queryClient.invalidateQueries({ queryKey: ['requests'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      };
+
+      const handleInboxUpdated = () => {
+        queryClient.invalidateQueries({ queryKey: ['inbox'] });
+        queryClient.invalidateQueries({ queryKey: ['requests'] });
+        queryClient.invalidateQueries({ queryKey: ['unread-count'] });
       };
 
       // 3. Ombor qoldiqlari o‘zgarganda
       const handleStockUpdated = () => {
         queryClient.invalidateQueries({ queryKey: ['warehouse'] });
         queryClient.invalidateQueries({ queryKey: ['stocks'] });
+        queryClient.invalidateQueries({ queryKey: ['inbox'] });
       };
 
       // 4. Xavfsizlik: Boshqa joydan yangi login bo'lganda ogohlantirish
@@ -208,7 +217,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
 
       activeSocket.on('notification:new', handleNewNotification);
+      activeSocket.on('request:created', handleRequestUpdated);
+      activeSocket.on('REQUEST_CREATED', handleRequestUpdated);
       activeSocket.on('request:updated', handleRequestUpdated);
+      activeSocket.on('REQUEST_UPDATED', handleRequestUpdated);
+      activeSocket.on('inbox:updated', handleInboxUpdated);
+      activeSocket.on('INBOX_UPDATED', handleInboxUpdated);
+      activeSocket.on('transfer:created', handleInboxUpdated);
+      activeSocket.on('TRANSFER_CREATED', handleInboxUpdated);
       activeSocket.on('stock:updated', handleStockUpdated);
       activeSocket.on('security:concurrent_login', handleConcurrentLogin);
       activeSocket.on('security:force_logout', handleForceLogout);
@@ -218,7 +234,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         activeSocket.off('disconnect', onDisconnect);
         activeSocket.io.off('reconnect', onReconnect);
         activeSocket.off('notification:new', handleNewNotification);
+        activeSocket.off('request:created', handleRequestUpdated);
+        activeSocket.off('REQUEST_CREATED', handleRequestUpdated);
         activeSocket.off('request:updated', handleRequestUpdated);
+        activeSocket.off('REQUEST_UPDATED', handleRequestUpdated);
+        activeSocket.off('inbox:updated', handleInboxUpdated);
+        activeSocket.off('INBOX_UPDATED', handleInboxUpdated);
+        activeSocket.off('transfer:created', handleInboxUpdated);
+        activeSocket.off('TRANSFER_CREATED', handleInboxUpdated);
         activeSocket.off('stock:updated', handleStockUpdated);
         activeSocket.off('security:concurrent_login', handleConcurrentLogin);
         activeSocket.off('security:force_logout', handleForceLogout);

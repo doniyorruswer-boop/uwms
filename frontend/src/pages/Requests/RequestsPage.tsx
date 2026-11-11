@@ -69,6 +69,7 @@ import { NewRequestModal } from '../../components/Requests/NewRequestModal';
 import { TechnicalInspectionModal } from '../../components/Requests/TechnicalInspectionModal';
 import { StatusTag } from '../../components/Common/StatusTag';
 import { getStatusLabel, getStatusSelectOptions } from '../../constants/status.constants';
+import { RectorVisaModal } from '../Inbox/RectorVisaModal';
 
 const FormItem = Form.Item;
 const Step = Steps.Step;
@@ -119,6 +120,9 @@ export const RequestsPage: React.FC = () => {
   const [isProcurementModalVisible, setIsProcurementModalVisible] = useState<boolean>(false);
   const [requestToProcure, setRequestToProcure] = useState<RequestRecord | null>(null);
   const [procurementForm] = Form.useForm();
+
+  // Phase L1.5: Viza berish (Rector / Prorektor) State
+  const [selectedVisaRequest, setSelectedVisaRequest] = useState<RequestRecord | null>(null);
 
   const [pendingWorkflowAction, setPendingWorkflowAction] = useState<{
     req: RequestRecord;
@@ -506,40 +510,37 @@ export const RequestsPage: React.FC = () => {
 
   const handleProrektorApprove = (req: RequestRecord, e?: any) => {
     e?.stopPropagation?.();
-    setPendingWorkflowAction({
-      req,
-      targetStatus: 'APPROVED_BY_PRORECTOR',
-      payload: { note: 'Moliya-iqtisod prorektori tomonidan viza qo‘yildi' },
-    });
-    setQrSignPayload({
-      docNumber: req.requestNumber,
-      docType: 'OS_1',
-      title: `Prorektor Vizasi (${req.departmentName || 'Kafedra'})`,
-      departmentName: req.departmentName || undefined,
-      itemSummary: req.items.map((i) => `${i.itemName} (${i.requestedQty} ${i.unit})`).join(', '),
-      targetSignerRole: 'VICE_RECTOR_FINANCE',
-      targetSignerName: user?.fullName,
-      metadata: { stage: 'PROREKTOR_VIZA', reqId: req.id },
-    });
-    setIsQrModalVisible(true);
+    setSelectedVisaRequest(req);
   };
 
   const handleRectorApprove = (req: RequestRecord, e?: any) => {
     e?.stopPropagation?.();
+    setSelectedVisaRequest(req);
+  };
+
+  const handleOpenVisaQrSign = (req: any, note: string, totpCode?: string) => {
+    setSelectedVisaRequest(null);
+    const isRector = user?.role === 'RECTOR' || req.status === 'APPROVED_BY_PRORECTOR';
+    const targetStatus = isRector ? 'APPROVED_BY_RECTOR' : 'APPROVED_BY_PRORECTOR';
+    const signerRole = isRector ? 'RECTOR' : 'VICE_RECTOR_FINANCE';
+    const title = isRector
+      ? `Rektor Vizasi va Farmoyishi (${req.departmentName || req.department?.name || 'Kafedra'})`
+      : `Prorektor Vizasi (${req.departmentName || req.department?.name || 'Kafedra'})`;
+
     setPendingWorkflowAction({
       req,
-      targetStatus: 'APPROVED_BY_RECTOR',
-      payload: { note: 'Universitet Rektori tomonidan xaridga ruxsat etildi (viza)' },
+      targetStatus,
+      payload: { note, totpCode },
     });
     setQrSignPayload({
       docNumber: req.requestNumber,
       docType: 'OS_1',
-      title: `Rektor Vizasi va Farmoyishi (${req.departmentName || 'Kafedra'})`,
-      departmentName: req.departmentName || undefined,
-      itemSummary: req.items.map((i) => `${i.itemName} (${i.requestedQty} ${i.unit})`).join(', '),
-      targetSignerRole: 'RECTOR',
+      title,
+      departmentName: req.departmentName || req.department?.name || undefined,
+      itemSummary: req.items?.map((i: any) => `${i.itemName || i.item?.name} (${i.requestedQty} ${i.unit || i.item?.unit || 'dona'})`).join(', ') || '',
+      targetSignerRole: signerRole,
       targetSignerName: user?.fullName,
-      metadata: { stage: 'RECTOR_VIZA', reqId: req.id },
+      metadata: { stage: targetStatus, reqId: req.id, note },
     });
     setIsQrModalVisible(true);
   };
@@ -2720,6 +2721,25 @@ export const RequestsPage: React.FC = () => {
         onConfirm={handleConfirmInspection}
         loading={isSubmittingInspection}
       />
+
+      {/* Rektor / Prorektor Vizasi Modali (2FA va Limit tekshiruvi bilan) */}
+      {selectedVisaRequest && (
+        <RectorVisaModal
+          visible={!!selectedVisaRequest}
+          request={selectedVisaRequest as any}
+          onClose={() => setSelectedVisaRequest(null)}
+          onApproved={() => {
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ['inbox'] });
+          }}
+          onOpenQrSign={handleOpenVisaQrSign}
+          onReject={(req) => {
+            setSelectedVisaRequest(null);
+            setRequestToReject(req as any);
+            setIsRejectModalVisible(true);
+          }}
+        />
+      )}
 
       {/* Google Authenticator (2FA) O‘rnatish va Sozlash Modali */}
       <TwoFactorSetupModal
