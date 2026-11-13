@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { ConfigProvider } from '@arco-design/web-react';
+import { ConfigProvider, Message } from '@arco-design/web-react';
 import { queryClient } from './api/queryClient';
 import { AppRoutes } from './routes/AppRoutes';
 import { useAuthStore } from './store/authStore';
@@ -17,6 +17,7 @@ export function App() {
   const language = useLanguageStore((s) => s.language);
 
   useEffect(() => {
+    Message.config({ maxCount: 2, duration: 2500 });
     checkAuth();
   }, [checkAuth]);
 

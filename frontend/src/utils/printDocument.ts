@@ -7,8 +7,52 @@ export interface PrintDocumentOptions {
 }
 
 /**
+ * Prints HTML content cleanly via a hidden iframe.
+ * Never blocked by browser popup blockers and stays inside the current window context.
+ */
+export function printViaIframe(docHtml: string): boolean {
+  try {
+    let iframe = document.getElementById('uwms-print-hidden-iframe') as HTMLIFrameElement;
+    if (iframe) {
+      iframe.remove();
+    }
+    iframe = document.createElement('iframe');
+    iframe.id = 'uwms-print-hidden-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return false;
+
+    doc.open();
+    doc.write(docHtml);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (err) {
+        console.error('Iframe print error:', err);
+      }
+    }, 300);
+
+    return true;
+  } catch (e) {
+    console.error('printViaIframe failed:', e);
+    return false;
+  }
+}
+
+/**
  * Universally and reliably prints official documents (OS-1, OS-2, OS-4, etc.)
- * in a dedicated, isolated popup window.
+ * in a dedicated, isolated popup window or iframe.
  * This completely avoids issues where modal containers, fixed headers,
  * overflow styles, or dashboard buttons bleed into the print output.
  */
@@ -21,12 +65,6 @@ export function printDocument(contentHtml: string, options: PrintDocumentOptions
   const title =
     options.title ||
     (options.docNumber ? `Dalolatnoma — ${options.docNumber}` : 'Rasmiy Davlat Hujjati');
-
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    Message.error('Brauzer oynasi bloklandi. Iltimos, qalqib chiquvchi oynalarga ruxsat bering.');
-    return false;
-  }
 
   const baseStyles = `
     @page {
@@ -47,9 +85,9 @@ export function printDocument(contentHtml: string, options: PrintDocumentOptions
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    /* Restrict all SVG and Arco icons to strict font-size proportions (never giant) */
+    /* Restrict general icons, but do not touch QR svgs */
     .arco-icon,
-    svg {
+    svg:not([data-qr="true"]):not(.qr-code-svg) {
       display: inline-block !important;
       color: inherit !important;
       font-style: normal !important;
@@ -181,20 +219,183 @@ export function printDocument(contentHtml: string, options: PrintDocumentOptions
 </html>`;
   }
 
+  let printWindow: Window | null = null;
+  try {
+    printWindow = window.open('', '_blank');
+  } catch {
+    printWindow = null;
+  }
+
+  // If popup window is blocked or unavailable, use hidden iframe (always works!)
+  if (!printWindow) {
+    return printViaIframe(docHtml);
+  }
+
   printWindow.document.open();
   printWindow.document.write(docHtml);
   printWindow.document.close();
 
   setTimeout(() => {
     try {
-      printWindow.focus();
-      printWindow.print();
+      printWindow?.focus();
+      printWindow?.print();
     } catch {
       // ignore
     }
   }, 400);
 
   return true;
+}
+
+/**
+ * Specifically prints a single QR sticker with proper centering and label formatting.
+ */
+export function printQrStickerElement(
+  elementOrSelector: HTMLElement | string,
+  title = 'Inventar Stikeri',
+): boolean {
+  let element: HTMLElement | null = null;
+  if (typeof elementOrSelector === 'string') {
+    element = document.querySelector(elementOrSelector);
+  } else {
+    element = elementOrSelector;
+  }
+
+  if (!element) {
+    Message.error('Chop etiladigan QR-stiker topilmadi');
+    return false;
+  }
+
+  const stickerHtml = element.innerHTML;
+  const docHtml = `<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <style>
+    @page {
+      size: auto;
+      margin: 10mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+    body {
+      background: #ffffff;
+      color: #000000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 90vh;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .sticker-container {
+      display: inline-block;
+      border: 2px dashed #165DFF !important;
+      border-radius: 12px;
+      padding: 24px 28px;
+      background: #fafafa !important;
+      color: #1d2129;
+      text-align: center;
+      width: 320px;
+      margin: 0 auto;
+      page-break-inside: avoid;
+    }
+    .sticker-container svg {
+      display: block !important;
+      margin: 14px auto !important;
+      width: 150px !important;
+      height: 150px !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="sticker-container">
+    ${stickerHtml}
+  </div>
+</body>
+</html>`;
+
+  return printViaIframe(docHtml);
+}
+
+/**
+ * Specifically prints batch QR stickers on an A4 grid without layout distortions.
+ */
+export function printBatchQrElement(
+  elementOrSelector: HTMLElement | string,
+  title = 'Ommaviy QR Stikerlar',
+): boolean {
+  let element: HTMLElement | null = null;
+  if (typeof elementOrSelector === 'string') {
+    element = document.querySelector(elementOrSelector);
+  } else {
+    element = elementOrSelector;
+  }
+
+  if (!element) {
+    Message.error('Chop etiladigan stikerlar topilmadi');
+    return false;
+  }
+
+  const contentHtml = element.innerHTML;
+  const docHtml = `<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 8mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+    body {
+      background: #ffffff;
+      color: #000000;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      padding: 10px;
+    }
+    .batch-grid {
+      display: grid !important;
+      grid-template-columns: repeat(3, 1fr) !important;
+      gap: 12px !important;
+    }
+    .batch-grid > div {
+      border: 1.5px dashed #4E5969 !important;
+      border-radius: 8px !important;
+      padding: 12px 8px !important;
+      text-align: center !important;
+      background: #ffffff !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    .batch-grid svg {
+      display: block !important;
+      margin: 8px auto !important;
+      width: 110px !important;
+      height: 110px !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="batch-grid">
+    ${contentHtml}
+  </div>
+</body>
+</html>`;
+
+  return printViaIframe(docHtml);
 }
 
 /**

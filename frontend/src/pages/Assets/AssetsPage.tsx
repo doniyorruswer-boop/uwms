@@ -46,6 +46,7 @@ import {
   IconRefresh,
 } from '@arco-design/web-react/icon';
 import { QRCodeSVG } from 'qrcode.react';
+import { printQrStickerElement, printBatchQrElement } from '../../utils';
 import {
   useAssetsQuery,
   useTransfersQuery,
@@ -175,7 +176,10 @@ export const AssetsPage: React.FC = () => {
         setSelectedAsset((prev) => (prev ? { ...prev, ...res.data.asset } : null));
       }
       refetchAssets();
-      window.print();
+      printQrStickerElement(
+        '#single-asset-qr-sticker',
+        `Inventar Stikeri — ${selectedAsset.inventoryNumber}`,
+      );
       Message.success('QR-stikerni qayta chop etish auditi jurnalga qayd etildi');
     } catch (err: any) {
       Message.error(err.response?.data?.message || 'Qayta chop etishni qayd etishda xatolik yuz berdi');
@@ -195,7 +199,10 @@ export const AssetsPage: React.FC = () => {
         )
       );
       refetchAssets();
-      window.print();
+      printBatchQrElement(
+        '#batch-asset-qr-grid',
+        `Ommaviy QR Stikerlar (${selectedAssetsList.length} ta)`,
+      );
       Message.success('Ommaviy chop etish audit jurnaliga muvaffaqiyatli yozildi');
     } catch (err: any) {
       Message.error('Audit jurnalini yozishda xatolik');
@@ -1198,6 +1205,7 @@ export const AssetsPage: React.FC = () => {
         {selectedAsset && (
           <div style={{ textAlign: 'center', padding: '16px' }}>
             <div
+              id="single-asset-qr-sticker"
               className="print-area"
               style={{
                 display: 'inline-block',
@@ -1300,6 +1308,7 @@ export const AssetsPage: React.FC = () => {
         </div>
         <div style={{ maxHeight: 450, overflowY: 'auto', padding: 8 }}>
           <div
+            id="batch-asset-qr-grid"
             className="print-area"
             style={{
               display: 'grid',

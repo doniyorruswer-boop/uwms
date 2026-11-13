@@ -88,6 +88,13 @@ export const AuditScannerPage: React.FC = () => {
   }, [rooms, selectedRoomId]);
 
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
+  const scannedCodesRef = useRef<Set<string>>(new Set());
+  const isProcessingScanRef = useRef<boolean>(false);
+  const lastWarningToastTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    scannedCodesRef.current.clear();
+  }, [selectedRoomId]);
   const [manualCode, setManualCode] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [activeTab, setActiveTab] = useState('ALL');
@@ -481,17 +488,30 @@ export const AuditScannerPage: React.FC = () => {
     const trimmed = code.trim();
     if (!trimmed) return;
 
-    if (scannedCodes.includes(trimmed)) {
-      Message.warning('Ushbu QR kod avvalroq o‘qilgan!');
+    // Concurrency lock: ignore frames while processing previous scan
+    if (isProcessingScanRef.current) return;
+
+    // Synchronously check if already scanned in current session
+    if (scannedCodesRef.current.has(trimmed)) {
+      const now = Date.now();
+      if (now - lastWarningToastTimeRef.current > 3500) {
+        lastWarningToastTimeRef.current = now;
+        Message.warning({
+          content: 'Ushbu QR kod avvalroq o‘qilgan!',
+          duration: 2000,
+        });
+      }
       return;
     }
 
     try {
+      isProcessingScanRef.current = true;
+      scannedCodesRef.current.add(trimmed);
+      setScannedCodes((prev) => [...prev, trimmed]);
+
       if (soundEnabled) {
         playScannerBeep();
       }
-
-      setScannedCodes((prev) => [...prev, trimmed]);
 
       // Verify asset in room
       const foundInRoom = expectedAssets.find((a) => a.qrCode === trimmed);
@@ -505,14 +525,23 @@ export const AuditScannerPage: React.FC = () => {
         status = 'MATCHED';
         assetName = foundInRoom.itemName;
         invNumber = foundInRoom.inventoryNumber;
-        Message.success(`Topildi: ${foundInRoom.itemName} (${foundInRoom.inventoryNumber})`);
+        Message.success({
+          content: `Topildi: ${foundInRoom.itemName} (${foundInRoom.inventoryNumber})`,
+          duration: 2500,
+        });
       } else if (foundElsewhere) {
         status = 'RELOCATED';
         assetName = foundElsewhere.itemName;
         invNumber = foundElsewhere.inventoryNumber;
-        Message.warning(`Diqqat! Ushbu uskuna boshqa xonaga tegishli: ${foundElsewhere.itemName}`);
+        Message.warning({
+          content: `Diqqat! Boshqa xonaga tegishli: ${foundElsewhere.itemName} (${foundElsewhere.inventoryNumber})`,
+          duration: 3000,
+        });
       } else {
-        Message.info(`Noma’lum kod: ${trimmed}`);
+        Message.info({
+          content: `Noma’lum kod: ${trimmed}`,
+          duration: 2500,
+        });
       }
 
       // Offline detection & queue
@@ -536,7 +565,6 @@ export const AuditScannerPage: React.FC = () => {
           },
           ...prev.slice(0, 4),
         ]);
-        Message.info('Tarmoq yo‘q. Skan offline navbatga (IndexedDB) saqlandi.');
         setManualCode('');
         return;
       }
@@ -599,11 +627,22 @@ export const AuditScannerPage: React.FC = () => {
           },
           ...prev.slice(0, 4),
         ]);
-        Message.info('Serverga ulanib bo‘lmadi. Skan offline navbatga (IndexedDB) saqlandi.');
+        // Avoid duplicate toasts if item was already reported above
+        if (!foundInRoom && !foundElsewhere) {
+          Message.info({
+            content: 'Skan offline (IndexedDB) saqlandi.',
+            duration: 2000,
+          });
+        }
       }
       setManualCode('');
     } catch (err: any) {
       Message.error(err.response?.data?.message || 'Skanerlashda xatolik yuz berdi!');
+    } finally {
+      // Cooldown for 1.2s before next scan
+      setTimeout(() => {
+        isProcessingScanRef.current = false;
+      }, 1200);
     }
   };
 
@@ -626,6 +665,7 @@ export const AuditScannerPage: React.FC = () => {
   };
 
   const handleResetAudit = () => {
+    scannedCodesRef.current.clear();
     setScannedCodes([]);
     setActiveAuditId(null);
     setIsCompleted(false);

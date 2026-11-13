@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -60,7 +60,7 @@ import {
   CompleteCampaignParams,
 } from '../../hooks/useAuditCampaignsQuery';
 import { useSocket } from '../../hooks/useSocket';
-import { useOrganizationQuery } from '../../hooks/useOrganizationQuery';
+import { useOrganizationQuery, RoomItem } from '../../hooks/useOrganizationQuery';
 import { useUsersQuery } from '../../hooks/useUsersQuery';
 import { useAuthStore } from '../../store/authStore';
 import { exportToExcel } from '../../utils/exportExcel';
@@ -95,7 +95,43 @@ export const AuditCampaignsPage: React.FC = () => {
     statusTab === 'ALL' ? undefined : statusTab,
   );
 
-  const { rooms = [] } = useOrganizationQuery();
+  const { rooms = [], buildings = [] } = useOrganizationQuery();
+  const [selectedBuildingInModal, setSelectedBuildingInModal] = useState<string>('ALL');
+
+  const roomsGroupedByBuilding = useMemo<Record<string, RoomItem[]>>(() => {
+    const map: Record<string, RoomItem[]> = {};
+    rooms.forEach((r) => {
+      const bName = r.building || 'Bosh bino';
+      if (!map[bName]) map[bName] = [];
+      map[bName].push(r);
+    });
+    return map;
+  }, [rooms]);
+
+  const visibleRoomsInModal = useMemo(() => {
+    if (!selectedBuildingInModal || selectedBuildingInModal === 'ALL') {
+      return rooms;
+    }
+    return rooms.filter(
+      (r) => r.buildingId === selectedBuildingInModal || r.building === selectedBuildingInModal
+    );
+  }, [rooms, selectedBuildingInModal]);
+
+  const handleSelectBuildingRooms = () => {
+    const currentRoomIds: string[] = form.getFieldValue('roomIds') || [];
+    const roomsToSelect = visibleRoomsInModal.map((r) => r.id);
+    const merged = Array.from(new Set([...currentRoomIds, ...roomsToSelect]));
+    form.setFieldValue('roomIds', merged);
+    Message.success(`${roomsToSelect.length} ta xona qamrovga qo‘shildi`);
+  };
+
+  const handleDeselectBuildingRooms = () => {
+    const currentRoomIds: string[] = form.getFieldValue('roomIds') || [];
+    const roomsToRemove = new Set(visibleRoomsInModal.map((r) => r.id));
+    const remaining = currentRoomIds.filter((id) => !roomsToRemove.has(id));
+    form.setFieldValue('roomIds', remaining);
+    Message.info(`${roomsToRemove.size} ta xona qamrovdan olib tashlandi`);
+  };
   const { data: usersData, isLoading: isLoadingUsers } = useUsersQuery({
     role: 'AUDITOR',
     pageSize: 100,
@@ -248,6 +284,7 @@ export const AuditCampaignsPage: React.FC = () => {
 
   const handleOpenCreateModal = () => {
     form.resetFields();
+    setSelectedBuildingInModal('ALL');
     setCreateModalVisible(true);
   };
 
@@ -927,23 +964,95 @@ export const AuditCampaignsPage: React.FC = () => {
             <DatePicker.RangePicker style={{ width: '100%', borderRadius: 0 }} />
           </FormItem>
 
+          <div
+            style={{
+              background: 'var(--color-fill-2)',
+              padding: '12px 14px',
+              marginBottom: 16,
+              borderRadius: 4,
+              border: '1px solid var(--color-border-2)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 8,
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-1)' }}>
+                🏢 Bino bo‘yicha tezkor tanlash:
+              </span>
+              <Space size={8}>
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={handleSelectBuildingRooms}
+                  disabled={visibleRoomsInModal.length === 0}
+                  style={{ borderRadius: 0 }}
+                >
+                  {selectedBuildingInModal === 'ALL'
+                    ? '+ Barchasini qo‘shish'
+                    : '+ Shu bino xonalarini qo‘shish'}
+                </Button>
+                <Button
+                  size="small"
+                  onClick={handleDeselectBuildingRooms}
+                  style={{ borderRadius: 0 }}
+                >
+                  Olib tashlash
+                </Button>
+              </Space>
+            </div>
+            <Select
+              placeholder="Barcha binolar yoki alohida bino..."
+              value={selectedBuildingInModal}
+              onChange={(val) => setSelectedBuildingInModal(val)}
+              style={{ width: '100%', borderRadius: 0 }}
+            >
+              <Select.Option value="ALL">
+                🏢 Barcha binolar ({buildings.length} ta bino, {rooms.length} ta xona)
+              </Select.Option>
+              {buildings.map((b) => {
+                const bRooms = rooms.filter((r) => r.buildingId === b.id || r.building === b.name);
+                return (
+                  <Select.Option key={b.id} value={b.id}>
+                    🏢 {b.name} ({bRooms.length} ta xona)
+                  </Select.Option>
+                );
+              })}
+            </Select>
+          </div>
+
           <FormItem
             label="Qamrov Xonalari (Scope)"
             field="roomIds"
             rules={[{ required: true, message: 'Kamida bitta xonani tanlang!' }]}
-            extra="Universitetdagi inventarizatsiya o‘tkazilishi lozim bo‘lgan xonalar tanlanadi."
+            extra="Universitetdagi inventarizatsiya o‘tkazilishi lozim bo‘lgan xonalar. Bino bo‘yicha guruhlangan."
           >
             <Select
               mode="multiple"
               placeholder="Xonalarni tanlang yoki qidiring..."
               style={{ borderRadius: 0 }}
               allowClear
+              maxTagCount={3}
             >
-              {rooms.map((room) => (
-                <Select.Option key={room.id} value={room.id}>
-                  {room.number}-xona: {room.name} ({room.building || 'Bosh bino'})
-                </Select.Option>
-              ))}
+              {selectedBuildingInModal === 'ALL'
+                ? (Object.entries(roomsGroupedByBuilding) as [string, RoomItem[]][]).map(([bName, bRooms]) => (
+                    <Select.OptGroup key={bName} label={`🏢 ${bName} (${bRooms.length} ta xona)`}>
+                      {bRooms.map((room) => (
+                        <Select.Option key={room.id} value={room.id}>
+                          {room.number}-xona: {room.name} {room.departmentName ? `• ${room.departmentName}` : ''}
+                        </Select.Option>
+                      ))}
+                    </Select.OptGroup>
+                  ))
+                : visibleRoomsInModal.map((room) => (
+                    <Select.Option key={room.id} value={room.id}>
+                      {room.number}-xona: {room.name} ({room.building || 'Bino'}) {room.departmentName ? `• ${room.departmentName}` : ''}
+                    </Select.Option>
+                  ))}
             </Select>
           </FormItem>
 
