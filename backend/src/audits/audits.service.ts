@@ -62,14 +62,43 @@ export class AuditsService {
   }
 
   async scanCode(roomId: string, qrCode: string, campaignId?: string) {
-    const asset = await this.prisma.itemInstance.findUnique({
-      where: { qrCode },
+    const trimmed = qrCode.trim();
+
+    // 1. Mos keluvchi aktivni qidirish (qrCode, inventoryNumber yoki uning qismlari bo'yicha)
+    let asset = await this.prisma.itemInstance.findFirst({
+      where: {
+        OR: [
+          { qrCode: trimmed },
+          { inventoryNumber: trimmed },
+          { qrCode: { contains: trimmed, mode: 'insensitive' } },
+        ],
+      },
       include: {
         item: true,
         room: true,
         responsibleUser: { select: { fullName: true } },
       },
     });
+
+    if (!asset && trimmed.includes(':')) {
+      const parts = trimmed.split(':');
+      const invPart = parts.find((p) => p.startsWith('INV-'));
+      if (invPart) {
+        asset = await this.prisma.itemInstance.findFirst({
+          where: {
+            OR: [
+              { inventoryNumber: invPart },
+              { qrCode: { contains: invPart, mode: 'insensitive' } },
+            ],
+          },
+          include: {
+            item: true,
+            room: true,
+            responsibleUser: { select: { fullName: true } },
+          },
+        });
+      }
+    }
 
     if (!asset) {
       return {
@@ -78,7 +107,17 @@ export class AuditsService {
       };
     }
 
-    const isMatch = asset.roomId === roomId;
+    // 2. Xonani tekshirish: aniq UUID orqali yoki raqam/nom orqali (dublikat xonalar muammosini oldini olish)
+    const targetRoom = await this.prisma.room.findUnique({ where: { id: roomId } });
+    const isMatch =
+      asset.roomId === roomId ||
+      Boolean(
+        targetRoom &&
+          asset.room &&
+          targetRoom.number === asset.room.number &&
+          (targetRoom.name === asset.room.name || targetRoom.building === asset.room.building),
+      );
+
     const recordStatus: AuditRecordStatus = isMatch
       ? AuditRecordStatus.MATCHED
       : AuditRecordStatus.RELOCATED;
@@ -285,14 +324,40 @@ export class AuditsService {
         const trimmedQr = item.qrCode?.trim();
         if (!trimmedQr) continue;
 
-        const asset = await tx.itemInstance.findUnique({
-          where: { qrCode: trimmedQr },
+        let asset = await tx.itemInstance.findFirst({
+          where: {
+            OR: [
+              { qrCode: trimmedQr },
+              { inventoryNumber: trimmedQr },
+              { qrCode: { contains: trimmedQr, mode: 'insensitive' } },
+            ],
+          },
           include: {
             item: true,
             room: true,
             responsibleUser: { select: { fullName: true } },
           },
         });
+
+        if (!asset && trimmedQr.includes(':')) {
+          const parts = trimmedQr.split(':');
+          const invPart = parts.find((p) => p.startsWith('INV-'));
+          if (invPart) {
+            asset = await tx.itemInstance.findFirst({
+              where: {
+                OR: [
+                  { inventoryNumber: invPart },
+                  { qrCode: { contains: invPart, mode: 'insensitive' } },
+                ],
+              },
+              include: {
+                item: true,
+                room: true,
+                responsibleUser: { select: { fullName: true } },
+              },
+            });
+          }
+        }
 
         if (!asset) {
           notFound++;
@@ -305,7 +370,15 @@ export class AuditsService {
           continue;
         }
 
-        const isMatch = asset.roomId === effectiveRoomId;
+        const targetRoom = await tx.room.findUnique({ where: { id: effectiveRoomId } });
+        const isMatch =
+          asset.roomId === effectiveRoomId ||
+          Boolean(
+            targetRoom &&
+              asset.room &&
+              targetRoom.number === asset.room.number &&
+              (targetRoom.name === asset.room.name || targetRoom.building === asset.room.building),
+          );
         const recordStatus: AuditRecordStatus = isMatch
           ? AuditRecordStatus.MATCHED
           : AuditRecordStatus.RELOCATED;

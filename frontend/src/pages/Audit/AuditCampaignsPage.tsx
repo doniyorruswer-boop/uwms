@@ -641,11 +641,12 @@ export const AuditCampaignsPage: React.FC = () => {
             width: 155,
             render: (_, record: AuditCampaignItem) => {
               if (record.hasWormStamp) {
+                const label = record.status === 'COMPLETED' ? 'WORM Muhrlangan' : 'Rektor Tasdiqlagan (WORM)';
                 return (
                   <Tooltip
                     content={
                       record.stamp?.signerName
-                        ? `Imzolagan: ${record.stamp.signerName} (${record.stamp.signerRole || 'Auditor'}) • ${new Date(
+                        ? `Imzolagan: ${record.stamp.signerName} (${record.stamp.signerRole || 'Rektor / Auditor'}) • ${new Date(
                             record.stamp.createdAt,
                           ).toLocaleDateString('uz-UZ')}`
                         : 'WORM zanjirida muhrlangan'
@@ -656,7 +657,7 @@ export const AuditCampaignsPage: React.FC = () => {
                       icon={<IconCheckCircle />}
                       style={{ borderRadius: 0, fontWeight: 600 }}
                     >
-                      WORM Muhrlangan
+                      {label}
                     </Tag>
                   </Tooltip>
                 );

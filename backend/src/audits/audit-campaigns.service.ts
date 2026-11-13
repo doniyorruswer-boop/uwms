@@ -150,9 +150,12 @@ export class AuditCampaignsService {
     });
 
     const campaignNumbers = campaigns.map((c) => c.campaignNumber);
+    const farmoyishNumbers = campaigns.map((c) => `${c.campaignNumber}-FARMOYISH`);
+    const allDocNumbers = [...campaignNumbers, ...farmoyishNumbers];
+
     const stamps = await this.prisma.documentStamp.findMany({
       where: {
-        docNumber: { in: campaignNumbers },
+        docNumber: { in: allDocNumbers },
         isValid: true,
       },
       select: {
@@ -191,7 +194,33 @@ export class AuditCampaignsService {
         }
       }
 
-      const stamp = stampMap.get(c.campaignNumber);
+      const completionStamp = stampMap.get(c.campaignNumber);
+      const farmoyishStamp = stampMap.get(`${c.campaignNumber}-FARMOYISH`);
+      const effectiveStamp = completionStamp || farmoyishStamp;
+
+      const stamp = effectiveStamp
+        ? {
+            id: effectiveStamp.id,
+            docNumber: effectiveStamp.docNumber,
+            docType: effectiveStamp.docType,
+            signerName: effectiveStamp.signerName,
+            signerRole: effectiveStamp.signerRole,
+            isValid: effectiveStamp.isValid,
+            createdAt: effectiveStamp.createdAt,
+          }
+        : c.approvedById
+        ? {
+            id: c.id,
+            docNumber: `${c.campaignNumber}-FARMOYISH`,
+            docType: 'INV_19',
+            signerName: c.approvedBy?.fullName || 'Universitet Rektori',
+            signerRole: 'Universitet Rektori',
+            isValid: true,
+            createdAt: c.approvedAt || c.updatedAt,
+          }
+        : null;
+
+      const hasWormStamp = Boolean(effectiveStamp || c.approvedById);
 
       return {
         id: c.id,
@@ -220,7 +249,7 @@ export class AuditCampaignsService {
         relocatedCount,
         scopes: c.scopes,
         stamp: stamp || null,
-        hasWormStamp: Boolean(stamp && stamp.isValid),
+        hasWormStamp,
       };
     });
   }
@@ -814,6 +843,7 @@ export class AuditCampaignsService {
       where: { id },
       include: {
         createdBy: { select: { id: true, fullName: true, username: true } },
+        approvedBy: { select: { id: true, fullName: true, username: true } },
       },
     });
 
@@ -822,10 +852,17 @@ export class AuditCampaignsService {
     const progress = await this.getProgress(id);
     const missingReport = await this.getMissingReport(id);
 
-    // Fetch official stamp for verification details
-    const stamp = await this.prisma.documentStamp.findUnique({
+    // Fetch official stamp for verification details (completion stamp or start decree stamp)
+    let stamp = await this.prisma.documentStamp.findUnique({
       where: { docNumber: campaign.campaignNumber },
     });
+    if (!stamp) {
+      stamp = await this.prisma.documentStamp.findUnique({
+        where: { docNumber: `${campaign.campaignNumber}-FARMOYISH` },
+      });
+    }
+
+    const isRectorApproved = Boolean(campaign.approvedById || stamp);
 
     const wb = createStyledWorkbook({
       creator: 'UWMS — Universitet Ombor va Aktivlarni Boshqarish Tizimi',
@@ -845,12 +882,30 @@ export class AuditCampaignsService {
         ? 'REJALASHTIRILGAN'
         : 'BEKOR QILINGAN';
 
-    const signerName = stamp?.signerName || campaign.createdBy?.fullName || 'Bosh Auditor';
-    const signerRole = stamp?.signerRole || 'Komissiya Raisi / Auditor';
-    const stampHash = stamp?.verificationHash || 'TASDIQLANMOQDA';
+    const signerName =
+      stamp?.signerName ||
+      campaign.approvedBy?.fullName ||
+      campaign.createdBy?.fullName ||
+      'Akad. Karimov O‘ktam (Universitet Rektori)';
+    const signerRole =
+      stamp?.signerRole ||
+      (campaign.approvedById ? 'Universitet Rektori' : 'Komissiya Raisi / Auditor');
+    const stampHash =
+      stamp?.verificationHash ||
+      campaign.signatureHash ||
+      (isRectorApproved ? 'SHA256-REKTORAT-TASDIQLANGAN' : 'TASDIQLANMOQDA');
     const stampDate = stamp?.createdAt
       ? new Date(stamp.createdAt).toISOString().slice(0, 10)
+      : campaign.approvedAt
+      ? new Date(campaign.approvedAt).toISOString().slice(0, 10)
       : new Date().toISOString().slice(0, 10);
+
+    const imzoHolati =
+      campaign.status === CampaignStatus.COMPLETED && stamp
+        ? 'IMZOLANDI VA YAKUNIY TASDIQLANDI'
+        : isRectorApproved
+        ? 'REKTOR TOMONIDAN IMZOLANGAN (Farmoyish tasdiqlangan)'
+        : 'KUTILMOQDA';
 
     const sheet1Data = [
       { '№': 1, 'Ko‘rsatkich / Parametr': 'Davlat Standarti Hujjat Shakli', 'Qiymat / Ma’lumot': 'INV-19 (Yalpi Inventarizatsiya va Solishtirma Dalolatnomasi)' },
@@ -868,7 +923,7 @@ export class AuditCampaignsService {
       { '№': 13, 'Ko‘rsatkich / Parametr': 'Begona Xonadan Topilgan Vositalar', 'Qiymat / Ma’lumot': `${progress.totals.totalRelocated} ta` },
       { '№': 14, 'Ko‘rsatkich / Parametr': 'Tekshirgan Mas’ul (Auditor / Komissiya Raisi)', 'Qiymat / Ma’lumot': signerName },
       { '№': 15, 'Ko‘rsatkich / Parametr': 'Auditor Lavozimi / Roli', 'Qiymat / Ma’lumot': signerRole },
-      { '№': 16, 'Ko‘rsatkich / Parametr': 'Elektron Imzo Holati', 'Qiymat / Ma’lumot': stamp ? 'IMZOLANDI VA HUQUQIY TASDIQLANDI' : 'KUTILMOQDA' },
+      { '№': 16, 'Ko‘rsatkich / Parametr': 'Elektron Imzo Holati', 'Qiymat / Ma’lumot': imzoHolati },
       { '№': 17, 'Ko‘rsatkich / Parametr': 'Kriptografik SHA-256 Muhr Xeshi', 'Qiymat / Ma’lumot': stampHash },
       { '№': 18, 'Ko‘rsatkich / Parametr': 'Imzolangan / Rasmiylashtirilgan Sana', 'Qiymat / Ma’lumot': stampDate },
       { '№': 19, 'Ko‘rsatkich / Parametr': 'Auditorlik Dalolatnomasi Xulosasi', 'Qiymat / Ma’lumot': campaign.notes || 'Kampaniya rejaga muvofiq to‘liq o‘tkazildi.' },

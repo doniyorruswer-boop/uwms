@@ -81,11 +81,50 @@ export const AuditScannerPage: React.FC = () => {
     if (campaignIdParam) setSelectedCampaignId(campaignIdParam);
   }, [roomIdParam, campaignIdParam]);
 
-  useEffect(() => {
-    if (!selectedRoomId && rooms.length > 0) {
-      setSelectedRoomId(rooms[0].id);
+  const selectedCampaign = useMemo(() => {
+    return campaigns.find((c) => c.id === selectedCampaignId);
+  }, [campaigns, selectedCampaignId]);
+
+  // Agar kampaniya tanlangan bo‘lsa, faqat uning qamrovidagi xonalarni ko‘rsatish
+  const availableRooms = useMemo(() => {
+    if (selectedCampaign?.scopes && selectedCampaign.scopes.length > 0) {
+      return selectedCampaign.scopes.map((s) => s.room).filter(Boolean);
     }
-  }, [rooms, selectedRoomId]);
+    return rooms;
+  }, [selectedCampaign, rooms]);
+
+  useEffect(() => {
+    if (availableRooms.length > 0) {
+      const exists = availableRooms.some((r) => r.id === selectedRoomId);
+      if (!exists) {
+        setSelectedRoomId(availableRooms[0].id);
+      }
+    }
+  }, [availableRooms, selectedRoomId]);
+
+  const activeRoom = selectedRoomId || (availableRooms.length > 0 ? availableRooms[0].id : '');
+  const currentRoom = availableRooms.find((r) => r.id === activeRoom) || rooms.find((r) => r.id === activeRoom);
+  const currentRoomMOL =
+    (currentRoom as any)?.responsibleUserName ||
+    (currentRoom as any)?.responsibleUser?.fullName ||
+    'Belgilanmagan';
+
+  // Ashyo va skanerlangan kodni moslashtiruvchi yordamchi funksiya
+  const matchAssetCode = (asset: any, code: string) => {
+    const c = (code || '').trim();
+    if (!c) return false;
+    if (asset.qrCode === c || asset.inventoryNumber === c) return true;
+    if (asset.qrCode && (asset.qrCode.includes(c) || c.includes(asset.qrCode))) return true;
+    if (asset.inventoryNumber && (asset.inventoryNumber.includes(c) || c.includes(asset.inventoryNumber))) return true;
+    if (c.includes(':')) {
+      const parts = c.split(':');
+      const invPart = parts.find((p) => p.startsWith('INV-'));
+      if (invPart && (asset.inventoryNumber === invPart || (asset.qrCode && asset.qrCode.includes(invPart)))) {
+        return true;
+      }
+    }
+    return false;
+  };
 
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
   const scannedCodesRef = useRef<Set<string>>(new Set());
@@ -204,9 +243,6 @@ export const AuditScannerPage: React.FC = () => {
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  const activeRoom = selectedRoomId || (rooms.length > 0 ? rooms[0].id : '');
-  const currentRoom = rooms.find((r) => r.id === activeRoom);
-
   // Check active room audit from audits list or activeAuditId
   const roomAuditSummary = useMemo(() => {
     return audits.find((a) => a.roomId === activeRoom || a.roomNumber === currentRoom?.number);
@@ -315,10 +351,19 @@ export const AuditScannerPage: React.FC = () => {
     };
   }, [socket, activeRoom, soundEnabled, refetchAuditDetail]);
 
-  // Expected assets in this room
+  // Expected assets in this room (xona ID yoki xona raqami bo'yicha moslashtirish)
   const expectedAssets = useMemo(() => {
-    return assets.filter((a) => a.roomId === activeRoom);
-  }, [assets, activeRoom]);
+    if (!activeRoom) return [];
+    return assets.filter((a) => {
+      if (a.roomId === activeRoom) return true;
+      if (currentRoom && a.roomNumber && currentRoom.number && a.roomNumber === currentRoom.number) {
+        if (a.roomName && currentRoom.name && (a.roomName.includes(currentRoom.name) || currentRoom.name.includes(a.roomName))) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }, [assets, activeRoom, currentRoom]);
 
   // Real database-backed records when audit exists in backend
   const matchedAssets = useMemo(() => {
@@ -332,7 +377,7 @@ export const AuditScannerPage: React.FC = () => {
           purchasePrice: r.itemInstance?.purchasePrice ? Number(r.itemInstance.purchasePrice) : 0,
         }));
     }
-    return expectedAssets.filter((a) => scannedCodes.includes(a.qrCode));
+    return expectedAssets.filter((a) => scannedCodes.some((c) => matchAssetCode(a, c)));
   }, [auditDetail, expectedAssets, scannedCodes]);
 
   const missingAssets = useMemo(() => {
@@ -346,7 +391,7 @@ export const AuditScannerPage: React.FC = () => {
           purchasePrice: r.itemInstance?.purchasePrice ? Number(r.itemInstance.purchasePrice) : 0,
         }));
     }
-    return expectedAssets.filter((a) => !scannedCodes.includes(a.qrCode));
+    return expectedAssets.filter((a) => !scannedCodes.some((c) => matchAssetCode(a, c)));
   }, [auditDetail, expectedAssets, scannedCodes]);
 
   const unexpectedAssets = useMemo(() => {
@@ -361,7 +406,7 @@ export const AuditScannerPage: React.FC = () => {
         }));
     }
     return assets.filter(
-      (a) => a.roomId !== activeRoom && scannedCodes.includes(a.qrCode)
+      (a) => a.roomId !== activeRoom && scannedCodes.some((c) => matchAssetCode(a, c))
     );
   }, [auditDetail, assets, activeRoom, scannedCodes]);
 
@@ -514,8 +559,8 @@ export const AuditScannerPage: React.FC = () => {
       }
 
       // Verify asset in room
-      const foundInRoom = expectedAssets.find((a) => a.qrCode === trimmed);
-      const foundElsewhere = assets.find((a) => a.qrCode === trimmed);
+      const foundInRoom = expectedAssets.find((a) => matchAssetCode(a, trimmed));
+      const foundElsewhere = assets.find((a) => matchAssetCode(a, trimmed));
 
       let status: 'MATCHED' | 'RELOCATED' | 'UNKNOWN' = 'UNKNOWN';
       let assetName = 'Noma’lum aktiv';
@@ -943,7 +988,7 @@ export const AuditScannerPage: React.FC = () => {
             </Space>
             <div style={{ marginTop: 4 }}>
               <Text type="secondary" style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
-                Moddiy javobgar: <b>{currentRoom?.responsibleUserName || 'Belgilanmagan'}</b> | Bino: {currentRoom?.building || 'Bosh bino'}
+                Moddiy javobgar: <b>{currentRoomMOL}</b> | Bino: {currentRoom?.building || 'Bosh bino'}
               </Text>
             </div>
           </div>
@@ -989,11 +1034,11 @@ export const AuditScannerPage: React.FC = () => {
                 setScannedCodes([]);
                 setRecentScans([]);
               }}
-              style={{ width: 220, borderRadius: 0 }}
+              style={{ width: 300, borderRadius: 0 }}
             >
-              {rooms.map((r) => (
+              {availableRooms.map((r: any) => (
                 <Select.Option key={r.id} value={r.id}>
-                  {r.number}-xona: {r.name}
+                  {r.number}-xona: {r.name} {r.building ? `(${r.building})` : ''}
                 </Select.Option>
               ))}
             </Select>
@@ -1482,7 +1527,7 @@ export const AuditScannerPage: React.FC = () => {
                   }}
                 >
                   <span>
-                    Audit Jarayoni (Mas’ul: <b>{currentRoom?.responsibleUserName || 'MOL'}</b>)
+                    Audit Jarayoni (Mas’ul: <b>{currentRoomMOL}</b>)
                   </span>
                   <Space size="small">
                     <Button
@@ -1702,14 +1747,14 @@ export const AuditScannerPage: React.FC = () => {
             : new Date().toLocaleDateString('uz-UZ')
         }
         sourceLocation={currentRoom ? `${currentRoom.number}-xona: ${currentRoom.name}` : ''}
-        senderName={auditDetail?.room?.responsibleUser?.fullName || currentRoom?.responsibleUserName || ''}
+        senderName={auditDetail?.room?.responsibleUser?.fullName || currentRoomMOL || ''}
         receiverName={auditDetail?.createdBy?.fullName || user?.fullName || ''}
         signatures={
           auditDetail?.completedAt
             ? [
                 {
                   role: 'Moddiy Javobgar Shaxs',
-                  name: auditDetail.room?.responsibleUser?.fullName || currentRoom?.responsibleUserName || '',
+                  name: auditDetail.room?.responsibleUser?.fullName || currentRoomMOL || '',
                   isSigned: true,
                   signedAt: new Date(auditDetail.completedAt).toLocaleString('uz-UZ'),
                   biometricType: 'FaceID (QR-Pairing)',
